@@ -1,0 +1,6 @@
+/* Estilos e utilitários de animação globais adicionais */
+@layer utilities {
+  .smooth-scroll {
+    scroll-behavior: smooth;
+  }
+}
