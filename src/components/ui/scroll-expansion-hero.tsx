@@ -41,7 +41,6 @@ const ScrollExpandMedia = ({
   const mediaRef = useRef<HTMLDivElement>(null);
   const leftTextRef = useRef<HTMLHeadingElement>(null);
   const rightTextRef = useRef<HTMLHeadingElement>(null);
-  const scrollIndRef = useRef<HTMLDivElement>(null);
   const bgRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const crtLayerRef = useRef<HTMLDivElement>(null);
@@ -118,13 +117,7 @@ const ScrollExpandMedia = ({
         duration: 0.35,
       }, 0);
 
-      // ── Indicador de scroll some ──
-      tl.to(scrollIndRef.current, {
-        opacity: 0,
-        y: 20,
-        duration: 0.2,
-        ease: 'power2.in',
-      }, 0);
+
 
       // ── Background some ──
       tl.to(bgRef.current, {
@@ -330,28 +323,7 @@ const ScrollExpandMedia = ({
           {restOfTitle}
         </h2>
 
-        {/* Indicador de Scroll */}
-        {scrollToExpand && (
-          <div
-            ref={scrollIndRef}
-            className="absolute bottom-8 sm:bottom-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none text-center flex flex-col items-center gap-2"
-          >
-            <span className="text-[#F7F3EC]/80 text-[10px] sm:text-xs font-sans font-light tracking-[0.25em] uppercase">
-              {scrollToExpand}
-            </span>
-            <div className="w-5 h-8 border border-[#C9A96B]/40 rounded-full flex justify-center p-1 bg-[#0B0B0B]/50 backdrop-blur-sm">
-              <motion.div
-                className="w-1 h-2 bg-[#C9A96B] rounded-full"
-                animate={{ y: [0, 8, 0] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 1.5,
-                  ease: 'easeInOut',
-                }}
-              />
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* ═══ Conteúdo FORA do pin ═══ */}

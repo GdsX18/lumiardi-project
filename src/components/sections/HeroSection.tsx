@@ -16,7 +16,6 @@ export const HeroSection: React.FC = () => {
         useShaderBg={true}
         title="LUMIARDI ECOSYSTEM"
         date="PLATAFORMA GLOBAL & EXCLUSIVA"
-        scrollToExpand="ROLE PARA EXPANDIR E DESCOBRIR"
         textBlend={false}
       >
         {/* Conteúdo revelado após expansão completa */}
