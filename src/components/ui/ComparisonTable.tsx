@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Check, X } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface ComparisonTableProps {
   isListRef?: React.RefObject<HTMLUListElement | null>;
@@ -16,20 +17,22 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
   headerIsRef,
   headerIsNotRef,
 }) => {
+  const { t } = useLanguage();
+
   const isList = [
-    'Tecnologia de ponta e infraestrutura global',
-    'Moda de luxo e estética editorial refinada',
-    'Gestão estratégica e ecossistema de elite',
-    'Privacidade absoluta e controle total da marca',
-    'Contratos transparentes e modelo de receita claro',
+    t('pos_is_1'),
+    t('pos_is_2'),
+    t('pos_is_3'),
+    t('pos_is_4'),
+    t('pos_is_5'),
   ];
 
   const isNotList = [
-    'Entretenimento adulto genérico ou popular',
-    'Estética caótica, luzes neon ou apelo apelativo',
-    'Exposição descontrolada ou falta de segurança',
-    'Linguagem vulgar ou espetacularização',
-    'Práticas informais ou intermediários não verificados',
+    t('pos_isnot_1'),
+    t('pos_isnot_2'),
+    t('pos_isnot_3'),
+    t('pos_isnot_4'),
+    t('pos_isnot_5'),
   ];
 
   return (
@@ -38,10 +41,10 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
       <div className="space-y-6">
         <div ref={headerIsRef} className="pb-3 border-b border-black-matte/15">
           <span className="text-xs uppercase tracking-[0.3em] text-bronze font-semibold font-sans block">
-            Posicionamento
+            {t('pos_comp_pos')}
           </span>
           <h3 className="font-serif-lumiardi text-3xl md:text-4xl font-normal text-black-matte mt-1 tracking-tight">
-            A LUMIARDI É
+            {t('pos_is_title')}
           </h3>
         </div>
         <ul ref={isListRef} className="space-y-5">
@@ -62,10 +65,10 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
       <div className="space-y-6">
         <div ref={headerIsNotRef} className="pb-3 border-b border-black-matte/15">
           <span className="text-xs uppercase tracking-[0.3em] text-rose-900/60 font-semibold font-sans block">
-            Diferenciação
+            {t('pos_comp_diff')}
           </span>
           <h3 className="font-serif-lumiardi text-3xl md:text-4xl font-normal text-rose-950/80 mt-1 tracking-tight">
-            A LUMIARDI NÃO É
+            {t('pos_isnot_title')}
           </h3>
         </div>
         <ul ref={isNotListRef} className="space-y-5">

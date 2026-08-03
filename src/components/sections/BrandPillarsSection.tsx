@@ -6,6 +6,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { IconL3D } from '@/components/3d/IconL3D';
 import { ShieldCheck, Sparkles, EyeOff, Flame, Award } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -15,31 +16,32 @@ export const BrandPillarsSection: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const pillarsRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   const pillars = [
     {
       number: '01',
-      title: 'Confiança',
-      subtitle: 'GOVERNANÇA & SEGURANÇA',
-      desc: 'Infraestrutura blindada, contratos claros e governança de dados ao nível das maiores instituições financeiras do mundo.',
+      title: t('pillar_1_title'),
+      subtitle: t('pillar_1_sub'),
+      desc: t('pillar_1_desc'),
       icon: <ShieldCheck className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-7',
       isHero: true,
     },
     {
       number: '02',
-      title: 'Magnetismo',
-      subtitle: 'ESTÉTICA EDITORIAL',
-      desc: 'Atração natural exercida por um padrão estético editorial superior e postura de mercado inquestionável.',
+      title: t('pillar_2_title'),
+      subtitle: t('pillar_2_sub'),
+      desc: t('pillar_2_desc'),
       icon: <Sparkles className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-5',
       isHero: false,
     },
     {
       number: '03',
-      title: 'Discrição',
-      subtitle: 'SIGILO ABSOLUTO',
-      desc: 'O verdadeiro luxo opera sem ruído. Garantia de anonimato absoluto e sigilo total em todas as interações da rede.',
+      title: t('pillar_3_title'),
+      subtitle: t('pillar_3_sub'),
+      desc: t('pillar_3_desc'),
       icon: <EyeOff className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-12',
       isHero: true,
@@ -47,18 +49,18 @@ export const BrandPillarsSection: React.FC = () => {
     },
     {
       number: '04',
-      title: 'Calor',
-      subtitle: 'ATMOSFERA GOLDEN HOUR',
-      desc: 'Tratamento humano exclusivo, suporte dedicado e ambiente acolhedor sob a atmosfera golden hour.',
+      title: t('pillar_4_title'),
+      subtitle: t('pillar_4_sub'),
+      desc: t('pillar_4_desc'),
       icon: <Flame className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-5',
       isHero: false,
     },
     {
       number: '05',
-      title: 'Sucesso',
-      subtitle: 'RESULTADOS MENSURÁVEIS',
-      desc: 'Resultados mensuráveis, crescimento acelerado para agências e maximização da receita dos criadores.',
+      title: t('pillar_5_title'),
+      subtitle: t('pillar_5_sub'),
+      desc: t('pillar_5_desc'),
       icon: <Award className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-7',
       isHero: true,
@@ -119,16 +121,16 @@ export const BrandPillarsSection: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-24">
           <div className="lg:col-span-8 space-y-6">
             <span className="text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium block">
-              VALORES FUNDAMENTAIS & MARCA
+              {t('pillars_tag')}
             </span>
             <h2
               ref={titleRef}
               className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl font-light text-[#0B0B0B] tracking-tight leading-[0.95]"
             >
-              O caráter da marca.
+              {t('pillars_title')}
             </h2>
             <p className="text-lg md:text-2xl text-[#0B0B0B]/80 font-sans font-light leading-relaxed max-w-2xl">
-              Cinco pilares inegociáveis que orientam cada linha de código, design e relacionamento dentro do ecossistema Lumiardi.
+              {t('pillars_desc')}
             </p>
           </div>
 

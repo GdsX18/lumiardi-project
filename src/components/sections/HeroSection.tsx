@@ -4,9 +4,11 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import ScrollExpandMedia from '@/components/ui/scroll-expansion-hero';
 import { ArrowUpRight, ShieldCheck, Globe, Sparkles, UserCheck, Lock } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export const HeroSection: React.FC = () => {
   const router = useRouter();
+  const { t } = useLanguage();
 
   return (
     <div id="hero" className="w-full bg-[#0B0B0B] text-ivory">
@@ -27,17 +29,19 @@ export const HeroSection: React.FC = () => {
             {/* Tag Subtil */}
             <div className="inline-flex items-center gap-2.5 px-4 py-1.5 border border-gold/30 bg-gold/5 text-gold text-xs font-sans tracking-[0.3em] uppercase">
               <Sparkles className="w-3.5 h-3.5 stroke-[1.2]" />
-              <span>TECNOLOGIA DE LUXO & GOVERNANÇA DE ELITE</span>
+              <span>{t('hero_tag')}</span>
             </div>
 
             {/* Título de Impacto Editorial */}
             <h1 className="font-serif-lumiardi text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-light text-ivory tracking-tight leading-[1.05] max-w-5xl">
-              O ponto de encontro entre <span className="text-[#C9A96B] italic font-normal">privacidade</span>, escala e reputação.
+              {t('hero_title_1')}{' '}
+              <span className="text-[#C9A96B] italic font-normal">{t('hero_title_highlight')}</span>
+              {t('hero_title_2')}
             </h1>
 
             {/* Texto de Apoio Editorial */}
             <p className="font-sans text-base md:text-xl text-ivory/70 font-light leading-relaxed max-w-3xl">
-              Infraestrutura tecnológica global que conecta os maiores talentos da economia de criadores a agências de gestão corporativa de elite sob rígidos padrões de sigilo e compliance.
+              {t('hero_subtitle')}
             </p>
 
             {/* CTAs Assimétricos de Ação */}
@@ -47,7 +51,7 @@ export const HeroSection: React.FC = () => {
                 className="w-full sm:w-auto px-8 py-4 bg-[#C9A96B] text-[#0B0B0B] font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-medium hover:bg-[#D4B87A] transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer shadow-lg hover:shadow-gold/20"
               >
                 <UserCheck className="w-4 h-4 stroke-[1.2]" />
-                <span>MODELOS +18 / QUALIFICAR</span>
+                <span>{t('hero_cta_creators')}</span>
                 <ArrowUpRight className="w-4 h-4 stroke-[1.2] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </button>
 
@@ -56,7 +60,7 @@ export const HeroSection: React.FC = () => {
                 className="w-full sm:w-auto px-8 py-4 bg-transparent border border-ivory/30 text-ivory font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-light hover:border-gold hover:text-gold transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer"
               >
                 <Lock className="w-4 h-4 stroke-[1.2]" />
-                <span>AGÊNCIAS DE ELITE / ACESSO</span>
+                <span>{t('hero_cta_agencies')}</span>
                 <ArrowUpRight className="w-4 h-4 stroke-[1.2] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </button>
             </div>
@@ -68,9 +72,9 @@ export const HeroSection: React.FC = () => {
                   <ShieldCheck className="w-5 h-5 stroke-[1.2]" />
                 </div>
                 <div>
-                  <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">Sigilo Absoluto</h4>
+                  <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">{t('hero_pillar_1_title')}</h4>
                   <p className="font-sans text-xs text-ivory/60 font-light mt-1 leading-relaxed">
-                    Criptografia militar e gestão de dados com anonimato total garantido.
+                    {t('hero_pillar_1_desc')}
                   </p>
                 </div>
               </div>
@@ -80,9 +84,9 @@ export const HeroSection: React.FC = () => {
                   <Globe className="w-5 h-5 stroke-[1.2]" />
                 </div>
                 <div>
-                  <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">Rede Internacional</h4>
+                  <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">{t('hero_pillar_2_title')}</h4>
                   <p className="font-sans text-xs text-ivory/60 font-light mt-1 leading-relaxed">
-                    Conexão direta entre hubs em São Paulo, Londres, Paris e Nova York.
+                    {t('hero_pillar_2_desc')}
                   </p>
                 </div>
               </div>
@@ -92,9 +96,9 @@ export const HeroSection: React.FC = () => {
                   <Sparkles className="w-5 h-5 stroke-[1.2]" />
                 </div>
                 <div>
-                  <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">Qualificação Rigorosa</h4>
+                  <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">{t('hero_pillar_3_title')}</h4>
                   <p className="font-sans text-xs text-ivory/60 font-light mt-1 leading-relaxed">
-                    Apenas perfis e agências auditados acessam o ambiente de oportunidades.
+                    {t('hero_pillar_3_desc')}
                   </p>
                 </div>
               </div>

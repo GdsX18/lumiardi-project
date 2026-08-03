@@ -6,6 +6,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { PricingTable } from '@/components/ui/PricingTable';
 import { Sparkles } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -13,6 +14,7 @@ if (typeof window !== 'undefined') {
 
 export const PricingSection: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   useGSAP(
     () => {
@@ -42,15 +44,15 @@ export const PricingSection: React.FC = () => {
         <div className="max-w-4xl space-y-6 mb-16">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
             <Sparkles className="w-4 h-4 stroke-[1.2]" />
-            <span>TABELA DE ASSINATURA</span>
+            <span>{t('pricing_tag')}</span>
           </div>
 
           <h2 className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl font-light text-[#0B0B0B] tracking-tight leading-[0.95]">
-            Planos atualizados para criadoras.
+            {t('pricing_title')}
           </h2>
 
           <p className="text-lg md:text-2xl text-[#0B0B0B]/80 font-sans font-light leading-relaxed max-w-2xl">
-            Escolha o nível de visibilidade e recursos de organização ideais para impulsionar sua carreira no ecossistema Lumiardi.
+            {t('pricing_sub')}
           </p>
         </div>
 

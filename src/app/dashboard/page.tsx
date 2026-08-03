@@ -6,11 +6,15 @@ import { Footer } from '@/components/ui/Footer';
 import { KanbanBoard } from '@/components/interactive/KanbanBoard';
 import { ChatPanel } from '@/components/interactive/ChatPanel';
 import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
+import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 import { Badge } from '@/components/ui/Badge';
-import { Kanban, MessageSquare, Video, ShieldCheck, User } from 'lucide-react';
+import { Kanban, MessageSquare, Video, HardDrive, ShieldCheck, User } from 'lucide-react';
+
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<'kanban' | 'chat' | 'video'>('kanban');
+  const [activeTab, setActiveTab] = useState<'kanban' | 'chat' | 'video' | 'drive'>('kanban');
+  const { t } = useLanguage();
 
   return (
     <main className="min-h-screen bg-[#F7F3EC] text-black-matte font-sans">
@@ -22,13 +26,13 @@ export default function DashboardPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Badge variant="gold">PAINEL EXCLUSIVO</Badge>
+                <Badge variant="gold">{t('dash_exclusive_panel')}</Badge>
                 <span className="text-xs text-bronze uppercase tracking-widest font-sans">
-                  Sessão Ativa · Criptografia Ponta a Ponta
+                  {t('dash_active_session')}
                 </span>
               </div>
               <h1 className="font-serif-lumiardi text-3xl md:text-5xl font-light text-ivory">
-                Dashboard de Trabalho Simulado
+                {t('dash_simulated_work')}
               </h1>
             </div>
 
@@ -38,10 +42,10 @@ export default function DashboardPage() {
               </div>
               <div className="text-xs">
                 <span className="font-serif-lumiardi text-sm text-ivory block font-medium">
-                  Perfil de Teste (Criador)
+                  {t('dash_test_profile')}
                 </span>
                 <span className="text-emerald-400 font-sans flex items-center gap-1 text-[10px]">
-                  <ShieldCheck className="w-3 h-3" /> Status: Verificado +18
+                  <ShieldCheck className="w-3 h-3" /> {t('dash_status_verified')}
                 </span>
               </div>
             </div>
@@ -51,38 +55,50 @@ export default function DashboardPage() {
           <div className="flex gap-2 mt-8 pt-4 border-t border-white/10 overflow-x-auto">
             <button
               onClick={() => setActiveTab('kanban')}
-              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 ${
+              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'kanban'
                   ? 'border-gold text-gold bg-gold/10'
                   : 'border-transparent text-ivory/60 hover:text-ivory'
               }`}
             >
               <Kanban className="w-4 h-4" />
-              <span>Organização (Kanban)</span>
+              <span>{t('dash_tab_kanban')}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('chat')}
-              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 ${
+              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'chat'
                   ? 'border-gold text-gold bg-gold/10'
                   : 'border-transparent text-ivory/60 hover:text-ivory'
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              <span>Chat Interno</span>
+              <span>{t('dash_tab_chat')}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('drive')}
+              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
+                activeTab === 'drive'
+                  ? 'border-gold text-gold bg-gold/10'
+                  : 'border-transparent text-ivory/60 hover:text-ivory'
+              }`}
+            >
+              <HardDrive className="w-4 h-4" />
+              <span>{t('dash_tab_drive')}</span>
             </button>
 
             <button
               onClick={() => setActiveTab('video')}
-              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 ${
+              className={`flex items-center gap-2 px-5 py-3 text-xs md:text-sm font-sans font-medium uppercase tracking-wider transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'video'
                   ? 'border-gold text-gold bg-gold/10'
                   : 'border-transparent text-ivory/60 hover:text-ivory'
               }`}
             >
               <Video className="w-4 h-4" />
-              <span>Meet Integrado</span>
+              <span>{t('dash_tab_meet')}</span>
             </button>
           </div>
         </div>
@@ -96,6 +112,12 @@ export default function DashboardPage() {
           {activeTab === 'chat' && (
             <div className="max-w-3xl mx-auto">
               <ChatPanel />
+            </div>
+          )}
+
+          {activeTab === 'drive' && (
+            <div className="max-w-6xl mx-auto">
+              <SharedDrivePanel />
             </div>
           )}
 

@@ -3,6 +3,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface QualificationStepsProps {
   currentStep?: number;
@@ -11,10 +12,12 @@ export interface QualificationStepsProps {
 export const QualificationSteps: React.FC<QualificationStepsProps> = ({
   currentStep = 1,
 }) => {
+  const { t } = useLanguage();
+
   const steps = [
-    { number: 1, label: '+18 Verificação', desc: 'Validação de Identidade e Idade' },
-    { number: 2, label: 'Entrevista de Alinhamento', desc: 'Identidade e Intenção' },
-    { number: 3, label: 'Perfil de Elite', desc: 'Ativação na Rede Lumiardi' },
+    { number: 1, label: t('qual_step1_title'), desc: t('qual_step1_desc') },
+    { number: 2, label: t('qual_step2_title'), desc: t('qual_step2_desc') },
+    { number: 3, label: t('qual_step3_title'), desc: t('qual_step3_desc') },
   ];
 
   return (

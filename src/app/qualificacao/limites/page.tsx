@@ -11,9 +11,11 @@ import { FadeIn } from '@/components/animations/FadeIn';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { MessageSquare, Kanban, Video, ArrowRight } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function LimitesPage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   return (
     <main className="min-h-screen bg-black-matte text-ivory font-sans">
@@ -30,15 +32,15 @@ export default function LimitesPage() {
       <SectionWrapper bg="light">
         <div className="max-w-4xl mx-auto space-y-8 text-center">
           <span className="text-xs uppercase tracking-[0.3em] text-bronze font-semibold">
-            Metodologia Operacional
+            {t('lim_methodology_tag')}
           </span>
           <RevealText
-            text="Limites, rotina e desempenho."
+            text={t('lim_title')}
             as="h1"
             className="font-serif-lumiardi text-4xl md:text-6xl text-black-matte"
           />
           <p className="text-sm md:text-base text-black-matte/75 max-w-2xl mx-auto leading-relaxed">
-            Estabeleça fronteiras profissionais claras e gerencie seu fluxo diário com ferramentas desenvolvidas especificamente para proteger o tempo e a privacidade dos criadores.
+            {t('lim_desc')}
           </p>
         </div>
       </SectionWrapper>
@@ -48,46 +50,46 @@ export default function LimitesPage() {
         <div className="max-w-5xl mx-auto space-y-12">
           <div className="text-center space-y-3">
             <span className="text-xs uppercase tracking-[0.3em] text-gold font-semibold">
-              Ambiente Integrado
+              {t('lim_env_tag')}
             </span>
             <h2 className="font-serif-lumiardi text-3xl md:text-5xl text-ivory">
-              O trabalho acontece dentro da plataforma
+              {t('lim_work_inside')}
             </h2>
             <p className="text-sm text-ivory/60 max-w-xl mx-auto">
-              Sem necessidade de expor aplicativos pessoais, números de telefone ou contas de redes sociais privadas.
+              {t('lim_work_sub')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <FadeIn direction="up" delay={0.1}>
-              <Card number="01" title="Chat Interno" variant="dark" className="h-full">
+              <Card number="01" title={t('lim_c1_title')} variant="dark" className="h-full">
                 <div className="my-4 text-gold">
                   <MessageSquare className="w-8 h-8" />
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-sans">
-                  Mensagens criptografadas de ponta a ponta com histórico auditável, envio de arquivos pesados e controle de disponibilidade.
+                  {t('lim_c1_desc')}
                 </p>
               </Card>
             </FadeIn>
 
             <FadeIn direction="up" delay={0.2}>
-              <Card number="02" title="Organização Trello-like" variant="gold-border" className="h-full">
+              <Card number="02" title={t('lim_c2_title')} variant="gold-border" className="h-full">
                 <div className="my-4 text-gold">
                   <Kanban className="w-8 h-8" />
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-sans">
-                  Quadros Kanban para gestão de entregas, acompanhamento de sessões fotográficas e datas de campanhas em tempo real.
+                  {t('lim_c2_desc')}
                 </p>
               </Card>
             </FadeIn>
 
             <FadeIn direction="up" delay={0.3}>
-              <Card number="03" title="Meet Integrado" variant="dark" className="h-full">
+              <Card number="03" title={t('lim_c3_title')} variant="dark" className="h-full">
                 <div className="my-4 text-gold">
                   <Video className="w-8 h-8" />
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-sans">
-                  Videoconferências nativas de alta definição para reuniões de alinhamento com agências sem sair do navegador.
+                  {t('lim_c3_desc')}
                 </p>
               </Card>
             </FadeIn>
@@ -100,7 +102,7 @@ export default function LimitesPage() {
               icon={<ArrowRight className="w-4 h-4" />}
               onClick={() => router.push('/dashboard')}
             >
-              Experimentar Dashboard Simulado
+              {t('lim_try_dash')}
             </Button>
           </div>
         </div>

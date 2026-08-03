@@ -5,6 +5,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Check, Sparkles, Shield, User, Building } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -12,45 +13,46 @@ if (typeof window !== 'undefined') {
 
 export const ContentSystemSection: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   const columns = [
     {
-      title: 'MARCA',
-      subtitle: 'Governança & Identidade',
+      title: t('cs_col1_title'),
+      subtitle: t('cs_col1_sub'),
       icon: <Shield className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-4',
       items: [
-        'Diretrizes visuais de luxo silencioso',
-        'Tom de voz sóbrio, sofisticado e preciso',
-        'Proteção absoluta de propriedade intelectual',
-        'Manual de marca e materiais institucionais',
-        'Padrão estético editorial rigoroso',
+        t('cs_col1_i1'),
+        t('cs_col1_i2'),
+        t('cs_col1_i3'),
+        t('cs_col1_i4'),
+        t('cs_col1_i5'),
       ],
     },
     {
-      title: 'CRIADORES',
-      subtitle: 'Produção & Presença',
+      title: t('cs_col2_title'),
+      subtitle: t('cs_col2_sub'),
       icon: <User className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-4',
       items: [
-        'Estratégia de imagem e valor de mercado',
-        'Diretrizes de produção fotográfica premium',
-        'Proteção preventiva de privacidade e identidade',
-        'Treinamento de postura executiva e posicionamento',
-        'Gestão de imagem pessoal de longo prazo',
+        t('cs_col2_i1'),
+        t('cs_col2_i2'),
+        t('cs_col2_i3'),
+        t('cs_col2_i4'),
+        t('cs_col2_i5'),
       ],
     },
     {
-      title: 'AGÊNCIAS',
-      subtitle: 'Gestão & Performance',
+      title: t('cs_col3_title'),
+      subtitle: t('cs_col3_sub'),
       icon: <Building className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-4',
       items: [
-        'Compliance contratual e modelos jurídicos',
-        'Fluxos de trabalho padronizados e organizados',
-        'Relatórios de desempenho e conversão de talentos',
-        'Ferramentas exclusivas de gestão de portfólio',
-        'Certificação de agência parceira de elite',
+        t('cs_col3_i1'),
+        t('cs_col3_i2'),
+        t('cs_col3_i3'),
+        t('cs_col3_i4'),
+        t('cs_col3_i5'),
       ],
     },
   ];
@@ -88,15 +90,15 @@ export const ContentSystemSection: React.FC = () => {
         <div className="max-w-4xl space-y-6 mb-24">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
             <Sparkles className="w-4 h-4 stroke-[1.2]" />
-            <span>DIRETRIZES DE EXCELÊNCIA</span>
+            <span>{t('cs_tag')}</span>
           </div>
 
           <h2 className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl font-light text-[#0B0B0B] tracking-tight leading-[0.95]">
-            Um sistema de conteúdo premium.
+            {t('cs_title')}
           </h2>
 
           <p className="text-lg md:text-2xl text-[#0B0B0B]/80 font-sans font-light leading-relaxed max-w-2xl">
-            Padronização de comunicação e checklists operacionais que garantem a integridade da plataforma em todas as pontas.
+            {t('cs_desc')}
           </p>
         </div>
 

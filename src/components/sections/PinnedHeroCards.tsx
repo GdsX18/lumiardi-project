@@ -5,6 +5,8 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
+import { useLanguage } from '@/context/LanguageContext';
+
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
@@ -14,6 +16,7 @@ export const PinnedHeroCards: React.FC = () => {
   const card1Ref = useRef<HTMLDivElement>(null);
   const card2Ref = useRef<HTMLDivElement>(null);
   const card3Ref = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   useGSAP(
     () => {
@@ -93,18 +96,18 @@ export const PinnedHeroCards: React.FC = () => {
                   01
                 </span>
                 <span className="text-xs uppercase tracking-[0.25em] text-gold/80 border border-gold/30 px-3.5 py-1 font-sans">
-                  EXCLUSIVO
+                  {t('pinned_c1_badge')}
                 </span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-tight mb-2">
-                Criadores Premium
+                {t('pinned_c1_title')}
               </h3>
               <p className="text-xs md:text-sm text-gold uppercase tracking-[0.25em] font-sans font-medium mb-4">
-                QUALIFICAÇÃO & SEGURANÇA
+                {t('pinned_c1_sub')}
               </p>
             </div>
             <p className="text-sm md:text-base text-ivory/85 font-sans font-light leading-relaxed max-w-3xl">
-              Curadoria rigorosa, preservação da identidade privada e posicionamento estratégico ao lado das maiores marcas de luxo do mundo.
+              {t('pinned_c1_desc')}
             </p>
           </div>
         </div>
@@ -121,18 +124,18 @@ export const PinnedHeroCards: React.FC = () => {
                   02
                 </span>
                 <span className="text-xs uppercase tracking-[0.25em] text-gold/80 border border-gold/30 px-3.5 py-1 font-sans">
-                  PLATAFORMA
+                  {t('pinned_c2_badge')}
                 </span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-tight mb-2">
-                Lumiardi
+                {t('pinned_c2_title')}
               </h3>
               <p className="text-xs md:text-sm text-gold uppercase tracking-[0.25em] font-sans font-medium mb-4">
-                TECNOLOGIA & MEDIAÇÃO
+                {t('pinned_c2_sub')}
               </p>
             </div>
             <p className="text-sm md:text-base text-ivory/85 font-sans font-light leading-relaxed max-w-3xl">
-              Plataforma de alta tecnologia financeira e contratual. Intermediamos conexões de alto nível com transparência total de receita.
+              {t('pinned_c2_desc')}
             </p>
           </div>
         </div>
@@ -149,18 +152,18 @@ export const PinnedHeroCards: React.FC = () => {
                   03
                 </span>
                 <span className="text-xs uppercase tracking-[0.25em] text-black-matte/80 border border-black-matte/30 px-3.5 py-1 font-sans">
-                  GESTÃO DE ELITE
+                  {t('pinned_c3_badge')}
                 </span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-black-matte tracking-tight mb-2">
-                Agências de Elite
+                {t('pinned_c3_title')}
               </h3>
               <p className="text-xs md:text-sm text-bronze uppercase tracking-[0.25em] font-sans font-semibold mb-4">
-                GESTÃO CORPORATIVA
+                {t('pinned_c3_sub')}
               </p>
             </div>
             <p className="text-sm md:text-base text-black-matte/85 font-sans font-light leading-relaxed max-w-3xl">
-              Acesso exclusivo a talentos verificados, ferramentas Kanban compartilhadas e ambiente de videoconferência de alta definição.
+              {t('pinned_c3_desc')}
             </p>
           </div>
         </div>

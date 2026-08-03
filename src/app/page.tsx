@@ -5,12 +5,12 @@ import { Header } from '@/components/ui/Header';
 import { HeroSection } from '@/components/sections/HeroSection';
 import { PositioningSection } from '@/components/sections/PositioningSection';
 import { BrandPillarsSection } from '@/components/sections/BrandPillarsSection';
-import { RevenueSection } from '@/components/sections/RevenueSection';
+import { EcosystemSection } from '@/components/sections/EcosystemSection';
 import { ContentSystemSection } from '@/components/sections/ContentSystemSection';
 import { MediaOpportunitiesSection } from '@/components/sections/MediaOpportunitiesSection';
 import { ShowcaseSection } from '@/components/sections/ShowcaseSection';
 import { DashboardShowcaseSection } from '@/components/sections/DashboardShowcaseSection';
-import { PricingSection } from '@/components/sections/PricingSection';
+import { PlansCTASection } from '@/components/sections/PlansCTASection';
 import { Footer } from '@/components/ui/Footer';
 
 export default function Home() {
@@ -35,12 +35,12 @@ export default function Home() {
       <HeroSection />
       <PositioningSection />
       <BrandPillarsSection />
-      <RevenueSection />
+      <EcosystemSection />
       <ContentSystemSection />
       <MediaOpportunitiesSection />
       <ShowcaseSection />
       <DashboardShowcaseSection />
-      <PricingSection />
+      <PlansCTASection />
       <Footer />
     </main>
   );

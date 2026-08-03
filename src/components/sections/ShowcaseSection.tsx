@@ -7,6 +7,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowUpRight, Star, Search, UserCheck, Lock, Sparkles } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -16,20 +17,21 @@ export const ShowcaseSection: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   const showcaseItems = [
     {
       name: 'Aura Management',
-      type: 'Agência de Elite',
+      type: t('showcase_agency_type'),
       location: 'São Paulo · Paris',
-      badge: 'VERIFICADA',
+      badge: t('showcase_verified_badge'),
       rating: '5.0',
       hero: true,
       image: '/images/agency_aura.jpg',
     },
     {
       name: 'Elena Vance',
-      type: 'Criador Premium',
+      type: t('showcase_creator_type'),
       location: 'Rio de Janeiro · Lisboa',
       badge: 'TOP CREATOR',
       rating: '4.9',
@@ -38,16 +40,16 @@ export const ShowcaseSection: React.FC = () => {
     },
     {
       name: 'Vanguard Talent Co.',
-      type: 'Agência de Elite',
+      type: t('showcase_agency_type'),
       location: 'Londres · Nova York',
-      badge: 'VERIFICADA',
+      badge: t('showcase_verified_badge'),
       rating: '5.0',
       hero: false,
       image: '/images/agency_vanguard.jpg',
     },
     {
       name: 'SOPHIA M.',
-      type: 'Criador Premium',
+      type: t('showcase_creator_type'),
       location: 'Milão · Ibiza',
       badge: 'ICON',
       rating: '5.0',
@@ -92,15 +94,15 @@ export const ShowcaseSection: React.FC = () => {
         <div className="max-w-4xl space-y-6 mb-20">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-gold font-sans font-medium">
             <Sparkles className="w-4 h-4 stroke-[1.2]" />
-            <span>VITRINE GLOBAL DE DESCOBERTA</span>
+            <span>{t('showcase_tag')}</span>
           </div>
 
           <h2 className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl font-light text-ivory tracking-tight leading-[0.95]">
-            Entrada e descoberta.
+            {t('showcase_title')}
           </h2>
 
           <p className="text-lg md:text-2xl text-ivory/70 font-sans font-light leading-relaxed max-w-2xl">
-            Selecione seu perfil de entrada ou explore agências e criadores pré-qualificados na rede Lumiardi.
+            {t('showcase_desc')}
           </p>
         </div>
 
@@ -114,10 +116,10 @@ export const ShowcaseSection: React.FC = () => {
               <UserCheck className="w-6 h-6 stroke-[1.2]" />
               <div className="text-left">
                 <span className="text-[10px] uppercase tracking-[0.25em] block opacity-80">
-                  TALENTOS & MODELOS
+                  {t('showcase_creators_label')}
                 </span>
                 <span className="font-serif-lumiardi text-2xl md:text-3xl font-light">
-                  MODELOS +18 / ENTRAR
+                  {t('showcase_cta_creators')}
                 </span>
               </div>
             </div>
@@ -132,10 +134,10 @@ export const ShowcaseSection: React.FC = () => {
               <Lock className="w-6 h-6 stroke-[1.2]" />
               <div className="text-left">
                 <span className="text-[10px] uppercase tracking-[0.25em] block text-ivory/50 group-hover:text-gold/70">
-                  GESTÃO DE ELITE
+                  {t('showcase_agencies_label')}
                 </span>
                 <span className="font-serif-lumiardi text-2xl md:text-3xl font-light">
-                  AGÊNCIAS / PAINEL CORPORATIVO
+                  {t('showcase_cta_agencies')}
                 </span>
               </div>
             </div>
@@ -146,12 +148,12 @@ export const ShowcaseSection: React.FC = () => {
         {/* Search Bar */}
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-12 pb-6 border-b border-white/10">
           <h3 className="font-serif-lumiardi text-3xl font-light text-ivory">
-            Explorar Rede de Elite
+            {t('showcase_search_title')}
           </h3>
           <div className="relative w-full md:w-96">
             <input
               type="text"
-              placeholder="Procurar Agências ou Criadores..."
+              placeholder={t('showcase_search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-[#141414] border border-white/15 px-4 py-3 pl-11 text-sm text-ivory placeholder-ivory/40 focus:outline-none focus:border-gold transition-colors font-sans"
@@ -160,7 +162,7 @@ export const ShowcaseSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Showcase Cards Grid with Distinct High Resolution Images */}
+        {/* Showcase Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {filteredItems.map((item) => (
             <div
@@ -211,7 +213,7 @@ export const ShowcaseSection: React.FC = () => {
                 onClick={() => router.push('/qualificacao')}
                 className="mt-8 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-gold font-sans font-medium cursor-pointer"
               >
-                <span>VER PORTFÓLIO</span>
+                <span>{t('showcase_view_portfolio')}</span>
                 <ArrowUpRight className="w-4 h-4 stroke-[1.2] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
               </div>
             </div>

@@ -3,67 +3,74 @@
 import React, { useState } from 'react';
 import { Plus, MoreHorizontal, Calendar, CheckCircle2, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface KanbanTask {
   id: string;
   title: string;
   agency: string;
   date: string;
-  priority: 'Alta' | 'Média' | 'Normal';
+  priority: string;
 }
 
 export const KanbanBoard: React.FC = () => {
-  const [tasks, setTasks] = useState<{ [key: string]: KanbanTask[] }>({
+  const { t } = useLanguage();
+
+  const tasks = {
     todo: [
       {
         id: '1',
-        title: 'Sessão Fotográfica Editorial Outono',
+        title: t('kanban_task1_title'),
         agency: 'Aura Management',
         date: '30 Jul',
-        priority: 'Alta',
+        priority: t('kanban_priority_high'),
+        isHigh: true,
       },
       {
         id: '2',
-        title: 'Revisão de Contrato de Exclusividade',
+        title: t('kanban_task2_title'),
         agency: 'Vanguard Talent Co.',
-        date: '02 Ago',
-        priority: 'Média',
+        date: '02 Aug',
+        priority: t('kanban_priority_medium'),
+        isHigh: false,
       },
     ],
     inProgress: [
       {
         id: '3',
-        title: 'Edição de Vídeo de Apresentação',
+        title: t('kanban_task3_title'),
         agency: 'Aura Management',
         date: '28 Jul',
-        priority: 'Alta',
+        priority: t('kanban_priority_high'),
+        isHigh: true,
       },
     ],
     done: [
       {
         id: '4',
-        title: 'Verificação de Perfil de Elite (+18)',
+        title: t('kanban_task4_title'),
         agency: 'Lumiardi Curation Team',
         date: '25 Jul',
-        priority: 'Normal',
+        priority: t('kanban_priority_normal'),
+        isHigh: false,
       },
     ],
-  });
+  };
 
   return (
     <div className="w-full bg-white border border-black-matte/15 p-4 md:p-6 text-black-matte shadow-sm">
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-black-matte/10">
         <div>
           <span className="text-[10px] uppercase tracking-[0.25em] text-bronze font-semibold font-sans">
-            Módulo de Organização
+            {t('kanban_module_tag')}
           </span>
           <h3 className="font-serif-lumiardi text-2xl font-semibold text-black-matte">
-            Quadro Kanban de Projetos
+            {t('kanban_title')}
           </h3>
         </div>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-black-matte text-ivory text-xs font-sans hover:bg-gold hover:text-black-matte transition-colors">
+        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-black-matte text-ivory text-xs font-sans hover:bg-gold hover:text-black-matte transition-colors cursor-pointer">
           <Plus className="w-4 h-4" />
-          <span>Nova Tarefa</span>
+          <span>{t('kanban_new_task')}</span>
         </button>
       </div>
 
@@ -72,7 +79,7 @@ export const KanbanBoard: React.FC = () => {
         <div className="bg-[#F7F3EC] p-4 border border-black-matte/10 flex flex-col gap-3">
           <div className="flex items-center justify-between mb-2">
             <span className="font-serif-lumiardi font-semibold text-sm tracking-wider uppercase text-black-matte">
-              A Fazer ({tasks.todo.length})
+              {t('kanban_col_todo')} ({tasks.todo.length})
             </span>
             <Clock className="w-4 h-4 text-bronze" />
           </div>
@@ -82,7 +89,7 @@ export const KanbanBoard: React.FC = () => {
               className="p-4 bg-white border border-black-matte/10 hover:border-gold transition-colors shadow-2xs space-y-2 cursor-pointer"
             >
               <div className="flex items-center justify-between">
-                <Badge variant={task.priority === 'Alta' ? 'gold' : 'bronze'}>
+                <Badge variant={task.priority === t('kanban_priority_high') ? 'gold' : 'bronze'}>
                   {task.priority}
                 </Badge>
                 <MoreHorizontal className="w-4 h-4 text-black-matte/40" />
@@ -105,7 +112,7 @@ export const KanbanBoard: React.FC = () => {
         <div className="bg-[#F7F3EC] p-4 border border-black-matte/10 flex flex-col gap-3">
           <div className="flex items-center justify-between mb-2">
             <span className="font-serif-lumiardi font-semibold text-sm tracking-wider uppercase text-gold">
-              Em Andamento ({tasks.inProgress.length})
+              {t('kanban_col_in_progress')} ({tasks.inProgress.length})
             </span>
             <Clock className="w-4 h-4 text-gold" />
           </div>
@@ -136,7 +143,7 @@ export const KanbanBoard: React.FC = () => {
         <div className="bg-[#F7F3EC] p-4 border border-black-matte/10 flex flex-col gap-3">
           <div className="flex items-center justify-between mb-2">
             <span className="font-serif-lumiardi font-semibold text-sm tracking-wider uppercase text-emerald-800">
-              Concluído ({tasks.done.length})
+              {t('kanban_col_done')} ({tasks.done.length})
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-800" />
           </div>
@@ -146,7 +153,7 @@ export const KanbanBoard: React.FC = () => {
               className="p-4 bg-white/70 border border-black-matte/10 space-y-2 opacity-80"
             >
               <div className="flex items-center justify-between">
-                <Badge variant="outline">Concluído</Badge>
+                <Badge variant="outline">{t('kanban_col_done')}</Badge>
               </div>
               <h4 className="font-serif-lumiardi text-base font-medium text-black-matte line-through decoration-bronze">
                 {task.title}

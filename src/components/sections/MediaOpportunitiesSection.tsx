@@ -5,6 +5,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Rocket, Building2, Users, Handshake, Sparkles } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -12,34 +13,35 @@ if (typeof window !== 'undefined') {
 
 export const MediaOpportunitiesSection: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   const opportunities = [
     {
       icon: <Rocket className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
-      title: 'Lançamentos da Plataforma',
-      subtitle: 'Inovação e Mídia Exclusiva',
-      desc: 'Divulgação estratégica de novas atualizações de produto, recursos contratuais e ferramentas corporativas de alta tecnologia.',
+      title: t('mo_opp1_title'),
+      subtitle: t('mo_opp1_sub'),
+      desc: t('mo_opp1_desc'),
       colSpan: 'lg:col-span-7',
     },
     {
       icon: <Building2 className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
-      title: 'Aquisição de Agências',
-      subtitle: 'Expansão de Rede de Elite',
-      desc: 'Programas de integração rápida para agências de gestão com histórico comprovado de profissionalismo e ética.',
+      title: t('mo_opp2_title'),
+      subtitle: t('mo_opp2_sub'),
+      desc: t('mo_opp2_desc'),
       colSpan: 'lg:col-span-5',
     },
     {
       icon: <Users className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
-      title: 'Recrutamento de Criadores',
-      subtitle: 'Talentos Selecionados',
-      desc: 'Campanhas institucionais focadas na atração de criadores premium que buscam discrição, valor de marca e segurança.',
+      title: t('mo_opp3_title'),
+      subtitle: t('mo_opp3_sub'),
+      desc: t('mo_opp3_desc'),
       colSpan: 'lg:col-span-5',
     },
     {
       icon: <Handshake className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
-      title: 'Alianças Estratégicas',
-      subtitle: 'Parcerias Institucionais',
-      desc: 'Conexões corporativas com provedores de tecnologia financeira, consultorias jurídicas internacionais e marcas de luxo.',
+      title: t('mo_opp4_title'),
+      subtitle: t('mo_opp4_sub'),
+      desc: t('mo_opp4_desc'),
       colSpan: 'lg:col-span-7',
     },
   ];
@@ -77,15 +79,15 @@ export const MediaOpportunitiesSection: React.FC = () => {
         <div className="max-w-4xl space-y-6 mb-20">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
             <Sparkles className="w-4 h-4 stroke-[1.2]" />
-            <span>EXPANSÃO ECOSSISTÊMICA</span>
+            <span>{t('mo_tag')}</span>
           </div>
 
           <h2 className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl font-light text-[#0B0B0B] tracking-tight leading-[0.95]">
-            Parcerias com propósito.
+            {t('mo_title')}
           </h2>
 
           <p className="text-lg md:text-2xl text-[#0B0B0B]/80 font-sans font-light leading-relaxed max-w-2xl">
-            Oportunidades de mídia, co-marketing e desenvolvimento estratégico estruturadas para acelerar o ecossistema.
+            {t('mo_desc')}
           </p>
         </div>
 

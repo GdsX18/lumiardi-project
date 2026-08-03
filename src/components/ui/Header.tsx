@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowUpRight } from 'lucide-react';
+import { LanguageSelector } from './LanguageSelector';
+import { useLanguage } from '@/context/LanguageContext';
 
 export const Header: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,36 +38,36 @@ export const Header: React.FC = () => {
   }, [drawerOpen]);
 
   const navLinks = [
-    { label: 'CRIADORES', href: '/#vitrine' },
-    { label: 'AGÊNCIAS', href: '/#dashboard-showcase' },
-    { label: 'ECOSSISTEMA', href: '/#posicionamento' },
+    { label: t('nav_creators'), href: '/#vitrine' },
+    { label: t('nav_agencies'), href: '/#dashboard-showcase' },
+    { label: t('nav_ecosystem'), href: '/#ecossistema' },
+    { label: t('nav_plans'), href: '/planos' },
   ];
 
   const drawerMainLinks = [
-    { label: 'A Plataforma', href: '/#posicionamento' },
-    { label: 'Posicionamento', href: '/#posicionamento' },
-    { label: 'Modelo de Receita', href: '/#receita' },
-    { label: 'Para Criadores', href: '/qualificacao' },
-    { label: 'Para Agências', href: '/dashboard' },
-    { label: 'Entrar / Acesso', href: '/qualificacao' },
+    { label: t('nav_creators'), href: '/#vitrine' },
+    { label: t('nav_agencies'), href: '/#dashboard-showcase' },
+    { label: t('nav_ecosystem'), href: '/#ecossistema' },
+    { label: t('nav_plans'), href: '/planos' },
+    { label: t('nav_login'), href: '/qualificacao' },
   ];
 
   const drawerShortcuts = [
     {
-      title: 'Criadores Premium',
-      subtitle: 'Talentos Verificados +18',
+      title: t('drawer_creators_title'),
+      subtitle: t('drawer_creators_sub'),
       image: '/images/creator_elena.jpg',
       href: '/qualificacao',
     },
     {
-      title: 'Agências de Elite',
-      subtitle: 'Gestão Corporativa Global',
+      title: t('drawer_agencies_title'),
+      subtitle: t('drawer_agencies_sub'),
       image: '/images/agency_aura.jpg',
       href: '/dashboard',
     },
     {
-      title: 'Painel de Controle',
-      subtitle: 'Dashboard Criptografado',
+      title: t('drawer_dashboard_title'),
+      subtitle: t('drawer_dashboard_sub'),
       image: '/images/agency_vanguard.jpg',
       href: '/dashboard',
     },
@@ -136,12 +139,11 @@ export const Header: React.FC = () => {
             ))}
           </nav>
 
-          {/* LADO DIREITO: Região + Entrar + Ícone Hambúrguer (Duas linhas estilo David Trubridge) */}
-          <div className="flex items-center gap-6 md:gap-8">
-            {/* Região / Idioma Sutil */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-ivory/60 font-sans tracking-widest uppercase select-none">
-              <span>🇧🇷</span>
-              <span>BRL</span>
+          {/* LADO DIREITO: Seletor de Idioma + Entrar + Ícone Hambúrguer */}
+          <div className="flex items-center gap-4 md:gap-6">
+            {/* Seletor de Idioma */}
+            <div className="hidden sm:flex items-center">
+              <LanguageSelector />
             </div>
 
             {/* Botão Entrar */}
@@ -149,7 +151,7 @@ export const Header: React.FC = () => {
               onClick={() => handleNavigate('/qualificacao')}
               className="hidden sm:flex items-center gap-1.5 text-xs tracking-[0.2em] text-ivory/90 hover:text-gold uppercase font-sans font-light transition-colors cursor-pointer"
             >
-              <span>ENTRAR</span>
+              <span>{t('nav_login')}</span>
               <ArrowUpRight className="w-3.5 h-3.5 stroke-[1.2]" />
             </button>
 
@@ -157,9 +159,9 @@ export const Header: React.FC = () => {
             <button
               onClick={() => setDrawerOpen(true)}
               className="flex items-center gap-3 text-xs tracking-[0.25em] text-ivory hover:text-gold uppercase font-sans font-light transition-colors cursor-pointer group p-1"
-              aria-label="Abrir menu"
+              aria-label={t('drawer_open')}
             >
-              <span className="hidden xs:inline">MENU</span>
+              <span className="hidden xs:inline">{t('nav_menu')}</span>
               <div className="flex flex-col gap-1.5 w-6">
                 <span className="w-full h-[1.5px] bg-ivory group-hover:bg-gold transition-colors duration-300" />
                 <span className="w-full h-[1.5px] bg-ivory group-hover:bg-gold transition-colors duration-300" />
@@ -200,12 +202,12 @@ export const Header: React.FC = () => {
                   {/* Topo Coluna 1 */}
                   <div className="flex items-center justify-between mb-12">
                     <span className="font-sans text-xl md:text-2xl font-light text-black-matte tracking-tight">
-                      Menu
+                      {t('drawer_menu_title')}
                     </span>
                     <button
                       onClick={() => setDrawerOpen(false)}
                       className="p-2 text-black-matte/60 hover:text-black-matte transition-colors cursor-pointer"
-                      aria-label="Fechar menu"
+                      aria-label={t('drawer_close')}
                     >
                       <X className="w-5 h-5 stroke-[1.5]" />
                     </button>
@@ -240,7 +242,7 @@ export const Header: React.FC = () => {
                     <button
                       onClick={() => setDrawerOpen(false)}
                       className="p-2 text-black-matte/60 hover:text-black-matte transition-colors cursor-pointer"
-                      aria-label="Fechar menu"
+                      aria-label={t('drawer_close')}
                     >
                       <X className="w-5 h-5 stroke-[1.5]" />
                     </button>
@@ -279,7 +281,7 @@ export const Header: React.FC = () => {
 
                 {/* Footer Coluna 2 */}
                 <div className="pt-6 text-[11px] text-black-matte/40 font-sans uppercase tracking-widest text-right">
-                  EXCLUSIVIDADE &amp; PRIVACIDADE
+                  {t('drawer_footer_right')}
                 </div>
               </div>
             </motion.div>

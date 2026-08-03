@@ -7,28 +7,30 @@ import { KanbanBoard } from '@/components/interactive/KanbanBoard';
 import { ChatPanel } from '@/components/interactive/ChatPanel';
 import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
 import { ArrowRight, Layers, Kanban, MessageSquare, Video } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export const DashboardShowcaseSection: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kanban' | 'chat' | 'video'>('kanban');
   const router = useRouter();
+  const { t } = useLanguage();
 
   const tabs = [
     {
       id: 'kanban' as const,
-      label: '01. Kanban de Projetos',
-      sublabel: 'Organização & Tarefas',
+      label: t('ds_tab1_label'),
+      sublabel: t('ds_tab1_sub'),
       icon: Kanban,
     },
     {
       id: 'chat' as const,
-      label: '02. Chat Criptografado',
-      sublabel: 'Comunicação Direta',
+      label: t('ds_tab2_label'),
+      sublabel: t('ds_tab2_sub'),
       icon: MessageSquare,
     },
     {
       id: 'video' as const,
-      label: '03. Lumiardi Meet',
-      sublabel: 'Reunião HD & Sigilo',
+      label: t('ds_tab3_label'),
+      sublabel: t('ds_tab3_sub'),
       icon: Video,
     },
   ];
@@ -43,13 +45,13 @@ export const DashboardShowcaseSection: React.FC = () => {
         <div className="text-center space-y-4 max-w-3xl mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 text-xs uppercase tracking-[0.3em] text-gold border border-gold/30 bg-gold/5 font-sans">
             <Layers className="w-3.5 h-3.5 stroke-[1.2]" />
-            <span>MÓDULOS DA PLATAFORMA</span>
+            <span>{t('ds_tag')}</span>
           </div>
           <h2 className="font-serif-lumiardi text-4xl sm:text-6xl md:text-7xl font-light text-ivory tracking-tight">
-            O ecossistema em ação.
+            {t('ds_title')}
           </h2>
           <p className="text-sm md:text-base text-ivory/60 font-sans max-w-xl mx-auto font-light leading-relaxed">
-            Explore a evolução das ferramentas corporativas: Kanban de Projetos, Chat Criptografado e Reunião Meet integrados.
+            {t('ds_desc')}
           </p>
         </div>
 
@@ -82,7 +84,7 @@ export const DashboardShowcaseSection: React.FC = () => {
           })}
         </div>
 
-        {/* Container do Componente Ativo (Com Framer Motion para transição limpa e sem sobreposição) */}
+        {/* Container do Componente Ativo */}
         <div className="w-full relative min-h-[480px] bg-[#121212] border border-white/10 shadow-2xl overflow-hidden p-2 md:p-4">
           <AnimatePresence mode="wait">
             <motion.div
@@ -116,7 +118,7 @@ export const DashboardShowcaseSection: React.FC = () => {
             onClick={() => router.push('/dashboard')}
             className="px-8 py-4 bg-[#C9A96B] text-[#0B0B0B] font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-medium hover:bg-[#D4B87A] transition-all duration-300 inline-flex items-center gap-3 group cursor-pointer shadow-lg hover:shadow-gold/20"
           >
-            <span>ACESSAR DASHBOARD COMPLETO</span>
+            <span>{t('ds_cta')}</span>
             <ArrowRight className="w-4 h-4 stroke-[1.2] transition-transform duration-300 group-hover:translate-x-1" />
           </button>
         </div>

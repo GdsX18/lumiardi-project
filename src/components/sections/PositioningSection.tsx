@@ -5,6 +5,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Check, X, ShieldCheck, Sparkles } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -15,6 +16,7 @@ export const PositioningSection: React.FC = () => {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const cardIsRef = useRef<HTMLDivElement>(null);
   const cardIsNotRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   useGSAP(
     () => {
@@ -88,19 +90,19 @@ export const PositioningSection: React.FC = () => {
   );
 
   const isList = [
-    'Tecnologia de ponta e infraestrutura global',
-    'Moda de luxo e estética editorial refinada',
-    'Gestão estratégica e ecossistema de elite',
-    'Privacidade absoluta e controle total da marca',
-    'Contratos transparentes e modelo de receita claro',
+    t('pos_is_1'),
+    t('pos_is_2'),
+    t('pos_is_3'),
+    t('pos_is_4'),
+    t('pos_is_5'),
   ];
 
   const isNotList = [
-    'Entretenimento adulto genérico ou popular',
-    'Estética caótica, luzes neon ou apelo apelativo',
-    'Exposição descontrolada ou falta de segurança',
-    'Linguagem vulgar ou espetacularização',
-    'Práticas informais ou intermediários não verificados',
+    t('pos_isnot_1'),
+    t('pos_isnot_2'),
+    t('pos_isnot_3'),
+    t('pos_isnot_4'),
+    t('pos_isnot_5'),
   ];
 
   return (
@@ -115,24 +117,24 @@ export const PositioningSection: React.FC = () => {
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
               <Sparkles className="w-4 h-4 stroke-[1.2]" />
-              <span>POSICIONAMENTO INSTITUCIONAL</span>
+              <span>{t('pos_tag')}</span>
             </div>
 
             <h2
               ref={titleRef}
               className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-light text-[#0B0B0B] leading-[0.95] tracking-tight"
             >
-              Luxo silencioso. <br />
-              <span className="text-[#A97745] italic font-normal">Propósito claro.</span>
+              {t('pos_title_1')} <br />
+              <span className="text-[#A97745] italic font-normal">{t('pos_title_2')}</span>
             </h2>
           </div>
 
           <div className="lg:col-span-5 space-y-4 lg:pl-10">
             <p className="text-xl md:text-3xl font-serif-lumiardi text-[#A97745] font-light leading-snug">
-              Mentalidade de empresa bilionária de tecnologia.
+              {t('pos_subtitle_1')}
             </p>
             <p className="text-base md:text-lg text-[#0B0B0B]/80 font-sans font-light leading-relaxed">
-              A marca pertence ao universo da tecnologia premium e da moda de luxo — nunca à linguagem visual do entretenimento adulto tradicional.
+              {t('pos_subtitle_2')}
             </p>
           </div>
         </div>
@@ -147,10 +149,10 @@ export const PositioningSection: React.FC = () => {
             <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-6">
               <div>
                 <span className="text-[10px] uppercase tracking-[0.3em] text-[#A97745] font-sans font-medium block">
-                  IDENTIDADE DE MARCA
+                  {t('pos_identity_tag')}
                 </span>
                 <h3 className="font-serif-lumiardi text-3xl md:text-5xl font-light text-[#0B0B0B] mt-1 tracking-tight">
-                  A LUMIARDI É
+                  {t('pos_is_title')}
                 </h3>
               </div>
               <div className="p-3 bg-[#C9A96B]/15 text-[#8C6B2F] border border-[#C9A96B]/30">
@@ -180,10 +182,10 @@ export const PositioningSection: React.FC = () => {
             <div className="flex items-center justify-between border-b border-rose-950/10 pb-6">
               <div>
                 <span className="text-[10px] uppercase tracking-[0.3em] text-rose-900/70 font-sans font-medium block">
-                  DIFERENCIAÇÃO E RUÍDO
+                  {t('pos_diff_tag')}
                 </span>
                 <h3 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-rose-950/80 mt-1 tracking-tight">
-                  A LUMIARDI NÃO É
+                  {t('pos_isnot_title')}
                 </h3>
               </div>
               <div className="p-3 bg-rose-900/10 text-rose-900 border border-rose-900/20">

@@ -1,54 +1,57 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Send, ShieldCheck, Lock, Paperclip } from 'lucide-react';
+import { Send, ShieldCheck, Paperclip } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface ChatMessage {
   id: string;
   sender: string;
-  avatar?: string;
   text: string;
   time: string;
   isMe?: boolean;
 }
 
 export const ChatPanel: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const { t } = useLanguage();
+
+  const initialMessages: ChatMessage[] = [
     {
       id: '1',
-      sender: 'Aura Management (Curadoria)',
-      text: 'Olá! Analisamos seu portfólio e gostaríamos de propor uma parceria de gestão exclusiva.',
+      sender: 'Aura Management',
+      text: t('chat_msg1'),
       time: '14:32',
       isMe: false,
     },
     {
       id: '2',
-      sender: 'Você',
-      text: 'Olá! Agradeço o contato. Podemos agendar uma reunião pelo Meet integrado da plataforma para discutir os detalhes contratuais?',
+      sender: t('chat_you'),
+      text: t('chat_msg2'),
       time: '14:35',
       isMe: true,
     },
     {
       id: '3',
-      sender: 'Aura Management (Curadoria)',
-      text: 'Perfeito. Enviarei o convite pela aba de vídeo. O contrato com garantia Lumiardi já está pré-configurado.',
+      sender: 'Aura Management',
+      text: t('chat_msg3'),
       time: '14:38',
       isMe: false,
     },
-  ]);
+  ];
 
+  const [extraMessages, setExtraMessages] = useState<ChatMessage[]>([]);
   const [inputVal, setInputVal] = useState('');
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputVal.trim()) return;
 
-    setMessages([
-      ...messages,
+    setExtraMessages((prev) => [
+      ...prev,
       {
         id: Date.now().toString(),
-        sender: 'Você',
+        sender: t('chat_you'),
         text: inputVal,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
@@ -56,6 +59,8 @@ export const ChatPanel: React.FC = () => {
     ]);
     setInputVal('');
   };
+
+  const allMessages = [...initialMessages, ...extraMessages];
 
   return (
     <div className="w-full bg-[#0F0F0F] border border-bronze/30 text-ivory p-4 md:p-6 flex flex-col h-[520px] justify-between">
@@ -73,18 +78,18 @@ export const ChatPanel: React.FC = () => {
               <ShieldCheck className="w-4 h-4 text-gold" />
             </div>
             <span className="text-[10px] text-ivory/50 font-sans tracking-wider uppercase block">
-              Agência Verificada Lumiardi
+              {t('showcase_agency_type')}
             </span>
           </div>
         </div>
         <Badge variant="gold" className="text-[9px]">
-          CANAL CRIPTOGRAFADO
+          {t('chat_status')}
         </Badge>
       </div>
 
       {/* Lista de Mensagens */}
       <div className="flex-1 overflow-y-auto my-4 space-y-4 pr-2">
-        {messages.map((msg) => (
+        {allMessages.map((msg) => (
           <div
             key={msg.id}
             className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
@@ -110,22 +115,22 @@ export const ChatPanel: React.FC = () => {
         <button
           type="button"
           className="p-3 bg-[#181818] text-ivory/60 hover:text-gold border border-bronze/30 transition-colors"
-          aria-label="Anexar arquivo"
+          aria-label={t('chat_attach')}
         >
           <Paperclip className="w-4 h-4" />
         </button>
         <input
           type="text"
-          placeholder="Escreva uma mensagem segura..."
+          placeholder={t('chat_type_placeholder')}
           value={inputVal}
           onChange={(e) => setInputVal(e.target.value)}
           className="flex-1 bg-[#181818] border border-bronze/30 px-4 py-2.5 text-xs md:text-sm text-ivory placeholder:text-ivory/30 focus:outline-none focus:border-gold font-sans"
         />
         <button
           type="submit"
-          className="px-5 py-2.5 bg-gold text-black-matte font-medium hover:bg-gold-light transition-colors flex items-center gap-1.5 text-xs font-sans uppercase tracking-wider"
+          className="px-5 py-2.5 bg-gold text-black-matte font-medium hover:bg-gold-light transition-colors flex items-center gap-1.5 text-xs font-sans uppercase tracking-wider cursor-pointer"
         >
-          <span>Enviar</span>
+          <span>{t('chat_send')}</span>
           <Send className="w-3.5 h-3.5" />
         </button>
       </form>
