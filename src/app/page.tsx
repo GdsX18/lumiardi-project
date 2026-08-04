@@ -6,7 +6,7 @@ import { HeroSection } from '@/components/sections/HeroSection';
 import { PositioningSection } from '@/components/sections/PositioningSection';
 import { BrandPillarsSection } from '@/components/sections/BrandPillarsSection';
 import { EcosystemSection } from '@/components/sections/EcosystemSection';
-import { ContentSystemSection } from '@/components/sections/ContentSystemSection';
+import { PartnersSection } from '@/components/sections/PartnersSection';
 import { MediaOpportunitiesSection } from '@/components/sections/MediaOpportunitiesSection';
 import { ShowcaseSection } from '@/components/sections/ShowcaseSection';
 import { DashboardShowcaseSection } from '@/components/sections/DashboardShowcaseSection';
@@ -36,7 +36,7 @@ export default function Home() {
       <PositioningSection />
       <BrandPillarsSection />
       <EcosystemSection />
-      <ContentSystemSection />
+      <PartnersSection />
       <MediaOpportunitiesSection />
       <ShowcaseSection />
       <DashboardShowcaseSection />

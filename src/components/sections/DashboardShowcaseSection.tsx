@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { KanbanBoard } from '@/components/interactive/KanbanBoard';
 import { ChatPanel } from '@/components/interactive/ChatPanel';
 import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
-import { ArrowRight, Layers, Kanban, MessageSquare, Video } from 'lucide-react';
+import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
+import { ArrowRight, Layers, Kanban, MessageSquare, Video, HardDrive } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 export const DashboardShowcaseSection: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'kanban' | 'chat' | 'video'>('kanban');
+  const [activeTab, setActiveTab] = useState<'kanban' | 'chat' | 'video' | 'drive'>('kanban');
   const router = useRouter();
   const { t } = useLanguage();
 
@@ -32,6 +33,12 @@ export const DashboardShowcaseSection: React.FC = () => {
       label: t('ds_tab3_label'),
       sublabel: t('ds_tab3_sub'),
       icon: Video,
+    },
+    {
+      id: 'drive' as const,
+      label: t('ds_tab4_label') || '04. Lumiardi Drive',
+      sublabel: t('ds_tab4_sub') || 'Armazenamento Seguro',
+      icon: HardDrive,
     },
   ];
 
@@ -56,7 +63,7 @@ export const DashboardShowcaseSection: React.FC = () => {
         </div>
 
         {/* Sistema de Abas Interativas (Tabs) */}
-        <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-10 w-full max-w-4xl">
+        <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-10 w-full max-w-5xl">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -106,6 +113,12 @@ export const DashboardShowcaseSection: React.FC = () => {
               {activeTab === 'video' && (
                 <div className="w-full max-w-4xl mx-auto py-2">
                   <VideoCallWidget />
+                </div>
+              )}
+
+              {activeTab === 'drive' && (
+                <div className="w-full max-w-4xl mx-auto py-2 text-left">
+                  <SharedDrivePanel />
                 </div>
               )}
             </motion.div>

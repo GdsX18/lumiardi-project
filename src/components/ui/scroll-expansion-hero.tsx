@@ -46,6 +46,23 @@ const ScrollExpandMedia = ({
   const crtLayerRef = useRef<HTMLDivElement>(null);
 
   // ═══════════════════════════════════════════════════════════
+  //  Safari / Mac Autoplay Fix
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (mediaType === 'video' && videoRef.current) {
+      videoRef.current.defaultMuted = true;
+      videoRef.current.muted = true;
+      videoRef.current.playsInline = true;
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.warn('Autoplay do vídeo prevenido pelo navegador:', error);
+        });
+      }
+    }
+  }, [mediaType, mediaSrc]);
+
+  // ═══════════════════════════════════════════════════════════
   //  GSAP Master Timeline
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {

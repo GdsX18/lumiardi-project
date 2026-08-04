@@ -41,6 +41,7 @@ export const Header: React.FC = () => {
     { label: t('nav_creators'), href: '/#vitrine' },
     { label: t('nav_agencies'), href: '/#dashboard-showcase' },
     { label: t('nav_ecosystem'), href: '/#ecossistema' },
+    { label: 'PARCEIROS', href: '/#parceiros' },
     { label: t('nav_plans'), href: '/planos' },
   ];
 
@@ -48,6 +49,7 @@ export const Header: React.FC = () => {
     { label: t('nav_creators'), href: '/#vitrine' },
     { label: t('nav_agencies'), href: '/#dashboard-showcase' },
     { label: t('nav_ecosystem'), href: '/#ecossistema' },
+    { label: 'PARCEIROS', href: '/#parceiros' },
     { label: t('nav_plans'), href: '/planos' },
     { label: t('nav_login'), href: '/qualificacao' },
   ];

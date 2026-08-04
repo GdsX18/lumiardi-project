@@ -272,7 +272,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/dashboard"
+                    href="/qualificacao/agencia"
                     className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.25em] uppercase font-medium hover:bg-[#8C6B2F] transition-colors block cursor-pointer"
                   >
                     {t('plan_select_cta')}
@@ -321,7 +321,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/dashboard"
+                    href="/qualificacao/agencia"
                     className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.25em] uppercase font-semibold hover:bg-[#D4B87A] transition-colors block cursor-pointer"
                   >
                     {t('plan_sig_cta')}

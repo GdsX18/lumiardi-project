@@ -6,20 +6,33 @@ import { useRouter } from 'next/navigation';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ArrowUpRight, Star, Search, UserCheck, Lock, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Star, Search, UserCheck, Lock, Sparkles, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
 
+interface ShowcaseItem {
+  name: string;
+  type: string;
+  location: string;
+  badge: string;
+  rating: string;
+  hero: boolean;
+  image: string;
+  bio?: string;
+  metrics?: { label: string; value: string }[];
+}
+
 export const ShowcaseSection: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPortfolio, setSelectedPortfolio] = useState<ShowcaseItem | null>(null);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
 
-  const showcaseItems = [
+  const showcaseItems: ShowcaseItem[] = [
     {
       name: 'Aura Management',
       type: t('showcase_agency_type'),
@@ -28,6 +41,12 @@ export const ShowcaseSection: React.FC = () => {
       rating: '5.0',
       hero: true,
       image: '/images/agency_aura.jpg',
+      bio: 'Agência de gestão internacional com foco em modelos e criadoras de alto ticket, contratos formais e representação global.',
+      metrics: [
+        { label: 'Talentos Agenciados', value: '42' },
+        { label: 'Países de Atuação', value: '18+' },
+        { label: 'Score de Governança', value: '99%' },
+      ],
     },
     {
       name: 'Elena Vance',
@@ -37,6 +56,12 @@ export const ShowcaseSection: React.FC = () => {
       rating: '4.9',
       hero: false,
       image: '/images/creator_elena.jpg',
+      bio: 'Criadora e modelo autoral focada em ensaios editoriais de luxo, campanhas de moda e presença digital internacional.',
+      metrics: [
+        { label: 'Presença Global', value: '12 Países' },
+        { label: 'Engajamento Verificado', value: 'Alto' },
+        { label: 'Status de Verificação', value: 'Auditada +18' },
+      ],
     },
     {
       name: 'Vanguard Talent Co.',
@@ -46,6 +71,12 @@ export const ShowcaseSection: React.FC = () => {
       rating: '5.0',
       hero: false,
       image: '/images/agency_vanguard.jpg',
+      bio: 'Holding de gestão de talentos executivos e representação de criadoras em grande escala com sigilo de marca.',
+      metrics: [
+        { label: 'Talentos Ativos', value: '85' },
+        { label: 'Campanha Média', value: 'R$ 150k+' },
+        { label: 'Compliance', value: 'ISO 27001' },
+      ],
     },
     {
       name: 'SOPHIA M.',
@@ -55,6 +86,12 @@ export const ShowcaseSection: React.FC = () => {
       rating: '5.0',
       hero: false,
       image: '/images/creator_sophia.jpg',
+      bio: 'Modelo editorial de alta performance com portfólio exclusivo para agências registradas Lumiardi Signature.',
+      metrics: [
+        { label: 'Segmento', value: 'Fashion & Luxury' },
+        { label: 'Avaliação de Agências', value: '5.0 / 5.0' },
+        { label: 'Sigilo', value: 'Anonimato Garantido' },
+      ],
     },
   ];
 
@@ -127,7 +164,7 @@ export const ShowcaseSection: React.FC = () => {
           </button>
 
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/qualificacao/agencia')}
             className="flex-1 p-8 bg-transparent border border-ivory/30 text-ivory hover:border-gold hover:text-gold transition-all duration-300 flex items-center justify-between group cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -210,7 +247,7 @@ export const ShowcaseSection: React.FC = () => {
               </div>
 
               <div
-                onClick={() => router.push('/qualificacao')}
+                onClick={() => setSelectedPortfolio(item)}
                 className="mt-8 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-gold font-sans font-medium cursor-pointer"
               >
                 <span>{t('showcase_view_portfolio')}</span>
@@ -219,7 +256,77 @@ export const ShowcaseSection: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Modal de Visualização de Portfólio */}
+        {selectedPortfolio && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-[#141414] border border-[#C9A96B]/50 w-full max-w-2xl text-ivory p-8 relative shadow-2xl space-y-6">
+              <button
+                onClick={() => setSelectedPortfolio(null)}
+                className="absolute top-6 right-6 p-2 text-ivory/60 hover:text-gold transition-colors cursor-pointer"
+              >
+                <X className="w-6 h-6 stroke-[1.5]" />
+              </button>
+
+              <div className="flex items-start gap-6 border-b border-white/10 pb-6">
+                <div className="relative w-24 h-24 bg-white/5 border border-[#C9A96B]/30 shrink-0 overflow-hidden">
+                  <Image
+                    src={selectedPortfolio.image}
+                    alt={selectedPortfolio.name}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] uppercase tracking-[0.2em] px-2.5 py-0.5 bg-[#C9A96B]/15 text-[#C9A96B] border border-[#C9A96B]/30 font-semibold">
+                      {selectedPortfolio.badge}
+                    </span>
+                    <span className="text-xs text-ivory/60 font-sans flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#C9A96B]" /> Verificado Lumiardi
+                    </span>
+                  </div>
+                  <h3 className="font-serif-lumiardi text-3xl font-light text-ivory mt-2">
+                    {selectedPortfolio.name}
+                  </h3>
+                  <p className="text-xs text-ivory/60 font-sans">{selectedPortfolio.location} &bull; {selectedPortfolio.type}</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-ivory/80 font-sans leading-relaxed">
+                {selectedPortfolio.bio}
+              </p>
+
+              {selectedPortfolio.metrics && (
+                <div className="grid grid-cols-3 gap-4 py-4 bg-white/5 border border-white/10 px-4 text-center">
+                  {selectedPortfolio.metrics.map((m, idx) => (
+                    <div key={idx}>
+                      <span className="text-[10px] uppercase text-ivory/50 block font-sans">{m.label}</span>
+                      <span className="font-serif-lumiardi text-xl text-[#C9A96B]">{m.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                <div className="flex items-center gap-2 text-xs text-emerald-400 font-sans">
+                  <CheckCircle2 className="w-4 h-4" /> Portfólio Verificado & Ativo
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedPortfolio(null);
+                    router.push('/dashboard');
+                  }}
+                  className="px-6 py-3 bg-[#C9A96B] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.2em] font-semibold hover:bg-[#D4B87A] transition-colors cursor-pointer"
+                >
+                  Propor Conexão Direta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
 };
+

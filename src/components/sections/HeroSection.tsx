@@ -56,7 +56,7 @@ export const HeroSection: React.FC = () => {
               </button>
 
               <button
-                onClick={() => router.push('/dashboard')}
+                onClick={() => router.push('/qualificacao/agencia')}
                 className="w-full sm:w-auto px-8 py-4 bg-transparent border border-ivory/30 text-ivory font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-light hover:border-gold hover:text-gold transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer"
               >
                 <Lock className="w-4 h-4 stroke-[1.2]" />
