@@ -82,7 +82,7 @@ export const RevenueSection: React.FC = () => {
           </h2>
 
           <p className="text-lg md:text-2xl text-[#0B0B0B]/80 font-sans font-light leading-relaxed max-w-2xl">
-            {t('rev_sub')}
+            {t('rev_desc')}
           </p>
         </div>
 
@@ -94,25 +94,25 @@ export const RevenueSection: React.FC = () => {
               <div className="flex items-center gap-3">
                 <UserCheck className="w-6 h-6 stroke-[1.2] text-[#8C6B2F]" />
                 <h3 className="font-serif-lumiardi text-3xl md:text-5xl font-light text-[#0B0B0B] tracking-tight">
-                  {t('rev_c1_title')}
+                  {t('rev_creators_title')}
                 </h3>
               </div>
               <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] bg-[#C9A96B]/15 border border-[#C9A96B]/30 px-4 py-1.5 font-sans font-semibold self-start sm:self-auto">
-                {t('rev_c1_badge')}
+                {t('rev_creators_badge')}
               </span>
             </div>
 
             <p className="text-lg md:text-xl text-[#0B0B0B]/85 leading-relaxed font-sans font-light">
-              {t('rev_c1_desc')}
+              {t('rev_creators_p1')}
             </p>
 
             <div className="p-6 md:p-8 bg-[#FAF7F2] border border-[#C9A96B]/30 space-y-3">
               <div className="text-[#8C6B2F] font-serif-lumiardi text-2xl md:text-3xl font-light tracking-wide flex items-center gap-2">
                 <Sparkles className="w-5 h-5 stroke-[1.2]" />
-                <span>{t('rev_c1_opt_title')}</span>
+                <span>{t('rev_creators_box_title')}</span>
               </div>
               <p className="text-sm md:text-base text-[#0B0B0B]/80 leading-relaxed font-sans font-light">
-                {t('rev_c1_opt_desc')}
+                {t('rev_creators_box_p')}
               </p>
             </div>
 
@@ -122,7 +122,7 @@ export const RevenueSection: React.FC = () => {
                   <Check className="w-4 h-4 stroke-[1.2]" />
                 </span>
                 <span className="text-base md:text-lg text-[#0B0B0B]/90 font-sans font-light">
-                  {t('rev_c1_f1')}
+                  {t('rev_creators_f1')}
                 </span>
               </li>
               <li className="flex items-center gap-4">
@@ -130,7 +130,7 @@ export const RevenueSection: React.FC = () => {
                   <Check className="w-4 h-4 stroke-[1.2]" />
                 </span>
                 <span className="text-base md:text-lg text-[#0B0B0B]/90 font-sans font-light">
-                  {t('rev_c1_f2')}
+                  {t('rev_creators_f2')}
                 </span>
               </li>
               <li className="flex items-center gap-4">
@@ -138,7 +138,7 @@ export const RevenueSection: React.FC = () => {
                   <Check className="w-4 h-4 stroke-[1.2]" />
                 </span>
                 <span className="text-base md:text-lg text-[#0B0B0B]/90 font-sans font-light">
-                  {t('rev_c1_f3')}
+                  {t('rev_creators_f3')}
                 </span>
               </li>
             </ul>
@@ -150,24 +150,24 @@ export const RevenueSection: React.FC = () => {
               <div className="flex items-center gap-3">
                 <Lock className="w-6 h-6 stroke-[1.2] text-[#0B0B0B]" />
                 <h3 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-[#0B0B0B] tracking-tight">
-                  {t('rev_c2_title')}
+                  {t('rev_agencies_title')}
                 </h3>
               </div>
               <span className="text-[10px] uppercase tracking-[0.25em] text-[#0B0B0B] bg-[#0B0B0B]/10 border border-[#0B0B0B]/20 px-4 py-1.5 font-sans font-semibold self-start sm:self-auto">
-                {t('rev_c2_badge')}
+                {t('rev_agencies_badge')}
               </span>
             </div>
 
             <p className="text-base md:text-lg text-[#0B0B0B]/85 leading-relaxed font-sans font-light">
-              {t('rev_c2_desc')}
+              {t('rev_agencies_p1')}
             </p>
 
             <div className="p-6 bg-[#FAF7F2] border border-[#0B0B0B]/15 space-y-3">
               <div className="text-[#0B0B0B] font-serif-lumiardi text-xl md:text-2xl font-light tracking-wide">
-                {t('rev_c2_opt_title')}
+                {t('rev_agencies_box_title')}
               </div>
               <p className="text-sm md:text-base text-[#0B0B0B]/80 leading-relaxed font-sans font-light">
-                {t('rev_c2_opt_desc')}
+                {t('rev_agencies_box_p')}
               </p>
             </div>
 
@@ -177,7 +177,7 @@ export const RevenueSection: React.FC = () => {
                   <Check className="w-4 h-4 stroke-[1.2]" />
                 </span>
                 <span className="text-base md:text-lg text-[#0B0B0B]/90 font-sans font-light">
-                  {t('rev_c2_f1')}
+                  {t('rev_agencies_f1')}
                 </span>
               </li>
               <li className="flex items-center gap-3.5">
@@ -185,7 +185,7 @@ export const RevenueSection: React.FC = () => {
                   <Check className="w-4 h-4 stroke-[1.2]" />
                 </span>
                 <span className="text-base md:text-lg text-[#0B0B0B]/90 font-sans font-light">
-                  {t('rev_c2_f2')}
+                  {t('rev_agencies_f2')}
                 </span>
               </li>
               <li className="flex items-center gap-3.5">
@@ -193,7 +193,7 @@ export const RevenueSection: React.FC = () => {
                   <Check className="w-4 h-4 stroke-[1.2]" />
                 </span>
                 <span className="text-base md:text-lg text-[#0B0B0B]/90 font-sans font-light">
-                  {t('rev_c2_f3')}
+                  {t('rev_agencies_f3')}
                 </span>
               </li>
             </ul>

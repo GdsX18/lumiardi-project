@@ -96,18 +96,18 @@ export const PinnedHeroCards: React.FC = () => {
                   01
                 </span>
                 <span className="text-xs uppercase tracking-[0.25em] text-gold/80 border border-gold/30 px-3.5 py-1 font-sans">
-                  {t('pinned_c1_badge')}
+                  {t('pinned_card1_badge')}
                 </span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-tight mb-2">
-                {t('pinned_c1_title')}
+                {t('pinned_card1_title')}
               </h3>
               <p className="text-xs md:text-sm text-gold uppercase tracking-[0.25em] font-sans font-medium mb-4">
-                {t('pinned_c1_sub')}
+                {t('pinned_card1_sub')}
               </p>
             </div>
             <p className="text-sm md:text-base text-ivory/85 font-sans font-light leading-relaxed max-w-3xl">
-              {t('pinned_c1_desc')}
+              {t('pinned_card1_desc')}
             </p>
           </div>
         </div>
@@ -124,18 +124,18 @@ export const PinnedHeroCards: React.FC = () => {
                   02
                 </span>
                 <span className="text-xs uppercase tracking-[0.25em] text-gold/80 border border-gold/30 px-3.5 py-1 font-sans">
-                  {t('pinned_c2_badge')}
+                  {t('pinned_card2_badge')}
                 </span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-tight mb-2">
-                {t('pinned_c2_title')}
+                {t('pinned_card2_title')}
               </h3>
               <p className="text-xs md:text-sm text-gold uppercase tracking-[0.25em] font-sans font-medium mb-4">
-                {t('pinned_c2_sub')}
+                {t('pinned_card2_sub')}
               </p>
             </div>
             <p className="text-sm md:text-base text-ivory/85 font-sans font-light leading-relaxed max-w-3xl">
-              {t('pinned_c2_desc')}
+              {t('pinned_card2_desc')}
             </p>
           </div>
         </div>
@@ -152,18 +152,18 @@ export const PinnedHeroCards: React.FC = () => {
                   03
                 </span>
                 <span className="text-xs uppercase tracking-[0.25em] text-black-matte/80 border border-black-matte/30 px-3.5 py-1 font-sans">
-                  {t('pinned_c3_badge')}
+                  {t('pinned_card3_badge')}
                 </span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-black-matte tracking-tight mb-2">
-                {t('pinned_c3_title')}
+                {t('pinned_card3_title')}
               </h3>
               <p className="text-xs md:text-sm text-bronze uppercase tracking-[0.25em] font-sans font-semibold mb-4">
-                {t('pinned_c3_sub')}
+                {t('pinned_card3_sub')}
               </p>
             </div>
             <p className="text-sm md:text-base text-black-matte/85 font-sans font-light leading-relaxed max-w-3xl">
-              {t('pinned_c3_desc')}
+              {t('pinned_card3_desc')}
             </p>
           </div>
         </div>
@@ -171,5 +171,3 @@ export const PinnedHeroCards: React.FC = () => {
     </div>
   );
 };
-
-

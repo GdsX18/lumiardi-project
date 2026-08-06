@@ -52,7 +52,7 @@ export const PricingSection: React.FC = () => {
           </h2>
 
           <p className="text-lg md:text-2xl text-[#0B0B0B]/80 font-sans font-light leading-relaxed max-w-2xl">
-            {t('pricing_sub')}
+            {t('pricing_desc')}
           </p>
         </div>
 

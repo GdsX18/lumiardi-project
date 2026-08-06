@@ -32,15 +32,15 @@ export default function LimitesPage() {
       <SectionWrapper bg="light">
         <div className="max-w-4xl mx-auto space-y-8 text-center">
           <span className="text-xs uppercase tracking-[0.3em] text-bronze font-semibold">
-            {t('lim_methodology_tag')}
+            {t('lim_tag_1')}
           </span>
           <RevealText
-            text={t('lim_title')}
+            text={t('lim_title_1')}
             as="h1"
             className="font-serif-lumiardi text-4xl md:text-6xl text-black-matte"
           />
           <p className="text-sm md:text-base text-black-matte/75 max-w-2xl mx-auto leading-relaxed">
-            {t('lim_desc')}
+            {t('lim_desc_1')}
           </p>
         </div>
       </SectionWrapper>
@@ -50,46 +50,46 @@ export default function LimitesPage() {
         <div className="max-w-5xl mx-auto space-y-12">
           <div className="text-center space-y-3">
             <span className="text-xs uppercase tracking-[0.3em] text-gold font-semibold">
-              {t('lim_env_tag')}
+              {t('lim_tag_2')}
             </span>
             <h2 className="font-serif-lumiardi text-3xl md:text-5xl text-ivory">
-              {t('lim_work_inside')}
+              {t('lim_title_2')}
             </h2>
             <p className="text-sm text-ivory/60 max-w-xl mx-auto">
-              {t('lim_work_sub')}
+              {t('lim_desc_2')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <FadeIn direction="up" delay={0.1}>
-              <Card number="01" title={t('lim_c1_title')} variant="dark" className="h-full">
+              <Card number="01" title={t('lim_card1_title')} variant="dark" className="h-full">
                 <div className="my-4 text-gold">
                   <MessageSquare className="w-8 h-8" />
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-sans">
-                  {t('lim_c1_desc')}
+                  {t('lim_card1_desc')}
                 </p>
               </Card>
             </FadeIn>
 
             <FadeIn direction="up" delay={0.2}>
-              <Card number="02" title={t('lim_c2_title')} variant="gold-border" className="h-full">
+              <Card number="02" title={t('lim_card2_title')} variant="gold-border" className="h-full">
                 <div className="my-4 text-gold">
                   <Kanban className="w-8 h-8" />
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-sans">
-                  {t('lim_c2_desc')}
+                  {t('lim_card2_desc')}
                 </p>
               </Card>
             </FadeIn>
 
             <FadeIn direction="up" delay={0.3}>
-              <Card number="03" title={t('lim_c3_title')} variant="dark" className="h-full">
+              <Card number="03" title={t('lim_card3_title')} variant="dark" className="h-full">
                 <div className="my-4 text-gold">
                   <Video className="w-8 h-8" />
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-sans">
-                  {t('lim_c3_desc')}
+                  {t('lim_card3_desc')}
                 </p>
               </Card>
             </FadeIn>
@@ -102,7 +102,7 @@ export default function LimitesPage() {
               icon={<ArrowRight className="w-4 h-4" />}
               onClick={() => router.push('/dashboard')}
             >
-              {t('lim_try_dash')}
+              {t('lim_cta_dashboard')}
             </Button>
           </div>
         </div>

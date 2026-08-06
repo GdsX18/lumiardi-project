@@ -46,7 +46,7 @@ export default function QualificacaoPage() {
           {/* Resumo do processo + CTA de candidatura */}
           <div className="mt-4 space-y-6 max-w-2xl mx-auto">
             <p className="text-sm text-ivory/60 font-sans leading-relaxed border-t border-bronze/20 pt-6">
-              O processo seletivo da Lumiardi é conduzido em <strong className="text-ivory/90">3 etapas</strong>: validação de identidade e maioridade, entrevista de alinhamento com nossa equipe de curadoria e, por fim, a aprovação com ativação do perfil na rede. Após a aprovação, sua conta estará ativa e visível para agências de elite parceiras.
+              {t('qual_summary_desc')}
             </p>
 
             <button
@@ -62,7 +62,7 @@ export default function QualificacaoPage() {
                 className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 animate-shimmer pointer-events-none"
                 aria-hidden
               />
-              <span>Iniciar Candidatura</span>
+              <span>{t('qual_btn_start_candidacy')}</span>
               <ArrowRight className="w-4 h-4 stroke-[1.5] transition-transform duration-300 group-hover:translate-x-1" />
             </button>
           </div>

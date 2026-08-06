@@ -3,20 +3,23 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldCheck, Star, Globe, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface CreatorBenefitsModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const benefits = [
-  { icon: ShieldCheck, text: 'Sigilo absoluto e proteção de identidade garantida' },
-  { icon: Star, text: 'Perfil verificado visível para agências de elite globais' },
-  { icon: Globe, text: 'Conexões em mais de 180 países com compliance total' },
-];
-
 export const CreatorBenefitsModal = ({ open, onClose }: CreatorBenefitsModalProps) => {
   const router = useRouter();
+  const { t } = useLanguage();
+
+  const benefits = [
+    { icon: ShieldCheck, text: t('modal_b1') },
+    { icon: Star, text: t('modal_b2') },
+    { icon: Globe, text: t('modal_b3') },
+  ];
+
   return (
     <AnimatePresence>
       {open && (
@@ -37,8 +40,8 @@ export const CreatorBenefitsModal = ({ open, onClose }: CreatorBenefitsModalProp
           >
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-[10px] text-gold uppercase tracking-[0.3em] font-sans">Exclusivo para Criadoras +18</span>
-                <h3 className="font-serif-lumiardi text-2xl sm:text-3xl font-light mt-1">Por que se candidatar à Lumiardi?</h3>
+                <span className="text-[10px] text-gold uppercase tracking-[0.3em] font-sans">{t('modal_creators_tag')}</span>
+                <h3 className="font-serif-lumiardi text-2xl sm:text-3xl font-light mt-1">{t('modal_creators_title')}</h3>
               </div>
               <button onClick={onClose} className="p-2 text-ivory/50 hover:text-gold transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
@@ -61,7 +64,7 @@ export const CreatorBenefitsModal = ({ open, onClose }: CreatorBenefitsModalProp
               onClick={() => { onClose(); router.push('/qualificacao'); }}
               className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] font-sans text-xs tracking-[0.25em] uppercase font-semibold hover:bg-[#D4B87A] transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Iniciar Processo de Candidatura</span>
+              <span>{t('modal_btn_apply')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </motion.div>

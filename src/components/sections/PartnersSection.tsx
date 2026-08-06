@@ -18,59 +18,55 @@ export const PartnersSection: React.FC = () => {
   const partners = [
     {
       company: 'AMO Advogados',
-      category: t('partners_cat_legal') || 'Assessoria Jurídica & Compliance',
+      category: t('partners_cat_legal'),
       icon: Scale,
-      badge: 'PARCEIRO JURÍDICO OFICIAL',
-      description:
-        'Escritório especializado em direito digital, proteção de marca, NDAs e contratos corporativos no mercado de criadores e agências.',
+      badge: t('partners_badge_legal'),
+      description: t('partners_amo_desc'),
       benefits: [
-        'Análise preventiva de contratos de gestão e imagem',
-        'Condições e honorários exclusivos para membros Lumiardi',
-        'Suporte em compliance internacional e proteção de privacidade',
+        t('partners_amo_b1'),
+        t('partners_amo_b2'),
+        t('partners_amo_b3'),
       ],
-      linkText: 'Solicitar Atendimento Jurídico',
+      linkText: t('partners_amo_link'),
     },
     {
       company: 'JM Master Group',
-      category: t('partners_cat_tech') || 'Soluções Tecnológicas & Segurança',
+      category: t('partners_cat_tech'),
       icon: Cpu,
-      badge: 'INFRAESTRUTURA DE SEGURANÇA',
-      description:
-        'Líder em infraestrutura de TI, proteção contra vazamentos de dados, armazenamento seguro e tecnologia financeira.',
+      badge: t('partners_badge_tech'),
+      description: t('partners_jm_desc'),
       benefits: [
-        'Auditoria preventiva de segurança digital de marca',
-        'Proteção e rastreabilidade avançada de mídias',
-        'Soluções de nuvem privada corporativa sob medida',
+        t('partners_jm_b1'),
+        t('partners_jm_b2'),
+        t('partners_jm_b3'),
       ],
-      linkText: 'Conhecer Soluções Tecnológicas',
+      linkText: t('partners_jm_link'),
     },
     {
-      company: 'Mídia & Consultoria Estratégica',
-      category: t('partners_cat_media') || 'Mídia & Consultoria Estratégica',
+      company: t('partners_company_media'),
+      category: t('partners_cat_media'),
       icon: Megaphone,
-      badge: 'GESTÃO DE IMAGEM DE LUXO',
-      description:
-        'Consultoria de Relações Públicas, estratégia de imagem e posicionamento editorial para criadores e agências de elite.',
+      badge: t('partners_badge_media'),
+      description: t('partners_media_desc'),
       benefits: [
-        'Mentoria de posicionamento executivo de luxo silencioso',
-        'Planejamento de campanhas de alto impacto editorial',
-        'Acesso a redes de distribuição e mídias de alto padrão',
+        t('partners_media_b1'),
+        t('partners_media_b2'),
+        t('partners_media_b3'),
       ],
-      linkText: 'Agendar Consultoria de Mídia',
+      linkText: t('partners_media_link'),
     },
     {
       company: 'Asset & Financial Management',
-      category: t('partners_cat_finance') || 'Mercado Financeiro & Gestão',
+      category: t('partners_cat_finance'),
       icon: Landmark,
-      badge: 'SOLUÇÕES FINANCEIRAS',
-      description:
-        'Consultoria financeira corporativa dedicada à estruturação patrimonial, tributária e de recebíveis para o ecossistema.',
+      badge: t('partners_badge_finance'),
+      description: t('partners_financial_desc'),
       benefits: [
-        'Planejamento tributário e abertura de estruturas corporativas',
-        'Gestão e proteção patrimonial privada',
-        'Condições especiais em contas e investimentos parceiros',
+        t('partners_financial_b1'),
+        t('partners_financial_b2'),
+        t('partners_financial_b3'),
       ],
-      linkText: 'Acessar Consultoria Financeira',
+      linkText: t('partners_financial_link'),
     },
   ];
 
@@ -150,7 +146,7 @@ export const PartnersSection: React.FC = () => {
 
                   <div className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 mb-8">
                     <span className="text-[10px] uppercase tracking-[0.2em] text-[#8C6B2F] font-sans font-bold block mb-2">
-                      Vantagens Exclusivas para Membros Lumiardi:
+                      {t('partners_exclusive_advantages')}
                     </span>
                     {partner.benefits.map((benefit, bIdx) => (
                       <div key={bIdx} className="flex items-start gap-2.5 text-xs text-[#0B0B0B]/85 font-sans">
@@ -167,7 +163,7 @@ export const PartnersSection: React.FC = () => {
                   </span>
                   <button
                     onClick={() => {
-                      alert(`Solicitação de benefício exclusivo com ${partner.company} enviada para a curadoria Lumiardi.`);
+                      alert(t('partners_alert_request').replace('{company}', partner.company));
                     }}
                     className="text-xs font-sans text-[#8C6B2F] group-hover:text-[#0B0B0B] uppercase tracking-wider font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
@@ -185,11 +181,11 @@ export const PartnersSection: React.FC = () => {
           <div className="flex items-center gap-3 text-xs text-[#0B0B0B]/70 font-sans">
             <ShieldCheck className="w-5 h-5 text-[#8C6B2F] shrink-0" />
             <span>
-              <strong>Garantia Lumiardi:</strong> Todos os parceiros listados passam por auditoria de idoneidade, ética e compliance.
+              <strong>{t('partners_guarantee_title')}</strong> {t('partners_guarantee_desc')}
             </span>
           </div>
           <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-semibold shrink-0">
-            BENEFÍCIOS AUDITADOS
+            {t('partners_audited_benefits')}
           </span>
         </div>
       </div>

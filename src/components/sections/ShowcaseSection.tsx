@@ -287,7 +287,7 @@ export const ShowcaseSection: React.FC = () => {
                       {selectedPortfolio.badge}
                     </span>
                     <span className="text-xs text-ivory/60 font-sans flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#C9A96B]" /> Verificado Lumiardi
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#C9A96B]" /> {t('showcase_verified_lumiardi')}
                     </span>
                   </div>
                   <h3 className="font-serif-lumiardi text-3xl font-light text-ivory mt-2">
@@ -314,7 +314,7 @@ export const ShowcaseSection: React.FC = () => {
 
               <div className="flex items-center justify-between pt-4 border-t border-white/10">
                 <div className="flex items-center gap-2 text-xs text-emerald-400 font-sans">
-                  <CheckCircle2 className="w-4 h-4" /> Portfólio Verificado & Ativo
+                  <CheckCircle2 className="w-4 h-4" /> {t('showcase_verified_active')}
                 </div>
                 <button
                   onClick={() => {
@@ -323,7 +323,7 @@ export const ShowcaseSection: React.FC = () => {
                   }}
                   className="px-6 py-3 bg-[#C9A96B] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.2em] font-semibold hover:bg-[#D4B87A] transition-colors cursor-pointer"
                 >
-                  Propor Conexão Direta
+                  {t('showcase_propose_connection')}
                 </button>
               </div>
             </div>

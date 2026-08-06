@@ -293,6 +293,56 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     partners_cat_media: 'Mídia & Consultoria Estratégica',
     partners_cat_finance: 'Mercado Financeiro & Gestão',
 
+    partners_badge_legal: 'PARCEIRO JURÍDICO OFICIAL',
+    partners_badge_tech: 'INFRAESTRUTURA DE SEGURANÇA',
+    partners_badge_media: 'GESTÃO DE IMAGEM DE LUXO',
+    partners_badge_finance: 'SOLUÇÕES FINANCEIRAS',
+
+    partners_company_media: 'Mídia & Consultoria Estratégica',
+
+    partners_amo_desc: 'Escritório especializado em direito digital, proteção de marca, NDAs e contratos corporativos no mercado de criadores e agências.',
+    partners_amo_b1: 'Análise preventiva de contratos de gestão e imagem',
+    partners_amo_b2: 'Condições e honorários exclusivos para membros Lumiardi',
+    partners_amo_b3: 'Suporte em compliance internacional e proteção de privacidade',
+    partners_amo_link: 'Solicitar Atendimento Jurídico',
+
+    partners_jm_desc: 'Líder em infraestrutura de TI, proteção contra vazamentos de dados, armazenamento seguro e tecnologia financeira.',
+    partners_jm_b1: 'Auditoria preventiva de segurança digital de marca',
+    partners_jm_b2: 'Proteção e rastreabilidade avançada de mídias',
+    partners_jm_b3: 'Soluções de nuvem privada corporativa sob medida',
+    partners_jm_link: 'Conhecer Soluções Tecnológicas',
+
+    partners_media_desc: 'Consultoria de Relações Públicas, estratégia de imagem e posicionamento editorial para criadores e agências de elite.',
+    partners_media_b1: 'Mentoria de posicionamento executivo de luxo silencioso',
+    partners_media_b2: 'Planejamento de campanhas de alto impacto editorial',
+    partners_media_b3: 'Acesso a redes de distribuição e mídias de alto padrão',
+    partners_media_link: 'Agendar Consultoria de Mídia',
+
+    partners_financial_desc: 'Consultoria financeira corporativa dedicada à estruturação patrimonial, tributária e de recebíveis para o ecossistema.',
+    partners_financial_b1: 'Planejamento tributário e abertura de estruturas corporativas',
+    partners_financial_b2: 'Gestão e proteção patrimonial privada',
+    partners_financial_b3: 'Condições especiais em contas e investimentos parceiros',
+    partners_financial_link: 'Acessar Consultoria Financeira',
+
+    partners_exclusive_advantages: 'Vantagens Exclusivas para Membros Lumiardi:',
+    partners_alert_request: 'Solicitação de benefício exclusivo com {company} enviada para a curadoria Lumiardi.',
+    partners_guarantee_title: 'Garantia Lumiardi:',
+    partners_guarantee_desc: 'Todos os parceiros listados passam por auditoria de idoneidade, ética e compliance.',
+    partners_audited_benefits: 'BENEFÍCIOS AUDITADOS',
+
+    // Modais e Qualificação extras
+    modal_creators_tag: 'Exclusivo para Criadoras +18',
+    modal_creators_title: 'Por que se candidatar à Lumiardi?',
+    modal_b1: 'Sigilo absoluto e proteção de identidade garantida',
+    modal_b2: 'Perfil verificado visível para agências de elite globais',
+    modal_b3: 'Conexões em mais de 180 países com compliance total',
+    modal_btn_apply: 'Iniciar Processo de Candidatura',
+    qual_summary_desc: 'O processo seletivo da Lumiardi é conduzido em 3 etapas: validação de identidade e maioridade, entrevista de alinhamento com nossa equipe de curadoria e aprovação final.',
+    qual_btn_start_candidacy: 'Iniciar Candidatura',
+    showcase_verified_lumiardi: 'Verificado Lumiardi',
+    showcase_verified_active: 'Portfólio Verificado & Ativo',
+    showcase_propose_connection: 'Propor Conexão Direta',
+
     // Table Features & Values
     tbl_f1: 'Perfil ativo e pesquisável',
     tbl_f2: 'Busca de agências',
@@ -764,6 +814,65 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     plan_sig_f4: 'Gerente de cuenta exclusivo y soporte VIP',
     plan_sig_cta: 'SOLICITAR ACCESO SIGNATURE',
 
+    // Seção de Parceiros Oficiais
+    partners_tag: 'SOCIOS OFICIALES Y BENEFICIOS EXCLUSIVOS',
+    partners_title: 'Red Oficial de Socios Lumiardi',
+    partners_desc: 'Beneficios exclusivos y atención prioritaria con empresas de excelencia seleccionadas para impulsar la operación de creadoras y agencias.',
+    partners_cat_legal: 'Asesoría Jurídica y Cumplimiento',
+    partners_cat_tech: 'Soluciones Tecnológicas y Seguridad',
+    partners_cat_media: 'Medios y Consultoría Estratégica',
+    partners_cat_finance: 'Mercado Financiero y Gestión',
+
+    partners_badge_legal: 'SOCIO JURÍDICO OFICIAL',
+    partners_badge_tech: 'INFRAESTRUCTURA DE SEGURIDAD',
+    partners_badge_media: 'GESTIÓN DE IMAGEN DE LUJO',
+    partners_badge_finance: 'SOLUCIONES FINANCIERAS',
+
+    partners_company_media: 'Medios y Consultoría Estratégica',
+
+    partners_amo_desc: 'Firma especializada en derecho digital, protección de marca, NDAs y contratos corporativos en el mercado de creadores y agencias.',
+    partners_amo_b1: 'Análisis preventivo de contratos de gestión e imagen',
+    partners_amo_b2: 'Condiciones y honorarios exclusivos para miembros Lumiardi',
+    partners_amo_b3: 'Soporte en cumplimiento internacional y protección de privacidad',
+    partners_amo_link: 'Solicitar Atención Jurídica',
+
+    partners_jm_desc: 'Líder en infraestructura de TI, protección contra filtración de datos, almacenamiento seguro y tecnología financiera.',
+    partners_jm_b1: 'Auditoría preventiva de seguridad digital de marca',
+    partners_jm_b2: 'Protección y trazabilidad avanzada de medios',
+    partners_jm_b3: 'Soluciones de nube privada corporativa a medida',
+    partners_jm_link: 'Conocer Soluciones Tecnológicas',
+
+    partners_media_desc: 'Consultoría de Relaciones Públicas, estrategia de imagen y posicionamiento editorial para creadores y agencias de élite.',
+    partners_media_b1: 'Mentoría de posicionamiento ejecutivo de lujo silencioso',
+    partners_media_b2: 'Planificación de campañas de alto impacto editorial',
+    partners_media_b3: 'Acceso a redes de distribución y medios de alto nivel',
+    partners_media_link: 'Agendar Consultoría de Medios',
+
+    partners_financial_desc: 'Consultoría financiera corporativa dedicada a la estructuración patrimonial, tributaria y de cobros para el ecosistema.',
+    partners_financial_b1: 'Planificación tributaria y apertura de estructuras corporativas',
+    partners_financial_b2: 'Gestión y protección patrimonial privada',
+    partners_financial_b3: 'Condiciones especiales en cuentas e inversiones asociadas',
+    partners_financial_link: 'Acceder a Consultoría Financiera',
+
+    partners_exclusive_advantages: 'Ventajas Exclusivas para Miembros Lumiardi:',
+    partners_alert_request: 'Solicitud de beneficio exclusivo con {company} enviada a la curaduría Lumiardi.',
+    partners_guarantee_title: 'Garantía Lumiardi:',
+    partners_guarantee_desc: 'Todos los socios listados pasan por auditoría de idoneidad, ética y cumplimiento.',
+    partners_audited_benefits: 'BENEFICIOS AUDITADOS',
+
+    // Modais e Qualificação extras
+    modal_creators_tag: 'Exclusivo para Creadoras +18',
+    modal_creators_title: '¿Por qué postularse a Lumiardi?',
+    modal_b1: 'Confidencialidad absoluta y protección de identidad garantizada',
+    modal_b2: 'Perfil verificado visible para agencias de élite globales',
+    modal_b3: 'Conexiones en más de 180 países con cumplimiento total',
+    modal_btn_apply: 'Iniciar Proceso de Postulación',
+    qual_summary_desc: 'El proceso de selección de Lumiardi se lleva a cabo en 3 etapas: validación de identidad y mayoría de edad, entrevista de alineación con nuestro equipo de curaduría y aprobación final.',
+    qual_btn_start_candidacy: 'Iniciar Postulación',
+    showcase_verified_lumiardi: 'Verificado Lumiardi',
+    showcase_verified_active: 'Portafolio Verificado y Activo',
+    showcase_propose_connection: 'Proponer Conexión Directa',
+
     // Table Features & Values
     tbl_f1: 'Perfil activo y buscable',
     tbl_f2: 'Búsqueda de agencias',
@@ -1232,6 +1341,65 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     plan_sig_f3: 'Unlimited workspaces & Kanban',
     plan_sig_f4: 'Dedicated account manager & VIP support',
     plan_sig_cta: 'REQUEST SIGNATURE ACCESS',
+
+    // Official Partners Section
+    partners_tag: 'OFFICIAL PARTNERS & EXCLUSIVE BENEFITS',
+    partners_title: 'Official Lumiardi Partner Network',
+    partners_desc: 'Exclusive benefits and priority service with selected premier companies to power creator and agency operations.',
+    partners_cat_legal: 'Legal Advisory & Compliance',
+    partners_cat_tech: 'Tech Solutions & Security',
+    partners_cat_media: 'Media & Strategic Consulting',
+    partners_cat_finance: 'Financial Market & Wealth Management',
+
+    partners_badge_legal: 'OFFICIAL LEGAL PARTNER',
+    partners_badge_tech: 'SECURITY INFRASTRUCTURE',
+    partners_badge_media: 'LUXURY IMAGE MANAGEMENT',
+    partners_badge_finance: 'FINANCIAL SOLUTIONS',
+
+    partners_company_media: 'Media & Strategic Consulting',
+
+    partners_amo_desc: 'Law firm specialized in digital law, brand protection, NDAs, and corporate contracts for creators and agencies.',
+    partners_amo_b1: 'Preventive analysis of management and image contracts',
+    partners_amo_b2: 'Exclusive terms and legal fees for Lumiardi members',
+    partners_amo_b3: 'International compliance support and privacy protection',
+    partners_amo_link: 'Request Legal Services',
+
+    partners_jm_desc: 'Leader in IT infrastructure, data leak prevention, secure storage, and financial technology.',
+    partners_jm_b1: 'Preventive digital brand security audit',
+    partners_jm_b2: 'Advanced media protection and traceability',
+    partners_jm_b3: 'Bespoke corporate private cloud solutions',
+    partners_jm_link: 'Explore Tech Solutions',
+
+    partners_media_desc: 'PR consulting, image strategy, and editorial positioning for elite creators and agencies.',
+    partners_media_b1: 'Silent luxury executive positioning mentorship',
+    partners_media_b2: 'High-impact editorial campaign planning',
+    partners_media_b3: 'Access to high-tier distribution networks and media',
+    partners_media_link: 'Book Media Consultation',
+
+    partners_financial_desc: 'Corporate financial consulting dedicated to asset structuring, tax planning, and receivables for the ecosystem.',
+    partners_financial_b1: 'Tax planning and corporate structure setup',
+    partners_financial_b2: 'Private wealth management and asset protection',
+    partners_financial_b3: 'Special rates on partner accounts and investments',
+    partners_financial_link: 'Access Financial Consulting',
+
+    partners_exclusive_advantages: 'Exclusive Benefits for Lumiardi Members:',
+    partners_alert_request: 'Exclusive benefit request with {company} submitted to Lumiardi curation.',
+    partners_guarantee_title: 'Lumiardi Guarantee:',
+    partners_guarantee_desc: 'All listed partners undergo strict integrity, ethics, and compliance audits.',
+    partners_audited_benefits: 'AUDITED BENEFITS',
+
+    // Modais e Qualificação extras
+    modal_creators_tag: 'Exclusive for Creators +18',
+    modal_creators_title: 'Why apply to Lumiardi?',
+    modal_b1: 'Absolute secrecy and guaranteed identity protection',
+    modal_b2: 'Verified profile visible to global elite agencies',
+    modal_b3: 'Connections in over 180 countries with full compliance',
+    modal_btn_apply: 'Start Application Process',
+    qual_summary_desc: 'Lumiardi selection is conducted in 3 stages: age & identity validation, alignment interview with our curation team, and final approval with profile activation.',
+    qual_btn_start_candidacy: 'Start Application',
+    showcase_verified_lumiardi: 'Verified Lumiardi',
+    showcase_verified_active: 'Portfolio Verified & Active',
+    showcase_propose_connection: 'Propose Direct Connection',
 
     // Table Features & Values
     tbl_f1: 'Active and searchable profile',
@@ -1704,6 +1872,65 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     plan_sig_f4: 'Gestionnaire de compte dédié & support VIP',
     plan_sig_cta: 'DEMANDER ACCÈS SIGNATURE',
 
+    // Official Partners Section
+    partners_tag: 'PARTENAIRES OFFICIELS ET AVANTAGES EXCLUSIFS',
+    partners_title: 'Réseau Officiel de Partenaires Lumiardi',
+    partners_desc: 'Avantages exclusifs et service prioritaire auprès d’entreprises d’excellence sélectionnées pour propulser l’activité des créateurs et agences.',
+    partners_cat_legal: 'Conseil Juridique & Conformité',
+    partners_cat_tech: 'Solutions Technologiques & Sécurité',
+    partners_cat_media: 'Médias & Conseil Stratégique',
+    partners_cat_finance: 'Marché Financier & Gestion',
+
+    partners_badge_legal: 'PARTENAIRE JURIDIQUE OFFICIEL',
+    partners_badge_tech: 'INFRASTRUCTURE DE SÉCURITÉ',
+    partners_badge_media: 'GESTION D’IMAGE DE LUXE',
+    partners_badge_finance: 'SOLUTIONS FINANCIÈRES',
+
+    partners_company_media: 'Médias & Conseil Stratégique',
+
+    partners_amo_desc: 'Cabinet spécialisé en droit numérique, protection des marques, NDAs et contrats pour créateurs et agences.',
+    partners_amo_b1: 'Analyse préventive des contrats de gestion et d’image',
+    partners_amo_b2: 'Conditions et honoraires exclusifs pour les membres Lumiardi',
+    partners_amo_b3: 'Support en conformité internationale et protection de la vie privée',
+    partners_amo_link: 'Demander une Assistance Juridique',
+
+    partners_jm_desc: 'Leader en infrastructure IT, prévention des fuites de données, stockage sécurisé et technologie financière.',
+    partners_jm_b1: 'Audit préventif de sécurité numérique de la marque',
+    partners_jm_b2: 'Protection et traçabilité avancée des médias',
+    partners_jm_b3: 'Solutions de cloud privé d’entreprise sur mesure',
+    partners_jm_link: 'Découvrir les Solutions Tech',
+
+    partners_media_desc: 'Conseil en Relations Publiques, stratégie d’image et positionnement éditorial pour créateurs et agences d’élite.',
+    partners_media_b1: 'Mentorat en positionnement exécutif de luxe silencieux',
+    partners_media_b2: 'Planification de campagnes éditoriales à fort impact',
+    partners_media_b3: 'Accès aux réseaux de distribution et médias haut de gamme',
+    partners_media_link: 'Réserver un Conseil Média',
+
+    partners_financial_desc: 'Conseil financier d’entreprise dédié à la structuration patrimoniale, fiscale et à la gestion des créances.',
+    partners_financial_b1: 'Optimisation fiscale et création de structures d’entreprise',
+    partners_financial_b2: 'Gestion et protection du patrimoine privé',
+    partners_financial_b3: 'Conditions spéciales sur les comptes et placements partenaires',
+    partners_financial_link: 'Accéder au Conseil Financier',
+
+    partners_exclusive_advantages: 'Avantages Exclusifs Membres Lumiardi :',
+    partners_alert_request: 'Demande d’avantage exclusif avec {company} transmise à la sélection Lumiardi.',
+    partners_guarantee_title: 'Garantie Lumiardi :',
+    partners_guarantee_desc: 'Tous les partenaires répertoriés sont soumis à des audits de probité, d’éthique et de conformité.',
+    partners_audited_benefits: 'AVANTAGES AUDITÉS',
+
+    // Modais e Qualificação extras
+    modal_creators_tag: 'Exclusif Créateurs +18',
+    modal_creators_title: 'Pourquoi postuler chez Lumiardi ?',
+    modal_b1: 'Confidentialité absolue et protection de l’identité garantie',
+    modal_b2: 'Profil vérifié visible par les agences d’élite mondiales',
+    modal_b3: 'Connexions dans plus de 180 pays en toute conformité',
+    modal_btn_apply: 'Lancer la Candidature',
+    qual_summary_desc: 'Le processus de sélection Lumiardi se déroule en 3 étapes : validation de l’identité et de la majorité, entretien d’alignement, puis activation du profil.',
+    qual_btn_start_candidacy: 'Démarrer la Candidature',
+    showcase_verified_lumiardi: 'Vérifié Lumiardi',
+    showcase_verified_active: 'Portfolio Vérifié et Actif',
+    showcase_propose_connection: 'Proposer une Connexion Directa',
+
     // Table Features & Values
     tbl_f1: 'Profil actif et recherchable',
     tbl_f2: 'Recherche d\'agences',
@@ -2175,6 +2402,65 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     plan_sig_f4: 'Account manager dedicato e supporto VIP',
     plan_sig_cta: 'RICHIEDI ACCESSO SIGNATURE',
 
+    // Official Partners Section
+    partners_tag: 'PARTNER UFFICIALI E VANTAGGI ESCLUSIVI',
+    partners_title: 'Rete Ufficiale di Partner Lumiardi',
+    partners_desc: 'Vantaggi esclusivi e assistenza prioritaria con aziende d’eccellenza selezionate per accelerare l’operatività di creatori e agenzie.',
+    partners_cat_legal: 'Consulenza Legale & Compliance',
+    partners_cat_tech: 'Soluzioni Tecnologiche & Sicurezza',
+    partners_cat_media: 'Media & Consulenza Strategica',
+    partners_cat_finance: 'Mercato Finanziario & Wealth Management',
+
+    partners_badge_legal: 'PARTNER LEGALE UFFICIALE',
+    partners_badge_tech: 'INFRASTRUTTURA DI SICUREZZA',
+    partners_badge_media: 'GESTIONE IMMAGINE DI LUSSO',
+    partners_badge_finance: 'SOLUZIONI FINANZIARIE',
+
+    partners_company_media: 'Media & Consulenza Strategica',
+
+    partners_amo_desc: 'Studio legale specializzato in diritto digitale, tutela del marchio, NDA e contratti societari per creatori e agenzie.',
+    partners_amo_b1: 'Analisi preventiva dei contratti di gestione e immagine',
+    partners_amo_b2: 'Condizioni e onorari esclusivi per i membri Lumiardi',
+    partners_amo_b3: 'Supporto per compliance internazionale e tutela della privacy',
+    partners_amo_link: 'Richiedi Consulenza Legale',
+
+    partners_jm_desc: 'Leader nell’infrastruttura IT, protezione dalla fuga di dati, archiviazione sicura e tecnologia finanziaria.',
+    partners_jm_b1: 'Audit preventivo sulla sicurezza digitale del brand',
+    partners_jm_b2: 'Protezione e tracciabilità avanzata dei media',
+    partners_jm_b3: 'Soluzioni private cloud aziendali su misura',
+    partners_jm_link: 'Scopri le Soluzioni Tecnologiche',
+
+    partners_media_desc: 'Consulenza di Pubbliche Relazioni, strategia di immagine e posizionamento editoriale per creatori e agenzie d’élite.',
+    partners_media_b1: 'Mentorship sul posizionamento esecutivo di lusso discreto',
+    partners_media_b2: 'Pianificazione di campagne editoriali ad alto impatto',
+    partners_media_b3: 'Accesso a reti di distribuzione e media di alto livello',
+    partners_media_link: 'Prenota Consulenza Media',
+
+    partners_financial_desc: 'Consulenza finanziaria societaria dedicata a strutturazione patrimoniale, fiscale e dei crediti per l’ecosistema.',
+    partners_financial_b1: 'Pianificazione fiscale e costituzione di strutture societarie',
+    partners_financial_b2: 'Gestione e protezione del patrimonio privato',
+    partners_financial_b3: 'Condizioni speciali su conti e investimenti partner',
+    partners_financial_link: 'Accedi alla Consulenza Finanziaria',
+
+    partners_exclusive_advantages: 'Vantaggi Esclusivi per i Membri Lumiardi:',
+    partners_alert_request: 'Richiesta di beneficio esclusivo con {company} inviata alla curatela Lumiardi.',
+    partners_guarantee_title: 'Garanzia Lumiardi:',
+    partners_guarantee_desc: 'Tutti i partner elencati sono sottoposti ad audit di idoneità, etica e compliance.',
+    partners_audited_benefits: 'VANTAGGI AUDITATI',
+
+    // Modais e Qualificação extras
+    modal_creators_tag: 'Esclusivo per Creatori +18',
+    modal_creators_title: 'Perché candidarsi in Lumiardi?',
+    modal_b1: 'Segreto assoluto e protezione dell’identità garantita',
+    modal_b2: 'Profilo verificato visibile alle agenzie d’élite globali',
+    modal_b3: 'Connessioni in oltre 180 paesi con piena compliance',
+    modal_btn_apply: 'Avvia Processo di Candidatura',
+    qual_summary_desc: 'Il processo di selezione Lumiardi si articola in 3 fasi: verifica dell’identità, colloquio di allineamento e approvazione finale.',
+    qual_btn_start_candidacy: 'Inizia Candidatura',
+    showcase_verified_lumiardi: 'Verificato Lumiardi',
+    showcase_verified_active: 'Portfolio Verificato & Attivo',
+    showcase_propose_connection: 'Proponi Connessione Diretta',
+
     // Table Features & Values
     tbl_f1: 'Profilo attivo e ricercabile',
     tbl_f2: 'Ricerca agenzie',
@@ -2645,6 +2931,65 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     plan_sig_f3: 'Неограниченные пространства и Канбан',
     plan_sig_f4: 'Выделенный аккаунт-менеджер и VIP-поддержка',
     plan_sig_cta: 'ЗАПРОСИТЬ ДОСТУП SIGNATURE',
+
+    // Official Partners Section
+    partners_tag: 'ОФИЦИАЛЬНЫЕ ПАРТНЕРЫ И ЭКСКЛЮЗИВНЫЕ ПРЕИМУЩЕСТВА',
+    partners_title: 'Официальная сеть партнеров Lumiardi',
+    partners_desc: 'Эксклюзивные привилегии и приоритетное обслуживание от ведущих компаний для развития бизнеса создателей и агентств.',
+    partners_cat_legal: 'Юридическое сопровождение и комплаенс',
+    partners_cat_tech: 'Технологические решения и безопасность',
+    partners_cat_media: 'Медиа и стратегический консалтинг',
+    partners_cat_finance: 'Финансовый рынок и управление активами',
+
+    partners_badge_legal: 'ОФИЦИАЛЬНЫЙ ЮРИДИЧЕСКИЙ ПАРТНЕР',
+    partners_badge_tech: 'ИНФРАСТРУКТУРА БЕЗОПАСНОСТИ',
+    partners_badge_media: 'УПРАВЛЕНИЕ ЛЮКС-ИМИДЖЕМ',
+    partners_badge_finance: 'ФИНАНСОВЫЕ РЕШЕНИЯ',
+
+    partners_company_media: 'Медиа и стратегический консалтинг',
+
+    partners_amo_desc: 'Юридическая фирма, специализирующаяся на цифровом праве, защите бренда, соглашениях NDA и корпоративных контрактах.',
+    partners_amo_b1: 'Превентивный анализ контрактов на управление и использование имиджа',
+    partners_amo_b2: 'Эксклюзивные условия и тарифы для участников Lumiardi',
+    partners_amo_b3: 'Поддержка международной соответствия и защита конфиденциальности',
+    partners_amo_link: 'Запросить юридическую консультацию',
+
+    partners_jm_desc: 'Лидер в ИТ-инфраструктуре, защите от утечки данных, безопасном хранении и финансовых технологиях.',
+    partners_jm_b1: 'Превентивный аудит цифровой безопасности бренда',
+    partners_jm_b2: 'Расширенная защита и отслеживание медиафайлов',
+    partners_jm_b3: 'Индивидуальные решения частного корпоративного облака',
+    partners_jm_link: 'Ознакомиться с технологиями',
+
+    partners_media_desc: 'PR-консалтинг, стратегия имиджа и редакционное позиционирование для элитных создателей и агентств.',
+    partners_media_b1: 'Менторство по управленческому позиционированию в стиле тихой роскоши',
+    partners_media_b2: 'Планирование высокоэффективных редакционных кампаний',
+    partners_media_b3: 'Доступ к премиальным сетям дистрибуции и медиа',
+    partners_media_link: 'Записаться на медиа-консультацию',
+
+    partners_financial_desc: 'Корпоративный финансовый консалтинг по структурированию активов, налогообложению и дебиторской задолженности.',
+    partners_financial_b1: 'Налоговое планирование и открытие корпоративных структур',
+    partners_financial_b2: 'Управление и защита частных активов',
+    partners_financial_b3: 'Специальные условия по партнерским счетам и инвестициям',
+    partners_financial_link: 'Получить финансовый консалтинг',
+
+    partners_exclusive_advantages: 'Эксклюзивные преимущества для участников Lumiardi:',
+    partners_alert_request: 'Запрос эксклюзивной привилегии с {company} отправлен кураторам Lumiardi.',
+    partners_guarantee_title: 'Гарантия Lumiardi:',
+    partners_guarantee_desc: 'Все партнеры в списке проходят аудит надежности, этики и комплаенса.',
+    partners_audited_benefits: 'ПРОВЕРЕННЫЕ ПРИВИЛЕГИИ',
+
+    // Modais e Qualificação extras
+    modal_creators_tag: 'Эксклюзивно для создателей 18+',
+    modal_creators_title: 'Почему стоит подать заявку в Lumiardi?',
+    modal_b1: 'Абсолютная конфиденциальность и гарантированная защита личности',
+    modal_b2: 'Верифицированный профиль, видимый мировым элитным агентствам',
+    modal_b3: 'Связи в более чем 180 странах с полным соблюдением стандартов',
+    modal_btn_apply: 'Начать процесс подачи заявки',
+    qual_summary_desc: 'Отбор в Lumiardi проходит в 3 этапа: проверка возраста и личности, собеседование и итоговое утверждение с активацией профиля.',
+    qual_btn_start_candidacy: 'Начать подачу заявки',
+    showcase_verified_lumiardi: 'Проверено Lumiardi',
+    showcase_verified_active: 'Портфолио проверено и активно',
+    showcase_propose_connection: 'Предложить прямое сотрудничество',
 
     // Table Features & Values
     tbl_f1: 'Активный профиль в поиске',
