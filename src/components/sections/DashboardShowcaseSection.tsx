@@ -3,12 +3,32 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { KanbanBoard } from '@/components/interactive/KanbanBoard';
-import { ChatPanel } from '@/components/interactive/ChatPanel';
-import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
-import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
+import dynamic from 'next/dynamic';
 import { ArrowRight, Layers, Kanban, MessageSquare, Video, HardDrive } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+
+const LoadingPlaceholder = () => (
+  <div className="w-full min-h-[400px] flex items-center justify-center">
+    <span className="text-ivory/30 text-sm font-sans">Carregando...</span>
+  </div>
+);
+
+const KanbanBoard = dynamic(
+  () => import('@/components/interactive/KanbanBoard').then(m => ({ default: m.KanbanBoard })),
+  { ssr: false, loading: () => <LoadingPlaceholder /> }
+);
+const ChatPanel = dynamic(
+  () => import('@/components/interactive/ChatPanel').then(m => ({ default: m.ChatPanel })),
+  { ssr: false, loading: () => <LoadingPlaceholder /> }
+);
+const VideoCallWidget = dynamic(
+  () => import('@/components/interactive/VideoCallWidget').then(m => ({ default: m.VideoCallWidget })),
+  { ssr: false, loading: () => <LoadingPlaceholder /> }
+);
+const SharedDrivePanel = dynamic(
+  () => import('@/components/interactive/SharedDrivePanel').then(m => ({ default: m.SharedDrivePanel })),
+  { ssr: false, loading: () => <LoadingPlaceholder /> }
+);
 
 export const DashboardShowcaseSection: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kanban' | 'chat' | 'video' | 'drive'>('kanban');

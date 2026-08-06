@@ -1,17 +1,38 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Header } from '@/components/ui/Header';
 import { HeroSection } from '@/components/sections/HeroSection';
-import { PositioningSection } from '@/components/sections/PositioningSection';
-import { BrandPillarsSection } from '@/components/sections/BrandPillarsSection';
-import { EcosystemSection } from '@/components/sections/EcosystemSection';
-import { PartnersSection } from '@/components/sections/PartnersSection';
-import { MediaOpportunitiesSection } from '@/components/sections/MediaOpportunitiesSection';
-import { ShowcaseSection } from '@/components/sections/ShowcaseSection';
-import { DashboardShowcaseSection } from '@/components/sections/DashboardShowcaseSection';
-import { PlansCTASection } from '@/components/sections/PlansCTASection';
-import { Footer } from '@/components/ui/Footer';
+
+// Seções below-the-fold: carregadas sob demanda (reduz bundle inicial no mobile)
+const PositioningSection = dynamic(() =>
+  import('@/components/sections/PositioningSection').then(m => ({ default: m.PositioningSection }))
+);
+const BrandPillarsSection = dynamic(() =>
+  import('@/components/sections/BrandPillarsSection').then(m => ({ default: m.BrandPillarsSection }))
+);
+const EcosystemSection = dynamic(() =>
+  import('@/components/sections/EcosystemSection').then(m => ({ default: m.EcosystemSection }))
+);
+const PartnersSection = dynamic(() =>
+  import('@/components/sections/PartnersSection').then(m => ({ default: m.PartnersSection }))
+);
+const MediaOpportunitiesSection = dynamic(() =>
+  import('@/components/sections/MediaOpportunitiesSection').then(m => ({ default: m.MediaOpportunitiesSection }))
+);
+const ShowcaseSection = dynamic(() =>
+  import('@/components/sections/ShowcaseSection').then(m => ({ default: m.ShowcaseSection }))
+);
+const DashboardShowcaseSection = dynamic(() =>
+  import('@/components/sections/DashboardShowcaseSection').then(m => ({ default: m.DashboardShowcaseSection }))
+);
+const PlansCTASection = dynamic(() =>
+  import('@/components/sections/PlansCTASection').then(m => ({ default: m.PlansCTASection }))
+);
+const Footer = dynamic(() =>
+  import('@/components/ui/Footer').then(m => ({ default: m.Footer }))
+);
 
 export default function Home() {
   useEffect(() => {
@@ -45,3 +66,4 @@ export default function Home() {
     </main>
   );
 }
+

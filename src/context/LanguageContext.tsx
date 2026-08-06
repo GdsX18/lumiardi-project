@@ -486,6 +486,18 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     lim_card3_title: 'Meet Integrado',
     lim_card3_desc: 'Videoconferências nativas de alta definição para reuniões de alinhamento com agências sem sair do navegador.',
     lim_cta_dashboard: 'Experimentar Dashboard Simulado',
+
+    // ── Chaves ausentes — PlansCTASection ──
+    plans_for_creators_title: 'Para Criadoras',
+    plans_for_creators_sub: 'Planos Glow, Radiance e Icon a partir de R$ 19,90/mês.',
+    plans_for_agencies_title: 'Para Agências',
+    plans_for_agencies_sub: 'Lumiardi Select & Lumiardi Signature.',
+    plans_compare_title: 'Compare todos os recursos e tabelas de valores',
+    plans_compare_desc: 'Acesse nossa página dedicada de planos para analisar contatos iniciados, destaques, prioridades de busca e suporte.',
+
+    // ── Chaves ausentes — QualificationSteps (passo 3) ──
+    qual_step3_title: '03. Aprovação e Cadastro',
+    qual_step3_desc: 'Ativação do perfil na rede Lumiardi',
   },
 
   es: {
@@ -945,6 +957,18 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     lim_card3_title: 'Meet Integrado',
     lim_card3_desc: 'Videoconferencias nativas en alta definición para reuniones de alineación con agencias sin salir del navegador.',
     lim_cta_dashboard: 'Probar Panel Simulado',
+
+    // ── Chaves ausentes — PlansCTASection ──
+    plans_for_creators_title: 'Para Creadoras',
+    plans_for_creators_sub: 'Planes Glow, Radiance e Icon desde R$ 19,90/mes.',
+    plans_for_agencies_title: 'Para Agencias',
+    plans_for_agencies_sub: 'Lumiardi Select & Lumiardi Signature.',
+    plans_compare_title: 'Compara todos los recursos y tablas de valores',
+    plans_compare_desc: 'Accede a nuestra página dedicada de planes para analizar contactos iniciados, destacados, prioridades de búsqueda y soporte.',
+
+    // ── Chaves ausentes — QualificationSteps (paso 3) ──
+    qual_step3_title: '03. Aprobación y Registro',
+    qual_step3_desc: 'Activación del perfil en la red Lumiardi',
   },
 
   en: {
@@ -1402,6 +1426,18 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     lim_card3_title: 'Integrated Meet',
     lim_card3_desc: 'Native high-definition video conferences for alignment meetings with agencies without leaving your browser.',
     lim_cta_dashboard: 'Try Simulated Dashboard',
+
+    // ── Missing keys — PlansCTASection ──
+    plans_for_creators_title: 'For Creators',
+    plans_for_creators_sub: 'Glow, Radiance and Icon plans from R$ 19.90/month.',
+    plans_for_agencies_title: 'For Agencies',
+    plans_for_agencies_sub: 'Lumiardi Select & Lumiardi Signature.',
+    plans_compare_title: 'Compare all features and pricing tables',
+    plans_compare_desc: 'Access our dedicated plans page to analyze initiated contacts, highlights, search priorities and support.',
+
+    // ── Missing keys — QualificationSteps (step 3) ──
+    qual_step3_title: '03. Approval & Registration',
+    qual_step3_desc: 'Profile activation on the Lumiardi network',
   },
 
   fr: {
@@ -1861,6 +1897,18 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     lim_card3_title: 'Meet Intégré',
     lim_card3_desc: 'Visioconférences natives haute définition pour des réunions d\'alignement avec les agences sans quitter le navigateur.',
     lim_cta_dashboard: 'Essayer Le Tableau De Bord Simulé',
+
+    // ── Clés manquantes — PlansCTASection ──
+    plans_for_creators_title: 'Pour les Créatrices',
+    plans_for_creators_sub: 'Plans Glow, Radiance et Icon à partir de R$ 19,90/mois.',
+    plans_for_agencies_title: 'Pour les Agences',
+    plans_for_agencies_sub: 'Lumiardi Select & Lumiardi Signature.',
+    plans_compare_title: 'Comparez toutes les fonctionnalités et les tableaux de tarifs',
+    plans_compare_desc: 'Accédez à notre page de plans dédiée pour analyser les contacts initiés, les mises en avant, les priorités de recherche et le support.',
+
+    // ── Clés manquantes — QualificationSteps (étape 3) ──
+    qual_step3_title: '03. Approbation & Inscription',
+    qual_step3_desc: 'Activation du profil sur le réseau Lumiardi',
   },
 
   it: {
@@ -2320,6 +2368,18 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     lim_card3_title: 'Meet Integrato',
     lim_card3_desc: 'Videoconferenze native ad alta definizione per riunioni di allineamento con agenzie senza uscire dal browser.',
     lim_cta_dashboard: 'Prova La Dashboard Simulata',
+
+    // ── Chiavi mancanti — PlansCTASection ──
+    plans_for_creators_title: 'Per le Creatrici',
+    plans_for_creators_sub: 'Piani Glow, Radiance e Icon da R$ 19,90/mese.',
+    plans_for_agencies_title: 'Per le Agenzie',
+    plans_for_agencies_sub: 'Lumiardi Select & Lumiardi Signature.',
+    plans_compare_title: 'Confronta tutte le funzionalità e le tabelle prezzi',
+    plans_compare_desc: 'Accedi alla nostra pagina dedicata ai piani per analizzare i contatti avviati, le evidenziazioni, le priorità di ricerca e il supporto.',
+
+    // ── Chiavi mancanti — QualificationSteps (fase 3) ──
+    qual_step3_title: '03. Approvazione e Registrazione',
+    qual_step3_desc: 'Attivazione del profilo nella rete Lumiardi',
   },
 
   ru: {
@@ -2779,6 +2839,18 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     lim_card3_title: 'Интегрированный Meet',
     lim_card3_desc: 'Встроенные HD-видеоконференции для встреч с агентствами без выхода из браузера.',
     lim_cta_dashboard: 'Попробовать Симулированную Панель',
+
+    // ── Отсутствующие ключи — PlansCTASection ──
+    plans_for_creators_title: 'Для Креаторов',
+    plans_for_creators_sub: 'Планы Glow, Radiance и Icon от R$ 19,90/мес.',
+    plans_for_agencies_title: 'Для Агентств',
+    plans_for_agencies_sub: 'Lumiardi Select & Lumiardi Signature.',
+    plans_compare_title: 'Сравните все функции и таблицы цен',
+    plans_compare_desc: 'Перейдите на нашу страницу планов для анализа начатых контактов, приоритетов поиска и поддержки.',
+
+    // ── Отсутствующие ключи — QualificationSteps (шаг 3) ──
+    qual_step3_title: '03. Одобрение и Регистрация',
+    qual_step3_desc: 'Активация профиля в сети Lumiardi',
   },
 };
 

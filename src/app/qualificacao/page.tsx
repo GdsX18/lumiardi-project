@@ -20,6 +20,14 @@ export default function QualificacaoPage() {
     <main className="min-h-screen bg-black-matte text-ivory font-sans">
       <Header />
 
+      {/* Barra de progresso de etapas */}
+      <div className="fixed top-0 left-0 right-0 z-40 h-[3px] bg-bronze/20 mt-16">
+        <div
+          className="h-full bg-gradient-to-r from-[#8C6B2F] to-[#C9A96B] transition-all duration-700"
+          style={{ width: '33%' }}
+        />
+      </div>
+
       {/* Hero da Página de Qualificação */}
       <section className="pt-36 pb-16 bg-[#0B0B0B] border-b border-bronze/20">
         <div className="max-w-4xl mx-auto text-center px-6 space-y-6">
@@ -34,11 +42,35 @@ export default function QualificacaoPage() {
           </p>
 
           <QualificationSteps currentStep={1} />
+
+          {/* Resumo do processo + CTA de candidatura */}
+          <div className="mt-4 space-y-6 max-w-2xl mx-auto">
+            <p className="text-sm text-ivory/60 font-sans leading-relaxed border-t border-bronze/20 pt-6">
+              O processo seletivo da Lumiardi é conduzido em <strong className="text-ivory/90">3 etapas</strong>: validação de identidade e maioridade, entrevista de alinhamento com nossa equipe de curadoria e, por fim, a aprovação com ativação do perfil na rede. Após a aprovação, sua conta estará ativa e visível para agências de elite parceiras.
+            </p>
+
+            <button
+              id="qual-cta-start"
+              onClick={() => {
+                const formSection = document.getElementById('qual-form-section');
+                if (formSection) formSection.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="relative overflow-hidden inline-flex items-center gap-3 px-8 py-4 bg-[#C9A96B] text-[#0B0B0B] font-sans text-xs tracking-[0.25em] uppercase font-semibold hover:bg-[#D4B87A] transition-all duration-300 shadow-lg hover:shadow-gold/20 group cursor-pointer"
+            >
+              {/* Shimmer sweep */}
+              <span
+                className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 animate-shimmer pointer-events-none"
+                aria-hidden
+              />
+              <span>Iniciar Candidatura</span>
+              <ArrowRight className="w-4 h-4 stroke-[1.5] transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+          </div>
         </div>
       </section>
 
       {/* Seção Identidade e Intenção na Entrevista Inicial */}
-      <SectionWrapper bg="light">
+      <SectionWrapper bg="light" id="qual-form-section">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-3">
             <span className="text-xs uppercase tracking-[0.3em] text-bronze font-semibold">

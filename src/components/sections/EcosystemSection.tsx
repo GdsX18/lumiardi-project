@@ -64,32 +64,32 @@ export const EcosystemSection: React.FC = () => {
   const features = [
     {
       icon: Kanban,
-      badge: t('eco_badge_prod'),
+      badge: t('eco_badge_1'),
       title: t('eco_card_1_title'),
       description: t('eco_card_1_desc'),
-      tag: t('eco_tag_kanban'),
+      tag: t('eco_tag_1'),
     },
     {
       icon: MessageSquare,
-      badge: t('eco_badge_comm'),
+      badge: t('eco_badge_2'),
       title: t('eco_card_2_title'),
       description: t('eco_card_2_desc'),
-      tag: t('eco_tag_crypto'),
+      tag: t('eco_tag_2'),
     },
     {
       icon: HardDrive,
-      badge: t('eco_badge_new'),
+      badge: t('eco_badge_3'),
       title: t('eco_card_3_title'),
       description: t('eco_card_3_desc'),
-      tag: t('eco_tag_cloud'),
+      tag: t('eco_tag_3'),
       isNew: true,
     },
     {
       icon: BarChart3,
-      badge: t('eco_badge_intel'),
+      badge: t('eco_badge_4'),
       title: t('eco_card_4_title'),
       description: t('eco_card_4_desc'),
-      tag: t('eco_tag_analytics'),
+      tag: t('eco_tag_4'),
     },
   ];
 
@@ -168,7 +168,7 @@ export const EcosystemSection: React.FC = () => {
         <div className="mt-16 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3 text-ivory/70 text-sm font-sans font-light">
             <Shield className="w-5 h-5 text-[#C9A96B] shrink-0" />
-            <span>{t('eco_security_note')}</span>
+            <span>{t('eco_security_footer')}</span>
           </div>
 
           <Link

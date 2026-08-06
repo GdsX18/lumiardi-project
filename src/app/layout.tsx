@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
+import { ScrollProgressBar } from "@/components/ui/ScrollProgressBar";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
+  preload: true,
 });
 
 const outfit = Outfit({
@@ -15,6 +17,7 @@ const outfit = Outfit({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
   display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -36,6 +39,7 @@ export default function RootLayout({
       className={`${cormorant.variable} ${outfit.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black-matte text-ivory font-sans overflow-x-hidden">
+        <ScrollProgressBar />
         <Providers>{children}</Providers>
       </body>
     </html>

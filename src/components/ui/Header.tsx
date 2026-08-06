@@ -8,10 +8,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowUpRight } from 'lucide-react';
 import { LanguageSelector } from './LanguageSelector';
 import { useLanguage } from '@/context/LanguageContext';
+import { CreatorBenefitsModal } from './CreatorBenefitsModal';
 
 export const Header: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [creatorModalOpen, setCreatorModalOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useLanguage();
@@ -37,17 +39,17 @@ export const Header: React.FC = () => {
     };
   }, [drawerOpen]);
 
-  const navLinks = [
-    { label: t('nav_creators'), href: '/#vitrine' },
-    { label: t('nav_agencies'), href: '/#dashboard-showcase' },
+  const navLinks: { label: string; href: string; isCreator?: boolean }[] = [
+    { label: t('nav_creators'), href: '/#vitrine', isCreator: true },
+    { label: t('nav_agencies'), href: '/qualificacao/agencia' },
     { label: t('nav_ecosystem'), href: '/#ecossistema' },
     { label: 'PARCEIROS', href: '/#parceiros' },
     { label: t('nav_plans'), href: '/planos' },
   ];
 
-  const drawerMainLinks = [
-    { label: t('nav_creators'), href: '/#vitrine' },
-    { label: t('nav_agencies'), href: '/#dashboard-showcase' },
+  const drawerMainLinks: { label: string; href: string; isCreator?: boolean }[] = [
+    { label: t('nav_creators'), href: '/#vitrine', isCreator: true },
+    { label: t('nav_agencies'), href: '/qualificacao/agencia' },
     { label: t('nav_ecosystem'), href: '/#ecossistema' },
     { label: 'PARCEIROS', href: '/#parceiros' },
     { label: t('nav_plans'), href: '/planos' },
@@ -65,7 +67,7 @@ export const Header: React.FC = () => {
       title: t('drawer_agencies_title'),
       subtitle: t('drawer_agencies_sub'),
       image: '/images/agency_aura.jpg',
-      href: '/dashboard',
+      href: '/qualificacao/agencia',
     },
     {
       title: t('drawer_dashboard_title'),
@@ -132,7 +134,7 @@ export const Header: React.FC = () => {
             {navLinks.map((link) => (
               <button
                 key={link.label}
-                onClick={() => handleNavigate(link.href)}
+                onClick={() => link.isCreator ? setCreatorModalOpen(true) : handleNavigate(link.href)}
                 className="font-sans text-xs tracking-[0.25em] text-ivory/80 hover:text-gold uppercase font-light transition-colors relative group py-1 cursor-pointer"
               >
                 {link.label}
@@ -220,7 +222,7 @@ export const Header: React.FC = () => {
                     {drawerMainLinks.map((link) => (
                       <button
                         key={link.label}
-                        onClick={() => handleNavigate(link.href)}
+                        onClick={() => link.isCreator ? (setDrawerOpen(false), setCreatorModalOpen(true)) : handleNavigate(link.href)}
                         className="text-left font-sans text-2xl md:text-3xl font-light text-[#1A1A1A] hover:text-[#C9A96B] transition-colors tracking-tight cursor-pointer"
                       >
                         {link.label}
@@ -290,6 +292,8 @@ export const Header: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <CreatorBenefitsModal open={creatorModalOpen} onClose={() => setCreatorModalOpen(false)} />
     </>
   );
 };

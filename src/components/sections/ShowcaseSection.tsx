@@ -199,12 +199,13 @@ export const ShowcaseSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Showcase Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {/* Showcase Cards Grid — Scroll horizontal em mobile, grid em desktop */}
+        <div className="-mx-6 px-6 md:mx-0 md:px-0 overflow-x-auto md:overflow-visible pb-4 md:pb-0 snap-x snap-mandatory">
+          <div className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8" style={{ minWidth: 'max-content' }}>
           {filteredItems.map((item) => (
             <div
               key={item.name}
-              className={`p-8 bg-[#121212] border ${
+              className={`snap-start w-72 md:w-auto flex-shrink-0 md:flex-shrink p-8 bg-[#121212] border ${
                 item.hero ? 'border-gold/50 lg:-translate-y-4' : 'border-white/10'
               } hover:border-gold transition-all duration-500 group flex flex-col justify-between`}
             >
@@ -230,6 +231,7 @@ export const ShowcaseSection: React.FC = () => {
                     src={item.image}
                     alt={item.name}
                     fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                     className="object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 group-hover:opacity-100"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent" />
@@ -255,6 +257,7 @@ export const ShowcaseSection: React.FC = () => {
               </div>
             </div>
           ))}
+          </div>
         </div>
 
         {/* Modal de Visualização de Portfólio */}
@@ -274,6 +277,7 @@ export const ShowcaseSection: React.FC = () => {
                     src={selectedPortfolio.image}
                     alt={selectedPortfolio.name}
                     fill
+                    sizes="96px"
                     className="object-cover"
                   />
                 </div>
