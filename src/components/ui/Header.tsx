@@ -90,7 +90,7 @@ export const Header: React.FC = () => {
           return;
         }
       }
-      window.location.href = href;
+      router.push(href);
     } else {
       router.push(href);
     }

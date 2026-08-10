@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Float, Environment, Sparkles } from '@react-three/drei';
+import { Float, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface EmblemMeshProps {
@@ -152,14 +152,13 @@ export const Logo3D: React.FC<Logo3DProps> = ({ className = 'w-full h-full', scr
         style={{ background: 'transparent' }}
       >
         {/* Iluminação de Estúdio & Reflexos Metálicos Dourados */}
-        <ambientLight intensity={1.8} />
-        <directionalLight position={[6, 8, 6]} intensity={3.8} color="#FFF8E7" />
-        <directionalLight position={[-6, -4, 4]} intensity={2.8} color="#FFD700" />
-        <spotLight position={[0, 6, 10]} intensity={4.5} angle={0.6} penumbra={1} color="#FFFFFF" />
-        <pointLight position={[0, 0, 6]} intensity={3.2} color="#FFF5D6" />
-
-        {/* Ambiente de Estúdio para Reflexos Dourados */}
-        <Environment preset="city" />
+        <ambientLight intensity={2.2} />
+        <directionalLight position={[6, 8, 6]} intensity={4.5} color="#FFF8E7" />
+        <directionalLight position={[-6, -4, 4]} intensity={3.5} color="#FFD700" />
+        <directionalLight position={[0, -6, -2]} intensity={2.0} color="#C9A96B" />
+        <spotLight position={[0, 6, 10]} intensity={5.0} angle={0.6} penumbra={1} color="#FFFFFF" />
+        <pointLight position={[0, 0, 6]} intensity={4.0} color="#FFF5D6" />
+        <pointLight position={[-4, 4, 3]} intensity={2.5} color="#D4B87A" />
 
         {/* Partículas Douradas Efervescentes */}
         <Sparkles

@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Float, Environment, Sparkles } from '@react-three/drei';
+import { Float, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface LMeshProps {
@@ -102,12 +102,12 @@ export const IconL3D: React.FC<IconL3DProps> = ({ className = 'w-48 h-48 md:w-64
         gl={{ antialias: true, alpha: true }}
         style={{ background: 'transparent' }}
       >
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[4, 6, 4]} intensity={3} color="#FFF8E7" />
-        <directionalLight position={[-4, -3, 2]} intensity={2} color="#D4B87A" />
-        <spotLight position={[0, 5, 8]} intensity={3.5} angle={0.5} penumbra={1} color="#FFFFFF" />
-        
-        <Environment preset="city" />
+        <ambientLight intensity={2.0} />
+        <directionalLight position={[5, 8, 5]} intensity={4.0} color="#FFF8E7" />
+        <directionalLight position={[-5, -4, 3]} intensity={3.0} color="#D4B87A" />
+        <pointLight position={[0, 0, 5]} intensity={3.5} color="#FFF5D6" />
+        <pointLight position={[4, -3, 2]} intensity={2.5} color="#C9A96B" />
+        <spotLight position={[0, 6, 8]} intensity={4.0} angle={0.6} penumbra={1} color="#FFFFFF" />
 
         <Sparkles count={20} scale={5} size={1.8} speed={0.3} opacity={0.5} color="#C9A96B" />
 

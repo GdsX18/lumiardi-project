@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, ReactNode } from 'react';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { LumiardiShaderBg } from './LumiardiShaderBg';
@@ -31,8 +30,6 @@ const ScrollExpandMedia = ({
   bgImageSrc,
   useShaderBg = true,
   title = 'LUMIARDI ECOSYSTEM',
-  date,
-  scrollToExpand,
   textBlend = false,
   children,
 }: ScrollExpandMediaProps) => {

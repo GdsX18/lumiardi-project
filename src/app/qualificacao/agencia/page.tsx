@@ -4,72 +4,216 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
-import { SectionWrapper } from '@/components/ui/SectionWrapper';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Building2, ShieldCheck, Upload, CheckCircle2, Lock, ArrowRight, FileText } from 'lucide-react';
+import { DocumentUploadField } from '@/components/ui/DocumentUploadField';
+import { CurationScheduler } from '@/components/ui/CurationScheduler';
+import {
+  ShieldCheck,
+  Lock,
+  ArrowRight,
+  Sparkles,
+  AlertCircle,
+  CalendarCheck,
+  Camera,
+  Target,
+  Percent,
+} from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import {
+  CompleteAgencyProfile,
+  DocumentUploadData,
+  CurationAppointment,
+} from '@/types';
+
+const COMMISSION_PRESETS = [
+  '10%',
+  '20%',
+  '30%',
+  '40%',
+  '50%',
+  '60%',
+  '70%',
+  '80%',
+  'Outro a definir',
+];
 
 export default function AgenciaQualificacaoPage() {
   const router = useRouter();
   const { t } = useLanguage();
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [formData, setFormData] = useState({
-    cnpj: '',
-    companyName: '',
-    tradingName: '',
-    country: 'Brasil',
-    city: 'São Paulo',
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  // ─── ETAPA 1: Cadastro Inicial & Documento ───────────────────────
+  const [basicData, setBasicData] = useState({
     responsibleName: '',
+    taxId: '', // CPF ou CNPJ
     corporateEmail: '',
-    phone: '',
-    talentCount: '10-50',
-    docUploaded: false,
-    acceptedTerms: false,
+    password: '',
+    document: null as DocumentUploadData | null,
   });
 
-  const [submitted, setSubmitted] = useState(false);
+  // ─── ETAPA 2: Sobre a Agência (Pré-Entrevista) ───────────────────
+  const [qualitativeData, setQualitativeData] = useState({
+    aboutUs: '',
+    mission: '',
+    values: '',
+    lookingFor: '',
+    commissionPercentage: '30%',
+    commissionCustom: '',
+    instagram: '',
+    country: 'Brasil',
+    city: 'São Paulo',
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ─── ETAPA 3: Agendamento ────────────────────────────────────────
+  const [appointment, setAppointment] = useState<CurationAppointment>({
+    date: '',
+    timeSlot: '15:00',
+    status: 'scheduled',
+    notes: 'Agendamento de Curadoria Corporativa - Agência',
+  });
+
+  // ─── Validação da Etapa 1 ────────────────────────────────────────
+  const handleNextStep1 = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmissionError(null);
+
+    if (!basicData.responsibleName.trim() || !basicData.taxId.trim() || !basicData.corporateEmail.trim() || !basicData.password.trim()) {
+      setSubmissionError(t('err_fill_all_required'));
+      return;
+    }
+
+    if (!basicData.document) {
+      setSubmissionError(t('err_upload_cnpj_required'));
+      return;
+    }
+
+    setCurrentStep(2);
+    window.scrollTo({ top: 300, behavior: 'smooth' });
+  };
+
+  // ─── Validação da Etapa 2 ────────────────────────────────────────
+  const handleNextStep2 = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmissionError(null);
+
+    if (!qualitativeData.aboutUs.trim() || !qualitativeData.mission.trim() || !qualitativeData.values.trim() || !qualitativeData.lookingFor.trim()) {
+      setSubmissionError(t('err_fill_all_required'));
+      return;
+    }
+
+    // Validação estrita do Instagram
+    let insta = qualitativeData.instagram.trim();
+    if (!insta) {
+      setSubmissionError(t('err_agency_insta_required'));
+      return;
+    }
+    if (!insta.startsWith('@')) {
+      insta = `@${insta}`;
+      setQualitativeData((prev) => ({ ...prev, instagram: insta }));
+    }
+
+    if (!qualitativeData.country.trim() || !qualitativeData.city.trim()) {
+      setSubmissionError(t('err_inform_city'));
+      return;
+    }
+
+    setCurrentStep(3);
+    window.scrollTo({ top: 300, behavior: 'smooth' });
+  };
+
+  // ─── Submissão Final e Agendamento ──────────────────────────────
+  const handleFinalSubmit = async () => {
+    setIsSubmitting(true);
+    setSubmissionError(null);
+
+    try {
+      const fullProfile: Partial<CompleteAgencyProfile> = {
+        basicInfo: {
+          responsibleName: basicData.responsibleName,
+          taxId: basicData.taxId,
+          corporateEmail: basicData.corporateEmail,
+          document: basicData.document!,
+          createdAt: new Date().toISOString(),
+        },
+        qualitative: {
+          ...qualitativeData,
+          instagram: qualitativeData.instagram.startsWith('@') ? qualitativeData.instagram : `@${qualitativeData.instagram}`,
+        },
+        appointment: appointment.date ? appointment : {
+          date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+          timeSlot: '15:00',
+          status: 'scheduled',
+        },
+        curationStatus: 'submitted',
+      };
+
+      const res = await fetch('/api/agencies/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullProfile),
+      });
+
+      if (!res.ok) {
+        throw new Error(t('err_submission_failed'));
+      }
+
+      setSubmitted(true);
+      window.scrollTo({ top: 100, behavior: 'smooth' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t('err_submission_failed');
+      setSubmissionError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <main className="min-h-screen bg-[#0B0B0B] text-ivory font-sans selection:bg-[#C9A96B] selection:text-[#0B0B0B]">
       <Header />
 
+      {/* Barra de progresso de etapas no topo */}
+      <div className="fixed top-0 left-0 right-0 z-40 h-[3px] bg-white/10 mt-16">
+        <div
+          className="h-full bg-gradient-to-r from-[#8C6B2F] via-[#C9A96B] to-[#D4B87A] transition-all duration-700"
+          style={{ width: `${(currentStep / 3) * 100}%` }}
+        />
+      </div>
+
       {/* Hero da Página de Cadastro de Agência */}
-      <section className="pt-36 pb-16 bg-[#0B0B0B] border-b border-[#C9A96B]/30 relative overflow-hidden">
+      <section className="pt-36 pb-16 bg-[#0B0B0B] border-b border-[#C9A96B]/25 relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#C9A96B]/5 rounded-full blur-[140px] pointer-events-none" />
 
         <div className="max-w-4xl mx-auto text-center px-6 space-y-6 relative z-10">
-          <Badge variant="gold">ONBOARDING CORPORATIVO DE ELITE</Badge>
+          <Badge variant="gold">{t('qual_agency_hero_badge')}</Badge>
 
           <h1 className="font-serif-lumiardi text-4xl sm:text-6xl font-light text-ivory tracking-tight">
-            Cadastro e Qualificação de Agências
+            {t('qual_agency_hero_title')}
           </h1>
 
           <p className="text-base sm:text-lg text-ivory/70 font-sans max-w-2xl mx-auto font-light leading-relaxed">
-            Submeta as informações da sua agência para análise de curadoria. Garantimos compliance contratual, verificação de idoneidade e sigilo absoluto.
+            {t('qual_agency_hero_desc')}
           </p>
 
           {/* Stepper Visual */}
           <div className="flex items-center justify-center gap-4 pt-6 text-xs uppercase tracking-widest font-sans">
-            <div className={`flex items-center gap-2 ${step >= 1 ? 'text-[#C9A96B]' : 'text-ivory/40'}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 1 ? 'border-[#C9A96B] bg-[#C9A96B]/20' : 'border-white/20'}`}>1</span>
-              <span>Dados Corporativos</span>
+            <div className={`flex items-center gap-2 ${currentStep >= 1 ? 'text-[#C9A96B]' : 'text-ivory/40'}`}>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center border ${currentStep >= 1 ? 'border-[#C9A96B] bg-[#C9A96B]/20 font-semibold' : 'border-white/20'}`}>1</span>
+              <span>{t('qual_agency_step1_badge')}</span>
             </div>
             <span className="text-ivory/30">&mdash;</span>
-            <div className={`flex items-center gap-2 ${step >= 2 ? 'text-[#C9A96B]' : 'text-ivory/40'}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 2 ? 'border-[#C9A96B] bg-[#C9A96B]/20' : 'border-white/20'}`}>2</span>
-              <span>Responsável</span>
+            <div className={`flex items-center gap-2 ${currentStep >= 2 ? 'text-[#C9A96B]' : 'text-ivory/40'}`}>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center border ${currentStep >= 2 ? 'border-[#C9A96B] bg-[#C9A96B]/20 font-semibold' : 'border-white/20'}`}>2</span>
+              <span>{t('qual_agency_step2_badge')}</span>
             </div>
             <span className="text-ivory/30">&mdash;</span>
-            <div className={`flex items-center gap-2 ${step >= 3 ? 'text-[#C9A96B]' : 'text-ivory/40'}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center border ${step >= 3 ? 'border-[#C9A96B] bg-[#C9A96B]/20' : 'border-white/20'}`}>3</span>
-              <span>Documentação</span>
+            <div className={`flex items-center gap-2 ${currentStep >= 3 ? 'text-[#C9A96B]' : 'text-ivory/40'}`}>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center border ${currentStep >= 3 ? 'border-[#C9A96B] bg-[#C9A96B]/20 font-semibold' : 'border-white/20'}`}>3</span>
+              <span>{t('qual_agency_step3_badge')}</span>
             </div>
           </div>
         </div>
@@ -77,261 +221,434 @@ export default function AgenciaQualificacaoPage() {
 
       {/* Form Container */}
       <section className="py-20 bg-[#F7F3EC] text-[#0B0B0B]">
-        <div className="max-w-3xl mx-auto px-6">
+        <div className="max-w-4xl mx-auto px-6">
           {submitted ? (
-            <div className="bg-white border-2 border-[#C9A96B] p-10 md:p-14 text-center space-y-6 shadow-2xl animate-in fade-in duration-500">
-              <div className="w-16 h-16 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full flex items-center justify-center mx-auto border border-[#C9A96B]">
-                <CheckCircle2 className="w-8 h-8 stroke-[1.5]" />
+            /* ═══════════════════════════════════════════════════════════════
+               TELA DE SUCESSO & CONFIRMAÇÃO DE AGENDAMENTO DA AGÊNCIA
+            ═══════════════════════════════════════════════════════════════ */
+            <div className="bg-white border-2 border-[#C9A96B] p-10 md:p-14 text-center space-y-8 shadow-2xl animate-in fade-in duration-500">
+              <div className="w-20 h-20 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full flex items-center justify-center mx-auto border border-[#C9A96B]">
+                <CalendarCheck className="w-10 h-10 stroke-[1.5]" />
               </div>
-              <h2 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-[#0B0B0B]">
-                Cadastro Enviado para Curadoria Lumiardi
-              </h2>
-              <p className="text-sm text-[#0B0B0B]/75 font-sans leading-relaxed max-w-xl mx-auto">
-                Agradecemos a submissão dos dados corporativos. Nossa equipe de compliance efetuará a análise cadastral e entrará em contato através do e-mail corporativo fornecido em até 24 horas úteis.
-              </p>
+
+              <div className="space-y-3">
+                <span className="text-[10px] uppercase tracking-[0.3em] text-[#8C6B2F] font-sans font-semibold">
+                  {t('qual_success_badge')}
+                </span>
+                <h2 className="font-serif-lumiardi text-3xl md:text-5xl font-light text-[#0B0B0B]">
+                  {t('qual_success_title')}
+                </h2>
+                <p className="text-sm md:text-base text-[#0B0B0B]/75 font-sans leading-relaxed max-w-xl mx-auto font-light">
+                  {t('qual_success_desc')}
+                </p>
+              </div>
+
+              {/* Card Resumo do Agendamento */}
+              <div className="bg-[#FAF7F2] border border-[#C9A96B]/40 p-6 max-w-md mx-auto text-left space-y-3">
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-3">
+                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_responsible_label')}</span>
+                  <span className="font-serif-lumiardi text-lg font-medium text-[#0B0B0B]">{basicData.responsibleName}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-3">
+                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_agency_taxid_label')}</span>
+                  <span className="text-xs font-mono text-[#0B0B0B] font-semibold">{basicData.taxId}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-3">
+                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_date_label')}</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? appointment.date.split('-').reverse().join('/') : t('qual_summary_tbd')}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_time_label')}</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.timeSlot} {t('qual_summary_tz')}</span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-sans flex items-center justify-center gap-2 max-w-md mx-auto">
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                <span>{t('qual_success_email_note')} <strong>{basicData.corporateEmail}</strong></span>
+              </div>
+
               <div className="pt-6 border-t border-[#0B0B0B]/10 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button
                   variant="primary"
-                  onClick={() => router.push('/dashboard')}
+                  onClick={() => router.push('/')}
                 >
-                  Testar Painel Simulado
+                  {t('qual_btn_home')}
                 </Button>
                 <Button
                   variant="outline-dark"
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/dashboard')}
                 >
-                  Voltar para a Home
+                  {t('qual_btn_dashboard_preview')}
                 </Button>
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="bg-white border border-[#0B0B0B]/10 p-8 md:p-12 shadow-2xl space-y-8">
-              {step === 1 && (
-                <div className="space-y-6 animate-in fade-in duration-300">
-                  <div className="border-b border-[#0B0B0B]/10 pb-4">
-                    <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">Etapa 01 de 03</span>
-                    <h3 className="font-serif-lumiardi text-2xl font-normal text-[#0B0B0B] mt-1">Identificação da Empresa</h3>
-                  </div>
-
-                  <div className="space-y-4 text-xs font-sans">
-                    <div>
-                      <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">Razão Social *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ex: Aura Management Ltda"
-                        value={formData.companyName}
-                        onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                        className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">Nome Fantasia *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Ex: Aura Management"
-                          value={formData.tradingName}
-                          onChange={(e) => setFormData({ ...formData, tradingName: e.target.value })}
-                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">CNPJ / ID Fiscal *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="00.000.000/0001-00"
-                          value={formData.cnpj}
-                          onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">País de Sede *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Brasil"
-                          value={formData.country}
-                          onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">Cidade Principal *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="São Paulo"
-                          value={formData.city}
-                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="px-8 py-3.5 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <span>Avançar para Responsável</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
+            <div className="bg-white border border-[#0B0B0B]/10 p-8 md:p-12 shadow-2xl space-y-10">
+              
+              {/* Alerta de Erro de Validação */}
+              {submissionError && (
+                <div className="p-4 bg-rose-50 border border-rose-300 text-rose-800 text-xs font-sans flex items-center gap-2.5 animate-in fade-in duration-300">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>{submissionError}</span>
                 </div>
               )}
 
-              {step === 2 && (
-                <div className="space-y-6 animate-in fade-in duration-300">
+              {/* ═══════════════════════════════════════════════════════════════
+                  ETAPA 1: CADASTRO INICIAL DA AGÊNCIA
+              ═══════════════════════════════════════════════════════════════ */}
+              {currentStep === 1 && (
+                <form onSubmit={handleNextStep1} className="space-y-8 animate-in fade-in duration-300">
                   <div className="border-b border-[#0B0B0B]/10 pb-4">
-                    <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">Etapa 02 de 03</span>
-                    <h3 className="font-serif-lumiardi text-2xl font-normal text-[#0B0B0B] mt-1">Contato do Responsável Legal</h3>
+                    <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">
+                      {t('qual_step1_badge')}
+                    </span>
+                    <h2 className="font-serif-lumiardi text-3xl font-light text-[#0B0B0B] mt-1">
+                      {t('qual_agency_title1')}
+                    </h2>
+                    <p className="text-xs text-[#0B0B0B]/60 font-sans mt-1">
+                      {t('qual_agency_desc1')}
+                    </p>
                   </div>
 
-                  <div className="space-y-4 text-xs font-sans">
-                    <div>
-                      <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">Nome Completo do Responsável *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ex: Carlos Eduardo Silva"
-                        value={formData.responsibleName}
-                        onChange={(e) => setFormData({ ...formData, responsibleName: e.target.value })}
-                        className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                      />
+                  <div className="space-y-6 text-xs font-sans">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_resp_name')}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={t('qual_agency_resp_placeholder')}
+                          value={basicData.responsibleName}
+                          onChange={(e) => setBasicData({ ...basicData, responsibleName: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_taxid_label')}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={t('qual_agency_taxid_placeholder')}
+                          value={basicData.taxId}
+                          onChange={(e) => setBasicData({ ...basicData, taxId: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">E-mail Corporativo *</label>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_email_label')}
+                        </label>
                         <input
                           type="email"
                           required
-                          placeholder="contato@agenciaaura.com"
-                          value={formData.corporateEmail}
-                          onChange={(e) => setFormData({ ...formData, corporateEmail: e.target.value })}
-                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
+                          placeholder={t('qual_agency_email_placeholder')}
+                          value={basicData.corporateEmail}
+                          onChange={(e) => setBasicData({ ...basicData, corporateEmail: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
                         />
                       </div>
+
                       <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">Telefone / WhatsApp *</label>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_pass_label')}
+                        </label>
                         <input
-                          type="text"
+                          type="password"
                           required
-                          placeholder="+55 (11) 99999-8888"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
+                          placeholder="••••••••••••"
+                          value={basicData.password}
+                          onChange={(e) => setBasicData({ ...basicData, password: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">Estimativa de Talentos sob Gestão</label>
-                      <select
-                        value={formData.talentCount}
-                        onChange={(e) => setFormData({ ...formData, talentCount: e.target.value })}
-                        className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2]"
-                      >
-                        <option value="1-10">1 a 10 Talentos</option>
-                        <option value="10-50">10 a 50 Talentos</option>
-                        <option value="50+">Mais de 50 Talentos</option>
-                      </select>
+                    {/* Anexo do cartão CNPJ */}
+                    <div className="pt-4 border-t border-[#0B0B0B]/10">
+                      <DocumentUploadField
+                        label={t('qual_agency_doc_label')}
+                        description={t('qual_agency_doc_desc')}
+                        documentTypeDefault="rg_cnh"
+                        onUploadComplete={(doc) => setBasicData({ ...basicData, document: doc })}
+                      />
                     </div>
                   </div>
 
-                  <div className="pt-4 flex justify-between">
+                  <div className="pt-6 flex justify-end">
                     <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer"
+                      type="submit"
+                      className="px-8 py-4 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center gap-3 cursor-pointer shadow-lg"
                     >
-                      Voltar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStep(3)}
-                      className="px-8 py-3.5 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <span>Avançar para Documentação</span>
+                      <span>{t('qual_agency_btn_next2')}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
+                </form>
               )}
 
-              {step === 3 && (
-                <div className="space-y-6 animate-in fade-in duration-300">
+              {/* ═══════════════════════════════════════════════════════════════
+                  ETAPA 2: SOBRE A AGÊNCIA (PRÉ-ENTREVISTA)
+              ═══════════════════════════════════════════════════════════════ */}
+              {currentStep === 2 && (
+                <form onSubmit={handleNextStep2} className="space-y-8 animate-in fade-in duration-300">
                   <div className="border-b border-[#0B0B0B]/10 pb-4">
-                    <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">Etapa 03 de 03</span>
-                    <h3 className="font-serif-lumiardi text-2xl font-normal text-[#0B0B0B] mt-1">Anexo de Documentação & Compliance</h3>
+                    <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">
+                      {t('qual_step2_badge')}
+                    </span>
+                    <h2 className="font-serif-lumiardi text-3xl font-light text-[#0B0B0B] mt-1">
+                      {t('qual_agency_title2')}
+                    </h2>
+                    <p className="text-xs text-[#0B0B0B]/60 font-sans mt-1">
+                      {t('qual_agency_desc2')}
+                    </p>
                   </div>
 
-                  <div className="p-6 bg-[#FAF7F2] border border-[#0B0B0B]/10 space-y-4">
-                    <div className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-[#8C6B2F] shrink-0 mt-0.5" />
+                  <div className="space-y-6 text-xs font-sans">
+                    {/* Sobre Nós */}
+                    <div>
+                      <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                        {t('qual_agency_about_label')}
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        placeholder={t('qual_agency_about_placeholder')}
+                        value={qualitativeData.aboutUs}
+                        onChange={(e) => setQualitativeData({ ...qualitativeData, aboutUs: e.target.value })}
+                        className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                      />
+                    </div>
+
+                    {/* Missão e Valores */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <h4 className="font-serif-lumiardi text-lg text-[#0B0B0B]">Contrato Social / Comprovante de ID Fiscal</h4>
-                        <p className="text-xs text-[#0B0B0B]/70 font-sans mt-0.5">Envie documento em formato PDF ou JPG comprovando a existência da empresa para verificação.</p>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_mission_label')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          required
+                          placeholder={t('qual_agency_mission_placeholder')}
+                          value={qualitativeData.mission}
+                          onChange={(e) => setQualitativeData({ ...qualitativeData, mission: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_values_label')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          required
+                          placeholder={t('qual_agency_values_placeholder')}
+                          value={qualitativeData.values}
+                          onChange={(e) => setQualitativeData({ ...qualitativeData, values: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
                       </div>
                     </div>
 
-                    <div className="border-2 border-dashed border-[#0B0B0B]/20 p-6 text-center bg-white space-y-2">
-                      <Upload className="w-6 h-6 text-[#8C6B2F] mx-auto" />
-                      <span className="block text-xs font-sans text-[#0B0B0B]/70 font-medium">Clique para selecionar o arquivo (PDF, PNG ou JPG)</span>
-                      <span className="block text-[10px] text-[#0B0B0B]/50 font-sans">Tamanho máximo: 15MB</span>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, docUploaded: true })}
-                        className="mt-2 px-4 py-1.5 bg-[#C9A96B]/20 text-[#8C6B2F] border border-[#C9A96B]/40 text-xs font-sans uppercase font-medium hover:bg-[#C9A96B]/30 cursor-pointer"
-                      >
-                        {formData.docUploaded ? 'Documento Anexado ✓' : 'Simular Upload de Documento'}
-                      </button>
+                    {/* O que estamos buscando */}
+                    <div>
+                      <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5 text-[#8C6B2F]" />
+                        <span>{t('qual_agency_lookingfor_label')}</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        required
+                        placeholder={t('qual_agency_lookingfor_placeholder')}
+                        value={qualitativeData.lookingFor}
+                        onChange={(e) => setQualitativeData({ ...qualitativeData, lookingFor: e.target.value })}
+                        className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                      />
+                    </div>
+
+                    {/* Porcentagem */}
+                    <div className="space-y-3 pt-2">
+                      <label className="block text-[#0B0B0B]/80 font-medium uppercase tracking-wider flex items-center gap-1.5">
+                        <Percent className="w-3.5 h-3.5 text-[#8C6B2F]" />
+                        <span>{t('qual_agency_commission_label')}</span>
+                      </label>
+
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                        {COMMISSION_PRESETS.map((pct) => {
+                          const isSelected = qualitativeData.commissionPercentage === pct;
+                          const label = pct === 'Outro a definir' ? t('qual_agency_commission_other') : pct;
+                          return (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => setQualitativeData({ ...qualitativeData, commissionPercentage: pct })}
+                              className={`py-3 px-3 text-xs font-sans uppercase tracking-wider border transition-all duration-200 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#0B0B0B] text-[#C9A96B] border-[#C9A96B] font-bold shadow-md'
+                                  : 'bg-[#FAF7F2] text-[#0B0B0B]/80 border-[#0B0B0B]/15 hover:border-[#C9A96B] hover:bg-white'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {qualitativeData.commissionPercentage === 'Outro a definir' && (
+                        <div className="pt-2">
+                          <label className="block text-[#0B0B0B]/70 mb-1">{t('qual_agency_commission_custom_label')}</label>
+                          <input
+                            type="text"
+                            placeholder={t('qual_agency_commission_custom_placeholder')}
+                            value={qualitativeData.commissionCustom}
+                            onChange={(e) => setQualitativeData({ ...qualitativeData, commissionCustom: e.target.value })}
+                            className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Instagram da Agência & Localização */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider flex items-center gap-1">
+                          <Camera className="w-3.5 h-3.5 text-[#8C6B2F]" />
+                          <span>{t('qual_agency_insta_label')}</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="@agenciaoficial"
+                          value={qualitativeData.instagram}
+                          onChange={(e) => {
+                            let val = e.target.value;
+                            if (val && !val.startsWith('@')) val = `@${val}`;
+                            setQualitativeData({ ...qualitativeData, instagram: val });
+                          }}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B] font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_country_label')}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={t('qual_agency_country_placeholder')}
+                          value={qualitativeData.country}
+                          onChange={(e) => setQualitativeData({ ...qualitativeData, country: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('qual_agency_city_label')}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={t('qual_agency_city_placeholder')}
+                          value={qualitativeData.city}
+                          onChange={(e) => setQualitativeData({ ...qualitativeData, city: e.target.value })}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3 text-xs font-sans text-[#0B0B0B]/80 pt-2">
-                    <input
-                      type="checkbox"
-                      id="terms"
-                      required
-                      checked={formData.acceptedTerms}
-                      onChange={(e) => setFormData({ ...formData, acceptedTerms: e.target.checked })}
-                      className="mt-0.5"
-                    />
-                    <label htmlFor="terms" className="cursor-pointer">
-                      Declaramos que as informações prestadas são verdadeiras e concordamos com os <strong>Termos de Sigilo, Privacidade e Curadoria Lumiardi</strong>.
-                    </label>
-                  </div>
-
-                  <div className="pt-4 flex justify-between">
+                  <div className="pt-6 flex justify-between">
                     <button
                       type="button"
-                      onClick={() => setStep(2)}
+                      onClick={() => {
+                        setCurrentStep(1);
+                        window.scrollTo({ top: 300, behavior: 'smooth' });
+                      }}
                       className="px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer"
                     >
-                      Voltar
+                      {t('qual_btn_back_step1')}
                     </button>
                     <button
                       type="submit"
-                      className="px-8 py-3.5 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.25em] font-semibold hover:bg-[#D4B87A] transition-colors flex items-center gap-2 cursor-pointer shadow-lg"
+                      className="px-8 py-4 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center gap-3 cursor-pointer shadow-lg"
                     >
+                      <span>{t('qual_agency_btn_next3')}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* ═══════════════════════════════════════════════════════════════
+                  ETAPA 3: AGENDAMENTO COM A CURADORIA
+              ═══════════════════════════════════════════════════════════════ */}
+              {currentStep === 3 && (
+                <div className="space-y-10 animate-in fade-in duration-300">
+                  <div className="border-b border-[#0B0B0B]/10 pb-4">
+                    <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">
+                      {t('qual_step3_badge')}
+                    </span>
+                    <h2 className="font-serif-lumiardi text-3xl font-light text-[#0B0B0B] mt-1">
+                      {t('qual_agency_title3')}
+                    </h2>
+                    <p className="text-xs text-[#0B0B0B]/60 font-sans mt-1">
+                      {t('qual_agency_desc3')}
+                    </p>
+                  </div>
+
+                  <CurationScheduler
+                    userType="agencia"
+                    selectedAppointment={appointment}
+                    onScheduleChange={(appt) => setAppointment(appt)}
+                  />
+
+                  <div className="p-4 bg-[#FAF7F2] border border-[#0B0B0B]/10 text-xs text-[#0B0B0B]/75 font-sans space-y-2">
+                    <div className="flex items-center gap-2 text-[#8C6B2F] font-semibold uppercase tracking-wider">
                       <Lock className="w-4 h-4" />
-                      <span>Submeter para Curadoria</span>
+                      <span>{t('qual_agency_privacy_title')}</span>
+                    </div>
+                    <p className="leading-relaxed">
+                      {t('qual_agency_privacy_desc')}
+                    </p>
+                  </div>
+
+                  <div className="pt-6 flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentStep(2);
+                        window.scrollTo({ top: 300, behavior: 'smooth' });
+                      }}
+                      className="px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer"
+                    >
+                      {t('qual_agency_btn_back')}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handleFinalSubmit}
+                      className="px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.25em] font-semibold hover:bg-[#D4B87A] transition-all flex items-center gap-3 cursor-pointer shadow-xl disabled:opacity-50"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>{isSubmitting ? t('qual_agency_btn_submitting') : t('qual_agency_btn_submit')}</span>
                     </button>
                   </div>
                 </div>
               )}
-            </form>
+
+            </div>
           )}
         </div>
       </section>

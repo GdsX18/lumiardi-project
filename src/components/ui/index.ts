@@ -8,5 +8,9 @@ export * from './Footer';
 export * from './Badge';
 export * from './PricingTable';
 export * from './ComparisonTable';
-
-
+export * from './DocumentUploadField';
+export * from './LocationSelector';
+export * from './CurationScheduler';
+export * from './CreatorBenefitsModal';
+export * from './LanguageSelector';
+export * from './ScrollProgressBar';
