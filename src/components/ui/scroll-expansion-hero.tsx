@@ -70,25 +70,28 @@ const ScrollExpandMedia = ({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const mobile = vw < 768;
-    const initW = mobile ? Math.min(280, vw - 32) : 380;
-    const initH = mobile ? 400 : 520;
+    const initW = mobile ? Math.min(260, vw - 48) : 360;
+    const initH = mobile ? 380 : 500;
 
-    // Tamanho final = TV CRT (não chega a fullscreen)
-    const finalW = mobile ? vw * 0.92 : vw * 0.86;
-    const finalH = mobile ? vh * 0.72 : vh * 0.78;
+    // Tamanho final = TV CRT elegante
+    const finalW = mobile ? vw * 0.90 : Math.min(vw * 0.82, 1100);
+    const finalH = mobile ? vh * 0.68 : Math.min(vh * 0.76, 750);
 
     const ctx = gsap.context(() => {
-      // Estado inicial
+      // Estado inicial garantido
       gsap.set(media, {
         width: initW,
         height: initH,
-        borderRadius: 24,
+        borderRadius: 20,
         xPercent: -50,
         yPercent: -50,
+        left: '50%',
+        top: '50%',
+        scale: 1,
       });
 
       if (overlayRef.current) {
-        gsap.set(overlayRef.current, { opacity: 0.45 });
+        gsap.set(overlayRef.current, { opacity: 0.35 });
       }
 
       // CRT começa invisível
@@ -100,10 +103,11 @@ const ScrollExpandMedia = ({
         scrollTrigger: {
           trigger: section,
           start: 'top top',
-          end: '+=600',
-          scrub: 0.5,
+          end: '+=700',
+          scrub: 0.6,
           pin: true,
           anticipatePin: 1,
+          invalidateOnRefresh: true,
         },
       });
 
@@ -118,14 +122,14 @@ const ScrollExpandMedia = ({
 
       // ── Textos saem lateralmente (0 → 35%) ──
       tl.to(leftTextRef.current, {
-        x: -(vw * 0.6),
+        x: -(vw * 0.5),
         opacity: 0,
         ease: 'power3.in',
         duration: 0.35,
       }, 0);
 
       tl.to(rightTextRef.current, {
-        x: vw * 0.6,
+        x: vw * 0.5,
         opacity: 0,
         ease: 'power3.in',
         duration: 0.35,
@@ -214,8 +218,11 @@ const ScrollExpandMedia = ({
         {/* ═══ Card de Mídia + CRT ═══ */}
         <div
           ref={mediaRef}
-          className="absolute left-1/2 top-1/2 overflow-hidden z-10"
-          style={{ willChange: 'width, height, border-radius, transform' }}
+          className="absolute left-1/2 top-1/2 overflow-hidden z-10 w-[260px] h-[380px] md:w-[360px] md:h-[500px] rounded-[20px] shadow-[0_20px_50px_rgba(0,0,0,0.9)] border border-gold/20"
+          style={{
+            transform: 'translate(-50%, -50%)',
+            willChange: 'width, height, border-radius, transform',
+          }}
         >
           {/* Conteúdo da mídia */}
           {mediaType === 'video' ? (

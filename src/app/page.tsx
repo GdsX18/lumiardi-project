@@ -36,17 +36,19 @@ const Footer = dynamic(() =>
 
 export default function Home() {
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hash) {
-      window.dispatchEvent(new Event('lumiardi-expand-hero'));
-      const targetHash = window.location.hash.replace('#', '');
-      const timer = setTimeout(() => {
-        const targetElement = document.getElementById(targetHash);
-        if (targetElement) {
-          targetElement.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 300);
+    if (typeof window !== 'undefined') {
+      if (window.location.hash) {
+        window.dispatchEvent(new Event('lumiardi-expand-hero'));
+        const targetHash = window.location.hash.replace('#', '');
+        const timer = setTimeout(() => {
+          const targetElement = document.getElementById(targetHash);
+          if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 300);
 
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      }
     }
   }, []);
 
