@@ -21,7 +21,12 @@ import {
   Ruler,
   Eye,
   Camera,
+  ScanFace,
+  CheckCircle2,
+  KeyRound,
 } from 'lucide-react';
+import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
+import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   CreatorCategory,
@@ -51,6 +56,10 @@ export default function QualificacaoPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
+  const [isKYCVerified, setIsKYCVerified] = useState(false);
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
+  const [is2FAVerified, setIs2FAVerified] = useState(false);
 
   // Gêneros com labels traduzidos
   const genderOptionsList: { value: GenderIdentity; label: string }[] = [
@@ -212,6 +221,16 @@ export default function QualificacaoPage() {
 
     if (!basicData.document) {
       setSubmissionError(t('err_upload_doc_required'));
+      return;
+    }
+
+    if (!isKYCVerified) {
+      setSubmissionError('A validação biométrica facial 3D e comprovação de maioridade (+18) é obrigatória para cadastro na Lumiardi.');
+      return;
+    }
+
+    if (!is2FAVerified) {
+      setSubmissionError('A ativação da Blindagem 2FA (Google Authenticator) é obrigatória para proteger sua conta.');
       return;
     }
 
@@ -554,13 +573,93 @@ export default function QualificacaoPage() {
                       />
                     </div>
 
-                    {/* Upload de Documento Seguro */}
+                    {/* Prova de Vida 3D Facial & Validação de Documento KYC +18 Obrigatório */}
                     <div className="pt-4 border-t border-[#0B0B0B]/10">
-                      <DocumentUploadField
-                        label={t('qual_doc_upload_label')}
-                        description={t('qual_doc_upload_desc')}
-                        onUploadComplete={(doc) => setBasicData({ ...basicData, document: doc })}
-                      />
+                      <div className="p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/60 rounded-xs space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-[#8C6B2F]">
+                            <ScanFace className="w-5 h-5" />
+                            <span className="text-xs font-semibold uppercase tracking-wider font-sans">
+                              Documento Oficial com Foto & Biometria Facial 3D (+18)
+                            </span>
+                          </div>
+
+                          {isKYCVerified ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Documento & Biometria Aprovados ✓</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
+                              Pendente de Validação
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
+                          Envie a foto do seu documento oficial (RG, CNH ou Passaporte) e realize a prova de vida facial 3D com a câmera para conformidade legal com a legislação <strong>18 U.S.C. § 2257</strong>.
+                        </p>
+
+                        {basicData.document && (
+                          <div className="p-2.5 bg-white border border-[#C9A96B]/40 text-xs font-sans text-[#0B0B0B]/80 flex items-center justify-between">
+                            <span className="truncate">📄 <strong>Arquivo:</strong> {basicData.document.fileName}</span>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado ✓</span>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setIsKYCModalOpen(true)}
+                          className={`w-full py-3.5 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                            isKYCVerified
+                              ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                              : 'bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-md'
+                          }`}
+                        >
+                          <ScanFace className="w-4 h-4" />
+                          <span>{isKYCVerified ? 'Refazer Leitura do Documento & Biometria' : 'Anexar Documento & Iniciar Biometria 3D (+18) →'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Blindagem 2FA (Google Authenticator) Obrigatória */}
+                    <div className="p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/50 rounded-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-[#8C6B2F]">
+                          <KeyRound className="w-5 h-5" />
+                          <span className="text-xs font-semibold uppercase tracking-wider font-sans">
+                            Blindagem 2FA (Google Authenticator) Obrigatória
+                          </span>
+                        </div>
+
+                        {is2FAVerified ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>2FA Ativado ✓</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
+                            Pendente de Configuração
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
+                        Para proteger seus ganhos, dados bancários e book contra sequestro de conta, configure a Autenticação em Dois Fatores (2FA) com o <strong>Google Authenticator</strong> ou <strong>Authy</strong>.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setIs2FAModalOpen(true)}
+                        className={`w-full py-3 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                          is2FAVerified
+                            ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                            : 'bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory'
+                        }`}
+                      >
+                        <KeyRound className="w-4 h-4" />
+                        <span>{is2FAVerified ? '2FA Concluído com Sucesso ✓' : 'Escanear QR Code & Ativar 2FA →'}</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1231,11 +1330,32 @@ export default function QualificacaoPage() {
                   </div>
                 </div>
               )}
-
             </div>
           )}
         </div>
       </section>
+
+      {/* Modal de Verificação Biométrica KYC integrado no Cadastro */}
+      <KYCVerificationModal
+        isOpen={isKYCModalOpen}
+        onClose={() => setIsKYCModalOpen(false)}
+        onDocumentUpload={(doc) => {
+          setBasicData((prev) => ({ ...prev, document: doc }));
+        }}
+        onSuccess={() => {
+          setIsKYCVerified(true);
+          setIsKYCModalOpen(false);
+        }}
+      />
+
+      {/* Modal de Blindagem 2FA TOTP integrado no Cadastro */}
+      <TwoFactorModal
+        isOpen={is2FAModalOpen}
+        onClose={() => setIs2FAModalOpen(false)}
+        onSuccess={() => {
+          setIs2FAVerified(true);
+        }}
+      />
 
       <Footer />
     </main>

@@ -106,7 +106,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/qualificacao"
+                    href="/checkout?plan=glow&category=criadoras"
                     className="w-full py-3 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.2em] uppercase font-medium hover:bg-[#8C6B2F] transition-colors block"
                   >
                     {t('plan_glow_cta')}
@@ -149,7 +149,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/qualificacao"
+                    href="/checkout?plan=radiance&category=criadoras"
                     className="w-full py-3 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.2em] uppercase font-medium hover:bg-[#8C6B2F] transition-colors block"
                   >
                     {t('plan_radiance_cta')}
@@ -196,7 +196,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/qualificacao"
+                    href="/checkout?plan=icon&category=criadoras"
                     className="w-full py-3 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.2em] uppercase font-semibold hover:bg-[#D4B87A] transition-colors block"
                   >
                     {t('plan_icon_cta')}
@@ -272,7 +272,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/qualificacao/agencia"
+                    href="/checkout?plan=select&category=agencias"
                     className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.25em] uppercase font-medium hover:bg-[#8C6B2F] transition-colors block cursor-pointer"
                   >
                     {t('plan_select_cta')}
@@ -321,7 +321,7 @@ export default function PlanosPage() {
                   </ul>
 
                   <Link
-                    href="/qualificacao/agencia"
+                    href="/checkout?plan=signature&category=agencias"
                     className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.25em] uppercase font-semibold hover:bg-[#D4B87A] transition-colors block cursor-pointer"
                   >
                     {t('plan_sig_cta')}

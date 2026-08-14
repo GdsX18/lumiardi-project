@@ -53,6 +53,21 @@ export const Footer: React.FC = () => {
           <LanguageSelector />
         </div>
 
+        {/* Links Legais e Compliance */}
+        <div className="flex flex-wrap justify-center gap-6 mb-8 text-[11px] font-sans uppercase tracking-widest text-ivory/50">
+          <Link href="/termos" className="hover:text-[#C9A96B] transition-colors">
+            Termos de Uso
+          </Link>
+          <span>·</span>
+          <Link href="/privacidade" className="hover:text-[#C9A96B] transition-colors">
+            Privacidade & LGPD
+          </Link>
+          <span>·</span>
+          <Link href="/compliance-2257" className="hover:text-[#C9A96B] transition-colors">
+            Conformidade 18 U.S.C. § 2257
+          </Link>
+        </div>
+
         <div className="w-full h-[1px] bg-white/10 mb-10" />
 
         {/* Rodapé inferior editorial */}

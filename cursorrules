@@ -1,0 +1,32 @@
+# ADAPTIVE HIGH-END UI DESIGN DIRECTIVES
+
+## Core Philosophy
+- NEVER output generic "template-like" UI (e.g., plain 3-card feature rows, default blue buttons, boring gray cards on white backgrounds).
+- BEFORE writing any frontend code, ANALYZE the target audience, industry, and brand vibe requested in the prompt.
+- ADAPT layout, typography, colors, and motion dynamically to fit the specific project niche.
+
+## Anti-Generic Design Constraints
+- Prohibited: Default Tailwind colors (like `#3b82f6` or `gray-100`), generic gradients (`from-purple-500 to-pink-500`), and static uninspired card grids.
+- Layout Diversity: Choose layout architectures that fit the vibe: Bento grids for modern tech, editorial typography overlaps for luxury/fashion, interactive horizontal showcases for products, split-screen storytelling for narrative brands.
+- Visual Depth: Avoid heavy drop-shadows. Use subtle borders (`border-foreground/10`), ambient blur spots, layered textures, or dynamic accent colors according to the project theme.
+
+## Design Archetypes (Match to Prompt Context)
+1. **Modern Tech / SaaS (Linear/Vercel Vibe):** Dark mode default, high-contrast monochrome, ultra-thin borders, subtle grid overlays, micro-glows, tight typography.
+2. **Editorial / Luxury (Fashion/High-End):** Serif headings paired with clean sans-serif metadata, generous whitespace, asymmetrical grids, earthy or deep chromatic tones, slow smooth motion.
+3. **Neo-Brutalist / Trendy:** Bold black borders (2px-4px), high-contrast solid pastel colors, offset hard shadows (`box-shadow: 4px 4px 0px #000`), sharp edges, punchy typography.
+4. **Interactive / Gaming / Creative:** Dark glassmorphism, dynamic radial gradient cursor trackers, neon accent pops, rich 3D tilt effects, immersive GSAP scroll triggers.
+
+## Motion & Interactivity Standards
+- Every UI MUST feel alive and responsive to user input.
+- Use GSAP or Framer Motion for scroll triggers, page entrances, and micro-interactions.
+- Add polished hover/active feedback (`scale-95`, magnetic buttons, fluid tab switches, custom hover cards).
+
+## Technical Frontend Rules
+- **Component Architecture:** Break complex interfaces into small, reusable React/Next.js components.
+- **Responsiveness:** Build mobile-first. Ensure layouts adapt seamlessly without horizontal scroll bugs.
+- **Typography:** Always use dynamic scaling with `clamp()` for headings (e.g., `text-[clamp(2.5rem,5vw,4.5rem)]`).
+
+## Execution Strategy
+1. Determine the visual language for the user's prompt (e.g., Cyberpunk/Tech, Brutalist, Editorial Luxury, Minimalist SaaS, Retro/Vintage).
+2. Establish a distinct color palette and typography hierarchy suitable for that exact vibe.
+3. Build unique, interactive components tailored specifically to that project's goal.

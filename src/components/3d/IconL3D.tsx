@@ -45,13 +45,13 @@ function LMesh({ isHovered, mousePos }: LMeshProps) {
   }, []);
 
   const extrudeSettings = React.useMemo(() => ({
-    steps: 2,
+    steps: 1,
     depth: 0.35,
     bevelEnabled: true,
     bevelThickness: 0.08,
     bevelSize: 0.06,
     bevelOffset: 0,
-    bevelSegments: 5,
+    bevelSegments: 3, // Reduzido de 5 para 3 sem perda visual perceptível
   }), []);
 
   return (
@@ -99,7 +99,9 @@ export const IconL3D: React.FC<IconL3DProps> = ({ className = 'w-48 h-48 md:w-64
     >
       <Canvas
         camera={{ position: [0, 0, 4.2], fov: 45 }}
-        gl={{ antialias: true, alpha: true }}
+        dpr={[1, 1.5]}
+        performance={{ min: 0.5 }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         style={{ background: 'transparent' }}
       >
         <ambientLight intensity={2.0} />
@@ -109,7 +111,7 @@ export const IconL3D: React.FC<IconL3DProps> = ({ className = 'w-48 h-48 md:w-64
         <pointLight position={[4, -3, 2]} intensity={2.5} color="#C9A96B" />
         <spotLight position={[0, 6, 8]} intensity={4.0} angle={0.6} penumbra={1} color="#FFFFFF" />
 
-        <Sparkles count={20} scale={5} size={1.8} speed={0.3} opacity={0.5} color="#C9A96B" />
+        <Sparkles count={15} scale={5} size={1.8} speed={0.3} opacity={0.5} color="#C9A96B" />
 
         <Float speed={1.8} rotationIntensity={0.2} floatIntensity={0.4}>
           <LMesh isHovered={isHovered} mousePos={mousePos} />

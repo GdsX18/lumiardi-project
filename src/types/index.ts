@@ -114,12 +114,21 @@ export interface CurationAppointment {
   notes?: string;
 }
 
+export type CurationStatusType =
+  | 'EM_CURATORIA'
+  | 'APROVADO'
+  | 'REJEITADO'
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'rejected';
+
 export interface CompleteCreatorProfile {
   id: string;
   basicInfo: CreatorBasicRegistration;
   qualitative: CreatorQualitativeData;
   appointment?: CurationAppointment;
-  curationStatus: 'submitted' | 'under_review' | 'approved' | 'rejected';
+  curationStatus: CurationStatusType;
   createdAt: string;
   updatedAt: string;
 }
@@ -155,7 +164,7 @@ export interface CompleteAgencyProfile {
   basicInfo: AgencyBasicRegistration;
   qualitative: AgencyQualitativeData;
   appointment?: CurationAppointment;
-  curationStatus: 'submitted' | 'under_review' | 'approved' | 'rejected';
+  curationStatus: CurationStatusType;
   createdAt: string;
   updatedAt: string;
 }
@@ -178,4 +187,7 @@ export interface CreatorFilterQuery {
   hasChildren?: boolean;
   country?: string;
   state?: string;
+  searchTerm?: string;
+  minAge?: number;
+  maxAge?: number;
 }

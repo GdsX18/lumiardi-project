@@ -17,8 +17,12 @@ import {
   CalendarCheck,
   Camera,
   Target,
-  Percent,
+  ScanFace,
+  CheckCircle2,
+  KeyRound,
 } from 'lucide-react';
+import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
+import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   CompleteAgencyProfile,
@@ -46,6 +50,10 @@ export default function AgenciaQualificacaoPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
+  const [isKYCVerified, setIsKYCVerified] = useState(false);
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
+  const [is2FAVerified, setIs2FAVerified] = useState(false);
 
   // ─── ETAPA 1: Cadastro Inicial & Documento ───────────────────────
   const [basicData, setBasicData] = useState({
@@ -89,6 +97,16 @@ export default function AgenciaQualificacaoPage() {
 
     if (!basicData.document) {
       setSubmissionError(t('err_upload_cnpj_required'));
+      return;
+    }
+
+    if (!isKYCVerified) {
+      setSubmissionError('A validação biométrica do responsável legal da agência é obrigatória para cadastro.');
+      return;
+    }
+
+    if (!is2FAVerified) {
+      setSubmissionError('A ativação da Blindagem 2FA (Google Authenticator) é obrigatória para proteger a conta corporativa.');
       return;
     }
 
@@ -372,14 +390,93 @@ export default function AgenciaQualificacaoPage() {
                       </div>
                     </div>
 
-                    {/* Anexo do cartão CNPJ */}
+                    {/* Prova de Vida 3D Facial do Responsável Legal & Validação de Documento Oficial (+18) */}
                     <div className="pt-4 border-t border-[#0B0B0B]/10">
-                      <DocumentUploadField
-                        label={t('qual_agency_doc_label')}
-                        description={t('qual_agency_doc_desc')}
-                        documentTypeDefault="rg_cnh"
-                        onUploadComplete={(doc) => setBasicData({ ...basicData, document: doc })}
-                      />
+                      <div className="p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/60 rounded-xs space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-[#8C6B2F]">
+                            <ScanFace className="w-5 h-5" />
+                            <span className="text-xs font-semibold uppercase tracking-wider font-sans">
+                              Documento Oficial do Responsável Legal & Biometria 3D
+                            </span>
+                          </div>
+
+                          {isKYCVerified ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Documento & Biometria Homologados ✓</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
+                              Pendente de Validação
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
+                          Conformidade institucional com os padrões de prevenção a fraudes (KYB/KYC) e legislação <strong>18 U.S.C. § 2257</strong>. Anexe a foto do documento oficial do diretor responsável e realize a biometria 3D na câmera.
+                        </p>
+
+                        {basicData.document && (
+                          <div className="p-2.5 bg-white border border-[#C9A96B]/40 text-xs font-sans text-[#0B0B0B]/80 flex items-center justify-between">
+                            <span className="truncate">📄 <strong>Arquivo:</strong> {basicData.document.fileName}</span>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado ✓</span>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setIsKYCModalOpen(true)}
+                          className={`w-full py-3.5 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                            isKYCVerified
+                              ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                              : 'bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-md'
+                          }`}
+                        >
+                          <ScanFace className="w-4 h-4" />
+                          <span>{isKYCVerified ? 'Refazer Leitura do Documento & Biometria' : 'Anexar Documento & Iniciar Biometria 3D →'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Blindagem 2FA (Google Authenticator) Obrigatória para Agência */}
+                    <div className="p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/50 rounded-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-[#8C6B2F]">
+                          <KeyRound className="w-5 h-5" />
+                          <span className="text-xs font-semibold uppercase tracking-wider font-sans">
+                            Blindagem 2FA Corporativa Obrigatória
+                          </span>
+                        </div>
+
+                        {is2FAVerified ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>2FA Ativado ✓</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
+                            Pendente de Configuração
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
+                        Para proteção das faturas corporativas, contratos com criadoras e repasses em escrow, ative a autenticação em dois fatores no <strong>Google Authenticator</strong> ou <strong>Authy</strong>.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setIs2FAModalOpen(true)}
+                        className={`w-full py-3 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                          is2FAVerified
+                            ? 'bg-emerald-700 text-white hover:bg-emerald-800'
+                            : 'bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory'
+                        }`}
+                      >
+                        <KeyRound className="w-4 h-4" />
+                        <span>{is2FAVerified ? '2FA Concluído com Sucesso ✓' : 'Escanear QR Code & Ativar 2FA Corporativo →'}</span>
+                      </button>
                     </div>
                   </div>
 
@@ -652,6 +749,28 @@ export default function AgenciaQualificacaoPage() {
           )}
         </div>
       </section>
+
+      {/* Modal de Verificação Biométrica KYC integrado no Cadastro */}
+      <KYCVerificationModal
+        isOpen={isKYCModalOpen}
+        onClose={() => setIsKYCModalOpen(false)}
+        onDocumentUpload={(doc) => {
+          setBasicData((prev) => ({ ...prev, document: doc }));
+        }}
+        onSuccess={() => {
+          setIsKYCVerified(true);
+          setIsKYCModalOpen(false);
+        }}
+      />
+
+      {/* Modal de Blindagem 2FA TOTP integrado no Cadastro */}
+      <TwoFactorModal
+        isOpen={is2FAModalOpen}
+        onClose={() => setIs2FAModalOpen(false)}
+        onSuccess={() => {
+          setIs2FAVerified(true);
+        }}
+      />
 
       <Footer />
     </main>

@@ -20,8 +20,8 @@ export const SECURITY_HEADERS: SecurityHeadersConfig = {
     "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: blob: https://images.unsplash.com https://assets.mixkit.co https://raw.githubusercontent.com https://cdn.jsdelivr.net https://*.githubusercontent.com",
-    "media-src 'self' data: blob: https://assets.mixkit.co",
+    "img-src 'self' data: blob: https://images.unsplash.com https://assets.mixkit.co https://raw.githubusercontent.com https://cdn.jsdelivr.net https://*.githubusercontent.com https://api.qrserver.com",
+    "media-src 'self' data: blob: https://assets.mixkit.co https://commondatastorage.googleapis.com",
     "connect-src 'self' blob: data: https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://raw.githubusercontent.com https://*.githubusercontent.com https://cdn.jsdelivr.net https://dl.polyhaven.org https://market-assets.fra1.cdn.digitaloceanspaces.com",
     "frame-ancestors 'self'",
     "base-uri 'self'",
@@ -44,7 +44,7 @@ export const SECURITY_HEADERS: SecurityHeadersConfig = {
   referrerPolicy: 'strict-origin-when-cross-origin',
 
   // Permissions Policy
-  permissionsPolicy: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  permissionsPolicy: 'camera=(self), microphone=(self), display-capture=(self), geolocation=()',
 };
 
 /**

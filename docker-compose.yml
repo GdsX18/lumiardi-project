@@ -1,0 +1,54 @@
+services:
+  # Banco de Dados PostgreSQL 17
+  postgres:
+    image: postgres:17-alpine
+    container_name: lumiardi_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-lumiardi_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./lumiardi_schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-lumiardi_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lumiardi_network
+
+  # Aplicação Lumiardi Web (Next.js 15)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lumiardi_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-lumiardi_db}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-lumiardi_super_secret_jwt_key_2026_prod}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      - uploads_data:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - lumiardi_network
+
+volumes:
+  pgdata:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  lumiardi_network:
+    driver: bridge

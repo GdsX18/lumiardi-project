@@ -97,8 +97,14 @@ export const Header: React.FC = () => {
             ))}
           </nav>
 
-          {/* LADO DIREITO: Seletor de Idioma */}
-          <div className="flex items-center">
+          {/* LADO DIREITO: Login & Seletor de Idioma */}
+          <div className="flex items-center gap-4">
+            <Link
+              href="/login"
+              className="px-3.5 py-1.5 border border-gold/40 text-gold hover:bg-gold hover:text-black-matte text-xs uppercase font-sans tracking-widest font-medium transition-all duration-300 hidden sm:inline-flex items-center gap-1.5"
+            >
+              <span>Login</span>
+            </Link>
             <LanguageSelector />
           </div>
 

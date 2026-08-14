@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",
@@ -11,6 +13,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "assets.mixkit.co",
+      },
+      {
+        protocol: "https",
+        hostname: "commondatastorage.googleapis.com",
       },
     ],
   },
@@ -41,7 +47,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            value: "camera=(self), microphone=(self), display-capture=(self), geolocation=()",
           },
           {
             key: "Content-Security-Policy",
@@ -50,8 +56,8 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https:",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
-              "img-src 'self' data: blob: https://images.unsplash.com https://assets.mixkit.co https://raw.githubusercontent.com https://cdn.jsdelivr.net https://*.githubusercontent.com",
-              "media-src 'self' data: blob: https://assets.mixkit.co",
+              "img-src 'self' data: blob: https://images.unsplash.com https://assets.mixkit.co https://raw.githubusercontent.com https://cdn.jsdelivr.net https://*.githubusercontent.com https://api.qrserver.com",
+              "media-src 'self' data: blob: https://assets.mixkit.co https://commondatastorage.googleapis.com",
               "connect-src 'self' blob: data: https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://raw.githubusercontent.com https://*.githubusercontent.com https://cdn.jsdelivr.net https://dl.polyhaven.org https://market-assets.fra1.cdn.digitaloceanspaces.com",
               "frame-ancestors 'self'",
               "base-uri 'self'",

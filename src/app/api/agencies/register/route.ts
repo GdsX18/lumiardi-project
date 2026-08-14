@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { sanitizeObject } from '@/lib/security';
+import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { CompleteAgencyProfile } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -21,16 +22,40 @@ export async function POST(request: NextRequest) {
 
     const savedProfile = await StorageService.saveAgency({
       ...sanitizedBody,
-      curationStatus: 'submitted',
+      curationStatus: 'EM_CURATORIA',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({
+    const sessionUser: SessionUser = {
+      id: savedProfile.id,
+      email: savedProfile.basicInfo.corporateEmail,
+      name: savedProfile.basicInfo.responsibleName,
+      role: 'agencia',
+      curationStatus: 'EM_CURATORIA',
+      documentName: savedProfile.basicInfo.document?.fileName,
+      country: savedProfile.qualitative.country,
+      city: savedProfile.qualitative.city,
+      createdAt: savedProfile.createdAt,
+    };
+
+    const response = NextResponse.json({
       success: true,
       profileId: savedProfile.id,
-      message: 'Cadastro corporativo e agendamento submetidos com sucesso.',
+      user: sessionUser,
+      message: 'Cadastro corporativo submetido com sucesso. Status: EM_CURATORIA.',
     });
+
+    response.cookies.set({
+      name: SESSION_COOKIE_NAME,
+      value: encodeSession(sessionUser),
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro interno ao processar cadastro';
     return NextResponse.json(

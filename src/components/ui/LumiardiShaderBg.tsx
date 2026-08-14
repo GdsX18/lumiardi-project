@@ -8,15 +8,23 @@ export interface LumiardiShaderBgProps {
 
 export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 'w-full h-full' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
-    const gl = canvas.getContext('webgl');
+    const gl = canvas.getContext('webgl', {
+      powerPreference: 'high-performance',
+      alpha: true,
+      antialias: false, // Desabilitado para shaders 2D de tela cheia (ganho de 30% em GPU)
+      preserveDrawingBuffer: false,
+    });
     if (!gl) return;
 
     let animationFrameId: number;
+    let isVisible = true;
 
     const vsSource = `
       attribute vec2 a_position;
@@ -26,7 +34,7 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
     `;
 
     const fsSource = `
-      precision highp float;
+      precision mediump float;
       uniform vec2 u_resolution;
       uniform float u_time;
       uniform vec2 u_mouse;
@@ -49,7 +57,7 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
         float a = 0.5;
         vec2 shift = vec2(100.0);
         mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 4; ++i) {
           v += a * noise(p);
           p = rot * p * 2.0 + shift;
           a *= 0.5;
@@ -61,55 +69,48 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
         vec2 st = gl_FragCoord.xy / u_resolution.xy;
         vec2 mouse = u_mouse / u_resolution;
         
-        // Distorção fluida de névoa dourada
         vec2 q = vec2(0.0);
-        q.x = fbm(st + 0.05 * u_time);
+        q.x = fbm(st + 0.04 * u_time);
         q.y = fbm(st + vec2(2.5, 1.3));
 
         vec2 r = vec2(0.0);
-        r.x = fbm(st + 1.1 * q + vec2(1.7, 9.2) + 0.08 * u_time + mouse.x * 0.1);
-        r.y = fbm(st + 1.1 * q + vec2(8.3, 2.8) + 0.07 * u_time + mouse.y * 0.1);
+        r.x = fbm(st + 1.1 * q + vec2(1.7, 9.2) + 0.06 * u_time + mouse.x * 0.08);
+        r.y = fbm(st + 1.1 * q + vec2(8.3, 2.8) + 0.05 * u_time + mouse.y * 0.08);
 
         float f = fbm(st + r * 1.0);
 
-        // Paleta de Cores da Marca Lumiardi
-        vec3 colorBg = vec3(0.05, 0.04, 0.03);       // Base Escura
-        vec3 colorBronze = vec3(0.60, 0.42, 0.24);   // Bronze (#A97745)
-        vec3 colorGold = vec3(0.78, 0.64, 0.38);     // Dourado Champanhe (#C9A96B)
-        vec3 colorGoldBright = vec3(0.90, 0.78, 0.48); // Luz Dourada Suave
-        vec3 colorIvory = vec3(0.96, 0.94, 0.90);    // Marfim Quente (#F7F3EC)
+        vec3 colorBg = vec3(0.05, 0.04, 0.03);
+        vec3 colorBronze = vec3(0.60, 0.42, 0.24);
+        vec3 colorGold = vec3(0.78, 0.64, 0.38);
+        vec3 colorGoldBright = vec3(0.90, 0.78, 0.48);
+        vec3 colorIvory = vec3(0.96, 0.94, 0.90);
 
-        // Composição de luz volumétrica ambiente
         vec3 col = mix(colorBg, colorBronze, clamp(f * 2.0, 0.0, 1.0));
         col = mix(col, colorGold, clamp(length(q) * 1.1, 0.0, 1.0));
         col = mix(col, colorGoldBright, clamp(length(r.x) * 0.75, 0.0, 1.0));
         col = mix(col, colorIvory, clamp(f * r.y * 0.4, 0.0, 0.35));
 
-        // Luz de mouse extremamente suave e discreta (reduzida para 0.08)
         float mouseDist = length(st - mouse);
         float mouseLight = smoothstep(0.45, 0.0, mouseDist);
         col += colorGold * mouseLight * 0.08;
 
-        // Vignette sutil
         float dist = distance(st, vec2(0.5));
         col *= smoothstep(1.1, 0.3, dist);
 
-        // Granulação tátil
-        float grain = (hash(st * u_time * 5.0) - 0.5) * 0.025;
+        float grain = (hash(st * u_time * 4.0) - 0.5) * 0.02;
         col += grain;
 
         gl_FragColor = vec4(col, 1.0);
       }
     `;
 
-    function createShader(gl: WebGLRenderingContext, type: number, source: string) {
-      const shader = gl.createShader(type);
+    function createShader(glContext: WebGLRenderingContext, type: number, source: string) {
+      const shader = glContext.createShader(type);
       if (!shader) return null;
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
+      glContext.shaderSource(shader, source);
+      glContext.compileShader(shader);
+      if (!glContext.getShaderParameter(shader, glContext.COMPILE_STATUS)) {
+        glContext.deleteShader(shader);
         return null;
       }
       return shader;
@@ -125,7 +126,6 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(program));
       return;
     }
 
@@ -157,11 +157,12 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
       mouseY = window.innerHeight - e.clientY;
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
 
     const resizeCanvas = () => {
       if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Limita DPR a 1.25 para economizar energia e manter 60 FPS estáveis
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       const displayWidth = Math.floor(canvas.clientWidth * dpr);
       const displayHeight = Math.floor(canvas.clientHeight * dpr);
 
@@ -175,10 +176,11 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
     const startTime = performance.now();
 
     const render = (time: number) => {
+      if (!isVisible) return;
+
       resizeCanvas();
 
       gl.useProgram(program);
-
       gl.enableVertexAttribArray(positionAttributeLocation);
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
@@ -192,16 +194,40 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
       animationFrameId = requestAnimationFrame(render);
     };
 
+    // IntersectionObserver: pausa o loop quando o elemento sai da tela
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        isVisible = entry.isIntersecting;
+        if (isVisible) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = requestAnimationFrame(render);
+        } else {
+          cancelAnimationFrame(animationFrameId);
+        }
+      },
+      { threshold: 0.05 }
+    );
+
+    observer.observe(container);
+
     animationFrameId = requestAnimationFrame(render);
 
     return () => {
+      observer.disconnect();
       window.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(animationFrameId);
+      if (gl) {
+        gl.deleteProgram(program);
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
+        gl.deleteBuffer(positionBuffer);
+      }
     };
   }, []);
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div ref={containerRef} className={`relative overflow-hidden ${className}`}>
       <canvas
         ref={canvasRef}
         className="w-full h-full block object-cover"

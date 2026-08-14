@@ -1,171 +1,462 @@
 'use client';
 
-import React from 'react';
-import { Plus, MoreHorizontal, Calendar, CheckCircle2, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Plus,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  ArrowLeft,
+  X,
+  Trash2,
+  RefreshCw,
+  Kanban,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { useLanguage } from '@/context/LanguageContext';
 
-export interface KanbanTask {
+export interface TaskItem {
   id: string;
   title: string;
-  agency: string;
-  date: string;
-  priority: string;
+  agency?: string;
+  date?: string;
+  priority: 'Alta' | 'Média' | 'Normal' | string;
+  column: 'todo' | 'inProgress' | 'done' | string;
+  createdAt?: string;
 }
 
 export const KanbanBoard: React.FC = () => {
-  const { t } = useLanguage();
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskAgency, setNewTaskAgency] = useState('Lumiardi Onboarding');
+  const [newTaskPriority, setNewTaskPriority] = useState<'Alta' | 'Média' | 'Normal'>('Alta');
+  const [newTaskDate, setNewTaskDate] = useState('Esta Semana');
 
-  const tasks = {
-    todo: [
-      {
-        id: '1',
-        title: t('kanban_task1_title'),
-        agency: 'Aura Management',
-        date: '30 Jul',
-        priority: t('kanban_priority_high'),
-        isHigh: true,
-      },
-      {
-        id: '2',
-        title: t('kanban_task2_title'),
-        agency: 'Vanguard Talent Co.',
-        date: '02 Aug',
-        priority: t('kanban_priority_medium'),
-        isHigh: false,
-      },
-    ],
-    inProgress: [
-      {
-        id: '3',
-        title: t('kanban_task3_title'),
-        agency: 'Aura Management',
-        date: '28 Jul',
-        priority: t('kanban_priority_high'),
-        isHigh: true,
-      },
-    ],
-    done: [
-      {
-        id: '4',
-        title: t('kanban_task4_title'),
-        agency: 'Lumiardi Curation Team',
-        date: '25 Jul',
-        priority: t('kanban_priority_normal'),
-        isHigh: false,
-      },
-    ],
+  // Carregar tarefas da API
+  const fetchTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/kanban');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.tasks)) {
+          setTasks(data.tasks);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar kanban:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  // Mover Tarefa entre Colunas
+  const moveTask = async (taskId: string, direction: 'next' | 'prev') => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    let nextColumn = task.column;
+    if (direction === 'next') {
+      if (task.column === 'todo') nextColumn = 'inProgress';
+      else if (task.column === 'inProgress') nextColumn = 'done';
+    } else {
+      if (task.column === 'done') nextColumn = 'inProgress';
+      else if (task.column === 'inProgress') nextColumn = 'todo';
+    }
+
+    if (nextColumn === task.column) return;
+
+    // Atualização otimista
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, column: nextColumn } : t))
+    );
+
+    try {
+      await fetch('/api/kanban', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, columnStatus: nextColumn }),
+      });
+    } catch (err) {
+      console.error('Erro ao atualizar tarefa:', err);
+      fetchTasks();
+    }
   };
 
+  // Excluir Tarefa
+  const deleteTask = async (taskId: string) => {
+    if (confirm('Deseja realmente excluir esta tarefa?')) {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      try {
+        await fetch(`/api/kanban?id=${encodeURIComponent(taskId)}`, {
+          method: 'DELETE',
+        });
+      } catch (err) {
+        console.error('Erro ao deletar tarefa:', err);
+        fetchTasks();
+      }
+    }
+  };
+
+  // Criar Nova Tarefa
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    const title = newTaskTitle.trim();
+    const agency = newTaskAgency.trim() || 'Lumiardi Onboarding';
+    const prio = newTaskPriority;
+    const date = newTaskDate.trim() || 'Em aberto';
+
+    setIsModalOpen(false);
+    setNewTaskTitle('');
+
+    try {
+      const res = await fetch('/api/kanban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          agencyName: agency,
+          priority: prio,
+          dueDate: date,
+          columnStatus: 'todo',
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.task) {
+          setTasks((prev) => [data.task, ...prev]);
+        } else {
+          fetchTasks();
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao criar tarefa:', err);
+      fetchTasks();
+    }
+  };
+
+  const todoTasks = tasks.filter((t) => t.column === 'todo');
+  const inProgressTasks = tasks.filter((t) => t.column === 'inProgress');
+  const doneTasks = tasks.filter((t) => t.column === 'done');
+
   return (
-    <div className="w-full bg-white border border-black-matte/15 p-4 md:p-6 text-black-matte shadow-sm">
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-black-matte/10">
+    <div className="w-full bg-[#0D0D0D] border border-gold/30 p-6 md:p-8 text-ivory shadow-2xl space-y-6 rounded-sm">
+      {/* Header do Kanban */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
         <div>
-          <span className="text-[10px] uppercase tracking-[0.25em] text-bronze font-semibold font-sans">
-            {t('kanban_module_tag')}
-          </span>
-          <h3 className="font-serif-lumiardi text-2xl font-semibold text-black-matte">
-            {t('kanban_title')}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] uppercase tracking-[0.25em] text-gold font-semibold font-sans">
+              Campanhas & Entregas
+            </span>
+          </div>
+          <h3 className="font-serif-lumiardi text-2xl md:text-3xl font-light text-ivory">
+            Quadro Kanban de Projetos
           </h3>
         </div>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-black-matte text-ivory text-xs font-sans hover:bg-gold hover:text-black-matte transition-colors cursor-pointer">
-          <Plus className="w-4 h-4" />
-          <span>{t('kanban_new_task')}</span>
-        </button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Coluna: A Fazer */}
-        <div className="bg-[#F7F3EC] p-4 border border-black-matte/10 flex flex-col gap-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-serif-lumiardi font-semibold text-sm tracking-wider uppercase text-black-matte">
-              {t('kanban_col_todo')} ({tasks.todo.length})
-            </span>
-            <Clock className="w-4 h-4 text-bronze" />
-          </div>
-          {tasks.todo.map((task) => (
-            <div
-              key={task.id}
-              className="p-4 bg-white border border-black-matte/10 hover:border-gold transition-colors shadow-2xs space-y-2 cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <Badge variant={task.priority === t('kanban_priority_high') ? 'gold' : 'bronze'}>
-                  {task.priority}
-                </Badge>
-                <MoreHorizontal className="w-4 h-4 text-black-matte/40" />
-              </div>
-              <h4 className="font-serif-lumiardi text-base font-medium text-black-matte">
-                {task.title}
-              </h4>
-              <div className="flex items-center justify-between text-[11px] text-black-matte/60 font-sans pt-2 border-t border-black-matte/5">
-                <span>{task.agency}</span>
-                <span className="flex items-center gap-1 text-bronze font-medium">
-                  <Calendar className="w-3 h-3" />
-                  {task.date}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={fetchTasks}
+            title="Atualizar quadro"
+            className="p-2.5 bg-[#141414] hover:bg-[#202020] border border-white/10 text-ivory/70 hover:text-gold transition-colors rounded-xs cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
 
-        {/* Coluna: Em Andamento */}
-        <div className="bg-[#F7F3EC] p-4 border border-black-matte/10 flex flex-col gap-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-serif-lumiardi font-semibold text-sm tracking-wider uppercase text-gold">
-              {t('kanban_col_in_progress')} ({tasks.inProgress.length})
-            </span>
-            <Clock className="w-4 h-4 text-gold" />
-          </div>
-          {tasks.inProgress.map((task) => (
-            <div
-              key={task.id}
-              className="p-4 bg-white border-2 border-gold/40 shadow-sm space-y-2 cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <Badge variant="gold">{task.priority}</Badge>
-                <MoreHorizontal className="w-4 h-4 text-black-matte/40" />
-              </div>
-              <h4 className="font-serif-lumiardi text-base font-medium text-black-matte">
-                {task.title}
-              </h4>
-              <div className="flex items-center justify-between text-[11px] text-black-matte/60 font-sans pt-2 border-t border-black-matte/5">
-                <span>{task.agency}</span>
-                <span className="flex items-center gap-1 text-gold font-semibold">
-                  <Calendar className="w-3 h-3" />
-                  {task.date}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Coluna: Concluído */}
-        <div className="bg-[#F7F3EC] p-4 border border-black-matte/10 flex flex-col gap-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-serif-lumiardi font-semibold text-sm tracking-wider uppercase text-emerald-800">
-              {t('kanban_col_done')} ({tasks.done.length})
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-800" />
-          </div>
-          {tasks.done.map((task) => (
-            <div
-              key={task.id}
-              className="p-4 bg-white/70 border border-black-matte/10 space-y-2 opacity-80"
-            >
-              <div className="flex items-center justify-between">
-                <Badge variant="outline">{t('kanban_col_done')}</Badge>
-              </div>
-              <h4 className="font-serif-lumiardi text-base font-medium text-black-matte line-through decoration-bronze">
-                {task.title}
-              </h4>
-              <div className="flex items-center justify-between text-[11px] text-black-matte/50 font-sans pt-2 border-t border-black-matte/5">
-                <span>{task.agency}</span>
-                <span>{task.date}</span>
-              </div>
-            </div>
-          ))}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="px-4 py-2.5 bg-gold text-black-matte font-semibold text-xs font-sans uppercase tracking-wider hover:bg-gold-light transition-all flex items-center gap-2 cursor-pointer shadow-md self-start sm:self-auto rounded-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nova Tarefa</span>
+          </button>
         </div>
       </div>
+
+      {/* Grid das 3 Colunas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Coluna 1: A Fazer */}
+        <div className="bg-[#121212] p-4 border border-white/5 space-y-4 rounded-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <span className="font-serif-lumiardi font-medium text-base tracking-wider uppercase text-ivory flex items-center gap-2">
+              <Clock className="w-4 h-4 text-gold" />
+              A Fazer ({todoTasks.length})
+            </span>
+            <span className="text-[10px] font-sans text-ivory/40">Pendentes</span>
+          </div>
+
+          <div className="space-y-3">
+            {todoTasks.map((task) => (
+              <div
+                key={task.id}
+                className="p-4 bg-[#181818] border border-white/10 hover:border-gold/50 transition-all shadow-md space-y-3 rounded-xs group relative"
+              >
+                <div className="flex items-center justify-between">
+                  <Badge variant={task.priority === 'Alta' ? 'gold' : 'bronze'}>
+                    {task.priority} Prioridade
+                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="p-1 text-ivory/30 hover:text-rose-400 transition-colors cursor-pointer"
+                      title="Excluir Tarefa"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveTask(task.id, 'next')}
+                      className="p-1 text-gold hover:text-gold-light transition-colors text-xs flex items-center gap-1 cursor-pointer font-bold"
+                      title="Iniciar Tarefa"
+                    >
+                      <span className="text-[10px]">Iniciar</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <h4 className="font-serif-lumiardi text-base font-medium text-ivory leading-snug">
+                  {task.title}
+                </h4>
+
+                <div className="flex items-center justify-between text-[11px] text-ivory/50 font-sans pt-2 border-t border-white/5">
+                  <span className="text-gold">{task.agency}</span>
+                  <span className="flex items-center gap-1 text-ivory/60">
+                    <Calendar className="w-3 h-3" />
+                    {task.date}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {todoTasks.length === 0 && (
+              <p className="text-xs text-ivory/30 italic py-6 text-center">Nenhuma tarefa pendente no momento.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Coluna 2: Em Andamento */}
+        <div className="bg-[#121212] p-4 border border-gold/30 space-y-4 shadow-[0_0_20px_rgba(201,169,107,0.05)] rounded-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-gold/30">
+            <span className="font-serif-lumiardi font-medium text-base tracking-wider uppercase text-gold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-gold animate-spin" />
+              Em Andamento ({inProgressTasks.length})
+            </span>
+            <span className="text-[10px] font-sans text-gold">Produção Ativa</span>
+          </div>
+
+          <div className="space-y-3">
+            {inProgressTasks.map((task) => (
+              <div
+                key={task.id}
+                className="p-4 bg-[#181818] border-2 border-gold/40 shadow-lg space-y-3 rounded-xs"
+              >
+                <div className="flex items-center justify-between">
+                  <Badge variant="gold">{task.priority} Prioridade</Badge>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="p-1 text-ivory/30 hover:text-rose-400 transition-colors cursor-pointer"
+                      title="Excluir Tarefa"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveTask(task.id, 'prev')}
+                      className="p-1 text-ivory/40 hover:text-white transition-colors cursor-pointer"
+                      title="Voltar para A Fazer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveTask(task.id, 'next')}
+                      className="p-1 text-gold hover:text-gold-light transition-colors text-xs flex items-center gap-1 cursor-pointer font-bold"
+                      title="Concluir Tarefa"
+                    >
+                      <span className="text-[10px]">Concluir</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <h4 className="font-serif-lumiardi text-base font-medium text-ivory leading-snug">
+                  {task.title}
+                </h4>
+
+                <div className="flex items-center justify-between text-[11px] text-ivory/50 font-sans pt-2 border-t border-white/5">
+                  <span className="text-gold">{task.agency}</span>
+                  <span className="flex items-center gap-1 text-gold font-medium">
+                    <Calendar className="w-3 h-3" />
+                    {task.date}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {inProgressTasks.length === 0 && (
+              <p className="text-xs text-ivory/30 italic py-6 text-center">Nenhuma tarefa em andamento.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Coluna 3: Concluído */}
+        <div className="bg-[#121212] p-4 border border-emerald-500/20 space-y-4 rounded-xs">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <span className="font-serif-lumiardi font-medium text-base tracking-wider uppercase text-emerald-400 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              Concluído ({doneTasks.length})
+            </span>
+            <span className="text-[10px] font-sans text-emerald-400">Finalizado</span>
+          </div>
+
+          <div className="space-y-3">
+            {doneTasks.map((task) => (
+              <div
+                key={task.id}
+                className="p-4 bg-[#161616]/70 border border-emerald-500/20 space-y-3 opacity-90 rounded-xs"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[9px] font-sans uppercase tracking-widest font-semibold rounded-xs">
+                    Entregue ✓
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="p-1 text-ivory/30 hover:text-rose-400 transition-colors cursor-pointer"
+                      title="Excluir Tarefa"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => moveTask(task.id, 'prev')}
+                      className="p-1 text-ivory/40 hover:text-white transition-colors cursor-pointer"
+                      title="Reabrir Tarefa"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <h4 className="font-serif-lumiardi text-base font-medium text-ivory/80 line-through decoration-gold">
+                  {task.title}
+                </h4>
+
+                <div className="flex items-center justify-between text-[11px] text-ivory/40 font-sans pt-2 border-t border-white/5">
+                  <span>{task.agency}</span>
+                  <span>{task.date}</span>
+                </div>
+              </div>
+            ))}
+            {doneTasks.length === 0 && (
+              <p className="text-xs text-ivory/30 italic py-6 text-center">Nenhuma tarefa concluída ainda.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de Nova Tarefa */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#0F0F0F] border border-gold/40 p-6 md:p-8 max-w-md w-full text-ivory shadow-2xl space-y-5 relative rounded-sm"
+            >
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="absolute top-4 right-4 text-ivory/50 hover:text-gold cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-gold font-sans font-semibold">
+                  Gerenciamento de Entregas
+                </span>
+                <h3 className="font-serif-lumiardi text-2xl font-light text-ivory mt-1">
+                  Nova Tarefa / Entrega
+                </h3>
+              </div>
+
+              <form onSubmit={handleCreateTask} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
+                    Título da Tarefa
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Ensaio de Fotos para Campanha de Verão"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    className="w-full bg-[#181818] border border-white/10 p-3 text-xs text-ivory focus:outline-none focus:border-gold font-sans rounded-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
+                      Prioridade
+                    </label>
+                    <select
+                      value={newTaskPriority}
+                      onChange={(e) => setNewTaskPriority(e.target.value as any)}
+                      className="w-full bg-[#181818] border border-white/10 p-2.5 text-xs text-ivory focus:outline-none focus:border-gold font-sans cursor-pointer rounded-xs"
+                    >
+                      <option value="Alta">Alta</option>
+                      <option value="Média">Média</option>
+                      <option value="Normal">Normal</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
+                      Prazo Limite
+                    </label>
+                    <input
+                      type="text"
+                      value={newTaskDate}
+                      onChange={(e) => setNewTaskDate(e.target.value)}
+                      className="w-full bg-[#181818] border border-white/10 p-2.5 text-xs text-ivory focus:outline-none focus:border-gold font-sans rounded-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 text-xs font-sans uppercase text-ivory/60 hover:text-ivory cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer shadow-md rounded-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Criar Tarefa</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
