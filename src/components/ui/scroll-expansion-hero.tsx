@@ -70,19 +70,19 @@ const ScrollExpandMedia = ({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const mobile = vw < 768;
-    const initW = mobile ? Math.min(260, vw - 48) : 360;
-    const initH = mobile ? 380 : 500;
+    const initW = mobile ? Math.min(230, vw - 36) : 360;
+    const initH = mobile ? 330 : 500;
 
     // Tamanho final = TV CRT elegante
-    const finalW = mobile ? vw * 0.90 : Math.min(vw * 0.82, 1100);
-    const finalH = mobile ? vh * 0.68 : Math.min(vh * 0.76, 750);
+    const finalW = mobile ? vw * 0.92 : Math.min(vw * 0.82, 1100);
+    const finalH = mobile ? vh * 0.64 : Math.min(vh * 0.76, 750);
 
     const ctx = gsap.context(() => {
       // Estado inicial garantido
       gsap.set(media, {
         width: initW,
         height: initH,
-        borderRadius: 20,
+        borderRadius: mobile ? 16 : 20,
         xPercent: -50,
         yPercent: -50,
         left: '50%',
@@ -215,10 +215,10 @@ const ScrollExpandMedia = ({
           <div className="absolute inset-0 bg-black/40" />
         </div>
 
-        {/* ═══ Card de Mídia + CRT ═══ */}
+        {/* ═══ Card de Mídia + CRT (Sem borda dourada, pura elegância visual) ═══ */}
         <div
           ref={mediaRef}
-          className="absolute left-1/2 top-1/2 overflow-hidden z-10 w-[260px] h-[380px] md:w-[360px] md:h-[500px] rounded-[20px] shadow-[0_20px_50px_rgba(0,0,0,0.9)] border border-gold/20"
+          className="absolute left-1/2 top-1/2 overflow-hidden z-10 w-[230px] h-[330px] sm:w-[280px] sm:h-[400px] md:w-[360px] md:h-[500px] rounded-[16px] sm:rounded-[20px] shadow-[0_25px_70px_rgba(0,0,0,0.95)] border-0"
           style={{
             transform: 'translate(-50%, -50%)',
             willChange: 'width, height, border-radius, transform',
@@ -233,7 +233,7 @@ const ScrollExpandMedia = ({
                 poster={posterSrc}
                 muted
                 playsInline
-                preload="auto"
+                preload="metadata"
                 autoPlay
                 loop
                 className="w-full h-full object-cover"
@@ -321,8 +321,8 @@ const ScrollExpandMedia = ({
         {/* ═══ Título Esquerdo — "LUMIARDI" ═══ */}
         <h2
           ref={leftTextRef}
-          className={`absolute left-4 sm:left-8 md:left-12 lg:left-20 top-1/2 -translate-y-1/2 z-20
-            text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl
+          className={`absolute left-2 sm:left-6 md:left-12 lg:left-20 top-1/2 -translate-y-1/2 z-20
+            text-2xl sm:text-4xl md:text-6xl lg:text-7xl xl:text-8xl
             font-serif text-[#F7F3EC] tracking-tight uppercase select-none pointer-events-none
             drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] whitespace-nowrap
             ${textBlend ? 'mix-blend-difference' : ''}`}
@@ -334,8 +334,8 @@ const ScrollExpandMedia = ({
         {/* ═══ Título Direito — "ECOSYSTEM" ═══ */}
         <h2
           ref={rightTextRef}
-          className={`absolute right-4 sm:right-8 md:right-12 lg:right-20 top-1/2 -translate-y-1/2 z-20 text-right
-            text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl
+          className={`absolute right-2 sm:right-6 md:right-12 lg:right-20 top-1/2 -translate-y-1/2 z-20 text-right
+            text-2xl sm:text-4xl md:text-6xl lg:text-7xl xl:text-8xl
             font-serif text-[#C9A96B] tracking-tight uppercase select-none pointer-events-none
             drop-shadow-[0_8px_16px_rgba(0,0,0,0.8)] whitespace-nowrap
             ${textBlend ? 'mix-blend-difference' : ''}`}

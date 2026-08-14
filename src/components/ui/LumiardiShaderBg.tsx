@@ -161,8 +161,9 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
 
     const resizeCanvas = () => {
       if (!canvas) return;
-      // Limita DPR a 1.25 para economizar energia e manter 60 FPS estáveis
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+      const isMobile = window.innerWidth < 768;
+      // Em mobile, DPR de 0.85 a 1.0 garante fluidez absoluta de 60fps sem consumo excessivo de bateria
+      const dpr = isMobile ? 0.9 : Math.min(window.devicePixelRatio || 1, 1.2);
       const displayWidth = Math.floor(canvas.clientWidth * dpr);
       const displayHeight = Math.floor(canvas.clientHeight * dpr);
 
