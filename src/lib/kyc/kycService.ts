@@ -12,8 +12,8 @@ export interface KYCSessionRequest {
   userId: string;
   userEmail: string;
   fullName: string;
-  role: 'criadora' | 'agencia';
-  documentType?: 'cnh' | 'rg' | 'passaporte';
+  role: 'criadora' | 'agencia' | 'admin' | string;
+  documentType?: 'cnh' | 'rg' | 'passaporte' | string;
 }
 
 export interface KYCSessionResponse {

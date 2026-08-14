@@ -20,6 +20,7 @@ import {
   ScanFace,
   CheckCircle2,
   KeyRound,
+  Percent,
 } from 'lucide-react';
 import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
@@ -61,7 +62,7 @@ export default function AgenciaQualificacaoPage() {
     taxId: '', // CPF ou CNPJ
     corporateEmail: '',
     password: '',
-    document: null as DocumentUploadData | null,
+    document: null as any,
   });
 
   // ─── ETAPA 2: Sobre a Agência (Pré-Entrevista) ───────────────────

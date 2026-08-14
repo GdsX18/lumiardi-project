@@ -153,7 +153,7 @@ export default function QualificacaoPage() {
       state: 'SP',
       city: '',
     },
-    document: null as DocumentUploadData | null,
+    document: null as any,
   });
 
   // ─── ETAPA 2: Dados Qualitativos & Medidas ────────────────────────

@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const userId = session?.id || rawBody.userId || `user_${Date.now()}`;
     const userEmail = session?.email || rawBody.email || 'candidata@lumiardi.com';
     const fullName = session?.name || rawBody.fullName || 'Candidata VIP';
-    const role = session?.role || (rawBody.role === 'agencia' ? 'agencia' : 'criadora');
+    const role: 'criadora' | 'agencia' = (session?.role === 'agencia' || rawBody.role === 'agencia') ? 'agencia' : 'criadora';
     const documentType = sanitizeInput(rawBody.documentType) as any;
 
     const verificationSession = await KYCService.createVerificationSession({
