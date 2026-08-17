@@ -473,36 +473,39 @@ function CheckoutContent() {
                 )}
 
                 {/* ═══════════════════════════════════════════════════════════════
-                    BLOCO CARTÃO CCBILL
+                    BLOCO CARTÃO INTERNACIONAL
                 ═══════════════════════════════════════════════════════════════ */}
                 {gateway === 'ccbill' && (
                   <div className="space-y-4 pt-2 animate-in fade-in duration-300">
-                    <div className="p-4 bg-[#141414] border border-white/10 space-y-2 rounded-xs">
+                    <div className="p-5 bg-[#141414] border border-[#D4AF37]/30 space-y-3 rounded-lg">
                       <div className="flex items-center gap-2 text-xs font-medium text-[#D4AF37]">
                         <EyeOff className="w-4 h-4" />
                         <span>Blindagem de Fatura & Sigilo Garantido</span>
                       </div>
-                      <p className="text-xs text-ivory/70 leading-relaxed">
-                        Na sua fatura do cartão constará apenas a descrição neutra e discreta{' '}
-                        <strong className="text-ivory">"LMI*BILLING SERVICES"</strong> ou{' '}
-                        <strong className="text-ivory">"CCBILL.COM"</strong>.
+                      <p className="text-xs text-ivory/70 leading-relaxed font-light">
+                        Processamento internacional com fatura 100% anônima e discreta. Para liquidação imediata sem taxas cambiais, recomendamos o uso de <strong>PIX Instantâneo</strong> ou <strong>Criptoativos (USDT)</strong>.
                       </p>
                     </div>
 
-                    <button
-                      onClick={handleInitiatePayment}
-                      disabled={isLoading}
-                      className="w-full py-4 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.25em] font-bold transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 rounded-sm"
-                    >
-                      {isLoading ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <span>Prosseguir para Checkout Seguro CCBill</span>
-                          <ExternalLink className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setGateway('pix')}
+                        className="py-3.5 px-4 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs uppercase tracking-wider font-bold transition-all rounded-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                      >
+                        <Zap className="w-4 h-4" />
+                        <span>Pagar com PIX Instantâneo</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGateway('nowpayments')}
+                        className="py-3.5 px-4 bg-[#1a1a1a] hover:bg-white/10 text-ivory border border-white/20 text-xs uppercase tracking-wider font-semibold transition-all rounded-xs flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <QrCode className="w-4 h-4 text-[#F5D77F]" />
+                        <span>Pagar com Criptomoedas</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
