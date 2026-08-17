@@ -2,7 +2,7 @@
  * LUMIARDI — MOTOR DE INTELIGÊNCIA BIOMÉTRICA & OCR FORENSE (+18)
  * Sistema Real de Visão Computacional, OCR de Documentos Oficiais (CNH, RG, Passaporte),
  * Detecção de Rosto Humano, Anti-Fraude, Validação de Maioridade (+18) e Face Match.
- * Utiliza o modelo multimodal Gemini Flash Vision para inspeção visual 100% real.
+ * Utiliza o modelo multimodal Gemini Flash Lite / 3.6 Flash com cascata de fallback automática.
  */
 
 import crypto from 'crypto';
@@ -123,7 +123,7 @@ export const BiometricEngine = {
 
     if (geminiKey && geminiKey.trim() !== '') {
       try {
-        const aiResult = await this.verifyWithGeminiVision(input, geminiKey.trim(), auditTimestamp);
+        const aiResult = await this.verifyWithGeminiVisionCascade(input, geminiKey.trim(), auditTimestamp);
         return aiResult;
       } catch (geminiErr) {
         console.error('[KYC Biometrics] Erro no Gemini Vision:', geminiErr);
@@ -144,29 +144,19 @@ export const BiometricEngine = {
   },
 
   /**
-   * Validação Real com Gemini Vision AI
+   * Validação Real com Cascata de Modelos Gemini Vision AI (Resiliente a 503 e sobrecargas)
    */
-  async verifyWithGeminiVision(input: DocumentVerificationInput, apiKey: string, auditTimestamp: string): Promise<BiometricVerificationResult> {
+  async verifyWithGeminiVisionCascade(input: DocumentVerificationInput, apiKey: string, auditTimestamp: string): Promise<BiometricVerificationResult> {
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Modelos suportados na API
-    const targetModels = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.5-flash'];
-    let model;
-    let selectedModel = 'gemini-flash-latest';
-
-    for (const m of targetModels) {
-      try {
-        model = genAI.getGenerativeModel({ model: m });
-        selectedModel = m;
-        break;
-      } catch {
-        continue;
-      }
-    }
-
-    if (!model) {
-      model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-    }
+    // Lista ordenada por velocidade e disponibilidade sem 503
+    const candidateModels = [
+      'gemini-flash-lite-latest',
+      'gemini-3.6-flash',
+      'gemini-3.7-flash',
+      'gemini-3.1-flash-lite',
+      'gemini-3.5-flash',
+    ];
 
     const cleanDocBase64 = input.documentBase64.replace(/^data:image\/\w+;base64,/, '');
     const cleanSelfieBase64 = input.liveSelfieBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -198,7 +188,7 @@ REGRAS DE AUDITORIA INEGOCIÁVEIS:
 6. MAIORIDADE LEGAL (+18):
    - Calcule a idade a partir da data de nascimento do documento. Se idade < 18 -> "is18Plus": false.
 
-Responda ESTRITAMENTE em JSON puro (sem markdown ou texto extra) com o seguinte formato:
+Responda ESTRITAMENTE em JSON puro (sem markdown extra) com o seguinte formato:
 {
   "isOfficialDocument": boolean,
   "humanFaceInDocument": boolean,
@@ -216,16 +206,33 @@ Responda ESTRITAMENTE em JSON puro (sem markdown ou texto extra) com o seguinte 
 }
 `;
 
-    const result = await model.generateContent([
-      prompt,
-      { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
-      { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
-    ]);
+    let responseText = '';
+    let lastError: Error | null = null;
 
-    const responseText = result.response.text();
+    for (const modelName of candidateModels) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([
+          prompt,
+          { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
+          { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
+        ]);
+        responseText = result.response.text();
+        if (responseText) break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[KYC Biometrics] Modelo ${modelName} indisponível, tentando próximo na cascata...`);
+        continue;
+      }
+    }
+
+    if (!responseText) {
+      throw lastError || new Error('Nenhum modelo de visão respondeu no momento.');
+    }
+
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('A IA não retornou um formato JSON válido.');
+      throw new Error('A IA não retornou um formato JSON legível.');
     }
 
     const data = JSON.parse(jsonMatch[0]);
