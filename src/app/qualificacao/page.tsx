@@ -443,19 +443,22 @@ export default function QualificacaoPage() {
                 <span>{t('qual_success_email_note')} <strong>{basicData.email}</strong></span>
               </div>
 
-              <div className="pt-6 border-t border-[#0B0B0B]/10 flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="pt-6 border-t border-[#0B0B0B]/10 flex flex-col gap-3 justify-center max-w-md mx-auto">
                 <Button
                   variant="primary"
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/planos?category=criadoras&registered=true')}
+                  className="w-full py-4 text-xs tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl"
                 >
-                  {t('qual_btn_home')}
+                  <Sparkles className="w-4 h-4 text-[#C9A96B]" />
+                  <span>Escolher Meu Plano & Concluir Adesão →</span>
                 </Button>
-                <Button
-                  variant="outline-dark"
-                  onClick={() => router.push('/dashboard')}
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard/pendente')}
+                  className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/60 hover:text-[#8C6B2F] py-2 transition-colors cursor-pointer"
                 >
-                  {t('qual_btn_dashboard_preview')}
-                </Button>
+                  Ver Status da Minha Curadoria
+                </button>
               </div>
             </div>
           ) : (

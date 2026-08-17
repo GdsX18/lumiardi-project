@@ -23,11 +23,22 @@ import {
 } from 'lucide-react';
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
 import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
+import { VIPWelcomeCelebrationModal } from '@/components/dashboard/VIPWelcomeCelebrationModal';
 
 export default function DashboardOverviewPage() {
   const { role, activeCreator, activeAgency, currentUser } = useAuthPortal();
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && currentUser?.curationStatus === 'APROVADO') {
+      const alreadySeen = sessionStorage.getItem('lumiardi_vip_celebrated');
+      if (!alreadySeen) {
+        setShowCelebration(true);
+      }
+    }
+  }, [currentUser]);
 
   const isCriadora = role === 'criadora';
   const displayName = currentUser?.name || (isCriadora ? (activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo') : (activeAgency?.basicInfo?.responsibleName || 'Sua Agência'));
@@ -38,6 +49,17 @@ export default function DashboardOverviewPage() {
       pageTitle={`Painel Principal — ${displayName}`}
       pageSubtitle="Visão geral e resumo das suas conexões, entregas e ferramentas de prestígio."
     >
+      <VIPWelcomeCelebrationModal
+        isOpen={showCelebration}
+        onClose={() => {
+          setShowCelebration(false);
+          sessionStorage.setItem('lumiardi_vip_celebrated', 'true');
+        }}
+        userName={displayName}
+        userRole={role}
+        memberId={`LUM-${(currentUser?.id || '8842').substring(0, 6).toUpperCase()}`}
+        category={isCriadora ? 'Criadora de Elite' : 'Agência de Talentos'}
+      />
       <div className="space-y-8">
         
         {/* Banner de Boas-Vindas Didático */}
