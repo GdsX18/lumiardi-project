@@ -220,9 +220,23 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       }
     }
 
-    // Se por algum motivo o canvas estiver vazio, cria um payload de fallback
-    if (!capturedSelfieBase64) {
-      capturedSelfieBase64 = documentPreview || '';
+    // Se a largura não estiver disponível de imediato, força dimensões padrão
+    if (!capturedSelfieBase64 && videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, 640, 480);
+        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.92);
+      }
+    }
+
+    if (!capturedSelfieBase64 || capturedSelfieBase64.length < 500) {
+      setErrorMsg('Não foi possível capturar a imagem da sua câmera ao vivo. Certifique-se de que a câmera está autorizada e ligada.');
+      setStep('rejected');
+      stopCamera();
+      return;
     }
 
     stopCamera();
