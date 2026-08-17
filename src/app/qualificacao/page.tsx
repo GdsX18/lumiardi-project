@@ -1339,6 +1339,12 @@ export default function QualificacaoPage() {
       <KYCVerificationModal
         isOpen={isKYCModalOpen}
         onClose={() => setIsKYCModalOpen(false)}
+        claimedData={{
+          fullName: basicData.fullName,
+          cpf: basicData.cpf,
+          birthDate: basicData.birthDate,
+          email: basicData.email,
+        }}
         onDocumentUpload={(doc) => {
           setBasicData((prev) => ({ ...prev, document: doc }));
         }}

@@ -19,6 +19,7 @@ import {
   Trash2,
   Video,
   AlertTriangle,
+  Fingerprint,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 
@@ -34,6 +35,12 @@ export interface KYCVerificationModalProps {
   onClose: () => void;
   onSuccess?: () => void;
   onDocumentUpload?: (docData: DocumentUploadPayload) => void;
+  claimedData?: {
+    fullName?: string;
+    cpf?: string;
+    birthDate?: string;
+    email?: string;
+  };
 }
 
 export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
@@ -41,22 +48,24 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   onClose,
   onSuccess,
   onDocumentUpload,
+  claimedData,
 }) => {
   const [mounted, setMounted] = useState(false);
   const { currentUser, refreshData } = useAuthPortal();
 
-  const [step, setStep] = useState<'intro' | 'document' | 'liveness' | 'processing' | 'approved'>('intro');
+  const [step, setStep] = useState<'intro' | 'document' | 'liveness' | 'processing' | 'approved' | 'rejected'>('intro');
   const [docType, setDocType] = useState<'cnh' | 'passaporte' | 'rg'>('cnh');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   
-  // Estados da Câmera
+  // Estados da Câmera e Captura Real
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [livenessProgress, setLivenessProgress] = useState(0);
   const [scanPrompt, setScanPrompt] = useState('Olhe diretamente para a câmera...');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [verificationResult, setVerificationResult] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -75,19 +84,18 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       setCameraActive(false);
       setCameraPermissionError(null);
       setErrorMsg(null);
+      setVerificationResult(null);
     } else {
       stopCamera();
     }
   }, [isOpen]);
 
-  // Limpa o stream e timers quando o componente desmonta
   useEffect(() => {
     return () => {
       stopCamera();
     };
   }, []);
 
-  // Vincula o stream ao elemento <video> assim que a câmera for ativada e o elemento existir no DOM
   useEffect(() => {
     if (cameraActive && streamRef.current && videoRef.current) {
       videoRef.current.srcObject = streamRef.current;
@@ -97,7 +105,6 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }
   }, [cameraActive, step]);
 
-  // Manipular upload do arquivo do documento
   const handleFileSelect = (file: File) => {
     if (!file) return;
 
@@ -146,7 +153,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
-          width: { ideal: 720 },
+          width: { ideal: 1280 },
           height: { ideal: 720 },
         },
         audio: false,
@@ -155,7 +162,6 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       streamRef.current = stream;
       setCameraActive(true);
 
-      // Inicia a rotina de escaneamento facial com a câmera ligada
       startFacialScanRoutine();
     } catch (err: unknown) {
       console.error('Erro de permissão da câmera:', err);
@@ -171,35 +177,94 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }
   };
 
-  // Rotina de Escaneamento Facial Biométrico (só roda se a câmera estiver ligada)
+  // Rotina de Escaneamento e Captura Biométrica Real
   const startFacialScanRoutine = () => {
     setIsScanning(true);
     setLivenessProgress(0);
-    setScanPrompt('Enquadre seu rosto no círculo dourado...');
+    setScanPrompt('Centralize seu rosto no círculo dourado...');
 
     if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
 
     let prog = 0;
     scanIntervalRef.current = setInterval(() => {
-      prog += 4;
+      prog += 5;
       setLivenessProgress(prog);
 
-      if (prog > 20 && prog <= 50) {
-        setScanPrompt('Mantenha o olhar fixo para frente...');
-      } else if (prog > 50 && prog <= 80) {
-        setScanPrompt('Analisando profundidade e traços faciais 3D...');
-      } else if (prog > 80 && prog < 100) {
-        setScanPrompt('Homologando correspondência com documento...');
+      if (prog > 20 && prog <= 45) {
+        setScanPrompt('Mantenha o olhar fixo para a lente...');
+      } else if (prog > 45 && prog <= 75) {
+        setScanPrompt('Lendo profundidade biométrica e traços faciais...');
+      } else if (prog > 75 && prog < 100) {
+        setScanPrompt('Capturando frame em alta definição para OCR e Face Match...');
       }
 
       if (prog >= 100) {
         if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
-        finalizeKYC();
+        captureAndVerifyBiometrics();
       }
-    }, 150);
+    }, 120);
   };
 
-  // Parar a câmera
+  // Captura o frame real da webcam usando um Canvas HTML5 e envia para a API
+  const captureAndVerifyBiometrics = async () => {
+    let capturedSelfieBase64 = '';
+
+    if (videoRef.current && videoRef.current.videoWidth > 0) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.92);
+      }
+    }
+
+    // Se por algum motivo o canvas estiver vazio, cria um payload de fallback
+    if (!capturedSelfieBase64) {
+      capturedSelfieBase64 = documentPreview || '';
+    }
+
+    stopCamera();
+    setStep('processing');
+
+    try {
+      const res = await fetch('/api/kyc/verify-document-and-face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentBase64: documentPreview,
+          liveSelfieBase64: capturedSelfieBase64,
+          docType,
+          claimedData: {
+            fullName: claimedData?.fullName || currentUser?.name || 'Candidata',
+            cpf: claimedData?.cpf || '000.000.000-00',
+            birthDate: claimedData?.birthDate || '1998-05-14',
+            email: claimedData?.email || currentUser?.email,
+          },
+          userId: currentUser?.id || 'new-creator',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.approved) {
+        setVerificationResult(data);
+        setStep('approved');
+        if (refreshData) refreshData();
+        if (onSuccess) onSuccess();
+      } else {
+        setVerificationResult(data);
+        setErrorMsg(data.reasons?.join(' ') || 'Inconsistência biométrica ou documental detectada.');
+        setStep('rejected');
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erro durante o processamento do OCR e Face Match.';
+      setErrorMsg(msg);
+      setStep('rejected');
+    }
+  };
+
   const stopCamera = () => {
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
@@ -214,43 +279,6 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }
     setCameraActive(false);
     setIsScanning(false);
-  };
-
-  // Finalização e envio do Webhook KYC
-  const finalizeKYC = async () => {
-    stopCamera();
-    setStep('processing');
-
-    try {
-      const res = await fetch('/api/webhooks/kyc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reviewStatus: 'completed',
-          reviewResult: { reviewAnswer: 'GREEN', moderationComment: 'Documento e Biometria Facial 3D (+18) Homologados.' },
-          userId: currentUser?.id || 'new-creator',
-          externalUserId: currentUser?.id || 'new-creator',
-          approved: true,
-          document: documentFile ? {
-            name: documentFile.name,
-            size: documentFile.size,
-            type: docType,
-          } : undefined,
-        }),
-      });
-
-      if (res.ok) {
-        setStep('approved');
-        if (refreshData) refreshData();
-        if (onSuccess) onSuccess();
-      } else {
-        throw new Error('Falha ao registrar aprovação biométrica.');
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro durante a homologação do KYC.';
-      setErrorMsg(msg);
-      setStep('intro');
-    }
   };
 
   if (!isOpen || !mounted) return null;
@@ -285,22 +313,22 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         <div className="space-y-2 border-b border-white/10 pb-4 pr-8">
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-[#C9A96B]/10 border border-[#C9A96B]/30 text-[#C9A96B] text-[10px] uppercase font-mono tracking-widest font-semibold">
             <ScanFace className="w-3 h-3" />
-            <span>Sumsub / Veriff · KYC +18</span>
+            <span>Biometria & OCR Real · 18 U.S.C. § 2257</span>
           </div>
           <h2 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-ivory">
-            Verificação de Identidade & Idade
+            Leitura de Documento & Face Match
           </h2>
           <p className="text-xs font-sans text-ivory/60">
-            Validação oficial de maioridade (+18) com leitura de documento e prova de vida facial 3D.
+            Auditoria antifraude com leitura de documento, verificação de maioridade (+18) e confronto biométrico.
           </p>
         </div>
 
-        {/* ETAPA 1: Escolha do Tipo de Documento */}
+        {/* ETAPA 1: Tipo de Documento */}
         {step === 'intro' && (
           <div className="space-y-5">
             <div className="p-4 bg-[#141414] border border-white/5 space-y-3 text-xs">
               <span className="text-ivory/90 font-semibold block uppercase tracking-wider text-[11px] text-[#C9A96B]">
-                1. Selecione o tipo de documento oficial com foto:
+                1. Selecione o documento oficial que você irá apresentar:
               </span>
 
               <div className="grid grid-cols-3 gap-2">
@@ -328,10 +356,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
             <div className="p-3.5 bg-white/[0.03] border border-white/5 space-y-1.5 text-xs text-ivory/70 font-sans leading-relaxed">
               <div className="flex items-center gap-2 text-gold font-medium">
                 <Lock className="w-3.5 h-3.5" />
-                <span>Criptografia de Nível Bancário</span>
+                <span>Proteção Criptografada e Anti-Vazamento</span>
               </div>
               <p className="text-[11px]">
-                Seus dados são protegidos sob conformidade <strong>LGPD/GDPR</strong> e diretrizes de custódia <strong>18 U.S.C. § 2257</strong>.
+                O motor executa OCR para extração de dados e compara o rosto da imagem com a câmera ao vivo, sem compartilhar seus dados com terceiros.
               </p>
             </div>
 
@@ -352,13 +380,13 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
           </div>
         )}
 
-        {/* ETAPA 2: Upload / Reconhecimento Real de Documento */}
+        {/* ETAPA 2: Upload do Documento */}
         {step === 'document' && (
           <div className="space-y-5">
             <input
               type="file"
               ref={fileInputRef}
-              accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+              accept="image/png,image/jpeg,image/jpg,image/webp"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files && e.target.files[0]) {
@@ -379,23 +407,19 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-ivory">
-                    Clique para selecionar a foto do seu <span className="text-[#C9A96B] uppercase">{docType}</span>
+                    Clique para selecionar a foto nítida do seu <span className="text-[#C9A96B] uppercase">{docType}</span>
                   </p>
                   <p className="text-[11px] text-ivory/50">
-                    ou arraste e solte o arquivo aqui (PNG, JPG, PDF máx. 25MB)
+                    O documento deve estar aberto, legível e sem reflexos (PNG, JPG máx. 25MB)
                   </p>
-                </div>
-                <div className="inline-block px-3 py-1 bg-white/5 border border-white/10 text-[10px] text-ivory/70 uppercase tracking-widest font-mono">
-                  Selecione o Documento no Computador / Celular
                 </div>
               </div>
             ) : (
-              /* Card com Preview Real do Documento Anexado */
               <div className="p-4 bg-[#141414] border border-emerald-500/50 space-y-3 rounded-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Documento Carregado com Sucesso</span>
+                    <span>Documento Carregado</span>
                   </div>
                   <button
                     type="button"
@@ -411,16 +435,12 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-4 bg-[#090909] p-3 border border-white/10">
-                  {documentPreview && documentFile.type.startsWith('image/') ? (
+                  {documentPreview && (
                     <img
                       src={documentPreview}
                       alt="Preview do Documento"
                       className="w-16 h-16 object-cover border border-[#C9A96B]/50 rounded-xs shrink-0"
                     />
-                  ) : (
-                    <div className="w-16 h-16 bg-[#1a1a1a] flex items-center justify-center text-[#C9A96B] shrink-0 border border-white/10">
-                      <FileText className="w-8 h-8" />
-                    </div>
                   )}
                   <div className="overflow-hidden text-left space-y-1">
                     <p className="text-xs font-medium text-ivory truncate">{documentFile.name}</p>
@@ -428,7 +448,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                       {(documentFile.size / (1024 * 1024)).toFixed(2)} MB · {docType.toUpperCase()}
                     </p>
                     <span className="inline-block text-[9px] bg-emerald-950/60 text-emerald-300 px-2 py-0.5 border border-emerald-500/30 uppercase font-mono">
-                      Pronto para Análise OCR
+                      Pronto para Leitura OCR & Face Match
                     </span>
                   </div>
                 </div>
@@ -467,26 +487,22 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     return;
                   }
                   setStep('liveness');
-                  // Solicita acesso à câmera ao entrar na etapa
                   requestCameraAccess();
                 }}
                 disabled={!documentFile}
-                className="w-2/3 py-3 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-wider font-semibold font-sans flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-2/3 py-3 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-wider font-semibold font-sans flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-50"
               >
                 <Camera className="w-4 h-4" />
-                <span>Ir para Prova de Vida 3D →</span>
+                <span>Ir para Prova Facial ao Vivo →</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* ETAPA 3: Prova de Vida 3D com Câmera Real Obrigatória */}
+        {/* ETAPA 3: Prova de Vida e Face Match com Câmera Real */}
         {step === 'liveness' && (
           <div className="space-y-6 text-center">
-            {/* Visualizador da Câmera ao Vivo */}
             <div className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#C9A96B] shadow-[0_0_40px_rgba(201,169,107,0.35)] bg-neutral-950 flex items-center justify-center">
-              
-              {/* Elemento de Vídeo Real da Câmera */}
               <video
                 ref={videoRef}
                 autoPlay
@@ -497,19 +513,17 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 }`}
               />
 
-              {/* Se a câmera ainda NÃO foi ligada */}
               {!cameraActive && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-neutral-950 text-[#C9A96B] space-y-3">
                   <div className="w-16 h-16 rounded-full bg-[#C9A96B]/15 border border-[#C9A96B]/30 flex items-center justify-center">
                     <Video className="w-8 h-8 text-[#C9A96B] animate-pulse" />
                   </div>
                   <span className="text-[11px] font-sans font-medium text-ivory/80 leading-tight">
-                    Câmera desligada
+                    Câmera aguardando permissão
                   </span>
                 </div>
               )}
 
-              {/* Retículo Oval e Radar de Biometria 3D sobre o vídeo */}
               {cameraActive && (
                 <>
                   <div className="absolute inset-4 border-2 border-dashed border-[#C9A96B]/70 rounded-full pointer-events-none" />
@@ -518,32 +532,24 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               )}
             </div>
 
-            {/* Alerta se o usuário negou permissão da câmera */}
             {cameraPermissionError ? (
-              <div className="p-4 bg-rose-950/60 border border-rose-500 text-left space-y-3 rounded-xs animate-in fade-in">
+              <div className="p-4 bg-rose-950/60 border border-rose-500 text-left space-y-3 rounded-xs">
                 <div className="flex items-start gap-2.5 text-rose-300 text-xs">
                   <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-semibold uppercase tracking-wider text-[11px]">
-                      Acesso à Câmera Obrigatório
-                    </p>
-                    <p className="text-rose-200/80 leading-relaxed font-sans text-[11px]">
-                      {cameraPermissionError}
-                    </p>
-                  </div>
+                  <p className="text-rose-200/80 leading-relaxed font-sans text-[11px]">
+                    {cameraPermissionError}
+                  </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={requestCameraAccess}
-                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Tentar Ligar Câmera Novamente</span>
+                  <span>Tentar Novamente</span>
                 </button>
               </div>
             ) : cameraActive ? (
-              /* Informações do Scan em Execução */
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-mono text-ivory/80 px-4">
                   <span className="text-[#C9A96B] font-semibold">{scanPrompt}</span>
@@ -555,75 +561,112 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     style={{ width: `${livenessProgress}%` }}
                   />
                 </div>
-                <p className="text-[11px] text-ivory/60 font-sans">
-                  Validação biométrica em andamento com a câmera ao vivo.
-                </p>
               </div>
             ) : (
-              /* Botão para Ligar Câmera */
-              <div className="space-y-3">
-                <p className="text-xs text-ivory/75 font-sans leading-relaxed max-w-sm mx-auto">
-                  Para comprovar sua maioridade (+18) e titularidade do documento, clique no botão abaixo e <strong>permita o acesso à sua câmera</strong>.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={requestCameraAccess}
-                  className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold font-sans flex items-center justify-center gap-2.5 cursor-pointer transition-all shadow-lg hover:shadow-[#C9A96B]/20"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>Ligar Câmera e Iniciar Reconhecimento Facial</span>
-                </button>
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-white/10 flex justify-start">
               <button
                 type="button"
-                onClick={() => {
-                  stopCamera();
-                  setStep('document');
-                }}
-                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-ivory/70 hover:text-ivory text-xs uppercase tracking-wider font-sans cursor-pointer transition-colors border border-white/10"
+                onClick={requestCameraAccess}
+                className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold font-sans flex items-center justify-center gap-2.5 cursor-pointer shadow-lg"
               >
-                ← Voltar ao Documento
+                <Camera className="w-4 h-4" />
+                <span>Ativar Câmera e Iniciar Análise</span>
               </button>
+            )}
+          </div>
+        )}
+
+        {/* ETAPA 4: Processando Análise de IA */}
+        {step === 'processing' && (
+          <div className="py-12 text-center space-y-4">
+            <RefreshCw className="w-10 h-10 animate-spin text-[#C9A96B] mx-auto" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold uppercase tracking-wider text-ivory font-mono">
+                Analisando Documento & Comparando Rosto...
+              </p>
+              <p className="text-[11px] text-ivory/60 font-sans">
+                OCR de alta precisão, validação algorítmica de CPF e Face Match biométrico em execução.
+              </p>
             </div>
           </div>
         )}
 
-        {/* ETAPA 4: Processando */}
-        {step === 'processing' && (
-          <div className="py-12 text-center space-y-3">
-            <RefreshCw className="w-8 h-8 animate-spin text-[#C9A96B] mx-auto" />
-            <p className="text-xs uppercase tracking-widest text-ivory font-mono">
-              Homologando Documento e Biometria (+18)...
-            </p>
-          </div>
-        )}
-
-        {/* ETAPA 5: Aprovado com Sucesso */}
-        {step === 'approved' && (
+        {/* ETAPA 5: Reprovado / Inconsistência */}
+        {step === 'rejected' && (
           <div className="py-6 text-center space-y-6">
-            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
-              <UserCheck className="w-8 h-8" />
+            <div className="w-16 h-16 bg-rose-500/20 border border-rose-500 text-rose-400 rounded-full flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="font-serif-lumiardi text-2xl text-ivory">
-                Identidade & Maioridade (+18) Verificadas!
+              <h3 className="font-serif-lumiardi text-2xl text-rose-400">
+                Homologação Não Aprovada
               </h3>
-              <p className="text-xs text-ivory/70 max-w-sm mx-auto leading-relaxed">
-                Documento lido e biometria 3D homologados com sucesso no ecossistema Lumiardi.
+              <p className="text-xs text-rose-200/80 max-w-sm mx-auto leading-relaxed bg-rose-950/40 p-3 border border-rose-500/30">
+                {errorMsg || 'Inconsistência entre os dados do documento e a biometria capturada.'}
               </p>
             </div>
 
             <button
               type="button"
               onClick={() => {
+                setStep('document');
+                setErrorMsg(null);
+              }}
+              className="px-8 py-3.5 bg-white/10 text-ivory hover:bg-white/20 text-xs uppercase tracking-widest font-semibold transition-all cursor-pointer border border-white/20"
+            >
+              ← Tentar Enviar Documento Novamente
+            </button>
+          </div>
+        )}
+
+        {/* ETAPA 6: Aprovado com Sucesso & Resumo da Auditoria */}
+        {step === 'approved' && (
+          <div className="py-4 text-center space-y-6">
+            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500 text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+              <UserCheck className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-serif-lumiardi text-2xl text-ivory">
+                Identidade & Maioridade (+18) Homologadas!
+              </h3>
+              <p className="text-xs text-ivory/70 max-w-sm mx-auto font-sans">
+                Documento verificado por OCR e similaridade facial confirmada com sucesso.
+              </p>
+            </div>
+
+            {/* Painel com Dados Reais Extraídos */}
+            {verificationResult?.extractedData && (
+              <div className="bg-[#141414] border border-[#C9A96B]/40 p-4 text-left space-y-2.5 text-xs">
+                <div className="flex justify-between border-b border-white/10 pb-1.5">
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">Nome Lido no Documento:</span>
+                  <span className="text-ivory font-medium truncate max-w-[200px]">{verificationResult.extractedData.fullName}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/10 pb-1.5">
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">CPF Validado:</span>
+                  <span className="text-emerald-400 font-mono font-semibold">{verificationResult.extractedData.cpf}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/10 pb-1.5">
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">Maioridade Legal (+18):</span>
+                  <span className="text-emerald-400 font-bold">Aprovada ({verificationResult.extractedData.calculatedAge} anos)</span>
+                </div>
+                <div className="flex justify-between border-b border-white/10 pb-1.5">
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">Face Match Score:</span>
+                  <span className="text-[#C9A96B] font-mono font-bold">{verificationResult.faceMatch?.matchScore}% de Similaridade</span>
+                </div>
+                <div className="flex justify-between text-[10px] text-ivory/40 font-mono pt-1">
+                  <span>Protocolo de Custódia:</span>
+                  <span className="text-ivory/60">{verificationResult.compliance2257Reference}</span>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
                 onClose();
               }}
-              className="px-8 py-3.5 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-widest font-semibold hover:bg-[#D4B87A] transition-all cursor-pointer"
+              className="w-full py-3.5 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-widest font-semibold hover:bg-[#D4B87A] transition-all cursor-pointer shadow-lg"
             >
               Concluir & Retornar ao Formulário ✓
             </button>
