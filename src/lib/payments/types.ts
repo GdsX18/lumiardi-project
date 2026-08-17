@@ -3,7 +3,7 @@
  * Módulo de Multi-Gateway (CCBill + NOWPayments) & Gestão de Faturamento
  */
 
-export type PaymentGatewayType = 'ccbill' | 'nowpayments';
+export type PaymentGatewayType = 'pix' | 'ccbill' | 'nowpayments';
 
 export type PlanCategory = 'criadoras' | 'agencias';
 

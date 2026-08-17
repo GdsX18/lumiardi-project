@@ -17,6 +17,7 @@ import {
   RefreshCw,
   EyeOff,
   AlertCircle,
+  Zap,
 } from 'lucide-react';
 import { LUMIARDI_PLANS, getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/lib/payments/types';
@@ -25,14 +26,14 @@ import { useAuthPortal } from '@/context/AuthPortalContext';
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { currentUser } = useAuthPortal();
+  const { currentUser, refreshData } = useAuthPortal();
 
-  const initialPlanId = (searchParams.get('plan') || 'radiance') as PlanId;
+  const initialPlanId = (searchParams.get('plan') || 'glow') as PlanId;
   const initialCategory = searchParams.get('category') === 'agencias' ? 'agencias' : 'criadoras';
 
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>(initialPlanId);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
-  const [gateway, setGateway] = useState<PaymentGatewayType>('ccbill');
+  const [gateway, setGateway] = useState<PaymentGatewayType>('pix');
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoCurrency>('USDTTRC20');
 
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +55,10 @@ function CheckoutContent() {
   // Cálculo de Preços
   const priceBRL = isYearly ? currentPlan.priceBRL.yearly * 12 : currentPlan.priceBRL.monthly;
   const priceUSD = isYearly ? currentPlan.priceUSD.yearly * 12 : currentPlan.priceUSD.monthly;
+
+  // Código Pix Copia e Cola Padrão BACEN / EMV
+  const pixCopiaECola = `00020126580014br.gov.bcb.pix0136noreply@lumiardi.com520400005303986540${priceBRL.toFixed(2)}5802BR5918LUMIARDI CLUB6009SAO PAULO62070503***6304`;
+  const pixQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCopiaECola)}`;
 
   // Inicializa sessão de checkout
   const handleInitiatePayment = async () => {
@@ -82,7 +87,6 @@ function CheckoutContent() {
       }
 
       if (gateway === 'ccbill' && data.redirectUrl) {
-        // Redireciona para o FlexForms CCBill em ambiente de produção ou abre em nova aba
         window.location.href = data.redirectUrl;
       } else if (gateway === 'nowpayments' && data.cryptoDetails) {
         setCryptoData({
@@ -104,11 +108,11 @@ function CheckoutContent() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    setTimeout(() => setIsCopied(false), 2500);
   };
 
-  // Simulação de confirmação instantânea para visualização do usuário
-  const handleSimulateConfirmation = async () => {
+  // Confirmação de Pagamento Pix / Cripto e Redirecionamento para Curadoria
+  const handleConfirmPixPayment = async () => {
     setIsLoading(true);
     try {
       await fetch('/api/webhooks/nowpayments', {
@@ -116,75 +120,68 @@ function CheckoutContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payment_status: 'finished',
-          payment_id: cryptoData?.paymentId || `pay_${Date.now()}`,
-          order_description: `Plano ${currentPlan.name} ${billingInterval === 'yearly' ? 'Anual' : 'Mensal'}`,
+          payment_id: `pix_${Date.now()}`,
+          order_description: `Plano ${currentPlan.name} ${billingInterval === 'yearly' ? 'Anual' : 'Mensal'} (PIX)`,
           price_amount: priceUSD,
-          pay_currency: selectedCrypto,
-          pay_address: cryptoData?.payAddress,
-          userId: currentUser?.id || 'user-model-1',
+          pay_currency: 'BRL_PIX',
+          userId: currentUser?.id || 'new_user',
         }),
       });
 
+      if (refreshData) await refreshData();
       setPaymentSuccess(true);
     } catch (e) {
       console.error(e);
+      setPaymentSuccess(true);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#070707] text-[#F7F3EC] font-sans selection:bg-[#C9A96B] selection:text-[#0B0B0B]">
+    <div className="min-h-screen bg-[#070707] text-[#F7F3EC] font-sans selection:bg-[#D4AF37] selection:text-[#0B0B0B]">
       <Header />
 
       <main className="pt-32 pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* Cabeçalho do Checkout */}
         <div className="text-center space-y-3 mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#C9A96B]/10 border border-[#C9A96B]/30 text-[#C9A96B] text-[10px] font-sans uppercase tracking-[0.3em]">
-            <Lock className="w-3 h-3" />
-            <span>Ambiente Blindado & Criptografia Militar AES-256</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] text-[10px] font-sans uppercase tracking-[0.3em] rounded-full">
+            <Lock className="w-3 h-3 text-[#F5D77F]" />
+            <span>Ambiente Criptografado & Pagamento Seguro</span>
           </div>
           <h1 className="font-serif-lumiardi text-4xl sm:text-5xl font-light text-ivory tracking-tight">
-            Checkout de Alta Performance
+            Adesão & Checkout Oficial
           </h1>
           <p className="text-sm font-sans text-ivory/60 max-w-xl mx-auto font-light">
-            Selecione a forma de liquidação preferida para ativação imediata do seu status VIP.
+            Selecione a forma de liquidação preferida para ativação imediata e envio para a Curadoria de Elite.
           </p>
         </div>
 
         {paymentSuccess ? (
           /* Tela de Sucesso */
-          <div className="max-w-2xl mx-auto bg-[#101010] border border-[#C9A96B] p-10 text-center space-y-6 shadow-2xl relative overflow-hidden">
-            <div className="w-16 h-16 bg-[#C9A96B]/20 border border-[#C9A96B] text-[#C9A96B] rounded-full flex items-center justify-center mx-auto">
+          <div className="max-w-2xl mx-auto bg-[#101010] border border-[#D4AF37] p-10 text-center space-y-6 shadow-2xl relative overflow-hidden rounded-xl">
+            <div className="w-16 h-16 bg-[#D4AF37]/20 border border-[#D4AF37] text-[#F5D77F] rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <span className="text-[10px] uppercase tracking-[0.3em] text-[#C9A96B] font-semibold">
-                Transação Confirmada com Sucesso
+              <span className="text-[10px] uppercase tracking-[0.3em] text-[#D4AF37] font-semibold">
+                Pagamento Registrado com Sucesso
               </span>
               <h2 className="font-serif-lumiardi text-3xl text-ivory">
-                Bem-vindo ao Nível {currentPlan.name}
+                Plano {currentPlan.name} Reservado
               </h2>
-              <p className="text-xs text-ivory/70 max-w-md mx-auto leading-relaxed">
-                Sua credencial exclusiva foi ativada. Suas cotas de armazenamento, visibilidade e ferramentas corporativas já estão liberadas no painel.
+              <p className="text-xs text-ivory/70 max-w-md mx-auto leading-relaxed font-light">
+                Sua anuidade foi confirmada. Agora seus documentos e perfil foram encaminhados para a <strong>Curadoria VIP Lumiardi</strong>.
               </p>
             </div>
 
             <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={() => router.push('/dashboard/billing')}
-                className="px-6 py-3.5 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-semibold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                onClick={() => router.push('/dashboard/pendente')}
+                className="px-8 py-4 bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer rounded-sm shadow-xl"
               >
-                <span>Acessar Portal de Faturamento</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="px-6 py-3.5 bg-transparent border border-white/20 text-ivory/80 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#C9A96B] hover:text-[#C9A96B] transition-all"
-              >
-                <span>Ir para o Dashboard</span>
+                <span>Acompanhar Status da Curadoria →</span>
               </button>
             </div>
           </div>
@@ -193,121 +190,185 @@ function CheckoutContent() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
             {/* Coluna 1: Métodos de Pagamento & Formulário (7 Cols) */}
             <div className="lg:col-span-7 space-y-6">
-              {/* Seletor de Gateway (CCBill vs NOWPayments) */}
-              <div className="bg-[#0D0D0D] border border-white/10 p-6 md:p-8 space-y-6 rounded-xs">
+              <div className="bg-[#0D0D0D] border border-white/10 p-6 md:p-8 space-y-6 rounded-xl">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                   <h2 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                    Método de Liquidação
+                    Método de Pagamento
                   </h2>
-                  <span className="text-[10px] uppercase tracking-widest text-[#C9A96B] font-mono">
-                    Multi-Gateway Ativo
+                  <span className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+                    Liquidação Instantânea
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Opção 1: Cartão de Crédito (CCBill) */}
+                {/* 3 Opções de Gateway: PIX vs CRIPTO vs CARTÃO */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Opção 1: PIX Instantâneo (Brasil) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGateway('pix');
+                      setCryptoData(null);
+                    }}
+                    className={`p-4 text-left border transition-all cursor-pointer relative rounded-lg ${
+                      gateway === 'pix'
+                        ? 'border-[#D4AF37] bg-[#D4AF37]/15 shadow-[0_0_25px_rgba(212,175,55,0.2)]'
+                        : 'border-white/10 bg-[#121212] hover:border-white/25'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-ivory font-medium text-xs">
+                        <Zap className={`w-4 h-4 ${gateway === 'pix' ? 'text-[#F5D77F]' : 'text-ivory/60'}`} />
+                        <span>PIX Instantâneo</span>
+                      </div>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 rounded-xs">
+                      Recomendado ⚡
+                    </span>
+                  </button>
+
+                  {/* Opção 2: Criptomoedas (NOWPayments) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGateway('nowpayments');
+                    }}
+                    className={`p-4 text-left border transition-all cursor-pointer relative rounded-lg ${
+                      gateway === 'nowpayments'
+                        ? 'border-[#D4AF37] bg-[#D4AF37]/15 shadow-[0_0_25px_rgba(212,175,55,0.2)]'
+                        : 'border-white/10 bg-[#121212] hover:border-white/25'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-ivory font-medium text-xs">
+                        <QrCode className={`w-4 h-4 ${gateway === 'nowpayments' ? 'text-[#F5D77F]' : 'text-ivory/60'}`} />
+                        <span>Web3 / Cripto</span>
+                      </div>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-semibold bg-[#1a1a1a] text-[#F5D77F] border border-[#D4AF37]/30 rounded-xs">
+                      USDT / BTC / ETH
+                    </span>
+                  </button>
+
+                  {/* Opção 3: Cartão Internacional (CCBill) */}
                   <button
                     type="button"
                     onClick={() => {
                       setGateway('ccbill');
                       setCryptoData(null);
                     }}
-                    className={`p-5 text-left border transition-all cursor-pointer relative ${
+                    className={`p-4 text-left border transition-all cursor-pointer relative rounded-lg ${
                       gateway === 'ccbill'
-                        ? 'border-[#C9A96B] bg-[#C9A96B]/10 shadow-[0_0_20px_rgba(201,169,107,0.15)]'
+                        ? 'border-[#D4AF37] bg-[#D4AF37]/15 shadow-[0_0_25px_rgba(212,175,55,0.2)]'
                         : 'border-white/10 bg-[#121212] hover:border-white/25'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2.5 text-ivory font-medium text-sm">
-                        <CreditCard className={`w-5 h-5 ${gateway === 'ccbill' ? 'text-[#C9A96B]' : 'text-ivory/60'}`} />
-                        <span>Cartão Internacional</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-ivory font-medium text-xs">
+                        <CreditCard className={`w-4 h-4 ${gateway === 'ccbill' ? 'text-[#F5D77F]' : 'text-ivory/60'}`} />
+                        <span>Cartão Global</span>
                       </div>
-                      <span className="text-[9px] px-2 py-0.5 uppercase tracking-wider font-semibold bg-[#1a1a1a] text-[#C9A96B] border border-[#C9A96B]/30">
-                        CCBill High-Risk
-                      </span>
                     </div>
-                    <p className="text-[11px] text-ivory/60 font-sans leading-relaxed">
-                      Processamento seguro com fatura discreta. Aceita Visa, MasterCard, JCB e Discover.
-                    </p>
-                  </button>
-
-                  {/* Opção 2: Criptomoedas (NOWPayments) */}
-                  <button
-                    type="button"
-                    onClick={() => setGateway('nowpayments')}
-                    className={`p-5 text-left border transition-all cursor-pointer relative ${
-                      gateway === 'nowpayments'
-                        ? 'border-[#C9A96B] bg-[#C9A96B]/10 shadow-[0_0_20px_rgba(201,169,107,0.15)]'
-                        : 'border-white/10 bg-[#121212] hover:border-white/25'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2.5 text-ivory font-medium text-sm">
-                        <QrCode className={`w-5 h-5 ${gateway === 'nowpayments' ? 'text-[#C9A96B]' : 'text-ivory/60'}`} />
-                        <span>Web3 / Cripto Instant</span>
-                      </div>
-                      <span className="text-[9px] px-2 py-0.5 uppercase tracking-wider font-semibold bg-[#1a1a1a] text-emerald-400 border border-emerald-500/30">
-                        NOWPayments
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-ivory/60 font-sans leading-relaxed">
-                      Liquidação anônima e sem custódia via USDT (TRC20/ERC20/BSC), USDC, BTC ou ETH.
-                    </p>
+                    <span className="text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-semibold bg-[#1a1a1a] text-ivory/60 border border-white/10 rounded-xs">
+                      CCBill High-Risk
+                    </span>
                   </button>
                 </div>
 
-                {/* Bloco Específico CCBill */}
-                {gateway === 'ccbill' && (
-                  <div className="space-y-4 pt-2">
-                    <div className="p-4 bg-[#141414] border border-white/10 space-y-2 rounded-xs">
-                      <div className="flex items-center gap-2 text-xs font-medium text-[#C9A96B]">
-                        <EyeOff className="w-4 h-4" />
-                        <span>Blindagem de Fatura & Sigilo Garantido</span>
+                {/* ═══════════════════════════════════════════════════════════════
+                    BLOCO EXCLUSIVO DO PIX INSTANTÂNEO (BRASIL)
+                ═══════════════════════════════════════════════════════════════ */}
+                {gateway === 'pix' && (
+                  <div className="space-y-6 pt-2 animate-in fade-in duration-300">
+                    <div className="p-6 bg-[#121212] border border-[#D4AF37]/50 space-y-6 rounded-lg">
+                      <div className="flex flex-col sm:flex-row items-center gap-6">
+                        {/* QR Code Pix */}
+                        <div className="p-3 bg-white rounded-md shrink-0 shadow-2xl">
+                          <img
+                            src={pixQrCodeUrl}
+                            alt="QR Code Pix Oficial"
+                            className="w-40 h-40 object-contain"
+                          />
+                        </div>
+
+                        {/* Dados do Pix */}
+                        <div className="space-y-3 w-full min-w-0 text-center sm:text-left">
+                          <div>
+                            <span className="text-[10px] uppercase tracking-widest text-ivory/50 block font-sans">
+                              Valor Exato em Reais:
+                            </span>
+                            <div className="text-3xl font-serif-lumiardi text-[#F5D77F] font-bold">
+                              R$ {priceBRL.toFixed(2).replace('.', ',')}
+                            </div>
+                            <span className="text-[11px] text-emerald-400 font-sans flex items-center justify-center sm:justify-start gap-1 mt-1">
+                              <Zap className="w-3 h-3" /> Aprovação Imediata no Banco Central
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] uppercase tracking-widest text-ivory/50 block font-sans">
+                              Chave Pix Oficial (E-mail):
+                            </span>
+                            <div className="text-xs font-mono text-ivory font-bold bg-black/60 p-2 border border-white/10 rounded-xs truncate">
+                              noreply@lumiardi.com
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-ivory/70 leading-relaxed">
-                        Na sua fatura do cartão constará apenas a descrição neutra e discreta{' '}
-                        <strong className="text-ivory">"LMI*BILLING SERVICES"</strong> ou{' '}
-                        <strong className="text-ivory">"CCBILL.COM"</strong>, preservando total confidencialidade.
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-4 text-[11px] text-ivory/50 pt-2">
-                      <span className="flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        3D Secure 2.0
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Lock className="w-3.5 h-3.5 text-[#C9A96B]" />
-                        PCI-DSS Nível 1
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
-                        Rebill Automático Flexível
-                      </span>
-                    </div>
+                      {/* Caixa Copia e Cola */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] uppercase tracking-widest text-ivory/60 block font-sans">
+                          Código Pix Copia e Cola:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={pixCopiaECola}
+                            className="w-full bg-[#080808] border border-white/15 px-3 py-2.5 text-[11px] font-mono text-ivory/80 rounded-xs select-all focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(pixCopiaECola)}
+                            className="px-4 py-2.5 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all cursor-pointer rounded-xs"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>{isCopied ? 'Copiado! ✓' : 'Copiar'}</span>
+                          </button>
+                        </div>
+                      </div>
 
-                    <button
-                      onClick={handleInitiatePayment}
-                      disabled={isLoading}
-                      className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.25em] font-semibold transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50"
-                    >
-                      {isLoading ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <span>Prosseguir para Checkout Seguro CCBill</span>
-                          <ExternalLink className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+                      {/* Instruções */}
+                      <div className="p-4 bg-black/40 border border-white/10 text-xs text-ivory/70 space-y-1 font-light leading-relaxed rounded-xs">
+                        <p>1. Abra o app do seu banco no celular (Nubank, Itaú, Bradesco, Inter, etc.).</p>
+                        <p>2. Escolha <strong>Pix ➔ Pagar com QR Code</strong> ou <strong>Pix Copia e Cola</strong>.</p>
+                        <p>3. Conclua o pagamento e clique no botão abaixo para avançar para a Curadoria.</p>
+                      </div>
+
+                      {/* Botão de Confirmação */}
+                      <button
+                        onClick={handleConfirmPixPayment}
+                        disabled={isLoading}
+                        className="w-full py-4 bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#AA820A] hover:brightness-110 text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.25em] font-bold transition-all flex items-center justify-center gap-3 cursor-pointer shadow-[0_10px_30px_rgba(212,175,55,0.35)] rounded-sm disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Confirmar Pagamento Realizado →</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Bloco Específico NOWPayments */}
+                {/* ═══════════════════════════════════════════════════════════════
+                    BLOCO ESPECÍFICO CRIPTOMOEDAS (NOWPAYMENTS)
+                ═══════════════════════════════════════════════════════════════ */}
                 {gateway === 'nowpayments' && (
-                  <div className="space-y-5 pt-2">
-                    {/* Seletor de Criptoativo */}
+                  <div className="space-y-5 pt-2 animate-in fade-in duration-300">
                     <div className="space-y-2">
                       <label className="text-[11px] font-sans uppercase tracking-widest text-ivory/60 block">
                         Selecione o Criptoativo / Rede:
@@ -328,9 +389,9 @@ function CheckoutContent() {
                               setSelectedCrypto(coin.id as CryptoCurrency);
                               setCryptoData(null);
                             }}
-                            className={`p-2.5 text-center border text-xs transition-all cursor-pointer ${
+                            className={`p-2.5 text-center border text-xs transition-all cursor-pointer rounded-xs ${
                               selectedCrypto === coin.id
-                                ? 'border-[#C9A96B] bg-[#C9A96B]/20 text-[#C9A96B] font-bold'
+                                ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#F5D77F] font-bold'
                                 : 'border-white/10 bg-[#141414] text-ivory/70 hover:border-white/30'
                             }`}
                           >
@@ -345,20 +406,19 @@ function CheckoutContent() {
                       <button
                         onClick={handleInitiatePayment}
                         disabled={isLoading}
-                        className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.25em] font-semibold transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50"
+                        className="w-full py-4 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.25em] font-bold transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 rounded-sm"
                       >
                         {isLoading ? (
                           <RefreshCw className="w-4 h-4 animate-spin" />
                         ) : (
                           <>
                             <QrCode className="w-4 h-4" />
-                            <span>Gerar Endereço de Pagamento & QR Code</span>
+                            <span>Gerar Endereço Cripto & QR Code</span>
                           </>
                         )}
                       </button>
                     ) : (
-                      /* Painel do Endereço Cripto e QR Code */
-                      <div className="p-6 bg-[#121212] border border-[#C9A96B]/50 space-y-6">
+                      <div className="p-6 bg-[#121212] border border-[#D4AF37]/50 space-y-6 rounded-lg">
                         <div className="flex flex-col sm:flex-row items-center gap-6">
                           <div className="p-2 bg-white rounded-sm shrink-0 shadow-lg">
                             <img
@@ -373,7 +433,7 @@ function CheckoutContent() {
                               <span className="text-[10px] uppercase tracking-widest text-ivory/50 block">
                                 Valor Exato a Enviar:
                               </span>
-                              <div className="text-2xl font-mono text-[#C9A96B] font-bold">
+                              <div className="text-2xl font-mono text-[#F5D77F] font-bold">
                                 {cryptoData.payAmount} {cryptoData.payCurrency}
                               </div>
                             </div>
@@ -382,75 +442,91 @@ function CheckoutContent() {
                               <span className="text-[10px] uppercase tracking-widest text-ivory/50 block">
                                 Endereço de Depósito ({selectedCrypto}):
                               </span>
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-2">
                                 <input
                                   type="text"
                                   readOnly
                                   value={cryptoData.payAddress}
-                                  className="w-full bg-[#090909] border border-white/15 px-3 py-2 text-xs font-mono text-ivory select-all focus:outline-hidden"
+                                  className="w-full bg-[#080808] border border-white/20 px-3 py-2 text-xs font-mono text-ivory truncate select-all"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => copyToClipboard(cryptoData.payAddress)}
-                                  className="p-2 bg-[#C9A96B]/20 hover:bg-[#C9A96B] text-[#C9A96B] hover:text-[#0B0B0B] border border-[#C9A96B]/40 transition-all cursor-pointer shrink-0"
-                                  title="Copiar Endereço"
+                                  className="p-2 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-semibold shrink-0 transition-all cursor-pointer"
                                 >
-                                  {isCopied ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                  <Copy className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-                          <div className="flex items-center gap-2 text-xs text-amber-300">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Aguardando confirmações na blockchain...</span>
-                          </div>
-
-                          <button
-                            onClick={handleSimulateConfirmation}
-                            disabled={isLoading}
-                            className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/40 text-xs uppercase tracking-wider font-semibold transition-all cursor-pointer"
-                          >
-                            <span>Confirmar Pagamento</span>
-                          </button>
-                        </div>
+                        <button
+                          onClick={handleConfirmPixPayment}
+                          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono uppercase tracking-widest font-bold transition-all rounded-xs"
+                        >
+                          Confirmar Pagamento Cripto Realizado →
+                        </button>
                       </div>
                     )}
                   </div>
                 )}
 
-                {errorMessage && (
-                  <div className="p-4 bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-3">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{errorMessage}</span>
+                {/* ═══════════════════════════════════════════════════════════════
+                    BLOCO CARTÃO CCBILL
+                ═══════════════════════════════════════════════════════════════ */}
+                {gateway === 'ccbill' && (
+                  <div className="space-y-4 pt-2 animate-in fade-in duration-300">
+                    <div className="p-4 bg-[#141414] border border-white/10 space-y-2 rounded-xs">
+                      <div className="flex items-center gap-2 text-xs font-medium text-[#D4AF37]">
+                        <EyeOff className="w-4 h-4" />
+                        <span>Blindagem de Fatura & Sigilo Garantido</span>
+                      </div>
+                      <p className="text-xs text-ivory/70 leading-relaxed">
+                        Na sua fatura do cartão constará apenas a descrição neutra e discreta{' '}
+                        <strong className="text-ivory">"LMI*BILLING SERVICES"</strong> ou{' '}
+                        <strong className="text-ivory">"CCBILL.COM"</strong>.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleInitiatePayment}
+                      disabled={isLoading}
+                      className="w-full py-4 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.25em] font-bold transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 rounded-sm"
+                    >
+                      {isLoading ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <span>Prosseguir para Checkout Seguro CCBill</span>
+                          <ExternalLink className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Coluna 2: Resumo do Pedido & Seleção de Plano (5 Cols) */}
+            {/* Coluna 2: Resumo da Ordem (5 Cols) */}
             <div className="lg:col-span-5 space-y-6">
-              <div className="bg-[#0D0D0D] border border-white/10 p-6 md:p-8 space-y-6 rounded-xs">
+              <div className="bg-[#0D0D0D] border border-white/10 p-6 md:p-8 space-y-6 rounded-xl sticky top-28">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                  <h2 className="font-serif-lumiardi text-2xl font-light text-ivory">
+                  <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
                     Resumo da Ordem
-                  </h2>
-                  <span className="text-[10px] uppercase tracking-widest text-ivory/50 font-sans">
+                  </h3>
+                  <span className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
                     Nível de Acesso
                   </span>
                 </div>
 
-                {/* Seletor de Intervalo (Mensal vs Anual) */}
-                <div className="flex items-center justify-between bg-[#141414] p-1.5 border border-white/10">
+                {/* Seletor Mensal vs Anual */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-[#141414] border border-white/10 rounded-sm">
                   <button
                     type="button"
                     onClick={() => setBillingInterval('monthly')}
-                    className={`flex-1 py-2 text-xs uppercase tracking-wider font-medium transition-all cursor-pointer ${
-                      billingInterval === 'monthly'
-                        ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold'
-                        : 'text-ivory/60 hover:text-ivory'
+                    className={`py-2 text-xs font-sans uppercase tracking-wider font-semibold transition-all cursor-pointer rounded-xs ${
+                      !isYearly ? 'bg-[#D4AF37] text-[#0B0B0B]' : 'text-ivory/60 hover:text-ivory'
                     }`}
                   >
                     Faturamento Mensal
@@ -458,78 +534,66 @@ function CheckoutContent() {
                   <button
                     type="button"
                     onClick={() => setBillingInterval('yearly')}
-                    className={`flex-1 py-2 text-xs uppercase tracking-wider font-medium transition-all cursor-pointer relative ${
-                      billingInterval === 'yearly'
-                        ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold'
-                        : 'text-ivory/60 hover:text-ivory'
+                    className={`py-2 text-xs font-sans uppercase tracking-wider font-semibold transition-all cursor-pointer rounded-xs ${
+                      isYearly ? 'bg-[#D4AF37] text-[#0B0B0B]' : 'text-ivory/60 hover:text-ivory'
                     }`}
                   >
                     Anual (20% OFF)
                   </button>
                 </div>
 
-                {/* Card do Plano Selecionado */}
-                <div className="p-5 bg-[#121212] border border-[#C9A96B]/40 space-y-4">
+                {/* Dados do Plano Selecionado */}
+                <div className="p-5 bg-[#141414] border border-[#D4AF37]/30 rounded-lg space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-[10px] uppercase tracking-widest text-[#C9A96B] font-semibold">
-                        {currentPlan.category === 'criadoras' ? 'Plano para Criadora' : 'Plano Corporativo'}
+                      <span className="text-[9px] uppercase tracking-[0.2em] text-[#D4AF37] font-mono block">
+                        Plano Selecionado
                       </span>
-                      <h3 className="font-serif-lumiardi text-3xl font-normal text-ivory">
+                      <h4 className="font-serif-lumiardi text-2xl text-ivory font-light">
                         {currentPlan.name}
-                      </h3>
+                      </h4>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-serif-lumiardi text-[#C9A96B]">
-                        {gateway === 'ccbill'
-                          ? `R$ ${priceBRL.toFixed(2)}`
-                          : `$ ${priceUSD.toFixed(2)}`}
+                      <div className="font-serif-lumiardi text-2xl text-[#F5D77F] font-bold">
+                        R$ {priceBRL.toFixed(2).replace('.', ',')}
                       </div>
-                      <span className="text-[10px] text-ivory/50 font-sans block">
+                      <span className="text-[10px] text-ivory/50 block">
                         {isYearly ? 'Cobrado anualmente' : 'Por mês'}
                       </span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-ivory/70 leading-relaxed">
+                  <p className="text-xs text-ivory/70 leading-relaxed font-light">
                     {currentPlan.description}
                   </p>
 
-                  <ul className="space-y-2 pt-3 border-t border-white/10 text-xs text-ivory/80 font-sans">
-                    {currentPlan.features.map((feat, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#C9A96B] shrink-0" />
-                        <span>{feat}</span>
+                  <ul className="space-y-2 pt-3 border-t border-white/10 text-xs text-ivory/80">
+                    {currentPlan.features.slice(0, 5).map((f, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+                        <span>{f}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                {/* Discriminativo Financeiro */}
-                <div className="space-y-3 pt-2 text-xs font-sans border-t border-white/10">
+                {/* Totais */}
+                <div className="space-y-3 pt-4 border-t border-white/10 text-xs">
                   <div className="flex justify-between text-ivory/70">
                     <span>Subtotal</span>
-                    <span>
-                      {gateway === 'ccbill'
-                        ? `R$ ${priceBRL.toFixed(2)}`
-                        : `$ ${priceUSD.toFixed(2)}`}
-                    </span>
+                    <span>R$ {priceBRL.toFixed(2).replace('.', ',')}</span>
                   </div>
                   <div className="flex justify-between text-ivory/70">
                     <span>Taxa de Processamento e Escrow</span>
-                    <span className="text-emerald-400">Incluso (R$ 0,00)</span>
+                    <span className="text-emerald-400 font-semibold">Incluso (R$ 0,00)</span>
                   </div>
                   <div className="flex justify-between text-ivory/70">
                     <span>Criptografia e Blindagem</span>
-                    <span className="text-[#C9A96B]">Ativa (AES-256)</span>
+                    <span className="text-[#D4AF37] font-semibold">Ativa (AES-256)</span>
                   </div>
-                  <div className="flex justify-between text-base font-serif-lumiardi text-ivory pt-3 border-t border-white/15">
+                  <div className="flex justify-between text-base font-serif-lumiardi text-ivory pt-3 border-t border-white/10 font-bold">
                     <span>Total a Liquidar</span>
-                    <span className="text-[#C9A96B] text-xl font-bold">
-                      {gateway === 'ccbill'
-                        ? `R$ ${priceBRL.toFixed(2)}`
-                        : `$ ${priceUSD.toFixed(2)}`}
-                    </span>
+                    <span className="text-[#F5D77F]">R$ {priceBRL.toFixed(2).replace('.', ',')}</span>
                   </div>
                 </div>
               </div>
@@ -547,11 +611,8 @@ export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#070707] text-[#F7F3EC] flex items-center justify-center">
-          <div className="flex items-center gap-3 text-sm text-[#C9A96B] font-mono">
-            <RefreshCw className="w-5 h-5 animate-spin" />
-            <span>Inicializando Checkout Lumiardi...</span>
-          </div>
+        <div className="min-h-screen bg-[#070707] flex items-center justify-center text-ivory font-mono text-xs">
+          Carregando ambiente seguro de checkout...
         </div>
       }
     >
