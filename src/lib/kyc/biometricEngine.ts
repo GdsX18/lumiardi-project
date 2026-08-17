@@ -2,7 +2,7 @@
  * LUMIARDI — MOTOR DE INTELIGÊNCIA BIOMÉTRICA & OCR FORENSE (+18)
  * Sistema Real de Visão Computacional, OCR de Documentos Oficiais (CNH, RG, Passaporte),
  * Detecção de Rosto Humano, Anti-Fraude, Validação de Maioridade (+18) e Face Match.
- * Utiliza o modelo multimodal Gemini 1.5/2.0 Flash Vision para inspeção visual 100% real.
+ * Utiliza o modelo multimodal Gemini Flash Vision para inspeção visual 100% real.
  */
 
 import crypto from 'crypto';
@@ -121,41 +121,52 @@ export const BiometricEngine = {
     const auditTimestamp = new Date().toISOString();
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY;
 
-    // 1. Se possuir chave do Gemini Vision AI configurada, executa com IA Multimodal de alta fidelidade
     if (geminiKey && geminiKey.trim() !== '') {
       try {
         const aiResult = await this.verifyWithGeminiVision(input, geminiKey.trim(), auditTimestamp);
         return aiResult;
       } catch (geminiErr) {
-        console.error('[KYC Biometrics] Erro ao processar com Gemini Vision:', geminiErr);
-        // Retorna erro detalhado da IA em vez de aceitar imagem falsa
-        const errMsg = geminiErr instanceof Error ? geminiErr.message : 'Falha na comunicação com o motor de visão.';
+        console.error('[KYC Biometrics] Erro no Gemini Vision:', geminiErr);
+        const errMsg = geminiErr instanceof Error ? geminiErr.message : 'Falha na inspeção visual por IA.';
         return this.createRejectionResult(
           input,
           auditTimestamp,
-          [`Erro na inspeção visual por IA: ${errMsg}. Certifique-se de que sua GEMINI_API_KEY é válida.`]
+          [`Erro na inspeção visual por IA: ${errMsg}`]
         );
       }
     }
 
-    // 2. Se NÃO houver GEMINI_API_KEY configurada, acusa falta da chave de Visão Computacional
     return this.createRejectionResult(
       input,
       auditTimestamp,
-      [
-        'Chave de Visão Computacional (GEMINI_API_KEY) não encontrada nas variáveis de ambiente da Vercel. Cadastre a chave gratuita do Google AI Studio para ativar a leitura real de documentos e detecção de rosto humano.'
-      ]
+      ['Chave GEMINI_API_KEY não configurada no servidor.']
     );
   },
 
   /**
-   * Validação Real com Gemini Vision AI (Inspeciona os Pixels, Detecta Animais, Lê Texto e Compara Rostos)
+   * Validação Real com Gemini Vision AI
    */
   async verifyWithGeminiVision(input: DocumentVerificationInput, apiKey: string, auditTimestamp: string): Promise<BiometricVerificationResult> {
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Tenta usar o modelo 1.5 Flash ou 2.0 Flash
-    let model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Modelos suportados na API
+    const targetModels = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.5-flash'];
+    let model;
+    let selectedModel = 'gemini-flash-latest';
+
+    for (const m of targetModels) {
+      try {
+        model = genAI.getGenerativeModel({ model: m });
+        selectedModel = m;
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (!model) {
+      model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    }
 
     const cleanDocBase64 = input.documentBase64.replace(/^data:image\/\w+;base64,/, '');
     const cleanSelfieBase64 = input.liveSelfieBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -173,7 +184,7 @@ Dados declarados no cadastro:
 
 REGRAS DE AUDITORIA INEGOCIÁVEIS:
 1. IMAGEM 1 É UM DOCUMENTO OFICIAL?
-   - Se for foto de cachorro, gato, animal, paisagem, objeto, comida, desenho, tela de computador ou qualquer coisa que NÃO seja um documento de identidade oficial de um ser humano -> "isOfficialDocument": false.
+   - Se for foto de cachorro, gato, animal, paisagem, objeto, comida, desenho, tela de computador, meme ou qualquer coisa que NÃO seja um documento de identidade oficial de um ser humano -> "isOfficialDocument": false.
 2. IMAGEM 1 TEM FOTO DE UM ROSTO HUMANO?
    - "humanFaceInDocument": true se e somente se houver uma foto 3x4 de um ser humano real no documento.
 3. IMAGEM 2 É UM SER HUMANO REAL AO VIVO?
@@ -187,7 +198,7 @@ REGRAS DE AUDITORIA INEGOCIÁVEIS:
 6. MAIORIDADE LEGAL (+18):
    - Calcule a idade a partir da data de nascimento do documento. Se idade < 18 -> "is18Plus": false.
 
-Responda ESTRITAMENTE em JSON puro com o seguinte formato:
+Responda ESTRITAMENTE em JSON puro (sem markdown ou texto extra) com o seguinte formato:
 {
   "isOfficialDocument": boolean,
   "humanFaceInDocument": boolean,
@@ -205,25 +216,13 @@ Responda ESTRITAMENTE em JSON puro com o seguinte formato:
 }
 `;
 
-    let responseText = '';
-    try {
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
-        { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
-      ]);
-      responseText = result.response.text();
-    } catch (modelErr) {
-      // Fallback para gemini-2.0-flash
-      model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
-        { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
-      ]);
-      responseText = result.response.text();
-    }
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
+      { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
+    ]);
 
+    const responseText = result.response.text();
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('A IA não retornou um formato JSON válido.');
@@ -296,9 +295,6 @@ Responda ESTRITAMENTE em JSON puro com o seguinte formato:
     };
   },
 
-  /**
-   * Helper para criar resposta de rejeição padronizada
-   */
   createRejectionResult(input: DocumentVerificationInput, auditTimestamp: string, reasons: string[]): BiometricVerificationResult {
     const auditPayload = `${auditTimestamp}|${input.userId || 'guest'}|REJEITADO|0`;
     const auditHash = crypto.createHash('sha256').update(auditPayload).digest('hex');
