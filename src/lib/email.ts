@@ -8,7 +8,7 @@ import nodemailer from 'nodemailer';
 
 // Configuração do Transportador SMTP
 function getTransporter() {
-  const host = process.env.SMTP_HOST || 'mail.lumiardi.com';
+  const host = process.env.SMTP_HOST || '69.6.249.13';
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
   const user = process.env.SMTP_USER || 'noreply@lumiardi.com';
