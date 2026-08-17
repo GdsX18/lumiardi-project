@@ -3,6 +3,7 @@ import { StorageService } from '@/services/storageService';
 import { sanitizeObject } from '@/lib/security';
 import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { CompleteCreatorProfile, CompleteAgencyProfile } from '@/types';
+import { EmailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,6 +51,11 @@ export async function POST(request: NextRequest) {
         city: saved.basicInfo.address?.city,
         createdAt: saved.createdAt,
       };
+
+      // Dispara e-mail de boas-vindas de forma assíncrona
+      EmailService.sendWelcomeEmail(email, name, 'creator').catch((err) => {
+        console.warn('[Register Email] Falha no envio de boas-vindas para criadora:', err);
+      });
 
       const response = NextResponse.json({
         success: true,
@@ -106,6 +112,11 @@ export async function POST(request: NextRequest) {
         city: saved.qualitative.city,
         createdAt: saved.createdAt,
       };
+
+      // Dispara e-mail de boas-vindas de forma assíncrona
+      EmailService.sendWelcomeEmail(email, name, 'agency').catch((err) => {
+        console.warn('[Register Email] Falha no envio de boas-vindas para agência:', err);
+      });
 
       const response = NextResponse.json({
         success: true,

@@ -3,6 +3,7 @@ import { BiometricEngine } from '@/lib/kyc/biometricEngine';
 import { initDatabase, pool, fallbackStore } from '@/lib/db';
 import { cache } from '@/lib/cache';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { EmailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,6 +65,21 @@ export async function POST(request: NextRequest) {
       }
 
       await cache.delete(`user:${userId}`);
+    }
+
+    // Dispara e-mail de notificação de homologação de forma assíncrona
+    const recipientEmail = claimedData?.email || session?.email;
+    const recipientName = claimedData?.fullName || session?.name || 'Criadora';
+    if (recipientEmail) {
+      EmailService.sendKYCStatusEmail(
+        recipientEmail,
+        recipientName,
+        result.approved,
+        result.compliance2257Reference,
+        result.reasons
+      ).catch((err) => {
+        console.warn('[KYC Email] Falha no envio de notificação de homologação:', err);
+      });
     }
 
     return NextResponse.json(result);
