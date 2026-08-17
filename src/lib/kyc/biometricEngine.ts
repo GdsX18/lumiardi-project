@@ -2,7 +2,7 @@
  * LUMIARDI — MOTOR DE INTELIGÊNCIA BIOMÉTRICA & OCR FORENSE (+18)
  * Sistema Real de Visão Computacional, OCR de Documentos Oficiais (CNH, RG, Passaporte),
  * Detecção de Rosto Humano, Anti-Fraude, Validação de Maioridade (+18) e Face Match.
- * Otimizado para Serverless (Vercel) com tempo de resposta < 1.5s.
+ * Utiliza o modelo multimodal Gemini 1.5/2.0 Flash Vision para inspeção visual 100% real.
  */
 
 import crypto from 'crypto';
@@ -122,41 +122,72 @@ export const BiometricEngine = {
     const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY;
 
     // 1. Se possuir chave do Gemini Vision AI configurada, executa com IA Multimodal de alta fidelidade
-    if (geminiKey) {
+    if (geminiKey && geminiKey.trim() !== '') {
       try {
-        const aiResult = await this.verifyWithGeminiVision(input, geminiKey, auditTimestamp);
+        const aiResult = await this.verifyWithGeminiVision(input, geminiKey.trim(), auditTimestamp);
         return aiResult;
       } catch (geminiErr) {
-        console.warn('[KYC Biometrics] Fallback de Gemini Vision para motor nativo ultra-rápido:', geminiErr);
+        console.error('[KYC Biometrics] Erro ao processar com Gemini Vision:', geminiErr);
+        // Retorna erro detalhado da IA em vez de aceitar imagem falsa
+        const errMsg = geminiErr instanceof Error ? geminiErr.message : 'Falha na comunicação com o motor de visão.';
+        return this.createRejectionResult(
+          input,
+          auditTimestamp,
+          [`Erro na inspeção visual por IA: ${errMsg}. Certifique-se de que sua GEMINI_API_KEY é válida.`]
+        );
       }
     }
 
-    // 2. Motor Nativo Ultra-Rápido e Resiliente (executa em < 300ms sem travar em Serverless)
-    return this.verifyWithNativeFastEngine(input, auditTimestamp);
+    // 2. Se NÃO houver GEMINI_API_KEY configurada, acusa falta da chave de Visão Computacional
+    return this.createRejectionResult(
+      input,
+      auditTimestamp,
+      [
+        'Chave de Visão Computacional (GEMINI_API_KEY) não encontrada nas variáveis de ambiente da Vercel. Cadastre a chave gratuita do Google AI Studio para ativar a leitura real de documentos e detecção de rosto humano.'
+      ]
+    );
   },
 
   /**
-   * Validação com Gemini Vision AI
+   * Validação Real com Gemini Vision AI (Inspeciona os Pixels, Detecta Animais, Lê Texto e Compara Rostos)
    */
   async verifyWithGeminiVision(input: DocumentVerificationInput, apiKey: string, auditTimestamp: string): Promise<BiometricVerificationResult> {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    // Tenta usar o modelo 1.5 Flash ou 2.0 Flash
+    let model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const cleanDocBase64 = input.documentBase64.replace(/^data:image\/\w+;base64,/, '');
     const cleanSelfieBase64 = input.liveSelfieBase64.replace(/^data:image\/\w+;base64,/, '');
 
     const prompt = `
-Você é um auditor sênior de segurança antifraude e perito biométrico para uma plataforma em conformidade com 18 U.S.C. § 2257.
-Analise com rigor extremo as duas imagens fornecidas:
-1. Imagem 1: Documento de identificação (RG, CNH brasileira ou Passaporte).
-2. Imagem 2: Captura da câmera ao vivo (Selfie com prova de vida).
+Você é um auditor sênior de segurança antifraude, perito documental e biométrico para uma plataforma de luxo (Conformidade 18 U.S.C. § 2257).
+Inspecione minuciosamente as 2 imagens enviadas:
+- IMAGEM 1: Foto do Documento Oficial (CNH, RG brasileiro ou Passaporte).
+- IMAGEM 2: Foto capturada pela webcam ao vivo (Prova de vida / Selfie).
 
-Dados preenchidos no cadastro pelo usuário:
-- Nome declarado: ${input.claimedData?.fullName || 'Não informado'}
-- CPF declarado: ${input.claimedData?.cpf || 'Não informado'}
-- Data de Nascimento declarada: ${input.claimedData?.birthDate || 'Não informada'}
+Dados declarados no cadastro:
+- Nome declarado: "${input.claimedData?.fullName || ''}"
+- CPF declarado: "${input.claimedData?.cpf || ''}"
+- Data de Nascimento declarada: "${input.claimedData?.birthDate || ''}"
 
-Você DEVE responder ESTRITAMENTE em formato JSON com o seguinte schema:
+REGRAS DE AUDITORIA INEGOCIÁVEIS:
+1. IMAGEM 1 É UM DOCUMENTO OFICIAL?
+   - Se for foto de cachorro, gato, animal, paisagem, objeto, comida, desenho, tela de computador ou qualquer coisa que NÃO seja um documento de identidade oficial de um ser humano -> "isOfficialDocument": false.
+2. IMAGEM 1 TEM FOTO DE UM ROSTO HUMANO?
+   - "humanFaceInDocument": true se e somente se houver uma foto 3x4 de um ser humano real no documento.
+3. IMAGEM 2 É UM SER HUMANO REAL AO VIVO?
+   - Se for foto de animal (cachorro, gato), objeto, tela vazia, parede ou desenho -> "humanFaceInLiveSelfie": false.
+4. CORRESPONDÊNCIA BIOMÉTRICA (FACE MATCH):
+   - O rosto humano da imagem 2 é a MESMA PESSOA que está na foto do documento da imagem 1?
+   - Se for outra pessoa ou se um dos dois não for humano -> "isSamePerson": false, "faceMatchScore": 0 a 40.
+   - Se for a mesma pessoa com certeza -> "isSamePerson": true, "faceMatchScore": 85 a 99.
+5. LEITURA OCR DOS DADOS DO DOCUMENTO:
+   - Leia o Nome completo ("extractedFullName"), o CPF ("extractedCPF") e a Data de Nascimento ("extractedBirthDate" no formato YYYY-MM-DD).
+6. MAIORIDADE LEGAL (+18):
+   - Calcule a idade a partir da data de nascimento do documento. Se idade < 18 -> "is18Plus": false.
+
+Responda ESTRITAMENTE em JSON puro com o seguinte formato:
 {
   "isOfficialDocument": boolean,
   "humanFaceInDocument": boolean,
@@ -174,33 +205,38 @@ Você DEVE responder ESTRITAMENTE em formato JSON com o seguinte schema:
 }
 `;
 
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: cleanDocBase64,
-        },
-      },
-      {
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: cleanSelfieBase64,
-        },
-      },
-    ]);
+    let responseText = '';
+    try {
+      const result = await model.generateContent([
+        prompt,
+        { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
+        { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
+      ]);
+      responseText = result.response.text();
+    } catch (modelErr) {
+      // Fallback para gemini-2.0-flash
+      model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const result = await model.generateContent([
+        prompt,
+        { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
+        { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
+      ]);
+      responseText = result.response.text();
+    }
 
-    const responseText = result.response.text();
-    const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const data = JSON.parse(cleanJson);
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('A IA não retornou um formato JSON válido.');
+    }
 
-    const reasons: string[] = Array.isArray(data.rejectionReasons) ? data.rejectionReasons : [];
-    
+    const data = JSON.parse(jsonMatch[0]);
+    const reasons: string[] = Array.isArray(data.rejectionReasons) ? [...data.rejectionReasons] : [];
+
     if (!data.isOfficialDocument) {
-      reasons.push('A imagem enviada não é um documento oficial de identificação válido (RG, CNH ou Passaporte).');
+      reasons.unshift('A imagem enviada NÃO é um documento oficial de identificação válido (RG, CNH ou Passaporte).');
     }
     if (!data.humanFaceInLiveSelfie) {
-      reasons.push('Rosto humano não detectado na câmera ao vivo. Não aponte para animais, objetos ou fotos estáticas.');
+      reasons.push('Rosto humano não detectado na câmera ao vivo. Não aponte para animais, objetos ou telas.');
     }
     if (!data.humanFaceInDocument) {
       reasons.push('Foto de rosto humano não identificada no documento oficial.');
@@ -208,14 +244,19 @@ Você DEVE responder ESTRITAMENTE em formato JSON com o seguinte schema:
     if (data.isOfficialDocument && data.humanFaceInLiveSelfie && !data.isSamePerson) {
       reasons.push(`Incompatibilidade biométrica: O rosto capturado na câmera não pertence à mesma pessoa do documento (${data.faceMatchScore}% de similaridade).`);
     }
-    if (data.calculatedAge < 18) {
-      reasons.push(`Candidata reprovada: Idade identificada (${data.calculatedAge} anos) é menor que 18 anos.`);
+    if (data.calculatedAge > 0 && data.calculatedAge < 18) {
+      reasons.push(`Candidata reprovada: Idade identificada no documento (${data.calculatedAge} anos) é menor de 18 anos.`);
     }
 
     const isApproved = data.isOfficialDocument && data.humanFaceInLiveSelfie && data.humanFaceInDocument && data.isSamePerson && data.is18Plus && !data.tamperingOrFraud && reasons.length === 0;
-
     const verdict = isApproved ? 'APROVADO' : 'REJEITADO';
-    const auditPayload = `${auditTimestamp}|${input.userId || 'guest'}|${data.extractedCPF}|${data.extractedFullName}|${verdict}|${data.faceMatchScore}`;
+
+    const cleanCpf = data.extractedCPF ? data.extractedCPF.replace(/\D/g, '') : '';
+    const formattedCPF = cleanCpf.length === 11
+      ? cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+      : data.extractedCPF || 'NÃO_IDENTIFICADO';
+
+    const auditPayload = `${auditTimestamp}|${input.userId || 'guest'}|${formattedCPF}|${data.extractedFullName}|${verdict}|${data.faceMatchScore}`;
     const auditHash = crypto.createHash('sha256').update(auditPayload).digest('hex');
     const compliance2257Reference = `LUM-2257-${auditHash.substring(0, 12).toUpperCase()}`;
 
@@ -225,9 +266,9 @@ Você DEVE responder ESTRITAMENTE em formato JSON com o seguinte schema:
       verdict,
       extractedData: {
         documentType: data.documentType || 'DOCUMENTO_INVALIDO',
-        documentNumber: data.extractedCPF || 'NÃO_IDENTIFICADO',
+        documentNumber: formattedCPF,
         fullName: data.extractedFullName || 'NÃO_IDENTIFICADO',
-        cpf: data.extractedCPF || '000.000.000-00',
+        cpf: formattedCPF,
         birthDate: data.extractedBirthDate || '',
         calculatedAge: data.calculatedAge || 0,
         is18Plus: data.is18Plus || false,
@@ -242,13 +283,13 @@ Você DEVE responder ESTRITAMENTE em formato JSON com o seguinte schema:
         faceDetectedInLive: data.humanFaceInLiveSelfie || false,
       },
       fraudCheck: {
-        passed: !data.tamperingOrFraud && data.isOfficialDocument,
+        passed: isApproved,
         tamperingDetected: data.tamperingOrFraud || !data.isOfficialDocument,
         screenCaptureDetected: false,
-        imageQualityScore: 95,
+        imageQualityScore: isApproved ? 95 : 20,
         riskLevel: isApproved ? 'BAIXO' : 'ALTO',
       },
-      reasons: isApproved ? ['Documento oficial e biometria facial 3D homologados (+18) com sucesso.'] : reasons,
+      reasons: isApproved ? ['Documento oficial legítimo e biometria facial 3D (+18) homologados com sucesso.'] : reasons,
       auditTimestamp,
       auditHash,
       compliance2257Reference,
@@ -256,124 +297,45 @@ Você DEVE responder ESTRITAMENTE em formato JSON com o seguinte schema:
   },
 
   /**
-   * Motor Nativo Ultra-Rápido e Resiliente (Serverless Ready, sem workers)
+   * Helper para criar resposta de rejeição padronizada
    */
-  verifyWithNativeFastEngine(input: DocumentVerificationInput, auditTimestamp: string): BiometricVerificationResult {
-    const reasons: string[] = [];
-    const cleanDocBase64 = input.documentBase64.replace(/^data:image\/\w+;base64,/, '');
-    const cleanSelfieBase64 = input.liveSelfieBase64.replace(/^data:image\/\w+;base64,/, '');
-
-    const docBuffer = Buffer.from(cleanDocBase64, 'base64');
-    const selfieBuffer = Buffer.from(cleanSelfieBase64, 'base64');
-
-    // 1. Verificação de Tamanho e Resolução
-    if (docBuffer.length < 8000) {
-      reasons.push('A imagem do documento é muito pequena ou ilegível. Envie uma foto nítida e iluminada.');
-    }
-    if (selfieBuffer.length < 5000) {
-      reasons.push('A captura da câmera ao vivo falhou. Posicione o rosto no centro da tela.');
-    }
-
-    // 2. Análise de Entropia e Detecção de Arquivo Falso / Imagem Idêntica
-    const docEntropy = this.calculateBufferEntropy(docBuffer);
-    const selfieEntropy = this.calculateBufferEntropy(selfieBuffer);
-    const isIdentical = cleanDocBase64 === cleanSelfieBase64;
-
-    if (isIdentical) {
-      reasons.push('Tentativa de fraude detectada: A imagem da câmera é idêntica à do documento. Use a câmera ao vivo.');
-    }
-
-    // 3. Validação do CPF informado
-    const rawCpf = input.claimedData?.cpf ? input.claimedData.cpf.replace(/\D/g, '') : '';
-    let isCpfValid = true;
-    if (rawCpf) {
-      if (rawCpf.length !== 11 || !isValidCPF(rawCpf)) {
-        isCpfValid = false;
-        reasons.push('O CPF preenchido no cadastro é inválido.');
-      }
-    }
-
-    // 4. Validação de Maioridade (+18)
-    const birthDate = input.claimedData?.birthDate || '1998-05-14';
-    const age = calculateExactAge(birthDate);
-    const is18Plus = age >= 18;
-
-    if (!is18Plus && age > 0) {
-      reasons.push(`Candidata reprovada: Idade (${age} anos) inferior à maioridade legal obrigatória (+18).`);
-    }
-
-    // 5. Detecção de Documento e Biometria
-    const isDocumentValid = docEntropy >= 5.0 && docBuffer.length >= 10000;
-    const isLiveHuman = selfieEntropy >= 5.0 && selfieBuffer.length >= 8000 && !isIdentical;
-
-    if (!isDocumentValid) {
-      reasons.push('A imagem enviada não possui os padrões de contraste e nitidez de um documento oficial.');
-    }
-    if (!isLiveHuman) {
-      reasons.push('Rosto humano não identificado na captura da câmera ao vivo.');
-    }
-
-    const isApproved = isDocumentValid && isLiveHuman && is18Plus && isCpfValid && reasons.length === 0;
-    const verdict = isApproved ? 'APROVADO' : 'REJEITADO';
-    const matchScore = isApproved ? 95.8 : 22.0;
-
-    const formattedCPF = rawCpf.length === 11
-      ? rawCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-      : '000.000.000-00';
-
-    const auditPayload = `${auditTimestamp}|${input.userId || 'guest'}|${formattedCPF}|${verdict}|${matchScore}`;
+  createRejectionResult(input: DocumentVerificationInput, auditTimestamp: string, reasons: string[]): BiometricVerificationResult {
+    const auditPayload = `${auditTimestamp}|${input.userId || 'guest'}|REJEITADO|0`;
     const auditHash = crypto.createHash('sha256').update(auditPayload).digest('hex');
     const compliance2257Reference = `LUM-2257-${auditHash.substring(0, 12).toUpperCase()}`;
 
     return {
       success: true,
-      approved: isApproved,
-      verdict,
+      approved: false,
+      verdict: 'REJEITADO',
       extractedData: {
-        documentType: input.docType.toUpperCase(),
-        documentNumber: formattedCPF,
-        fullName: input.claimedData?.fullName?.toUpperCase() || 'CANDIDATA',
-        cpf: formattedCPF,
-        birthDate: birthDate,
-        calculatedAge: age > 0 ? age : 24,
-        is18Plus: is18Plus,
-        issuingAuthority: 'DETRAN/SSP',
-        confidenceScore: isApproved ? 95.8 : 25.0,
+        documentType: 'NÃO_VALIDADO',
+        documentNumber: '000.000.000-00',
+        fullName: input.claimedData?.fullName || 'NÃO_VALIDADO',
+        cpf: '000.000.000-00',
+        birthDate: '',
+        calculatedAge: 0,
+        is18Plus: false,
+        confidenceScore: 0,
       },
       faceMatch: {
-        matchScore: matchScore,
-        isSamePerson: isApproved,
-        confidence: isApproved ? 'HIGH' : 'LOW',
-        faceDetectedInDoc: isDocumentValid,
-        faceDetectedInLive: isLiveHuman,
+        matchScore: 0,
+        isSamePerson: false,
+        confidence: 'LOW',
+        faceDetectedInDoc: false,
+        faceDetectedInLive: false,
       },
       fraudCheck: {
-        passed: isApproved,
-        tamperingDetected: !isDocumentValid || isIdentical,
+        passed: false,
+        tamperingDetected: true,
         screenCaptureDetected: false,
-        imageQualityScore: isApproved ? 92 : 40,
-        riskLevel: isApproved ? 'BAIXO' : 'ALTO',
+        imageQualityScore: 0,
+        riskLevel: 'ALTO',
       },
-      reasons: isApproved ? ['Documento oficial e biometria facial 3D homologados (+18) com sucesso.'] : reasons,
+      reasons,
       auditTimestamp,
       auditHash,
       compliance2257Reference,
     };
-  },
-
-  calculateBufferEntropy(buffer: Buffer): number {
-    const freq = new Array(256).fill(0);
-    const sampleSize = Math.min(buffer.length, 50000);
-    for (let i = 0; i < sampleSize; i++) {
-      freq[buffer[i]]++;
-    }
-    let entropy = 0;
-    for (let i = 0; i < 256; i++) {
-      if (freq[i] > 0) {
-        const p = freq[i] / sampleSize;
-        entropy -= p * Math.log2(p);
-      }
-    }
-    return entropy;
   },
 };
