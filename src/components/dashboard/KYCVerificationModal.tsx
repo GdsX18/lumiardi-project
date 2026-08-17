@@ -119,7 +119,37 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
-      setDocumentPreview(dataUrl);
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setDocumentPreview(optimizedDataUrl);
+        } else {
+          setDocumentPreview(dataUrl);
+        }
+      };
+      img.onerror = () => {
+        setDocumentPreview(dataUrl);
+      };
+      img.src = dataUrl;
 
       if (onDocumentUpload) {
         onDocumentUpload({
@@ -153,7 +183,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
-          width: { ideal: 1280 },
+          width: { ideal: 720 },
           height: { ideal: 720 },
         },
         audio: false,
@@ -211,16 +241,15 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
 
     if (videoRef.current && videoRef.current.videoWidth > 0) {
       const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
+      canvas.width = Math.min(720, videoRef.current.videoWidth);
+      canvas.height = Math.min(720, videoRef.current.videoHeight);
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.92);
+        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.85);
       }
     }
 
-    // Se a largura não estiver disponível de imediato, força dimensões padrão
     if (!capturedSelfieBase64 && videoRef.current) {
       const canvas = document.createElement('canvas');
       canvas.width = 640;
@@ -228,7 +257,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, 640, 480);
-        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.92);
+        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.85);
       }
     }
 
@@ -242,9 +271,13 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     stopCamera();
     setStep('processing');
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
       const res = await fetch('/api/kyc/verify-document-and-face', {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentBase64: documentPreview,
@@ -260,6 +293,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         }),
       });
 
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       if (data.approved) {
@@ -273,7 +307,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         setStep('rejected');
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro durante o processamento do OCR e Face Match.';
+      clearTimeout(timeoutId);
+      const msg = e instanceof Error && e.name === 'AbortError'
+        ? 'Tempo limite de análise esgotado. Verifique sua conexão e tente novamente.'
+        : e instanceof Error ? e.message : 'Erro durante o processamento do OCR e Face Match.';
       setErrorMsg(msg);
       setStep('rejected');
     }
