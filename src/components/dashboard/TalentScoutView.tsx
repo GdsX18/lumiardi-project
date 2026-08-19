@@ -196,7 +196,7 @@ export const TalentScoutView: React.FC = () => {
     },
   ];
 
-  const pool = allCreators.length >= 3 ? allCreators : defaultCreators;
+  const pool = allCreators.length > 0 ? allCreators : defaultCreators;
 
   // Estados dos Filtros
   const [searchTerm, setSearchTerm] = useState('');

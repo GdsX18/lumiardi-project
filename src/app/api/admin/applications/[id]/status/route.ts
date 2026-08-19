@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
+import { EmailService } from '@/lib/email';
 
 export async function POST(
   request: NextRequest,
@@ -28,6 +29,27 @@ export async function POST(
     }
 
     const success = await StorageService.updateApplicationStatus(id, status, rejectionReason);
+
+    // Dispara e-mail de notificação de decisão da curadoria em segundo plano
+    try {
+      const userRecord = await StorageService.getUserById(id);
+      if (userRecord && userRecord.user?.email) {
+        const email = userRecord.user.email;
+        const name = userRecord.user.name || 'Candidata';
+        const referenceCode = `LUM-${id.substring(0, 8).toUpperCase()}`;
+        EmailService.sendKYCStatusEmail(
+          email,
+          name,
+          status === 'APROVADO',
+          referenceCode,
+          rejectionReason ? [rejectionReason] : undefined
+        ).catch((err) => {
+          console.warn('[Curation Email] Falha no envio de e-mail de curadoria:', err);
+        });
+      }
+    } catch (e) {
+      console.warn('[Curation Email] Erro ao buscar usuário para e-mail:', e);
+    }
 
     return NextResponse.json({
       success,

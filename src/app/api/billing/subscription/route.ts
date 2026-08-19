@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { StorageService } from '@/services/storageService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,9 +12,14 @@ export async function GET(request: NextRequest) {
     const userId = session?.id || (request.nextUrl.searchParams.get('userId') || 'user-model-1');
     const userRole = session?.role || 'criadora';
 
-    let subscription = await BillingService.getUserSubscription(userId);
+    const [subscriptionRecord, driveUsage] = await Promise.all([
+      BillingService.getUserSubscription(userId),
+      StorageService.getUserDriveUsage(userId),
+    ]);
 
-    // Se não tiver assinatura ainda, gera padrão de degustação (Trial/Glow)
+    let subscription = subscriptionRecord;
+
+    // Se não tiver assinatura ainda, gera padrão do tier básico da categoria
     if (!subscription) {
       const defaultPlanId = userRole === 'agencia' ? 'select' : 'glow';
       const plan = getPlan(defaultPlanId);
@@ -38,13 +44,13 @@ export async function GET(request: NextRequest) {
 
     const planDetails = getPlan(subscription.planId);
 
-    // Métricas de uso e limites
+    // Métricas Reais e Sincronizadas
     const usageMetrics = {
-      driveStorageUsedGB: userRole === 'agencia' ? 14.2 : 3.8,
-      driveStorageTotalGB: planDetails.limits.maxDriveStorageGB,
-      scoutSearchesUsed: 12,
+      driveStorageUsedGB: driveUsage.totalGB || 0,
+      driveStorageTotalGB: typeof planDetails.limits.maxDriveStorageGB === 'number' ? planDetails.limits.maxDriveStorageGB : 5,
+      scoutSearchesUsed: 0,
       scoutSearchesTotal: planDetails.limits.maxScoutSearchesPerMonth,
-      rosterSlotsUsed: userRole === 'agencia' ? 3 : undefined,
+      rosterSlotsUsed: userRole === 'agencia' ? 0 : undefined,
       rosterSlotsTotal: userRole === 'agencia' ? planDetails.limits.maxRosterSlots : undefined,
     };
 

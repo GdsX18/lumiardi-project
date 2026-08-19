@@ -29,9 +29,17 @@ import {
   Video,
   Play,
   RotateCcw,
+  ZoomIn,
+  MessageSquarePlus,
+  SlidersHorizontal,
+  MessageSquare,
+  Send,
+  Printer,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { MediaLightboxModal, MediaItem } from '@/components/admin/MediaLightboxModal';
+import { CurationDossierExport } from '@/components/admin/CurationDossierExport';
 
 interface Application {
   id: string;
@@ -78,6 +86,11 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<'criadora' | 'agencia'>('criadora');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [locationFilter, setLocationFilter] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
   const [metrics, setMetrics] = useState<Metrics>({
     pending: 0,
     approvedModels: 0,
@@ -87,6 +100,17 @@ export default function AdminDashboardPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+
+  // Estados de Lightbox / Mídia Ampliada
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxItems, setLightboxItems] = useState<MediaItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Estados de Anotações Internas da Curadoria
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
 
   // Estados de Ação de Decisão
   const [processingDecision, setProcessingDecision] = useState(false);
@@ -123,6 +147,61 @@ export default function AdminDashboardPage() {
     loadData();
   }, [loadData]);
 
+  // Carrega anotações internas ao abrir o modal
+  const loadNotes = useCallback(async (appId: string) => {
+    setLoadingNotes(true);
+    try {
+      const res = await fetch(`/api/admin/applications/${appId}/notes`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(data.notes || []);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar anotações:', e);
+    } finally {
+      setLoadingNotes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedApp?.id) {
+      loadNotes(selectedApp.id);
+    } else {
+      setNotes([]);
+      setNewNoteText('');
+    }
+  }, [selectedApp?.id, loadNotes]);
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedApp?.id || !newNoteText.trim()) return;
+
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/admin/applications/${selectedApp.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newNoteText }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNotes((prev) => [data.note, ...prev]);
+        setNewNoteText('');
+      }
+    } catch (e) {
+      console.error('Erro ao salvar nota:', e);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const openLightbox = (items: MediaItem[], idx: number = 0) => {
+    setLightboxItems(items);
+    setLightboxIndex(idx);
+    setLightboxOpen(true);
+  };
+
   // Ação de Aprovação
   const handleApprove = async (appId: string) => {
     setProcessingDecision(true);
@@ -134,7 +213,7 @@ export default function AdminDashboardPage() {
       });
 
       if (res.ok) {
-        setActionSuccessMsg('Credencial aprovada com sucesso! Acesso concedido no sistema.');
+        setActionSuccessMsg('Credencial aprovada com sucesso! Notificação e e-mail disparados.');
         setTimeout(() => setActionSuccessMsg(null), 4000);
         await loadData();
         if (selectedApp?.id === appId) {
@@ -179,16 +258,36 @@ export default function AdminDashboardPage() {
     window.location.href = '/admin/login';
   };
 
-  // Filtro em tempo real no cliente
-  const filteredApps = applications.filter((app) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      app.fullName.toLowerCase().includes(term) ||
-      app.email.toLowerCase().includes(term) ||
-      (app.profile?.artisticName && app.profile.artisticName.toLowerCase().includes(term)) ||
-      (app.profile?.instagram && app.profile.instagram.toLowerCase().includes(term))
-    );
-  });
+  // Filtro avançado e ordenação
+  const filteredApps = applications
+    .filter((app) => {
+      const term = searchTerm.toLowerCase();
+      const matchSearch =
+        app.fullName.toLowerCase().includes(term) ||
+        app.email.toLowerCase().includes(term) ||
+        (app.profile?.artisticName && app.profile.artisticName.toLowerCase().includes(term)) ||
+        (app.profile?.instagram && app.profile.instagram.toLowerCase().includes(term));
+
+      if (!matchSearch) return false;
+
+      if (categoryFilter !== 'ALL') {
+        const cat = app.profile?.category || '';
+        if (!cat.toLowerCase().includes(categoryFilter.toLowerCase())) return false;
+      }
+
+      if (locationFilter !== 'ALL') {
+        const loc = `${app.profile?.address?.country || ''} ${app.profile?.address?.state || ''} ${app.profile?.address?.city || ''}`;
+        if (!loc.toLowerCase().includes(locationFilter.toLowerCase())) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
+      return 0;
+    });
 
   return (
     <div className="min-h-screen bg-[#070707] text-ivory flex flex-col selection:bg-gold selection:text-black-matte">
@@ -343,8 +442,8 @@ export default function AdminDashboardPage() {
               </button>
             </div>
 
-            {/* Filtro de Status & Busca */}
-            <div className="flex items-center gap-3">
+            {/* Filtro de Status, Busca & Filtros Avançados */}
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
                 <input
@@ -352,7 +451,7 @@ export default function AdminDashboardPage() {
                   placeholder="Buscar por nome, e-mail ou @"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-[#121212] border border-white/[0.12] focus:border-gold pl-9 pr-3 py-1.5 text-xs text-ivory placeholder-ivory/30 outline-none rounded-sm w-48 md:w-64"
+                  className="bg-[#121212] border border-white/[0.12] focus:border-gold pl-9 pr-3 py-1.5 text-xs text-ivory placeholder-ivory/30 outline-none rounded-sm w-44 md:w-56"
                 />
               </div>
 
@@ -361,11 +460,24 @@ export default function AdminDashboardPage() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-[#121212] border border-white/[0.12] focus:border-gold px-3 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
               >
-                <option value="ALL">Todos os Status</option>
+                <option value="ALL">Status: Todos</option>
                 <option value="EM_CURATORIA">Pendentes (Em Curadoria)</option>
                 <option value="APROVADO">Aprovados</option>
                 <option value="REJEITADO">Recusados</option>
               </select>
+
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={`px-3 py-1.5 text-xs font-sans flex items-center gap-1.5 border rounded-sm transition-colors cursor-pointer ${
+                  showAdvancedFilters || categoryFilter !== 'ALL' || locationFilter !== 'ALL' || sortBy !== 'newest'
+                    ? 'bg-gold/20 text-gold border-gold/40'
+                    : 'bg-[#121212] text-ivory/70 border-white/[0.12] hover:text-ivory'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Filtros {categoryFilter !== 'ALL' || locationFilter !== 'ALL' ? '•' : ''}</span>
+              </button>
 
               <button
                 onClick={loadData}
@@ -376,6 +488,60 @@ export default function AdminDashboardPage() {
               </button>
             </div>
           </div>
+
+          {/* Barra de Filtros Avançados Expansível */}
+          {showAdvancedFilters && (
+            <div className="p-3.5 bg-[#101010] border border-white/[0.08] rounded-sm grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in fade-in duration-200">
+              <div>
+                <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
+                  Localização / País / Estado
+                </label>
+                <select
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                >
+                  <option value="ALL">Todas as Localizações</option>
+                  <option value="Brasil">Brasil</option>
+                  <option value="SP">São Paulo (SP)</option>
+                  <option value="RJ">Rio de Janeiro (RJ)</option>
+                  <option value="Estados Unidos">Estados Unidos / Internacional</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
+                  Nicho / Especialidade
+                </label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                >
+                  <option value="ALL">Todas as Especialidades</option>
+                  <option value="VIP">Modelo & Criadora VIP</option>
+                  <option value="Alta Moda">Alta Moda & Editorial</option>
+                  <option value="Comercial">Comercial / Publicidade</option>
+                  <option value="Casting">Agência de Casting</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
+                  Ordenação Cronológica / Alfabética
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                >
+                  <option value="newest">Mais Recentes Primeiro</option>
+                  <option value="oldest">Mais Antigas Primeiro</option>
+                  <option value="name">Nome (A - Z)</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* 3. Tabela de Solicitações Recebidas */}
           <div className="bg-[#0A0A0A] border border-white/[0.08] overflow-hidden rounded-sm">
@@ -518,6 +684,8 @@ export default function AdminDashboardPage() {
               </div>
 
               <div className="flex items-center gap-3">
+                <CurationDossierExport application={selectedApp} auditorEmail="curadoria@lumiardi.com" />
+
                 <span
                   className={`text-[10px] font-sans px-2.5 py-1 uppercase tracking-widest font-semibold rounded-xs border ${
                     selectedApp.curationStatus === 'APROVADO'
@@ -689,10 +857,18 @@ export default function AdminDashboardPage() {
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => alert(`Visualizando documento de auditoria: ${selectedApp.documentName || 'Documento Oficial'}`)}
+                        onClick={() =>
+                          openLightbox([
+                            {
+                              url: selectedApp.documentUrl || '/images/hero_visual.jpg',
+                              title: `Documento de Identificação - ${selectedApp.fullName}`,
+                              tag: 'Documento 2257',
+                            },
+                          ])
+                        }
                         className="px-3 py-1.5 bg-[#1C1C1C] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <ZoomIn className="w-3.5 h-3.5" />
                         <span>Inspecionar Documento</span>
                       </button>
                     </div>
@@ -712,36 +888,48 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Seção 3: Mídia, Fotos e Vídeo Showreel */}
+              {/* Seção 3: Mídia, Fotos e Vídeo Showreel com Zoom em Alta Resolução */}
               {selectedApp.role === 'criadora' && (
                 <div className="space-y-3">
-                  <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                    3. Fotos Padronizadas & Vídeo de Prévia
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
+                      3. Ensaio Fotográfico & Vídeo de Apresentação (Clique para Ampliar)
+                    </span>
+                    <span className="text-[10px] text-gold/80 font-mono">
+                      Lightbox HD Ativo
+                    </span>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Fotos */}
                     <div className="space-y-2">
                       <span className="text-[11px] text-ivory/60 font-sans block">
-                        Ensaio Fotográfico Submetido:
+                        Fotos de Portfólio (Clique para Zoom):
                       </span>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="relative aspect-[3/4] bg-black border border-white/[0.08] overflow-hidden rounded-sm">
-                          <Image
-                            src={selectedApp.profile?.photos?.[0]?.url || '/images/creator_elena.jpg'}
-                            alt="Foto 01"
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="relative aspect-[3/4] bg-black border border-white/[0.08] overflow-hidden rounded-sm">
-                          <Image
-                            src={selectedApp.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg'}
-                            alt="Foto 02"
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
+                        {(() => {
+                          const photosList = [
+                            { url: selectedApp.profile?.photos?.[0]?.url || '/images/creator_elena.jpg', title: `${selectedApp.fullName} - Ensaio 01`, tag: 'Foto 01' },
+                            { url: selectedApp.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg', title: `${selectedApp.fullName} - Ensaio 02`, tag: 'Foto 02' },
+                          ];
+                          return photosList.map((p, pIdx) => (
+                            <div
+                              key={pIdx}
+                              onClick={() => openLightbox(photosList, pIdx)}
+                              className="relative aspect-[3/4] bg-black border border-white/[0.08] hover:border-gold/60 overflow-hidden rounded-sm cursor-pointer group transition-all"
+                            >
+                              <Image
+                                src={p.url}
+                                alt={p.title}
+                                fill
+                                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-gold">
+                                <ZoomIn className="w-6 h-6" />
+                              </div>
+                            </div>
+                          ));
+                        })()}
                       </div>
                     </div>
 
@@ -750,12 +938,27 @@ export default function AdminDashboardPage() {
                       <span className="text-[11px] text-ivory/60 font-sans block">
                         Vídeo de Apresentação / Showreel:
                       </span>
-                      <div className="relative aspect-[4/3] bg-black border border-gold/30 overflow-hidden rounded-sm flex items-center justify-center group">
+                      <div
+                        onClick={() =>
+                          openLightbox([
+                            {
+                              url: selectedApp.profile?.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+                              title: `Vídeo de Apresentação - ${selectedApp.fullName}`,
+                              type: 'video',
+                            },
+                          ])
+                        }
+                        className="relative aspect-[4/3] bg-black border border-gold/30 hover:border-gold overflow-hidden rounded-sm flex items-center justify-center group cursor-pointer"
+                      >
                         <video
                           src={selectedApp.profile?.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'}
-                          controls
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover pointer-events-none"
                         />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-gold text-black-matte flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -792,6 +995,66 @@ export default function AdminDashboardPage() {
                   )}
                 </div>
               )}
+
+              {/* Seção 4: Prontuário & Anotações Internas entre Curadores */}
+              <div className="space-y-3 pt-2 border-t border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <MessageSquarePlus className="w-4 h-4 text-gold" />
+                  <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold">
+                    4. Prontuário & Anotações Internas de Auditoria (Privado da Curadoria)
+                  </span>
+                </div>
+
+                <div className="p-4 bg-[#141414] border border-white/[0.08] rounded-sm space-y-4">
+                  {/* Formulário para Nova Nota */}
+                  <form onSubmit={handleAddNote} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Adicionar nota interna sobre este cadastro (visível apenas para auditores)..."
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      className="flex-1 bg-[#1A1A1A] border border-white/[0.12] focus:border-gold px-3.5 py-2 text-xs text-ivory placeholder-ivory/30 outline-none rounded-sm"
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={savingNote || !newNoteText.trim()}
+                      className="text-xs uppercase tracking-wider py-2 px-4 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>{savingNote ? 'Salvando...' : 'Anotar'}</span>
+                    </Button>
+                  </form>
+
+                  {/* Lista de Notas */}
+                  {loadingNotes ? (
+                    <div className="text-center text-xs text-ivory/40 py-2">Carregando notas...</div>
+                  ) : notes.length === 0 ? (
+                    <div className="text-center text-xs text-ivory/40 py-3 bg-[#111] border border-white/[0.04] rounded-sm">
+                      Nenhuma anotação interna registrada para este candidato.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {notes.map((n) => (
+                        <div key={n.id} className="p-2.5 bg-[#181818] border border-white/[0.06] rounded-sm text-xs space-y-1">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="font-mono text-gold">{n.author}</span>
+                            <span className="text-ivory/40 font-sans">
+                              {new Date(n.createdAt).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-ivory/80 font-sans leading-relaxed">{n.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Justificativa de Recusa Anterior se houver */}
               {selectedApp.rejectionReason && (
@@ -881,6 +1144,14 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* 6. LIGHTBOX MODAL PARA FOTOS E VÍDEOS EM ALTA DEFINIÇÃO */}
+      <MediaLightboxModal
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        items={lightboxItems}
+        initialIndex={lightboxIndex}
+      />
     </div>
   );
 }

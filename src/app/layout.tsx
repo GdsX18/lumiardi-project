@@ -36,9 +36,13 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
+      suppressHydrationWarning
       className={`${cormorant.variable} ${outfit.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-black-matte text-ivory font-sans overflow-x-hidden">
+      <body
+        suppressHydrationWarning
+        className="min-h-full flex flex-col bg-black-matte text-ivory font-sans overflow-x-hidden"
+      >
         <ScrollProgressBar />
         <Providers>{children}</Providers>
       </body>

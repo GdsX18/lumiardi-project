@@ -8,9 +8,9 @@ export default function ChatPage() {
   return (
     <DashboardLayout
       pageTitle="Mensagens & Comunicação Criptografada"
-      pageSubtitle="Canal isolado com criptografia ponta a ponta E2E para negociações e alinhamentos de produção."
+      pageSubtitle="Canal exclusivo com criptografia ponta a ponta E2E para negociações, alinhamentos e suporte VIP."
     >
-      <div className="max-w-5xl mx-auto w-full">
+      <div className="w-full h-full">
         <ChatPanel />
       </div>
     </DashboardLayout>

@@ -86,38 +86,19 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   useEffect(() => {
     if (initialData) {
-      setArtisticName(initialData.qualitative?.artisticName || initialData.artistic_name || 'Sua Conta Modelo');
+      setArtisticName(initialData.qualitative?.artisticName || initialData.artistic_name || initialData.name || 'Sua Conta Modelo');
       setCategory(initialData.qualitative?.category || initialData.category || 'Modelo & Criadora VIP');
       setInstagram(initialData.qualitative?.platforms?.instagram || initialData.instagram || '@suaconta');
       setCity(initialData.basicInfo?.address?.city || initialData.address?.city || 'São Paulo');
       setState(initialData.basicInfo?.address?.state || initialData.address?.state || 'SP');
       setCountry(initialData.basicInfo?.address?.country || initialData.address?.country || 'Brasil');
-      setAvatarUrl(initialData.avatarUrl || initialData.photos?.[0]?.url || '/images/creator_elena.jpg');
+      setAvatarUrl(initialData.avatarUrl || initialData.photos?.[0]?.url || '');
       setBio(initialData.qualitative?.bio || initialData.bio || '');
 
-      const initialPhotos = initialData.photos || initialData.qualitative?.photos || [
-        {
-          id: '1',
-          url: '/images/creator_elena.jpg',
-          title: 'Editorial Haute Couture - Milan Issue',
-          tag: 'Alta Resolução · RAW',
-        },
-        {
-          id: '2',
-          url: '/images/creator_sophia.jpg',
-          title: 'Studio Lighting Portrait 01',
-          tag: 'Book Oficial 2026',
-        },
-        {
-          id: '3',
-          url: '/images/hero_visual.jpg',
-          title: 'Cinematic Atmosphere Reel Still',
-          tag: 'Vídeo Highlight',
-        },
-      ];
+      const initialPhotos = initialData.photos || initialData.qualitative?.photos || [];
       setPhotos(initialPhotos);
 
-      setVideoUrl(initialData.videoUrl || initialData.qualitative?.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
+      setVideoUrl(initialData.videoUrl || initialData.qualitative?.videoUrl || '');
 
       const meas = initialData.qualitative?.measurements || initialData.measurements || {};
       setHeight(meas.height || '175');

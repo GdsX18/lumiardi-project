@@ -14,40 +14,21 @@ export async function GET(request: NextRequest) {
     const curationMsgs = await StorageService.listMessages('curation');
     const lastCurationMsg = curationMsgs[curationMsgs.length - 1];
 
-    const defaultConversations = [
+    // Apenas canais reais e oficiais
+    const conversations = [
       {
         id: 'curation',
         name: 'Mesa de Curadoria Lumiardi',
         avatarText: 'LM',
-        subtitle: 'Suporte Oficial & Compliance VIP',
-        lastMessage: lastCurationMsg?.text || 'Bem-vinda à plataforma Lumiardi!',
+        subtitle: 'Suporte Oficial & Atendimento VIP',
+        lastMessage: lastCurationMsg?.text || 'Canal direto com a equipe de Curadoria e Compliance.',
         lastTime: 'Hoje',
-        unreadCount: 0,
-        verified: true,
-      },
-      {
-        id: 'agency-aura',
-        name: 'Aura Management (Casting)',
-        avatarText: 'AM',
-        subtitle: 'Diretoria de Casting Internacional',
-        lastMessage: 'Proposta de ensaio editorial disponível para revisão.',
-        lastTime: 'Ontem',
-        unreadCount: 0,
-        verified: true,
-      },
-      {
-        id: 'agency-vanguard',
-        name: 'Vanguard Talent Co.',
-        avatarText: 'VT',
-        subtitle: 'Monetização & Contratos',
-        lastMessage: 'Alinhamento de cronograma de produção confirmado.',
-        lastTime: '2 dias atrás',
         unreadCount: 0,
         verified: true,
       },
     ];
 
-    return NextResponse.json({ success: true, conversations: defaultConversations });
+    return NextResponse.json({ success: true, conversations });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao listar conversas';
     return NextResponse.json({ error: message }, { status: 500 });

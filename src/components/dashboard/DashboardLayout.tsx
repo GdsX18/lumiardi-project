@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardSidebar } from './DashboardSidebar';
+import { MobileBottomNav } from './MobileBottomNav';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export interface DashboardLayoutProps {
@@ -23,14 +24,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#070707] text-ivory font-sans flex flex-col selection:bg-gold selection:text-black-matte">
+    <div className="min-h-screen bg-[#070707] text-ivory font-sans flex flex-col selection:bg-gold selection:text-black-matte overflow-x-hidden">
       {/* Header Corporativo Fixo */}
       <DashboardHeader
         onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
         mobileMenuOpen={mobileMenuOpen}
       />
 
-      <div className="flex-1 flex w-full max-w-[1920px] mx-auto">
+      <div className="flex-1 flex w-full max-w-[1920px] mx-auto min-w-0">
         {/* Sidebar Desktop */}
         <div className="hidden lg:block shrink-0">
           <DashboardSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -67,15 +68,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </AnimatePresence>
 
         {/* Área Principal de Conteúdo */}
-        <main className="flex-1 p-4 md:p-8 lg:p-10 overflow-y-auto max-w-full">
+        <main className="flex-1 p-3 sm:p-5 md:p-8 lg:p-10 pb-24 lg:pb-10 overflow-y-auto max-w-full min-w-0">
           {pageTitle && (
-            <div className="mb-6 pb-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="mb-5 sm:mb-6 pb-3 sm:pb-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
               <div>
-                <h1 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-wide">
+                <h1 className="font-serif-lumiardi text-xl sm:text-2xl md:text-4xl font-light text-ivory tracking-wide">
                   {pageTitle}
                 </h1>
                 {pageSubtitle && (
-                  <p className="text-xs md:text-sm text-ivory/60 font-sans mt-1">
+                  <p className="text-[11px] sm:text-xs md:text-sm text-ivory/60 font-sans mt-0.5 sm:mt-1">
                     {pageSubtitle}
                   </p>
                 )}
@@ -86,6 +87,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           {children}
         </main>
       </div>
+
+      {/* Navegação Inferior Mobile */}
+      <MobileBottomNav />
     </div>
   );
 };

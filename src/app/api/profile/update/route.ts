@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(body.photos)) {
       sanitizedUpdates.photos = body.photos.map((p: any) => ({
         id: p.id || `photo-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-        url: sanitizeInput(p.url || '/images/creator_elena.jpg'),
+        url: sanitizeInput(p.url || ''),
         title: sanitizeInput(p.title || 'Ensaio Editorial'),
         tag: sanitizeInput(p.tag || 'Alta Resolução'),
       }));

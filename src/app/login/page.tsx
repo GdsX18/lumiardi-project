@@ -18,12 +18,14 @@ import {
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect');
   const { refreshData } = useAuthPortal();
+  const { t } = useLanguage();
 
   const [role, setRole] = useState<'criadora' | 'agencia'>('criadora');
   const [email, setEmail] = useState('');
@@ -73,13 +75,13 @@ function LoginForm() {
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/40 text-gold text-[10px] font-sans uppercase tracking-[0.25em]">
             <Lock className="w-3 h-3" />
-            <span>Acesso Seguro Criptografado</span>
+            <span>{t('login_secure_title') || 'Acesso Seguro Criptografado'}</span>
           </div>
           <h1 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-ivory tracking-wide">
-            Portal Lumiardi
+            {t('login_portal_title') || 'Portal Lumiardi'}
           </h1>
           <p className="text-xs text-ivory/60 font-sans leading-relaxed">
-            Informe suas credenciais para acessar os módulos e recursos da plataforma.
+            {t('login_portal_desc') || 'Informe suas credenciais para acessar os módulos e recursos da plataforma.'}
           </p>
         </div>
 
@@ -98,7 +100,7 @@ function LoginForm() {
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>Acesso Modelo</span>
+            <span>{t('login_role_creator') || 'Acesso Modelo'}</span>
           </button>
 
           <button
@@ -114,7 +116,7 @@ function LoginForm() {
             }`}
           >
             <Building2 className="w-4 h-4" />
-            <span>Acesso Agência</span>
+            <span>{t('login_role_agency') || 'Acesso Agência'}</span>
           </button>
         </div>
 
@@ -130,7 +132,7 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-sans uppercase tracking-wider text-ivory/70 mb-1.5">
-              {role === 'criadora' ? 'E-mail Cadastrado' : 'E-mail Corporativo'}
+              {t('login_email_label') || (role === 'criadora' ? 'E-mail Cadastrado' : 'E-mail Corporativo')}
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
@@ -148,10 +150,10 @@ function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-sans uppercase tracking-wider text-ivory/70">
-                Senha de Acesso
+                {t('login_pass_label') || 'Senha de Acesso'}
               </label>
               <span className="text-[10px] text-bronze uppercase tracking-wider">
-                Criptografada
+                {t('chat_e2e_shield') || 'Criptografada'}
               </span>
             </div>
             <div className="relative">
@@ -180,7 +182,7 @@ function LoginForm() {
               disabled={loading}
               className="w-full py-3.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
             >
-              <span>{loading ? 'Validando Credenciais...' : 'Acessar Ambiente Seguro'}</span>
+              <span>{loading ? (t('login_logging_in') || 'Validando Credenciais...') : (t('login_submit_btn') || 'Acessar Ambiente Seguro')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -189,21 +191,21 @@ function LoginForm() {
         {/* Links de Criação de Conta */}
         <div className="pt-4 border-t border-white/10 text-center space-y-2">
           <span className="text-xs font-sans text-ivory/50 block">
-            Ainda não possui credencial verificada?
+            {t('login_no_account') || 'Ainda não possui credencial verificada?'}
           </span>
           <div className="flex items-center justify-center gap-4 text-xs font-sans">
             <Link
               href="/qualificacao"
               className="text-gold hover:underline uppercase tracking-wider font-medium"
             >
-              Cadastrar como Modelo →
+              {t('login_register_creator') || 'Cadastrar como Modelo'} →
             </Link>
             <span className="text-ivory/30">•</span>
             <Link
               href="/qualificacao/agencia"
               className="text-gold hover:underline uppercase tracking-wider font-medium"
             >
-              Credenciar Agência →
+              {t('login_register_agency') || 'Credenciar Agência'} →
             </Link>
           </div>
         </div>

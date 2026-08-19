@@ -14,25 +14,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Busca o perfil mais recente no Storage
-    let fullProfile = null;
-    if (session.role === 'criadora') {
-      fullProfile = await StorageService.getCreatorById(session.id);
-    } else {
-      fullProfile = await StorageService.getAgencyById(session.id);
-    }
-
-    const currentStatus = fullProfile?.curationStatus
-      ? (fullProfile.curationStatus === 'APROVADO' || fullProfile.curationStatus === 'approved')
-        ? 'APROVADO'
-        : 'EM_CURATORIA'
-      : session.curationStatus;
+    // Busca o usuário e perfil mais recente no Storage
+    const userRecord = await StorageService.getUserById(session.id);
+    const fullProfile = userRecord?.profile || null;
+    const currentStatus = userRecord?.user?.curationStatus || session.curationStatus;
+    const rejectionReason = userRecord?.user?.rejectionReason;
 
     return NextResponse.json({
       authenticated: true,
       user: {
         ...session,
         curationStatus: currentStatus,
+        rejectionReason: rejectionReason,
+        name: userRecord?.user?.name || session.name,
       },
       profile: fullProfile,
     });

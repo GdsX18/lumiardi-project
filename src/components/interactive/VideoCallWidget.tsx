@@ -26,8 +26,10 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { useLanguage } from '@/context/LanguageContext';
 
 export const VideoCallWidget: React.FC = () => {
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const initialRoom = searchParams.get('room') || 'LM-904-VIP';
 
@@ -214,7 +216,7 @@ export const VideoCallWidget: React.FC = () => {
 
   // Copiar link da sala
   const handleCopyLink = () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/meet?room=${roomId}` : `https://lumiardi.com/meet?room=${roomId}`;
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/dashboard/meet?room=${encodeURIComponent(roomId)}` : `https://lumiardi.com/dashboard/meet?room=${encodeURIComponent(roomId)}`;
     navigator.clipboard?.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
@@ -264,7 +266,7 @@ export const VideoCallWidget: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-serif-lumiardi text-lg md:text-xl font-medium text-ivory">
-                Lumiardi Meet — Sala Executiva VIP
+                {t('meet_vip_room') || 'Lumiardi Meet — Sala Executiva VIP'}
               </h3>
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
             </div>
@@ -272,7 +274,7 @@ export const VideoCallWidget: React.FC = () => {
               <span>Sala: <strong className="text-gold font-mono">{roomId}</strong></span>
               <span>•</span>
               <span className="text-emerald-400 font-medium flex items-center gap-1">
-                <Shield className="w-3 h-3 text-gold" /> Criptografia E2E Ativa
+                <Shield className="w-3 h-3 text-gold" /> {t('meet_e2e_active') || 'Criptografia E2E Ativa'}
               </span>
             </div>
           </div>
@@ -290,6 +292,9 @@ export const VideoCallWidget: React.FC = () => {
                 if (res.ok) {
                   const data = await res.json();
                   setRoomId(data.roomId);
+                  if (typeof window !== 'undefined') {
+                    window.history.replaceState(null, '', `/dashboard/meet?room=${encodeURIComponent(data.roomId)}`);
+                  }
                   if (data.dailyRoomUrl) {
                     setDailyUrl(data.dailyRoomUrl);
                   }
@@ -303,7 +308,7 @@ export const VideoCallWidget: React.FC = () => {
             title="Gerar novo código de sala VIP"
           >
             <Plus className="w-3.5 h-3.5 text-gold" />
-            <span>Nova Sala VIP</span>
+            <span>{t('meet_new_room') || 'Nova Sala VIP'}</span>
           </button>
 
           <button
@@ -311,14 +316,14 @@ export const VideoCallWidget: React.FC = () => {
             className="px-3.5 py-1.5 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-sans font-medium transition-all flex items-center gap-1.5 rounded-sm cursor-pointer shadow-sm active:scale-95"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'Link Copiado!' : 'Copiar Convite'}</span>
+            <span>{copiedLink ? (t('meet_invite_copied') || 'Link Copiado!') : (t('meet_copy_invite') || 'Copiar Convite')}</span>
           </button>
         </div>
       </div>
 
       {inCall ? (
-        <div className={`relative w-full bg-black border border-white/10 overflow-hidden flex flex-col justify-between rounded-sm ${
-          isFullscreen ? 'flex-1 min-h-0 my-3' : 'h-[440px] sm:h-[500px] md:h-[540px]'
+        <div className={`relative w-full bg-black border border-white/10 overflow-hidden flex flex-col justify-between rounded-sm shadow-2xl ${
+          isFullscreen ? 'flex-1 min-h-0 my-3' : 'h-[calc(100vh-270px)] min-h-[580px]'
         }`}>
           {/* PALCO PRINCIPAL DE VÍDEO / DISPLAY */}
           <div className="relative w-full h-full bg-[#040404] flex items-center justify-center overflow-hidden">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,8 +19,14 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  ZoomIn,
+  Play,
+  MessageSquarePlus,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { MediaLightboxModal, MediaItem } from '@/components/admin/MediaLightboxModal';
+import { CurationDossierExport } from '@/components/admin/CurationDossierExport';
 
 export default function ApplicationDetailPage() {
   const params = useParams();
@@ -34,22 +40,72 @@ export default function ApplicationDetailPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/admin/applications/${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setApp(data.application);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  // Estados de Lightbox / Mídia Ampliada
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxItems, setLightboxItems] = useState<MediaItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Estados de Anotações Internas
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [res, nRes] = await Promise.all([
+        fetch(`/api/admin/applications/${id}`),
+        fetch(`/api/admin/applications/${id}/notes`),
+      ]);
+
+      if (res.ok) {
+        const data = await res.json();
+        setApp(data.application);
       }
+      if (nRes.ok) {
+        const nData = await nRes.json();
+        setNotes(nData.notes || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-    if (id) load();
   }, [id]);
+
+  useEffect(() => {
+    if (id) loadData();
+  }, [id, loadData]);
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !newNoteText.trim()) return;
+
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/admin/applications/${id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newNoteText }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setNotes((prev) => [data.note, ...prev]);
+        setNewNoteText('');
+      }
+    } catch (e) {
+      console.error('Erro ao salvar anotação:', e);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const openLightbox = (items: MediaItem[], idx: number = 0) => {
+    setLightboxItems(items);
+    setLightboxIndex(idx);
+    setLightboxOpen(true);
+  };
 
   const handleApprove = async () => {
     setProcessing(true);
@@ -61,7 +117,7 @@ export default function ApplicationDetailPage() {
       });
       if (res.ok) {
         setApp((prev: any) => ({ ...prev, curationStatus: 'APROVADO' }));
-        setMsg('Credencial aprovada com sucesso!');
+        setMsg('Credencial aprovada com sucesso! E-mail oficial e notificação disparados.');
         setTimeout(() => setMsg(null), 4000);
       }
     } finally {
@@ -120,14 +176,17 @@ export default function ApplicationDetailPage() {
           <span>Voltar para Mesa de Curadoria</span>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-gold" />
-          <span className="text-xs font-sans text-ivory/70">Protocolo #{app.id}</span>
+        <div className="flex items-center gap-3">
+          <CurationDossierExport application={app} auditorEmail="curadoria@lumiardi.com" />
+          <div className="flex items-center gap-2 text-xs font-sans text-ivory/70">
+            <ShieldCheck className="w-4 h-4 text-gold" />
+            <span>Protocolo #{app.id}</span>
+          </div>
         </div>
       </header>
 
       {msg && (
-        <div className="fixed top-16 right-6 z-50 bg-emerald-950 border border-emerald-500 text-emerald-300 px-4 py-2 text-xs font-sans rounded-sm">
+        <div className="fixed top-16 right-6 z-50 bg-emerald-950 border border-emerald-500 text-emerald-300 px-4 py-2 text-xs font-sans rounded-sm shadow-xl animate-in fade-in">
           {msg}
         </div>
       )}
@@ -161,7 +220,7 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
 
-        {/* Ficha */}
+        {/* Ficha Cadastral */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 bg-[#111111] border border-white/[0.08] rounded-sm space-y-1">
             <span className="text-[10px] text-ivory/40 uppercase">E-mail</span>
@@ -206,22 +265,113 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
 
-        {/* Documentos */}
+        {/* Documentos & Auditoria 2257 */}
         <div className="p-5 bg-[#111111] border border-gold/30 rounded-sm flex items-center justify-between">
           <div>
             <h3 className="text-sm font-medium text-ivory">
               {app.documentType || (app.role === 'agencia' ? 'Contrato Social & CNPJ' : 'Documento de Identificação')}
             </h3>
             <p className="text-xs text-ivory/50 mt-0.5">
-              {app.documentName || (app.role === 'agencia' ? 'contrato_social_cnpj.pdf' : 'documento_identidade.pdf')}
+              {app.documentName || (app.role === 'agencia' ? 'contrato_social_cnpj.pdf' : 'documento_identidade.pdf')} (18 U.S.C. § 2257)
             </p>
           </div>
           <button
-            onClick={() => alert(`Visualizando documento de auditoria: ${app.documentName || 'Documento Oficial'}`)}
+            onClick={() =>
+              openLightbox([
+                {
+                  url: app.documentUrl || '/images/hero_visual.jpg',
+                  title: `Documento de Identificação - ${app.fullName}`,
+                  tag: 'Documento 2257',
+                },
+              ])
+            }
             className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/30 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
           >
-            <Download className="w-4 h-4" /> Visualizar Documento
+            <ZoomIn className="w-4 h-4" /> Inspecionar Documento
           </button>
+        </div>
+
+        {/* Fotos de Portfólio se Criadora */}
+        {app.role === 'criadora' && (
+          <div className="p-5 bg-[#111111] border border-white/[0.08] rounded-sm space-y-3">
+            <span className="text-xs uppercase tracking-wider text-gold font-semibold block">
+              Ensaio Fotográfico Submetido (Clique para Zoom HD)
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { url: app.profile?.photos?.[0]?.url || '/images/creator_elena.jpg', title: `${app.fullName} - Foto 01` },
+                { url: app.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg', title: `${app.fullName} - Foto 02` },
+              ].map((p, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => openLightbox([
+                    { url: app.profile?.photos?.[0]?.url || '/images/creator_elena.jpg', title: `${app.fullName} - Foto 01` },
+                    { url: app.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg', title: `${app.fullName} - Foto 02` },
+                  ], idx)}
+                  className="relative aspect-[3/4] bg-black border border-white/10 hover:border-gold rounded-sm overflow-hidden cursor-pointer group"
+                >
+                  <Image src={p.url} alt={p.title} fill className="object-cover group-hover:scale-105 transition-transform" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-gold">
+                    <ZoomIn className="w-5 h-5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Anotações Internas entre Curadores */}
+        <div className="p-5 bg-[#111111] border border-white/[0.08] rounded-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <MessageSquarePlus className="w-4 h-4 text-gold" />
+            <span className="text-xs font-sans uppercase tracking-[0.15em] text-gold font-semibold">
+              Prontuário & Anotações Internas da Curadoria
+            </span>
+          </div>
+
+          <form onSubmit={handleAddNote} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Adicionar nota interna sobre este cadastro (visível apenas para auditores)..."
+              value={newNoteText}
+              onChange={(e) => setNewNoteText(e.target.value)}
+              className="flex-1 bg-[#181818] border border-white/[0.12] focus:border-gold px-3.5 py-2 text-xs text-ivory placeholder-ivory/30 outline-none rounded-sm"
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={savingNote || !newNoteText.trim()}
+              className="text-xs uppercase tracking-wider py-2 px-4 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Send className="w-3 h-3" />
+              <span>{savingNote ? 'Salvando...' : 'Anotar'}</span>
+            </Button>
+          </form>
+
+          {notes.length === 0 ? (
+            <p className="text-xs text-ivory/40 text-center py-2 bg-[#161616] border border-white/[0.04]">
+              Nenhuma anotação registrada ainda.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {notes.map((n) => (
+                <div key={n.id} className="p-2.5 bg-[#161616] border border-white/[0.06] rounded-sm text-xs space-y-1">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="font-mono text-gold">{n.author}</span>
+                    <span className="text-ivory/40 font-sans">
+                      {new Date(n.createdAt).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-ivory/80 font-sans leading-relaxed">{n.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Mesa de Ações */}
@@ -230,7 +380,7 @@ export default function ApplicationDetailPage() {
             variant="secondary"
             onClick={() => setShowRejectModal(true)}
             disabled={processing}
-            className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs uppercase"
+            className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs uppercase cursor-pointer"
           >
             <X className="w-4 h-4 mr-1.5" /> Recusar Credencial
           </Button>
@@ -239,7 +389,7 @@ export default function ApplicationDetailPage() {
             variant="primary"
             onClick={handleApprove}
             disabled={processing || app.curationStatus === 'APROVADO'}
-            className="text-xs uppercase font-bold"
+            className="text-xs uppercase font-bold cursor-pointer"
           >
             <Check className="w-4 h-4 mr-1.5" />
             {processing ? 'Processando...' : app.curationStatus === 'APROVADO' ? 'Já Aprovado' : 'Aprovar Credencial'}
@@ -262,7 +412,7 @@ export default function ApplicationDetailPage() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowRejectModal(false)}
-                className="px-3 py-1.5 text-xs text-ivory/60"
+                className="px-3 py-1.5 text-xs text-ivory/60 cursor-pointer"
               >
                 Cancelar
               </button>
@@ -270,7 +420,7 @@ export default function ApplicationDetailPage() {
                 variant="secondary"
                 onClick={handleReject}
                 disabled={!rejectionReason.trim() || processing}
-                className="bg-rose-600 hover:bg-rose-700 text-white border-none text-xs"
+                className="bg-rose-600 hover:bg-rose-700 text-white border-none text-xs cursor-pointer"
               >
                 Confirmar
               </Button>
@@ -278,6 +428,14 @@ export default function ApplicationDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Lightbox Modal */}
+      <MediaLightboxModal
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        items={lightboxItems}
+        initialIndex={lightboxIndex}
+      />
     </div>
   );
 }

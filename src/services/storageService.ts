@@ -147,6 +147,20 @@ export const StorageService = {
   async getAdminMetrics() {
     await initDatabase();
 
+    // Compute from fallback store
+    let fbPending = 0;
+    let fbApprovedModels = 0;
+    let fbApprovedAgencies = 0;
+    let fbRejected = 0;
+
+    for (const u of fallbackStore.users.values()) {
+      if (u.role === 'ADMIN') continue;
+      if (u.curation_status === 'EM_CURATORIA') fbPending++;
+      else if (u.curation_status === 'APROVADO' && u.role === 'MODELO') fbApprovedModels++;
+      else if (u.curation_status === 'APROVADO' && u.role === 'AGENCIA') fbApprovedAgencies++;
+      else if (u.curation_status === 'REJEITADO') fbRejected++;
+    }
+
     try {
       const res = await pool.query(`
         SELECT 
@@ -160,32 +174,24 @@ export const StorageService = {
 
       if (res.rows.length > 0) {
         const row = res.rows[0];
+        const dbPending = Number(row.pending) || 0;
         return {
-          pending: Number(row.pending) || 0,
-          approvedModels: Number(row.approved_models) || 0,
-          approvedAgencies: Number(row.approved_agencies) || 0,
-          rejected: Number(row.rejected) || 0,
+          pending: Math.max(dbPending, fbPending),
+          approvedModels: Math.max(Number(row.approved_models) || 0, fbApprovedModels),
+          approvedAgencies: Math.max(Number(row.approved_agencies) || 0, fbApprovedAgencies),
+          rejected: Math.max(Number(row.rejected) || 0, fbRejected),
         };
       }
     } catch (err) {
       // Fallback
     }
 
-    // Fallback store
-    let pending = 0;
-    let approvedModels = 0;
-    let approvedAgencies = 0;
-    let rejected = 0;
-
-    for (const u of fallbackStore.users.values()) {
-      if (u.role === 'ADMIN') continue;
-      if (u.curation_status === 'EM_CURATORIA') pending++;
-      else if (u.curation_status === 'APROVADO' && u.role === 'MODELO') approvedModels++;
-      else if (u.curation_status === 'APROVADO' && u.role === 'AGENCIA') approvedAgencies++;
-      else if (u.curation_status === 'REJEITADO') rejected++;
-    }
-
-    return { pending, approvedModels, approvedAgencies, rejected };
+    return {
+      pending: fbPending,
+      approvedModels: fbApprovedModels,
+      approvedAgencies: fbApprovedAgencies,
+      rejected: fbRejected,
+    };
   },
 
   /**
@@ -352,6 +358,29 @@ export const StorageService = {
   },
 
   /**
+   * Anotações internas e registros de auditoria da Curadoria
+   */
+  async addApplicationNote(userId: string, note: { author: string; text: string }) {
+    const noteObj = {
+      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      userId,
+      author: note.author || 'curadoria@lumiardi.com',
+      text: note.text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const current = fallbackStore.application_notes.get(userId) || [];
+    current.unshift(noteObj);
+    fallbackStore.application_notes.set(userId, current);
+
+    return noteObj;
+  },
+
+  async getApplicationNotes(userId: string) {
+    return fallbackStore.application_notes.get(userId) || [];
+  },
+
+  /**
    * Registra um novo usuário no PostgreSQL com status EM_CURATORIA
    */
   async registerUser(data: {
@@ -430,6 +459,7 @@ export const StorageService = {
             name: u.full_name,
             role: u.role === 'MODELO' ? 'criadora' : u.role === 'ADMIN' ? 'admin' : 'agencia',
             curationStatus: u.curation_status,
+            rejectionReason: u.rejection_reason || undefined,
             createdAt: u.created_at,
           },
           profile: pRes.rows[0] || null,
@@ -449,6 +479,7 @@ export const StorageService = {
             name: u.full_name,
             role: u.role === 'MODELO' ? 'criadora' : u.role === 'ADMIN' ? 'admin' : 'agencia',
             curationStatus: u.curation_status,
+            rejectionReason: u.rejection_reason || undefined,
             createdAt: u.created_at,
           },
           profile: prof || null,
@@ -768,7 +799,7 @@ export const StorageService = {
 
     const tasks = Array.from(fallbackStore.kanban_tasks.values());
     if (userId) {
-      const filtered = tasks.filter((t) => t.user_id === userId || !t.user_id);
+      const filtered = tasks.filter((t) => t.user_id === userId);
       return filtered.map((t) => ({
         id: t.id,
         title: t.title,
@@ -996,7 +1027,11 @@ export const StorageService = {
       // Fallback
     }
 
-    const files = Array.from(fallbackStore.drive_files.values());
+    const allFiles = Array.from(fallbackStore.drive_files.values());
+    const files = userId
+      ? allFiles.filter((f) => f.user_id === userId)
+      : allFiles;
+
     return files.map((f) => ({
       id: f.id,
       name: f.name,
@@ -1093,6 +1128,38 @@ export const StorageService = {
       fallbackStore.drive_files.set(id, f);
     }
     return true;
+  },
+
+  parseSizeToBytes(sizeStr: string): number {
+    if (!sizeStr) return 0;
+    const clean = sizeStr.trim().toUpperCase();
+    if (clean.endsWith('GB')) {
+      return (parseFloat(clean) || 0) * 1024 * 1024 * 1024;
+    }
+    if (clean.endsWith('MB')) {
+      return (parseFloat(clean) || 0) * 1024 * 1024;
+    }
+    if (clean.endsWith('KB')) {
+      return (parseFloat(clean) || 0) * 1024;
+    }
+    if (clean.endsWith('B')) {
+      return parseFloat(clean) || 0;
+    }
+    return parseFloat(clean) || 0;
+  },
+
+  async getUserDriveUsage(userId: string): Promise<{ totalBytes: number; totalGB: number; fileCount: number }> {
+    const files = await this.listDriveFiles(userId);
+    let totalBytes = 0;
+    for (const f of files) {
+      totalBytes += this.parseSizeToBytes(f.size);
+    }
+    const totalGB = totalBytes / (1024 * 1024 * 1024);
+    return {
+      totalBytes,
+      totalGB: Number(totalGB.toFixed(2)),
+      fileCount: files.length,
+    };
   },
 
   async saveCreator(creatorData: Partial<CompleteCreatorProfile>): Promise<CompleteCreatorProfile> {

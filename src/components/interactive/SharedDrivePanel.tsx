@@ -23,6 +23,7 @@ import {
   Fingerprint,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface DriveItem {
   id: string;
@@ -39,12 +40,28 @@ export interface DriveItem {
 
 export const SharedDrivePanel: React.FC = () => {
   const { currentUser } = useAuthPortal();
+  const { t } = useLanguage();
   const [files, setFiles] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [storageInfo, setStorageInfo] = useState<{
+    usedGB: number;
+    maxGB: number;
+    percentage: number;
+    planName: string;
+    fileCount: number;
+  }>({
+    usedGB: 0,
+    maxGB: 5,
+    percentage: 0,
+    planName: 'Glow',
+    fileCount: 0,
+  });
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Estados do Modal de Visualização Segura com Marca d'Água Dinâmica & Presigned URL
   const [previewFile, setPreviewFile] = useState<DriveItem | null>(null);
@@ -71,6 +88,9 @@ export const SharedDrivePanel: React.FC = () => {
         if (data.files) {
           setFiles(data.files);
         }
+        if (data.storage) {
+          setStorageInfo(data.storage);
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar drive:', err);
@@ -89,6 +109,7 @@ export const SharedDrivePanel: React.FC = () => {
     if (!uploadedFileList || uploadedFileList.length === 0) return;
 
     setIsUploading(true);
+    setUploadError(null);
 
     try {
       for (const file of Array.from(uploadedFileList)) {
@@ -133,8 +154,8 @@ export const SharedDrivePanel: React.FC = () => {
           });
         }
 
-        // 2. Salvar metadados na API do Drive
-        await fetch('/api/drive', {
+        // 2. Salvar metadados na API do Drive com validação de cota
+        const driveRes = await fetch('/api/drive', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -146,13 +167,19 @@ export const SharedDrivePanel: React.FC = () => {
             privacy: 'agency-only',
           }),
         });
+
+        if (!driveRes.ok) {
+          const errData = await driveRes.json();
+          throw new Error(errData.error || 'Falha ao salvar no drive.');
+        }
       }
 
       setUploadSuccess(`Upload de ${uploadedFileList.length} arquivo(s) concluído com sucesso!`);
       setTimeout(() => setUploadSuccess(null), 4000);
       await fetchFiles();
-    } catch (err) {
-      console.error('Erro ao realizar upload:', err);
+    } catch (err: any) {
+      setUploadError(err.message || 'Erro ao realizar upload');
+      setTimeout(() => setUploadError(null), 6000);
     } finally {
       setIsUploading(false);
     }
@@ -258,7 +285,7 @@ export const SharedDrivePanel: React.FC = () => {
             </span>
           </div>
           <h2 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory">
-            Lumiardi Drive — Mídias Brutas & Contratos
+            {t('drive_title') || 'Lumiardi Drive — Mídias Brutas & Contratos'}
           </h2>
           <p className="text-xs md:text-sm text-ivory/60 font-sans mt-1">
             Envie mídias em resolução máxima RAW sem compressão com Presigned URLs de 5 minutos e marca d'água forense.
@@ -269,7 +296,7 @@ export const SharedDrivePanel: React.FC = () => {
         <div className="flex items-center gap-3">
           <label className="px-5 py-2.5 bg-gold text-black-matte text-xs font-sans tracking-[0.15em] uppercase font-bold hover:bg-gold-light transition-all flex items-center gap-2 shadow-lg shadow-gold/20 cursor-pointer rounded-xs">
             <Upload className="w-4 h-4" />
-            <span>{isUploading ? 'Enviando...' : 'Fazer Upload Real'}</span>
+            <span>{isUploading ? 'Enviando...' : (t('drive_upload_btn') || 'Fazer Upload Real')}</span>
             <input
               type="file"
               multiple
@@ -301,6 +328,47 @@ export const SharedDrivePanel: React.FC = () => {
         </div>
       )}
 
+      {uploadError && (
+        <div className="bg-rose-950/70 border border-rose-500/40 text-rose-300 p-4 text-xs font-sans flex items-center justify-between gap-3 rounded-xs animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <X className="w-5 h-5 text-rose-400 shrink-0" />
+            <span>{uploadError}</span>
+          </div>
+          <button onClick={() => setUploadError(null)} className="text-rose-400/60 hover:text-rose-300 cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Barra de Uso da Cota do Plano */}
+      <div className="p-4 bg-[#111111] border border-white/[0.08] rounded-xs space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-sans gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-gold font-semibold uppercase tracking-wider text-[10px]">
+              {t('drive_quota_plan') || 'Cota do Plano'} {storageInfo.planName}
+            </span>
+            <span className="text-ivory/40">•</span>
+            <span className="text-ivory/60">{storageInfo.fileCount} arquivo(s) armazenado(s)</span>
+          </div>
+          <span className="text-ivory font-mono">
+            <strong>{storageInfo.usedGB.toFixed(2)} GB</strong> de {storageInfo.maxGB} GB ({storageInfo.percentage}%)
+          </span>
+        </div>
+
+        <div className="w-full bg-[#181818] h-2 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all duration-500 ${
+              storageInfo.percentage > 90
+                ? 'bg-rose-500'
+                : storageInfo.percentage > 70
+                ? 'bg-amber-400'
+                : 'bg-gold'
+            }`}
+            style={{ width: `${Math.max(2, storageInfo.percentage)}%` }}
+          />
+        </div>
+      </div>
+
       {/* Pastas e Categorias de Arquivo */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
@@ -312,7 +380,7 @@ export const SharedDrivePanel: React.FC = () => {
           }`}
         >
           <Folder className="w-4 h-4 mb-2 text-gold" />
-          <span className="text-xs font-sans block">Todos os Arquivos</span>
+          <span className="text-xs font-sans block">{t('drive_all_files') || 'Todos os Arquivos'}</span>
           <span className="text-[10px] text-ivory/40 block">{files.length} itens</span>
         </button>
 
@@ -325,8 +393,8 @@ export const SharedDrivePanel: React.FC = () => {
           }`}
         >
           <ImageIcon className="w-4 h-4 mb-2 text-gold" />
-          <span className="text-xs font-sans block">Fotos Brutas RAW</span>
-          <span className="text-[10px] text-ivory/40 block">Sem compressão</span>
+          <span className="text-xs font-sans block">{t('drive_raw_photos') || 'Fotos Brutas RAW'}</span>
+          <span className="text-[10px] text-ivory/40 block">{t('drive_uncompressed') || 'Sem compressão'}</span>
         </button>
 
         <button
@@ -338,8 +406,8 @@ export const SharedDrivePanel: React.FC = () => {
           }`}
         >
           <Lock className="w-4 h-4 mb-2 text-gold" />
-          <span className="text-xs font-sans block">Contratos & NDAs</span>
-          <span className="text-[10px] text-ivory/40 block">Criptografados</span>
+          <span className="text-xs font-sans block">{t('drive_contracts') || 'Contratos & NDAs'}</span>
+          <span className="text-[10px] text-ivory/40 block">{t('drive_encrypted') || 'Criptografados'}</span>
         </button>
 
         <button
@@ -351,8 +419,8 @@ export const SharedDrivePanel: React.FC = () => {
           }`}
         >
           <FileText className="w-4 h-4 mb-2 text-gold" />
-          <span className="text-xs font-sans block">Briefings de Marca</span>
-          <span className="text-[10px] text-ivory/40 block">Diretrizes</span>
+          <span className="text-xs font-sans block">{t('drive_briefings') || 'Briefings de Marca'}</span>
+          <span className="text-[10px] text-ivory/40 block">{t('drive_guidelines') || 'Diretrizes'}</span>
         </button>
       </div>
 
@@ -362,7 +430,7 @@ export const SharedDrivePanel: React.FC = () => {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
           <input
             type="text"
-            placeholder="Buscar por nome do arquivo..."
+            placeholder={t('drive_search_placeholder') || 'Buscar por nome do arquivo...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-xs font-sans bg-[#181818] border border-white/10 text-ivory focus:outline-none focus:border-gold rounded-xs"

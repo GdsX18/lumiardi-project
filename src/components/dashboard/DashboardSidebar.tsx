@@ -19,6 +19,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { cn } from '@/lib/utils';
 
 export interface NavItem {
@@ -41,34 +42,39 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   className,
 }) => {
   const { role, activeCreator, activeAgency, curationStatus, currentUser, logout } = useAuthPortal();
+  const { t } = useLanguage();
   const pathname = usePathname();
 
   const isCriadora = role === 'criadora';
   const isApproved = curationStatus === 'APROVADO' || curationStatus === 'approved';
 
-  const displayName = currentUser?.name || (isCriadora ? (activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo') : (activeAgency?.basicInfo?.responsibleName || 'Sua Agência'));
+  const displayName =
+    currentUser?.name ||
+    (isCriadora
+      ? activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo'
+      : activeAgency?.basicInfo?.responsibleName || 'Sua Agência');
   const initials = displayName.substring(0, 2).toUpperCase();
 
   const criadoraNavItems: NavItem[] = [
-    { id: 'overview', href: '/dashboard', label: 'Visão Geral & Saldo', icon: LayoutDashboard },
-    { id: 'billing', href: '/dashboard/billing', label: 'Faturamento & VIP', icon: CreditCard, badge: 'NOVO' },
-    { id: 'book', href: '/dashboard/book', label: 'Book & Ficha Técnica', icon: Camera },
-    { id: 'agencias', href: '/dashboard/agencias', label: 'Rede de Agências', icon: Building2 },
-    { id: 'kanban', href: '/dashboard/kanban', label: 'Quadro de Projetos', icon: Kanban },
-    { id: 'drive', href: '/dashboard/drive', label: 'Lumiardi Drive', icon: HardDrive },
-    { id: 'chat', href: '/dashboard/chat', label: 'Mensagens & Chat', icon: MessageSquare },
-    { id: 'meet', href: '/dashboard/meet', label: 'Lumiardi Meet', icon: Video },
+    { id: 'overview', href: '/dashboard', label: t('dash_nav_overview') || 'Visão Geral & Saldo', icon: LayoutDashboard },
+    { id: 'billing', href: '/dashboard/billing', label: t('dash_nav_billing') || 'Faturamento & VIP', icon: CreditCard, badge: 'NOVO' },
+    { id: 'book', href: '/dashboard/book', label: t('dash_nav_book') || 'Book & Ficha Técnica', icon: Camera },
+    { id: 'agencias', href: '/dashboard/agencias', label: t('dash_nav_agencies') || 'Rede de Agências', icon: Building2 },
+    { id: 'kanban', href: '/dashboard/kanban', label: t('dash_nav_kanban') || 'Quadro de Projetos', icon: Kanban },
+    { id: 'drive', href: '/dashboard/drive', label: t('dash_nav_drive') || 'Lumiardi Drive', icon: HardDrive },
+    { id: 'chat', href: '/dashboard/chat', label: t('dash_nav_chat') || 'Mensagens & Chat', icon: MessageSquare },
+    { id: 'meet', href: '/dashboard/meet', label: t('dash_nav_meet') || 'Lumiardi Meet', icon: Video },
   ];
 
   const agenciaNavItems: NavItem[] = [
-    { id: 'overview', href: '/dashboard', label: 'Painel Executivo', icon: LayoutDashboard },
-    { id: 'billing', href: '/dashboard/billing', label: 'Faturamento & Cotas', icon: CreditCard, badge: 'PRO' },
-    { id: 'scout', href: '/dashboard/agencias', label: 'Talent Scout (Filtros)', icon: Search },
-    { id: 'roster', href: '/dashboard/book', label: 'Gestão de Agenciadas', icon: Users },
-    { id: 'kanban', href: '/dashboard/kanban', label: 'Kanban de Campanhas', icon: Kanban },
-    { id: 'drive', href: '/dashboard/drive', label: 'Drive Compartilhado', icon: HardDrive },
-    { id: 'chat', href: '/dashboard/chat', label: 'Mensagens & Chat', icon: MessageSquare },
-    { id: 'meet', href: '/dashboard/meet', label: 'Lumiardi Meet', icon: Video },
+    { id: 'overview', href: '/dashboard', label: t('dash_nav_overview') || 'Painel Executivo', icon: LayoutDashboard },
+    { id: 'billing', href: '/dashboard/billing', label: t('dash_nav_billing') || 'Faturamento & Cotas', icon: CreditCard, badge: 'PRO' },
+    { id: 'scout', href: '/dashboard/agencias', label: t('dash_nav_scout') || 'Talent Scout (Filtros)', icon: Search },
+    { id: 'roster', href: '/dashboard/book', label: t('dash_nav_roster') || 'Gestão de Agenciadas', icon: Users },
+    { id: 'kanban', href: '/dashboard/kanban', label: t('dash_nav_kanban') || 'Kanban de Campanhas', icon: Kanban },
+    { id: 'drive', href: '/dashboard/drive', label: t('dash_nav_drive') || 'Drive Compartilhado', icon: HardDrive },
+    { id: 'chat', href: '/dashboard/chat', label: t('dash_nav_chat') || 'Mensagens & Chat', icon: MessageSquare },
+    { id: 'meet', href: '/dashboard/meet', label: t('dash_nav_meet') || 'Lumiardi Meet', icon: Video },
   ];
 
   const navItems = isCriadora ? criadoraNavItems : agenciaNavItems;
@@ -94,16 +100,16 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 {displayName}
               </h3>
               <span className="text-[10px] font-sans text-ivory/50 uppercase tracking-widest block truncate">
-                {isCriadora ? 'Modelo / Criadora VIP' : 'Agência Credenciada'}
+                {isCriadora ? (t('login_role_creator') || 'Modelo / Criadora VIP') : (t('login_role_agency') || 'Agência Credenciada')}
               </span>
             </div>
           </div>
 
           <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-sans">
-            <span className="text-bronze font-medium tracking-wider uppercase">Status:</span>
+            <span className="text-bronze font-medium tracking-wider uppercase">{t('dash_status') || 'Status'}:</span>
             <span className="text-emerald-400 flex items-center gap-1 font-medium">
               <ShieldCheck className="w-3 h-3" />
-              {isApproved ? 'Verificado ✓' : 'Em Análise'}
+              {isApproved ? (t('header_verified') || 'Verificado ✓') : (t('header_in_review') || 'Em Análise')}
             </span>
           </div>
         </div>
@@ -111,7 +117,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         {/* Menu de Navegação em Rotas Dedicadas */}
         <div>
           <span className="text-[10px] font-sans uppercase tracking-[0.25em] text-ivory/40 font-semibold px-3 mb-2 block">
-            Módulos do Sistema
+            {t('dash_system_modules') || 'Módulos do Sistema'}
           </span>
 
           <nav className="space-y-1">
@@ -119,7 +125,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               const Icon = item.icon;
               const isCurrentRoute =
                 pathname === item.href ||
-                (item.href === '/dashboard' && (pathname === '/dashboard' || pathname === '/dashboard/criadora' || pathname === '/dashboard/agencia'));
+                (item.href === '/dashboard' &&
+                  (pathname === '/dashboard' || pathname === '/dashboard/criadora' || pathname === '/dashboard/agencia'));
 
               return (
                 <Link
@@ -166,10 +173,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       <div className="pt-4 border-t border-white/[0.08] mt-4">
         <button
           onClick={logout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans text-ivory/50 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all rounded-sm"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans text-ivory/50 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all rounded-sm cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
-          <span>Encerrar Sessão</span>
+          <span>{t('dash_nav_logout') || 'Encerrar Sessão'}</span>
         </button>
       </div>
     </aside>

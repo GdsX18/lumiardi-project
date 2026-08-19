@@ -37,7 +37,9 @@ export default function CuradoriaPendentePage() {
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
 
   useEffect(() => {
-    async function loadUser() {
+    let intervalId: NodeJS.Timeout;
+
+    async function loadUser(isFirst = false) {
       try {
         const res = await fetch('/api/user/me');
         if (res.ok) {
@@ -45,16 +47,28 @@ export default function CuradoriaPendentePage() {
           setUserData(data.user || null);
           if (data.user?.curationStatus === 'APROVADO') {
             setShowCelebrationModal(true);
+            refreshData();
+            if (intervalId) clearInterval(intervalId);
           }
         }
       } catch (e) {
         console.error('Erro ao buscar dados do usuário:', e);
       } finally {
-        setLoading(false);
+        if (isFirst) setLoading(false);
       }
     }
-    loadUser();
-  }, []);
+
+    loadUser(true);
+
+    // Polling a cada 3.5s para transição instantânea quando a curadoria aprovar/recusar
+    intervalId = setInterval(() => {
+      loadUser(false);
+    }, 3500);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [refreshData]);
 
   const handleApproveSimulation = async () => {
     setApproving(true);
@@ -175,7 +189,7 @@ export default function CuradoriaPendentePage() {
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Falar com o Concierge de Atendimento</span>
+                  <span>Falar com a Administração</span>
                 </Link>
               </div>
             </div>
@@ -229,14 +243,14 @@ export default function CuradoriaPendentePage() {
                 </div>
               </div>
 
-              {/* Card Informativo com Concierge */}
+              {/* Card Informativo com Administração */}
               <div className="p-6 bg-gradient-to-r from-[#181611] to-[#0E0E11] border border-[#D4AF37]/30 rounded-lg flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="space-y-2 text-center md:text-left">
                   <span className="text-xs text-[#F5D77F] uppercase tracking-wider font-semibold block">
                     ⚡ Deseja atendimento prioritário?
                   </span>
                   <p className="text-xs text-ivory/70 max-w-lg leading-relaxed font-light">
-                    Você pode apresentar referências adicionais ou esclarecer dúvidas diretamente com nossa concierge exclusiva via WhatsApp.
+                    Você pode apresentar referências adicionais ou esclarecer dúvidas diretamente com nossa equipe de administração via WhatsApp.
                   </p>
                 </div>
 
@@ -246,7 +260,7 @@ export default function CuradoriaPendentePage() {
                   className="px-5 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 shrink-0"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Falar com Concierge VIP</span>
+                  <span>Falar com a Administração</span>
                 </Link>
               </div>
 

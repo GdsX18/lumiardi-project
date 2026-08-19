@@ -21,6 +21,7 @@ export const fallbackStore = {
   payment_transactions: new Map<string, any>(),
   invoices: new Map<string, any>(),
   payouts: new Map<string, any>(),
+  application_notes: new Map<string, any[]>(),
 };
 
 // Inicialização imediata síncrona/assíncrona do fallback
@@ -64,6 +65,18 @@ export const fallbackStore = {
       full_name: 'Sua Agência Corporativa',
       created_at: new Date().toISOString(),
     },
+    {
+      id: 'user-test-candidata',
+      email: 'candidata.teste@lumiardi.com',
+      password_hash: hashPassword,
+      role: 'MODELO',
+      curation_status: 'EM_CURATORIA',
+      full_name: 'Isabella Montenegro (Candidata Teste)',
+      phone: '+55 (11) 98765-4321',
+      document_type: 'Passaporte Internacional / RG',
+      document_name: 'passaporte_isabella_2257.pdf',
+      created_at: new Date().toISOString(),
+    },
   ];
 
   defaultUsers.forEach((u) => fallbackStore.users.set(u.email.toLowerCase(), u));
@@ -78,13 +91,26 @@ export const fallbackStore = {
     measurements: { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
     physiognomy: { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português', 'Inglês'] },
     address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    photos: [
-      { id: '1', url: '/images/creator_elena.jpg', title: 'Editorial Milan', tag: 'Alta Resolução · RAW' },
-      { id: '2', url: '/images/creator_sophia.jpg', title: 'Studio Portrait', tag: 'Book Oficial' },
-      { id: '3', url: '/images/hero_visual.jpg', title: 'Cinematic Reel Still', tag: 'Vídeo Highlight' },
-    ],
-    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    bio: 'Modelo editorial e criadora de conteúdo de alto padrão focada em campanhas internacionais de luxo.',
+    photos: [],
+    video_url: '',
+    bio: '',
+  });
+
+  fallbackStore.profiles.set('user-test-candidata', {
+    user_id: 'user-test-candidata',
+    artistic_name: 'Isabella M.',
+    category: 'Alta Moda & Criadora VIP',
+    instagram: '@isabella.montenegro',
+    gender: 'Feminino',
+    document_number: 'MG-19.824.552',
+    birth_date: '14/05/2001',
+    monthly_revenue_estimate: 'Sob Consulta',
+    measurements: { height: '178', weight: '56', waist: '61', bust: '89', hips: '91' },
+    physiognomy: { eyeColor: 'Verdes', hairColor: 'Castanho Claro', skinTone: 'Clara', languages: ['Português', 'Inglês', 'Italiano'] },
+    address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
+    photos: [],
+    video_url: '',
+    bio: '',
   });
 
   fallbackStore.profiles.set('user-agency-1', {
@@ -499,14 +525,23 @@ export async function initDatabase(): Promise<boolean> {
       const hashPassword = await bcrypt.hash('lumiardi2026', 10);
 
       await client.query(`
-        INSERT INTO users (id, email, password_hash, role, curation_status, full_name)
+        INSERT INTO users (id, email, password_hash, role, curation_status, full_name, document_name)
         VALUES 
-          ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi'),
-          ('user-admin-model', 'admin@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Sua Conta Modelo'),
-          ('user-model-1', 'modelo@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Criadora Lumiardi'),
-          ('user-agency-1', 'agencia@lumiardi.com', $1, 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa')
+          ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL),
+          ('user-admin-model', 'admin@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Sua Conta Modelo', NULL),
+          ('user-model-1', 'modelo@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Criadora Lumiardi', NULL),
+          ('user-agency-1', 'agencia@lumiardi.com', $1, 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa', NULL),
+          ('user-test-candidata', 'candidata.teste@lumiardi.com', $1, 'MODELO', 'EM_CURATORIA', 'Isabella Montenegro (Candidata Teste)', 'passaporte_isabella_2257.pdf')
         ON CONFLICT (email) DO NOTHING;
       `, [hashPassword]);
+
+      await client.query(`
+        INSERT INTO profiles (user_id, artistic_name, category, instagram, created_at)
+        VALUES 
+          ('user-model-1', 'Sua Conta Modelo', 'Modelo & Criadora VIP', '@suaconta', NOW()),
+          ('user-test-candidata', 'Isabella M.', 'Alta Moda & Criadora VIP', '@isabella.montenegro', NOW())
+        ON CONFLICT (user_id) DO NOTHING;
+      `);
 
       isInitialized = true;
       console.log('✅ PostgreSQL Local (pgAdmin): Tabelas, Finanças e Assinaturas sincronizadas.');

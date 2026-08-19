@@ -471,4 +471,30 @@ export const BillingService = {
     await cache.delete(`sub:${userId}`);
     return true;
   },
+
+  /**
+   * Reativa assinatura que estava programada para cancelamento
+   */
+  async reactivateSubscription(userId: string): Promise<boolean> {
+    await initDatabase();
+
+    try {
+      await pool.query(
+        'UPDATE subscriptions SET cancel_at_period_end = FALSE, updated_at = NOW() WHERE user_id = $1 AND status = $2',
+        [userId, 'active']
+      );
+    } catch {
+      // Fallback
+    }
+
+    const sub = fallbackStore.subscriptions.get(userId);
+    if (sub) {
+      sub.cancel_at_period_end = false;
+      sub.cancelAtPeriodEnd = false;
+      fallbackStore.subscriptions.set(userId, sub);
+    }
+
+    await cache.delete(`sub:${userId}`);
+    return true;
+  },
 };

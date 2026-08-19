@@ -23,12 +23,14 @@ import {
   Plus,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EditProfileModal } from './EditProfileModal';
 
 export const CreatorProfileView: React.FC = () => {
   const { activeCreator, refreshData } = useAuthPortal();
+  const { t } = useLanguage();
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'book' | 'tech-sheet' | 'limits'>('book');
@@ -199,7 +201,7 @@ export const CreatorProfileView: React.FC = () => {
               className="px-4 py-2.5 bg-[#161616] hover:bg-[#222222] text-ivory border border-gold/40 text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-sm rounded-sm hover:border-gold"
             >
               <Upload className="w-3.5 h-3.5 text-gold" />
-              <span>Gerenciar Fotos do Book</span>
+              <span>{t('book_manage_photos') || 'Gerenciar Fotos do Book'}</span>
             </button>
 
             <button
@@ -207,7 +209,7 @@ export const CreatorProfileView: React.FC = () => {
               className="px-4 py-2.5 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/10 text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer rounded-sm hover:border-gold/40"
             >
               <Edit3 className="w-3.5 h-3.5 text-gold" />
-              <span>Editar Perfil</span>
+              <span>{t('header_edit_profile') || 'Editar Perfil'}</span>
             </button>
 
             <button
@@ -218,7 +220,7 @@ export const CreatorProfileView: React.FC = () => {
               className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md rounded-sm"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Compartilhar Book</span>
+              <span>{t('book_share_book') || 'Compartilhar Book'}</span>
             </button>
           </div>
         </div>
@@ -233,7 +235,7 @@ export const CreatorProfileView: React.FC = () => {
                 : 'border-transparent text-ivory/60 hover:text-ivory'
             }`}
           >
-            📸 Book Fotográfico & Showreel
+            📸 {t('book_subtab_photos') || 'Book Fotográfico & Showreel'}
           </button>
           <button
             onClick={() => setActiveSubTab('tech-sheet')}
@@ -243,7 +245,7 @@ export const CreatorProfileView: React.FC = () => {
                 : 'border-transparent text-ivory/60 hover:text-ivory'
             }`}
           >
-            📋 Ficha Técnica & Medidas
+            📋 {t('book_subtab_tech') || 'Ficha Técnica & Medidas'}
           </button>
           <button
             onClick={() => setActiveSubTab('limits')}
@@ -253,7 +255,7 @@ export const CreatorProfileView: React.FC = () => {
                 : 'border-transparent text-ivory/60 hover:text-ivory'
             }`}
           >
-            🛡️ Diretrizes & Objetivos
+            🛡️ {t('book_subtab_guidelines') || 'Diretrizes & Objetivos'}
           </button>
         </div>
       </div>
