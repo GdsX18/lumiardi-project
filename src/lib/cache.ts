@@ -11,7 +11,7 @@ interface CacheEntry<T> {
 }
 
 class CacheManager {
-  private inMemoryCache: Map<string, CacheEntry<any>> = new Map();
+  private inMemoryCache: Map<string, CacheEntry<unknown>> = new Map();
   private maxEntries: number = 1000;
 
   /**

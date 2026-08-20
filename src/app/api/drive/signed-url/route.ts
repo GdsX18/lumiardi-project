@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const userId = session?.id || rawBody.userId || 'user-model-1';
     const fileName = sanitizeInput(rawBody.fileName || 'arquivo_lumiardi.jpg');
     const fileType = sanitizeInput(rawBody.fileType || 'image/jpeg');
-    const category = (rawBody.category || 'raw-photos') as any;
+    const category = (rawBody.category || 'raw-photos') as 'raw-photos' | 'videos' | 'contracts' | 'briefings';
     const operation = (rawBody.operation || 'upload') as 'upload' | 'download';
 
     const presigned = await R2StorageService.createPresignedUrl({

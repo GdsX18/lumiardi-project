@@ -12,7 +12,6 @@ import {
   CheckoutSessionResponse,
   WebhookResult,
   SubscriptionRecord,
-  CryptoCurrency,
 } from './types';
 import { getPlan } from './plansConfig';
 
@@ -36,17 +35,18 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
   /**
    * Ordena as chaves do objeto recursivamente para verificação exata de HMAC do NOWPayments
    */
-  private sortObjectKeys(obj: any): any {
+  private sortObjectKeys(obj: unknown): unknown {
     if (typeof obj !== 'object' || obj === null) {
       return obj;
     }
     if (Array.isArray(obj)) {
       return obj.map((item) => this.sortObjectKeys(item));
     }
-    return Object.keys(obj)
+    const record = obj as Record<string, unknown>;
+    return Object.keys(record)
       .sort()
-      .reduce((result: Record<string, any>, key: string) => {
-        result[key] = this.sortObjectKeys(obj[key]);
+      .reduce((result: Record<string, unknown>, key: string) => {
+        result[key] = this.sortObjectKeys(record[key]);
         return result;
       }, {});
   }
@@ -202,12 +202,11 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
    */
   async handleWebhook(
     rawBody: string,
-    headers: Record<string, string | string[] | undefined>
+    _headers: Record<string, string | string[] | undefined>
   ): Promise<WebhookResult> {
     const payload = JSON.parse(rawBody);
     const paymentStatus = payload.payment_status || payload.status || 'finished';
     const paymentId = String(payload.payment_id || payload.id || `nowpay_${Date.now()}`);
-    const orderId = payload.order_id || '';
     const userId = payload.order_description?.match(/userId:([a-zA-Z0-9_-]+)/)?.[1];
 
     console.log(`[NOWPayments IPN] Status: ${paymentStatus} para Payment ID: ${paymentId}`);
@@ -282,12 +281,12 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
     return 'waiting';
   }
 
-  async getSubscription(gatewaySubscriptionId: string): Promise<SubscriptionRecord | null> {
+  async getSubscription(_gatewaySubscriptionId: string): Promise<SubscriptionRecord | null> {
     return null;
   }
 
   async cancelSubscription(gatewaySubscriptionId: string): Promise<boolean> {
-    console.log(`[NOWPayments] Assinaturas cripto encerram automaticamente ao fim do ciclo.`);
+    console.log(`[NOWPayments] Assinaturas cripto (${gatewaySubscriptionId}) encerram automaticamente ao fim do ciclo.`);
     return true;
   }
 }

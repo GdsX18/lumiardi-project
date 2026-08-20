@@ -1,17 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { BillingService } from '@/lib/payments/billingService';
+import { NextRequest } from 'next/server';
 import { fallbackStore } from '@/lib/db';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  let invoice: any = null;
+  let invoice: Record<string, unknown> | null = null;
   for (const inv of fallbackStore.invoices.values()) {
     if (inv.id === id) {
-      invoice = inv;
+      invoice = inv as unknown as Record<string, unknown>;
       break;
     }
   }
@@ -65,19 +64,19 @@ export async function GET(
     <div class="details">
       <div class="row">
         <span class="label">Número do Documento:</span>
-        <span><strong>${invoice.invoice_number || invoice.invoiceNumber || 'LUM-INV-2026'}</strong></span>
+        <span><strong>${String(invoice.invoice_number || invoice.invoiceNumber || 'LUM-INV-2026')}</strong></span>
       </div>
       <div class="row">
         <span class="label">Código de Autenticação / Recibo:</span>
-        <span>${invoice.receipt_number || invoice.receiptNumber || 'LMI-REC-99410'}</span>
+        <span>${String(invoice.receipt_number || invoice.receiptNumber || 'LMI-REC-99410')}</span>
       </div>
       <div class="row">
         <span class="label">Data de Emissão & Pagamento:</span>
-        <span>${new Date(invoice.paid_at || invoice.paidAt || Date.now()).toLocaleDateString('pt-BR')}</span>
+        <span>${new Date(String(invoice.paid_at || invoice.paidAt || new Date().toISOString())).toLocaleDateString('pt-BR')}</span>
       </div>
       <div class="row">
         <span class="label">Descrição do Serviço:</span>
-        <span>${invoice.billing_reason || invoice.billingReason || 'Assinatura Membro Lumiardi VIP'}</span>
+        <span>${String(invoice.billing_reason || invoice.billingReason || 'Assinatura Membro Lumiardi VIP')}</span>
       </div>
       <div class="row">
         <span class="label">Método de Liquidação:</span>
@@ -86,7 +85,7 @@ export async function GET(
 
       <div class="row total">
         <span>Valor Total Pago:</span>
-        <span>${invoice.currency === 'USD' ? '$' : 'R$'} ${Number(invoice.amount).toFixed(2)}</span>
+        <span>${invoice.currency === 'USD' ? '$' : 'R$'} ${Number(invoice.amount || 0).toFixed(2)}</span>
       </div>
     </div>
 

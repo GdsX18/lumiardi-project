@@ -219,8 +219,8 @@ Responda ESTRITAMENTE em JSON puro (sem markdown extra) com o seguinte formato:
         ]);
         responseText = result.response.text();
         if (responseText) break;
-      } catch (err: any) {
-        lastError = err;
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
         console.warn(`[KYC Biometrics] Modelo ${modelName} indisponível, tentando próximo na cascata...`);
         continue;
       }

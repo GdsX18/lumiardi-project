@@ -95,7 +95,7 @@ export const KYCService = {
   /**
    * Trata o retorno do webhook do provedor de KYC (Sumsub/Veriff)
    */
-  async processKYCWebhook(payload: Record<string, any>): Promise<{
+  async processKYCWebhook(payload: Record<string, unknown>): Promise<{
     handled: boolean;
     userId?: string;
     newStatus: 'APROVADO' | 'REJEITADO' | 'EM_CURATORIA';
@@ -103,10 +103,12 @@ export const KYCService = {
   }> {
     await initDatabase();
 
-    const reviewStatus = payload.reviewStatus || payload.status || 'completed';
-    const reviewResult = payload.reviewResult?.reviewAnswer || (payload.approved ? 'GREEN' : 'RED');
-    const userId = payload.externalUserId || payload.userId;
-    const reason = payload.reviewResult?.moderationComment || payload.reason || 'Verificação biométrica e documental concluída.';
+    const reviewStatus = String(payload.reviewStatus || payload.status || 'completed');
+    console.log(`[KYC Webhook] Status da revisão: ${reviewStatus}`);
+    const reviewResultObj = payload.reviewResult as { reviewAnswer?: string; moderationComment?: string } | undefined;
+    const reviewResult = reviewResultObj?.reviewAnswer || (payload.approved ? 'GREEN' : 'RED');
+    const userId = (payload.externalUserId || payload.userId) as string | undefined;
+    const reason = reviewResultObj?.moderationComment || (payload.reason as string) || 'Verificação biométrica e documental concluída.';
 
     const newStatus = reviewResult === 'GREEN' ? 'APROVADO' : 'REJEITADO';
 

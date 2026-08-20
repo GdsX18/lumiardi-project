@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { cache } from '@/lib/cache';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const creators = await cache.getOrSet(
       'api:creators:all',

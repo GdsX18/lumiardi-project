@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const role = session.role as 'criadora' | 'agencia';
 
     // Sanitiza e extrai campos recebidos
-    const sanitizedUpdates: any = {};
+    const sanitizedUpdates: Record<string, unknown> = {};
 
     if (body.artisticName !== undefined) sanitizedUpdates.artisticName = sanitizeInput(body.artisticName);
     if (body.fullName !== undefined) sanitizedUpdates.fullName = sanitizeInput(body.fullName);
@@ -64,11 +64,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (Array.isArray(body.photos)) {
-      sanitizedUpdates.photos = body.photos.map((p: any) => ({
+      sanitizedUpdates.photos = body.photos.map((p: Record<string, unknown>) => ({
         id: p.id || `photo-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-        url: sanitizeInput(p.url || ''),
-        title: sanitizeInput(p.title || 'Ensaio Editorial'),
-        tag: sanitizeInput(p.tag || 'Alta Resolução'),
+        url: sanitizeInput(String(p.url || '')),
+        title: sanitizeInput(String(p.title || 'Ensaio Editorial')),
+        tag: sanitizeInput(String(p.tag || 'Alta Resolução')),
       }));
     }
 

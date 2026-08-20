@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
            WHERE id = $2`,
           [result.extractedData.documentType, userId]
         );
-      } catch (dbErr) {
+      } catch {
         // Fallback em memória se PostgreSQL estiver offline
       }
 

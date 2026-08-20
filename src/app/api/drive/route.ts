@@ -134,7 +134,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
     return NextResponse.json({ error: 'ID ausente.' }, { status: 400 });
-  } catch (err: unknown) {
+  } catch {
     return NextResponse.json({ error: 'Erro ao registrar download' }, { status: 500 });
   }
 }

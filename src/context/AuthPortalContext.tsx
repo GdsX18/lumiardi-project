@@ -90,8 +90,56 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    let isMounted = true;
+    const loadInitialSession = async () => {
+      try {
+        const [meRes, creatorsRes, agenciesRes] = await Promise.all([
+          fetch('/api/user/me'),
+          fetch('/api/creators'),
+          fetch('/api/agencies'),
+        ]);
+
+        if (!isMounted) return;
+
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.authenticated && meData.user && isMounted) {
+            setCurrentUser(meData.user);
+            setRole(meData.user.role);
+            setCurationStatus(meData.user.curationStatus);
+
+            if (meData.user.role === 'criadora' && meData.profile) {
+              setActiveCreator(meData.profile);
+            } else if (meData.user.role === 'agencia' && meData.profile) {
+              setActiveAgency(meData.profile);
+            }
+          }
+        }
+
+        if (creatorsRes.ok && isMounted) {
+          const cData = await creatorsRes.json();
+          if (Array.isArray(cData.creators) && isMounted) {
+            setAllCreators(cData.creators);
+          }
+        }
+
+        if (agenciesRes.ok && isMounted) {
+          const aData = await agenciesRes.json();
+          if (Array.isArray(aData.agencies) && isMounted) {
+            setAllAgencies(aData.agencies);
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao carregar sessão inicial:', e);
+      }
+    };
+
+    loadInitialSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const clearNotifications = () => setNotificationsCount(0);
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SECURITY_HEADERS } from '@/lib/security';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = decodeSession(cookie);
@@ -75,6 +75,8 @@ export function middleware(request: NextRequest) {
 
   return response;
 }
+
+export default proxy;
 
 export const config = {
   matcher: [

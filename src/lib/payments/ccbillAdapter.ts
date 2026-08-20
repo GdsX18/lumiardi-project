@@ -132,7 +132,7 @@ export class CCBillAdapter implements PaymentGatewayService {
    */
   async verifyWebhookSignature(
     rawBody: string,
-    headers: Record<string, string | string[] | undefined>
+    _headers: Record<string, string | string[] | undefined>
   ): Promise<boolean> {
     try {
       // Se estiver em ambiente de teste ou dev, valida se salt estiver presente
@@ -140,15 +140,15 @@ export class CCBillAdapter implements PaymentGatewayService {
         return true;
       }
 
-      let parsed: Record<string, any> = {};
+      let parsed: Record<string, unknown> = {};
       try {
         parsed = JSON.parse(rawBody);
       } catch {
         parsed = Object.fromEntries(new URLSearchParams(rawBody));
       }
 
-      const subscriptionId = parsed.subscriptionId || parsed.subscription_id;
-      const responseDigest = parsed.responseDigest || parsed.digest;
+      const subscriptionId = (parsed.subscriptionId || parsed.subscription_id) as string | undefined;
+      const responseDigest = (parsed.responseDigest || parsed.digest) as string | undefined;
 
       if (!subscriptionId || !responseDigest) {
         return false;
@@ -171,19 +171,19 @@ export class CCBillAdapter implements PaymentGatewayService {
    */
   async handleWebhook(
     rawBody: string,
-    headers: Record<string, string | string[] | undefined>
+    _headers: Record<string, string | string[] | undefined>
   ): Promise<WebhookResult> {
-    let payload: Record<string, any> = {};
+    let payload: Record<string, unknown> = {};
     try {
       payload = JSON.parse(rawBody);
     } catch {
       payload = Object.fromEntries(new URLSearchParams(rawBody));
     }
 
-    const eventType = payload.eventType || payload.action || payload.event || 'NewSaleSuccess';
-    const subscriptionId = payload.subscriptionId || payload.subscription_id || `ccbill_sub_${Date.now()}`;
-    const transactionId = payload.transactionId || payload.paymentId || `ccbill_tx_${Date.now()}`;
-    const userId = payload['custom:userId'] || payload.userId || payload.accounting_id;
+    const eventType = String(payload.eventType || payload.action || payload.event || 'NewSaleSuccess');
+    const subscriptionId = String(payload.subscriptionId || payload.subscription_id || `ccbill_sub_${Date.now()}`);
+    const transactionId = String(payload.transactionId || payload.paymentId || `ccbill_tx_${Date.now()}`);
+    const userId = (payload['custom:userId'] || payload.userId || payload.accounting_id) as string | undefined;
 
     console.log(`[CCBill Webhook] Recebido evento: ${eventType} para sub: ${subscriptionId}`);
 
@@ -237,7 +237,7 @@ export class CCBillAdapter implements PaymentGatewayService {
   /**
    * Consulta de assinatura CCBill (Simulação / API REST CCBill)
    */
-  async getSubscription(gatewaySubscriptionId: string): Promise<SubscriptionRecord | null> {
+  async getSubscription(_gatewaySubscriptionId: string): Promise<SubscriptionRecord | null> {
     return null;
   }
 

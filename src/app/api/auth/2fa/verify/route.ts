@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyTOTP } from '@/lib/security/totp';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
-import { fallbackStore, pool, initDatabase } from '@/lib/db';
+import { fallbackStore } from '@/lib/db';
 import { sanitizeInput } from '@/lib/security';
 
 export async function POST(request: NextRequest) {

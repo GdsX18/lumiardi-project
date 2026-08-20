@@ -11,7 +11,6 @@ export async function POST(request: NextRequest) {
     const session = decodeSession(cookie);
 
     const userId = session?.id || 'user-model-1';
-    const userRole = session?.role || 'criadora';
 
     const body = await request.json();
     const planId = sanitizeInput(body.planId) as PlanId;

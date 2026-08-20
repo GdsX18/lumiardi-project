@@ -14,9 +14,8 @@ import {
   PlanCategory,
   PaymentGatewayType,
   BillingInterval,
-  SubscriptionStatus,
 } from './types';
-import { getPlan, LUMIARDI_PLANS } from './plansConfig';
+import { getPlan } from './plansConfig';
 import { cache } from '@/lib/cache';
 
 export const BillingService = {
@@ -62,26 +61,26 @@ export const BillingService = {
           // Fallback
         }
 
-        const fallback = fallbackStore.subscriptions.get(userId);
+        const fallback = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
         if (fallback) {
           return {
             id: fallback.id,
-            userId: fallback.user_id,
+            userId: fallback.user_id || fallback.userId,
             gateway: fallback.gateway,
-            gatewaySubscriptionId: fallback.gateway_subscription_id,
-            gatewayCustomerId: fallback.gateway_customer_id,
-            planId: fallback.plan_id,
-            planCategory: fallback.plan_category,
+            gatewaySubscriptionId: fallback.gateway_subscription_id || fallback.gatewaySubscriptionId,
+            gatewayCustomerId: fallback.gateway_customer_id || fallback.gatewayCustomerId,
+            planId: fallback.plan_id || fallback.planId,
+            planCategory: fallback.plan_category || fallback.planCategory,
             status: fallback.status,
-            billingInterval: fallback.billing_interval,
+            billingInterval: fallback.billing_interval || fallback.billingInterval,
             amount: Number(fallback.amount),
             currency: fallback.currency,
-            currentPeriodStart: fallback.current_period_start,
-            currentPeriodEnd: fallback.current_period_end,
-            cancelAtPeriodEnd: fallback.cancel_at_period_end,
+            currentPeriodStart: fallback.current_period_start || fallback.currentPeriodStart,
+            currentPeriodEnd: fallback.current_period_end || fallback.currentPeriodEnd,
+            cancelAtPeriodEnd: Boolean(fallback.cancel_at_period_end ?? fallback.cancelAtPeriodEnd),
             metadata: fallback.metadata,
-            createdAt: fallback.created_at,
-            updatedAt: fallback.updated_at,
+            createdAt: fallback.created_at || fallback.createdAt,
+            updatedAt: fallback.updated_at || fallback.updatedAt,
           };
         }
 
@@ -105,7 +104,7 @@ export const BillingService = {
     billingInterval: BillingInterval;
     amount: number;
     currency: 'BRL' | 'USD';
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }): Promise<SubscriptionRecord> {
     await initDatabase();
 
@@ -162,7 +161,7 @@ export const BillingService = {
           record.updatedAt,
         ]
       );
-    } catch (e) {
+    } catch {
       // Fallback
     }
 
@@ -212,7 +211,7 @@ export const BillingService = {
     cryptoAddress?: string;
     cryptoAmount?: number;
     cryptoCurrency?: string;
-    rawPayload?: Record<string, any>;
+    rawPayload?: Record<string, unknown>;
     idempotencyKey?: string;
   }): Promise<TransactionRecord> {
     await initDatabase();
@@ -268,7 +267,7 @@ export const BillingService = {
       // Fallback
     }
 
-    fallbackStore.payment_transactions.set(record.id, record);
+    fallbackStore.payment_transactions.set(record.id, record as unknown as Record<string, unknown>);
     return record;
   },
 
@@ -332,7 +331,7 @@ export const BillingService = {
       // Fallback
     }
 
-    fallbackStore.invoices.set(id, record);
+    fallbackStore.invoices.set(id, record as unknown as Record<string, unknown>);
     return record;
   },
 
@@ -370,7 +369,8 @@ export const BillingService = {
     }
 
     const invoices: InvoiceRecord[] = [];
-    for (const inv of fallbackStore.invoices.values()) {
+    for (const rawInv of fallbackStore.invoices.values()) {
+      const inv = rawInv as Record<string, any>;
       if (inv.user_id === userId || inv.userId === userId) {
         invoices.push({
           id: inv.id,
@@ -425,7 +425,8 @@ export const BillingService = {
     }
 
     const payouts: PayoutRecord[] = [];
-    for (const p of fallbackStore.payouts.values()) {
+    for (const rawP of fallbackStore.payouts.values()) {
+      const p = rawP as Record<string, any>;
       if (p.creator_id === userId || p.agency_id === userId || p.creatorId === userId) {
         payouts.push({
           id: p.id,
@@ -461,7 +462,7 @@ export const BillingService = {
       // Fallback
     }
 
-    const sub = fallbackStore.subscriptions.get(userId);
+    const sub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
     if (sub) {
       sub.cancel_at_period_end = true;
       sub.cancelAtPeriodEnd = true;
@@ -487,7 +488,7 @@ export const BillingService = {
       // Fallback
     }
 
-    const sub = fallbackStore.subscriptions.get(userId);
+    const sub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
     if (sub) {
       sub.cancel_at_period_end = false;
       sub.cancelAtPeriodEnd = false;

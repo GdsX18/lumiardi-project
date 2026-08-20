@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const userEmail = session?.email || rawBody.email || 'candidata@lumiardi.com';
     const fullName = session?.name || rawBody.fullName || 'Candidata VIP';
     const role: 'criadora' | 'agencia' = (session?.role === 'agencia' || rawBody.role === 'agencia') ? 'agencia' : 'criadora';
-    const documentType = sanitizeInput(rawBody.documentType) as any;
+    const documentType = sanitizeInput(rawBody.documentType);
 
     const verificationSession = await KYCService.createVerificationSession({
       userId,

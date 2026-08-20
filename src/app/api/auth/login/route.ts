@@ -44,14 +44,14 @@ export async function POST(request: NextRequest) {
     }
 
     const user = authResult.user;
-    const profile = authResult.profile;
+    const profile = authResult.profile as Record<string, any> | null | undefined;
 
-    const isApproved = user.curationStatus === 'APROVADO' || user.curationStatus === 'approved';
+    const isApproved = String(user.curationStatus).toUpperCase() === 'APROVADO';
 
     const sessionUser: SessionUser = {
       id: user.id,
       email: user.email,
-      name: user.name || profile?.artistic_name || (role === 'criadora' ? 'Sua Conta Modelo' : 'Sua Agência'),
+      name: user.name || profile?.artistic_name || profile?.artisticName || (role === 'criadora' ? 'Sua Conta Modelo' : 'Sua Agência'),
       role: role,
       curationStatus: isApproved ? 'APROVADO' : 'EM_CURATORIA',
       category: profile?.category || (role === 'criadora' ? 'Criadora VIP' : undefined),

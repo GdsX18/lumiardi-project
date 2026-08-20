@@ -12,16 +12,16 @@ export const pool = new Pool({
 
 // Memória resiliente instantânea com suporte completo a pagamentos e assinaturas
 export const fallbackStore = {
-  users: new Map<string, any>(),
-  profiles: new Map<string, any>(),
-  kanban_tasks: new Map<string, any>(),
-  messages: new Map<string, any>(),
-  drive_files: new Map<string, any>(),
-  subscriptions: new Map<string, any>(),
-  payment_transactions: new Map<string, any>(),
-  invoices: new Map<string, any>(),
-  payouts: new Map<string, any>(),
-  application_notes: new Map<string, any[]>(),
+  users: new Map<string, Record<string, unknown>>(),
+  profiles: new Map<string, Record<string, unknown>>(),
+  kanban_tasks: new Map<string, Record<string, unknown>>(),
+  messages: new Map<string, Record<string, unknown>>(),
+  drive_files: new Map<string, Record<string, unknown>>(),
+  subscriptions: new Map<string, Record<string, unknown>>(),
+  payment_transactions: new Map<string, Record<string, unknown>>(),
+  invoices: new Map<string, Record<string, unknown>>(),
+  payouts: new Map<string, Record<string, unknown>>(),
+  application_notes: new Map<string, Record<string, unknown>[]>(),
 };
 
 // Inicialização imediata síncrona/assíncrona do fallback
@@ -528,7 +528,7 @@ export async function initDatabase(): Promise<boolean> {
         INSERT INTO users (id, email, password_hash, role, curation_status, full_name, document_name)
         VALUES 
           ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL),
-          ('user-admin-model', 'admin@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Sua Conta Modelo', NULL),
+          ('user-admin-model', 'admin@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Administrador Lumiardi', NULL),
           ('user-model-1', 'modelo@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Criadora Lumiardi', NULL),
           ('user-agency-1', 'agencia@lumiardi.com', $1, 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa', NULL),
           ('user-test-candidata', 'candidata.teste@lumiardi.com', $1, 'MODELO', 'EM_CURATORIA', 'Isabella Montenegro (Candidata Teste)', 'passaporte_isabella_2257.pdf')
@@ -549,7 +549,7 @@ export async function initDatabase(): Promise<boolean> {
     } finally {
       client.release();
     }
-  } catch (err: any) {
+  } catch {
     return false;
   }
 }

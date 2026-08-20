@@ -90,6 +90,7 @@ async function runTests() {
     'src/lib/security/turnstile.ts',
     'src/lib/kyc/kycService.ts',
     'src/lib/storage/r2Service.ts',
+    'src/proxy.ts',
   ];
 
   modules.forEach((file) => {
@@ -158,7 +159,7 @@ async function runTests() {
   });
 
   // 5. Teste das Páginas do Dashboard, Portais e Legal
-  console.log('\n🖥️ 5. Verificação de Páginas, Portais e Documentação Legal:');
+  console.log('\n🖥️ 5. Verificação de Páginas, Portais, SEO e Error Boundaries:');
   const pages = [
     'src/app/page.tsx',
     'src/app/login/page.tsx',
@@ -177,6 +178,12 @@ async function runTests() {
     'src/app/dashboard/agencias/page.tsx',
     'src/app/admin/page.tsx',
     'src/app/admin/login/page.tsx',
+    'src/app/robots.ts',
+    'src/app/sitemap.ts',
+    'src/app/manifest.ts',
+    'src/app/not-found.tsx',
+    'src/app/error.tsx',
+    'src/app/global-error.tsx',
   ];
 
   pages.forEach((p) => {

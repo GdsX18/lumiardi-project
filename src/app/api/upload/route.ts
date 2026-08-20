@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
           size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
           type: file.type,
         });
-      } catch (fsErr) {
+      } catch {
         // Fallback para Data URI em ambientes serverless/read-only
         const base64Data = `data:${file.type};base64,${buffer.toString('base64')}`;
         return NextResponse.json({

@@ -4,7 +4,7 @@ import { KYCService } from '@/lib/kyc/kycService';
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
-    let payload: Record<string, any> = {};
+    let payload: Record<string, unknown> = {};
 
     try {
       payload = JSON.parse(rawBody);

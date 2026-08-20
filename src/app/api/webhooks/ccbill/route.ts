@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { paymentFactory } from '@/lib/payments/gatewayFactory';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
+import { PlanId, BillingInterval } from '@/lib/payments/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,15 +25,15 @@ export async function POST(request: NextRequest) {
     const result = await ccbill.handleWebhook(rawBody, headersList);
 
     if (result.status === 'success' && result.userId) {
-      let payload: Record<string, any> = {};
+      let payload: Record<string, unknown> = {};
       try {
         payload = JSON.parse(rawBody);
       } catch {
         payload = Object.fromEntries(new URLSearchParams(rawBody));
       }
 
-      const planId = payload['custom:planId'] || 'radiance';
-      const interval = payload['custom:interval'] || 'monthly';
+      const planId = (payload['custom:planId'] as PlanId) || 'radiance';
+      const interval = (payload['custom:interval'] as BillingInterval) || 'monthly';
       const plan = getPlan(planId);
 
       if (result.eventType === 'NewSaleSuccess' || result.eventType === 'RenewalSuccess') {

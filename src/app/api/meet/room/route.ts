@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const hostId = session?.id || 'host-user';
     const hostName = session?.name || 'Membro VIP Lumiardi';
     const customRoomName = sanitizeInput(rawBody.roomName || '');
 

@@ -131,7 +131,7 @@ export interface SubscriptionRecord {
   currentPeriodStart: string;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -149,7 +149,7 @@ export interface TransactionRecord {
   cryptoAddress?: string;
   cryptoAmount?: number;
   cryptoCurrency?: string;
-  rawPayload?: Record<string, any>;
+  rawPayload?: Record<string, unknown>;
   idempotencyKey?: string;
   createdAt: string;
 }

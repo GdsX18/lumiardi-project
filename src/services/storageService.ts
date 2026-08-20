@@ -11,6 +11,7 @@ import {
   CreatorFilterQuery,
   CurationStatusType,
 } from '@/types';
+import { SessionUser } from '@/lib/auth';
 
 export const StorageService = {
   /**
@@ -20,7 +21,7 @@ export const StorageService = {
     email: string,
     pass: string,
     role: 'criadora' | 'agencia'
-  ): Promise<{ user: any; profile?: any } | null> {
+  ): Promise<{ user: SessionUser; profile?: Record<string, unknown> | null } | null> {
     const normEmail = email.trim().toLowerCase();
     const cleanPass = pass.trim();
     const targetRole = role === 'criadora' ? 'MODELO' : 'AGENCIA';
@@ -52,28 +53,28 @@ export const StorageService = {
               curationStatus: user.curation_status,
               createdAt: user.created_at,
             },
-            profile: profRes.rows[0] || null,
+            profile: (profRes.rows[0] as Record<string, unknown>) || null,
           };
         }
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
     // 2. Fallback de memória caso PostgreSQL esteja offline
-    const userFallback = fallbackStore.users.get(normEmail);
+    const userFallback = fallbackStore.users.get(normEmail) as Record<string, unknown> | undefined;
     if (userFallback && userFallback.role === targetRole) {
-      const match = await bcrypt.compare(cleanPass, userFallback.password_hash);
+      const match = await bcrypt.compare(cleanPass, (userFallback.password_hash as string) || '');
       if (match || cleanPass === 'lumiardi2026') {
-        const prof = fallbackStore.profiles.get(userFallback.id);
+        const prof = fallbackStore.profiles.get((userFallback.id as string) || '');
         return {
           user: {
-            id: userFallback.id,
-            email: userFallback.email,
-            name: userFallback.full_name,
+            id: String(userFallback.id),
+            email: String(userFallback.email),
+            name: String(userFallback.full_name),
             role: userFallback.role === 'MODELO' ? 'criadora' : 'agencia',
-            curationStatus: userFallback.curation_status,
-            createdAt: userFallback.created_at,
+            curationStatus: userFallback.curation_status as 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO',
+            createdAt: String(userFallback.created_at),
           },
           profile: prof || null,
         };
@@ -86,7 +87,7 @@ export const StorageService = {
   /**
    * Autenticação exclusiva para equipe de Curadoria e Gestores (Admin)
    */
-  async authenticateAdmin(email: string, pass: string): Promise<{ user: any } | null> {
+  async authenticateAdmin(email: string, pass: string): Promise<{ user: SessionUser } | null> {
     const normEmail = email.trim().toLowerCase();
     const cleanPass = pass.trim();
 
@@ -114,25 +115,25 @@ export const StorageService = {
           };
         }
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
-    const userFallback = fallbackStore.users.get(normEmail);
+    const userFallback = fallbackStore.users.get(normEmail) as Record<string, unknown> | undefined;
     if (
       userFallback &&
       (userFallback.role === 'ADMIN' || normEmail === 'curadoria@lumiardi.com' || normEmail === 'admin@lumiardi.com')
     ) {
-      const match = await bcrypt.compare(cleanPass, userFallback.password_hash);
+      const match = await bcrypt.compare(cleanPass, (userFallback.password_hash as string) || '');
       if (match || cleanPass === 'lumiardi2026') {
         return {
           user: {
-            id: userFallback.id,
-            email: userFallback.email,
-            name: userFallback.full_name,
+            id: String(userFallback.id),
+            email: String(userFallback.email),
+            name: String(userFallback.full_name),
             role: 'admin',
             curationStatus: 'APROVADO',
-            createdAt: userFallback.created_at,
+            createdAt: String(userFallback.created_at),
           },
         };
       }
@@ -182,7 +183,7 @@ export const StorageService = {
           rejected: Math.max(Number(row.rejected) || 0, fbRejected),
         };
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -211,7 +212,7 @@ export const StorageService = {
         LEFT JOIN profiles p ON u.id = p.user_id
         WHERE u.role != 'ADMIN'
       `;
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (targetRole) {
         params.push(targetRole);
@@ -265,18 +266,18 @@ export const StorageService = {
           };
         });
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
     // Fallback store
-    const list: any[] = [];
+    const list: Record<string, unknown>[] = [];
     for (const u of fallbackStore.users.values()) {
       if (u.role === 'ADMIN') continue;
       if (targetRole && u.role !== targetRole) continue;
       if (status && status !== 'ALL' && u.curation_status !== status) continue;
 
-      const p = fallbackStore.profiles.get(u.id) || {};
+      const p = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
       const isModel = u.role === 'MODELO';
 
       list.push({
@@ -315,7 +316,7 @@ export const StorageService = {
       });
     }
 
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return list.sort((a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime());
   },
 
   /**
@@ -341,7 +342,7 @@ export const StorageService = {
         `UPDATE users SET curation_status = $1, rejection_reason = $2, updated_at = NOW() WHERE id = $3`,
         [status, rejectionReason || null, id]
       );
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -415,7 +416,7 @@ export const StorageService = {
       );
 
       return { id, email: normEmail, role: roleDb, curation_status: 'EM_CURATORIA', full_name: data.fullName };
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -462,10 +463,10 @@ export const StorageService = {
             rejectionReason: u.rejection_reason || undefined,
             createdAt: u.created_at,
           },
-          profile: pRes.rows[0] || null,
+          profile: (pRes.rows[0] as Record<string, unknown>) || null,
         };
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -474,13 +475,13 @@ export const StorageService = {
         const prof = fallbackStore.profiles.get(userId);
         return {
           user: {
-            id: u.id,
-            email: u.email,
-            name: u.full_name,
+            id: u.id as string,
+            email: u.email as string,
+            name: u.full_name as string,
             role: u.role === 'MODELO' ? 'criadora' : u.role === 'ADMIN' ? 'admin' : 'agencia',
-            curationStatus: u.curation_status,
-            rejectionReason: u.rejection_reason || undefined,
-            createdAt: u.created_at,
+            curationStatus: u.curation_status as 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO',
+            rejectionReason: (u.rejection_reason as string) || undefined,
+            createdAt: u.created_at as string,
           },
           profile: prof || null,
         };
@@ -503,7 +504,7 @@ export const StorageService = {
   /**
    * Atualização de Perfil e Book (Modelos & Agências)
    */
-  async updateUserProfile(userId: string, role: 'criadora' | 'agencia', updates: any) {
+  async updateUserProfile(userId: string, _role: 'criadora' | 'agencia', updates: Record<string, unknown>) {
     await initDatabase();
 
     try {
@@ -518,7 +519,7 @@ export const StorageService = {
 
       // 2. Atualiza na tabela profiles
       const profileUpdates: string[] = [];
-      const params: any[] = [userId];
+      const params: unknown[] = [userId];
 
       if (updates.artisticName !== undefined) {
         params.push(updates.artisticName);
@@ -607,20 +608,20 @@ export const StorageService = {
       if (u.id === userId) {
         const nameToUpdate = updates.fullName || updates.artisticName || updates.name || updates.responsibleName;
         if (nameToUpdate) {
-          u.full_name = nameToUpdate;
+          u.full_name = nameToUpdate as string;
         }
         break;
       }
     }
 
-    const currentProfile = fallbackStore.profiles.get(userId) || { user_id: userId };
+    const currentProfile = (fallbackStore.profiles.get(userId) as Record<string, unknown>) || { user_id: userId };
     const mergedProfile = {
       ...currentProfile,
       ...updates,
       user_id: userId,
-      measurements: { ...(currentProfile.measurements || {}), ...(updates.measurements || {}) },
-      physiognomy: { ...(currentProfile.physiognomy || {}), ...(updates.physiognomy || {}) },
-      address: { ...(currentProfile.address || {}), ...(updates.address || {}) },
+      measurements: { ...((currentProfile.measurements as Record<string, unknown>) || {}), ...((updates.measurements as Record<string, unknown>) || {}) },
+      physiognomy: { ...((currentProfile.physiognomy as Record<string, unknown>) || {}), ...((updates.physiognomy as Record<string, unknown>) || {}) },
+      address: { ...((currentProfile.address as Record<string, unknown>) || {}), ...((updates.address as Record<string, unknown>) || {}) },
       photos: updates.photos !== undefined ? updates.photos : (currentProfile.photos || []),
     };
     fallbackStore.profiles.set(userId, mergedProfile);
@@ -631,7 +632,7 @@ export const StorageService = {
   /**
    * Listar todos os criadores aprovados
    */
-  async listCreators(): Promise<any[]> {
+  async listCreators(): Promise<Record<string, unknown>[]> {
     await initDatabase();
     try {
       const res = await pool.query(`
@@ -667,14 +668,14 @@ export const StorageService = {
           createdAt: row.created_at,
         }));
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
-    const creators: any[] = [];
+    const creators: Record<string, unknown>[] = [];
     for (const u of fallbackStore.users.values()) {
       if (u.role === 'MODELO' && u.curation_status === 'APROVADO') {
-        const p = fallbackStore.profiles.get(u.id) || {};
+        const p = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
         creators.push({
           id: u.id,
           basicInfo: {
@@ -705,7 +706,7 @@ export const StorageService = {
   /**
    * Listar todas as agências aprovadas
    */
-  async listAgencies(): Promise<any[]> {
+  async listAgencies(): Promise<Record<string, unknown>[]> {
     await initDatabase();
     try {
       const res = await pool.query(`
@@ -738,14 +739,14 @@ export const StorageService = {
           createdAt: row.created_at,
         }));
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
-    const agencies: any[] = [];
+    const agencies: Record<string, unknown>[] = [];
     for (const u of fallbackStore.users.values()) {
       if (u.role === 'AGENCIA' && u.curation_status === 'APROVADO') {
-        const p = fallbackStore.profiles.get(u.id) || {};
+        const p = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
         agencies.push({
           id: u.id,
           basicInfo: {
@@ -793,7 +794,7 @@ export const StorageService = {
           createdAt: r.created_at,
         }));
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -801,23 +802,23 @@ export const StorageService = {
     if (userId) {
       const filtered = tasks.filter((t) => t.user_id === userId);
       return filtered.map((t) => ({
-        id: t.id,
-        title: t.title,
-        agency: t.agency_name || t.agency,
-        priority: t.priority,
-        date: t.due_date || t.date,
-        column: t.column_status || t.column,
-        createdAt: t.created_at,
+        id: t.id as string,
+        title: t.title as string,
+        agency: (t.agency_name || t.agency) as string,
+        priority: t.priority as string,
+        date: (t.due_date || t.date) as string,
+        column: (t.column_status || t.column) as string,
+        createdAt: t.created_at as string,
       }));
     }
     return tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      agency: t.agency_name || t.agency,
-      priority: t.priority,
-      date: t.due_date || t.date,
-      column: t.column_status || t.column,
-      createdAt: t.created_at,
+      id: t.id as string,
+      title: t.title as string,
+      agency: (t.agency_name || t.agency) as string,
+      priority: t.priority as string,
+      date: (t.due_date || t.date) as string,
+      column: (t.column_status || t.column) as string,
+      createdAt: t.created_at as string,
     }));
   },
 
@@ -842,7 +843,7 @@ export const StorageService = {
          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
         [id, data.userId || null, data.title, agency, col, prio, due]
       );
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -873,7 +874,7 @@ export const StorageService = {
       if (updates.columnStatus) {
         await pool.query('UPDATE kanban_tasks SET column_status = $1 WHERE id = $2', [updates.columnStatus, id]);
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -891,7 +892,7 @@ export const StorageService = {
     await initDatabase();
     try {
       await pool.query('DELETE FROM kanban_tasks WHERE id = $1', [id]);
-    } catch (err) {
+    } catch {
       // Fallback
     }
     fallbackStore.kanban_tasks.delete(id);
@@ -920,23 +921,23 @@ export const StorageService = {
           isRead: m.is_read,
         }));
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
     const msgs = Array.from(fallbackStore.messages.values())
       .filter((m) => m.conversation_id === conversationId)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      .sort((a, b) => new Date(String(a.created_at)).getTime() - new Date(String(b.created_at)).getTime());
 
     return msgs.map((m) => ({
-      id: m.id,
-      senderId: m.sender_id,
-      text: m.text,
-      attachmentUrl: m.attachment_url,
-      attachmentName: m.attachment_name,
-      attachmentType: m.attachment_type,
-      createdAt: m.created_at,
-      isRead: m.is_read,
+      id: m.id as string,
+      senderId: m.sender_id as string,
+      text: m.text as string,
+      attachmentUrl: m.attachment_url as string | undefined,
+      attachmentName: m.attachment_name as string | undefined,
+      attachmentType: m.attachment_type as string | undefined,
+      createdAt: m.created_at as string,
+      isRead: Boolean(m.is_read),
     }));
   },
 
@@ -968,7 +969,7 @@ export const StorageService = {
           data.attachmentType || null,
         ]
       );
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -1023,7 +1024,7 @@ export const StorageService = {
           createdAt: f.created_at,
         }));
       }
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -1033,16 +1034,16 @@ export const StorageService = {
       : allFiles;
 
     return files.map((f) => ({
-      id: f.id,
-      name: f.name,
-      category: f.category,
-      type: f.type,
-      size: f.size,
-      uploadedBy: f.uploaded_by,
-      fileUrl: f.file_url,
-      downloads: f.downloads || 0,
-      privacy: f.privacy,
-      createdAt: f.created_at,
+      id: f.id as string,
+      name: f.name as string,
+      category: f.category as string,
+      type: f.type as string,
+      size: f.size as string,
+      uploadedBy: (f.uploaded_by || f.uploadedBy) as string,
+      fileUrl: (f.file_url || f.fileUrl) as string,
+      downloads: Number(f.downloads || 0),
+      privacy: f.privacy as string,
+      createdAt: f.created_at as string,
     }));
   },
 
@@ -1071,7 +1072,7 @@ export const StorageService = {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, NOW())`,
         [id, data.userId || null, data.name, category, type, size, uploadedBy, data.fileUrl, privacy]
       );
-    } catch (err) {
+    } catch {
       // Fallback
     }
 
@@ -1108,7 +1109,7 @@ export const StorageService = {
     await initDatabase();
     try {
       await pool.query('DELETE FROM drive_files WHERE id = $1', [id]);
-    } catch (err) {
+    } catch {
       // Fallback
     }
     fallbackStore.drive_files.delete(id);
@@ -1119,12 +1120,12 @@ export const StorageService = {
     await initDatabase();
     try {
       await pool.query('UPDATE drive_files SET downloads = downloads + 1 WHERE id = $1', [id]);
-    } catch (err) {
+    } catch {
       // Fallback
     }
     const f = fallbackStore.drive_files.get(id);
     if (f) {
-      f.downloads = (f.downloads || 0) + 1;
+      f.downloads = (Number(f.downloads) || 0) + 1;
       fallbackStore.drive_files.set(id, f);
     }
     return true;
@@ -1168,8 +1169,8 @@ export const StorageService = {
 
     const fullProfile: CompleteCreatorProfile = {
       id,
-      basicInfo: creatorData.basicInfo || ({} as any),
-      qualitative: creatorData.qualitative || ({} as any),
+      basicInfo: creatorData.basicInfo || ({} as CompleteCreatorProfile['basicInfo']),
+      qualitative: creatorData.qualitative || ({} as CompleteCreatorProfile['qualitative']),
       appointment: creatorData.appointment || {
         date: now.split('T')[0],
         timeSlot: '14:00',
@@ -1199,8 +1200,8 @@ export const StorageService = {
 
     const fullProfile: CompleteAgencyProfile = {
       id,
-      basicInfo: agencyData.basicInfo || ({} as any),
-      qualitative: agencyData.qualitative || ({} as any),
+      basicInfo: agencyData.basicInfo || ({} as CompleteAgencyProfile['basicInfo']),
+      qualitative: agencyData.qualitative || ({} as CompleteAgencyProfile['qualitative']),
       curationStatus: (agencyData.curationStatus as CurationStatusType) || 'EM_CURATORIA',
       createdAt: agencyData.createdAt || now,
       updatedAt: now,
@@ -1227,9 +1228,9 @@ export const StorageService = {
     return data?.profile || null;
   },
 
-  async filterCreators(query: CreatorFilterQuery): Promise<CompleteCreatorProfile[]> {
+  async filterCreators(_query?: CreatorFilterQuery): Promise<CompleteCreatorProfile[]> {
     const all = await this.listCreators();
-    return all as any;
+    return all as unknown as CompleteCreatorProfile[];
   },
 };
 

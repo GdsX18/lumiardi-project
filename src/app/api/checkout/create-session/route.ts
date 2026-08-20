@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { paymentFactory } from '@/lib/payments/gatewayFactory';
-import { CreateCheckoutSessionRequest, PaymentGatewayType, PlanId, BillingInterval } from '@/lib/payments/types';
+import { CreateCheckoutSessionRequest, PaymentGatewayType, PlanId, BillingInterval, CryptoCurrency } from '@/lib/payments/types';
 import { sanitizeInput } from '@/lib/security';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const planId = sanitizeInput(rawBody.planId) as PlanId;
     const interval = (rawBody.interval === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
     const gateway = (rawBody.gateway === 'nowpayments' ? 'nowpayments' : 'ccbill') as PaymentGatewayType;
-    const cryptoCurrency = rawBody.cryptoCurrency ? sanitizeInput(rawBody.cryptoCurrency) : undefined;
+    const cryptoCurrency = rawBody.cryptoCurrency ? (sanitizeInput(rawBody.cryptoCurrency) as CryptoCurrency) : undefined;
 
     if (!planId) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       planId,
       interval,
       gateway,
-      cryptoCurrency: cryptoCurrency as any,
+      cryptoCurrency,
       successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/billing?status=success`,
       cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout?plan=${planId}&status=canceled`,
     };
