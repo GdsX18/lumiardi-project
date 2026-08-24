@@ -126,6 +126,13 @@ export const CreatorProfileView: React.FC = () => {
     },
     photos: (activeCreator as any)?.photos || (activeCreator?.qualitative as any)?.photos || defaultProfile.photos,
     videoUrl: (activeCreator as any)?.videoUrl || (activeCreator as any)?.video_url || defaultProfile.videoUrl,
+    acceptsOffers: (activeCreator as any)?.acceptsOffers !== undefined
+      ? (activeCreator as any)?.acceptsOffers
+      : ((activeCreator?.qualitative as any)?.acceptsOffers !== undefined
+          ? (activeCreator?.qualitative as any)?.acceptsOffers
+          : (activeCreator as any)?.accepts_offers !== false),
+    isRepresented: Boolean((activeCreator as any)?.isRepresented ?? (activeCreator as any)?.is_represented),
+    representedAgencyName: (activeCreator as any)?.representedAgencyName || (activeCreator as any)?.represented_agency_name || '',
   };
 
   const bookPhotos = creator.photos || [];
@@ -179,6 +186,28 @@ export const CreatorProfileView: React.FC = () => {
                 <Badge variant="bronze">{creator.qualitative.category}</Badge>
                 <span className="text-[10px] font-sans text-emerald-400 flex items-center gap-1 font-semibold">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Curadoria Verificada
+                </span>
+
+                {/* Badge de Representação por Agência */}
+                {creator.isRepresented ? (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-purple-500/40 bg-purple-950/40 text-purple-300 font-medium">
+                    🏢 {creator.representedAgencyName || 'Em Agência'}
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/20 bg-white/5 text-ivory/70">
+                    ✨ Independente
+                  </span>
+                )}
+
+                {/* Badge de Visibilidade e Recebimento de Ofertas no Scout */}
+                <span
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded border font-medium ${
+                    creator.acceptsOffers !== false
+                      ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300'
+                      : 'border-amber-500/40 bg-amber-950/40 text-amber-300'
+                  }`}
+                >
+                  {creator.acceptsOffers !== false ? 'Scout: Aberta a Propostas' : 'Scout: Propostas Pausadas'}
                 </span>
               </div>
 

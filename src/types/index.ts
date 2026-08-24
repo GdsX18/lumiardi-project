@@ -105,6 +105,10 @@ export interface CreatorQualitativeData {
   mainGoal: string;        // Máximo de 50 caracteres
   measurements: BodyMeasurements;
   physiognomy: Physiognomy;
+  acceptsOffers?: boolean;
+  isRepresented?: boolean;
+  representedAgencyName?: string;
+  representedAgencyId?: string;
 }
 
 export interface CurationAppointment {
@@ -129,6 +133,12 @@ export interface CompleteCreatorProfile {
   qualitative: CreatorQualitativeData;
   appointment?: CurationAppointment;
   curationStatus: CurationStatusType;
+  acceptsOffers?: boolean;
+  isRepresented?: boolean;
+  representedAgencyName?: string;
+  representedAgencyId?: string;
+  photos?: Array<{ id: string; url: string; title: string; tag?: string }>;
+  videoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -190,4 +200,111 @@ export interface CreatorFilterQuery {
   searchTerm?: string;
   minAge?: number;
   maxAge?: number;
+  acceptsOffersOnly?: boolean;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// DRIVE COMPARTILHADO & CONTRATOS
+// ═══════════════════════════════════════════════════════════════
+
+export interface SharedDriveItem {
+  id: string;
+  agencyId: string;
+  modelId: string;
+  name: string;
+  category: 'raw-photos' | 'videos' | 'contracts' | 'briefings' | 'compostos' | string;
+  type: 'image' | 'video' | 'document' | string;
+  size: string;
+  uploadedById: string;
+  uploadedByName: string;
+  fileUrl: string;
+  downloads: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AgencyModelContract {
+  id: string;
+  agencyId: string;
+  modelId: string;
+  agencyName: string;
+  modelName: string;
+  status: 'active' | 'pending' | 'terminated';
+  commissionRate: string;
+  startDate: string;
+  endDate?: string;
+  createdAt: string;
+}
+
+export interface ScoutProposal {
+  id: string;
+  agencyId: string;
+  modelId: string;
+  agencyName: string;
+  modelName: string;
+  message: string;
+  proposedCommission: string;
+  status: 'sent' | 'accepted' | 'declined' | 'blocked';
+  createdAt: string;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RBAC & AUDIT LOGS — CURADORIA
+// ═══════════════════════════════════════════════════════════════
+
+export type CurationRole = 'curador_junior' | 'curador_senior' | 'supervisor' | 'admin';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  fullName?: string;
+  curationRole: CurationRole;
+  role?: string;
+  isActive: boolean;
+  status?: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type AuditActionType =
+  | 'CURATION_APPROVED'
+  | 'CURATION_REJECTED'
+  | 'CURATION_NOTE_ADDED'
+  | 'TEAM_MEMBER_CREATED'
+  | 'TEAM_ROLE_CHANGED'
+  | 'TEAM_MEMBER_DEACTIVATED'
+  | 'TEAM_MEMBER_DELETED'
+  | 'APROVOU_MODELO'
+  | 'RECUSOU_MODELO'
+  | 'APROVOU_AGENCIA'
+  | 'RECUSOU_AGENCIA'
+  | 'ADICIONOU_NOTA'
+  | 'CRIOU_CURADOR'
+  | 'ALTEROU_CARGO_CURADOR'
+  | 'STATUS_CURADOR_ALTERADO'
+  | 'REMOVEU_CURADOR'
+  | 'EXPORTOU_DOSSIE'
+  | 'ALTEROU_CADASTRO'
+  | 'DELETOU_REGISTRO';
+
+export interface CurationAuditLog {
+  id: string;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userRole?: string;
+  performedBy?: string;
+  performedByName?: string;
+  performedByEmail?: string;
+  performedByRole?: string;
+  actionType: AuditActionType | string;
+  targetId?: string;
+  targetName?: string;
+  targetType: 'criadora' | 'agencia' | 'MODELO' | 'AGENCIA' | 'USUARIO_CURADORIA' | 'DOCUMENTO' | string;
+  reason?: string;
+  details?: Record<string, unknown>;
+  ipAddress?: string;
+  createdAt: string;
+}
+

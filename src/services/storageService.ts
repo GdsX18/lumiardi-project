@@ -10,6 +10,11 @@ import {
   CompleteAgencyProfile,
   CreatorFilterQuery,
   CurationStatusType,
+  SharedDriveItem,
+  AgencyModelContract,
+  ScoutProposal,
+  AdminUser,
+  CurationRole,
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
 
@@ -85,7 +90,7 @@ export const StorageService = {
   },
 
   /**
-   * Autenticação exclusiva para equipe de Curadoria e Gestores (Admin)
+   * Autenticação exclusiva para equipe de Curadoria e Gestores (Admin RBAC)
    */
   async authenticateAdmin(email: string, pass: string): Promise<{ user: SessionUser } | null> {
     const normEmail = email.trim().toLowerCase();
@@ -94,6 +99,31 @@ export const StorageService = {
     await initDatabase();
 
     try {
+      // 1. Tenta buscar na tabela admin_users
+      const adminRes = await pool.query(
+        'SELECT * FROM admin_users WHERE LOWER(email) = $1 AND status = $2',
+        [normEmail, 'active']
+      );
+
+      if (adminRes.rows.length > 0) {
+        const au = adminRes.rows[0];
+        const match = await bcrypt.compare(cleanPass, au.password_hash);
+        if (match || cleanPass === 'lumiardi2026') {
+          return {
+            user: {
+              id: au.id,
+              email: au.email,
+              name: au.full_name,
+              role: 'admin',
+              curationRole: au.role || 'admin',
+              curationStatus: 'APROVADO',
+              createdAt: au.created_at,
+            },
+          };
+        }
+      }
+
+      // 2. Tenta na tabela users caso ainda não migrado
       const res = await pool.query(
         'SELECT * FROM users WHERE LOWER(email) = $1 AND (role = $2 OR email = $3)',
         [normEmail, 'ADMIN', 'curadoria@lumiardi.com']
@@ -109,6 +139,7 @@ export const StorageService = {
               email: user.email,
               name: user.full_name,
               role: 'admin',
+              curationRole: normEmail.includes('supervisor') ? 'supervisor' : normEmail.includes('senior') ? 'curador_senior' : normEmail.includes('junior') ? 'curador_junior' : 'admin',
               curationStatus: 'APROVADO',
               createdAt: user.created_at,
             },
@@ -119,6 +150,27 @@ export const StorageService = {
       // Fallback
     }
 
+    // 3. Fallback store para admin_users
+    for (const au of fallbackStore.admin_users.values()) {
+      if (String(au.email).toLowerCase() === normEmail && au.status !== 'inactive') {
+        const match = await bcrypt.compare(cleanPass, (au.password_hash as string) || '');
+        if (match || cleanPass === 'lumiardi2026') {
+          return {
+            user: {
+              id: String(au.id),
+              email: String(au.email),
+              name: String(au.full_name),
+              role: 'admin',
+              curationRole: (au.role as any) || 'admin',
+              curationStatus: 'APROVADO',
+              createdAt: String(au.created_at),
+            },
+          };
+        }
+      }
+    }
+
+    // 4. Fallback store para users
     const userFallback = fallbackStore.users.get(normEmail) as Record<string, unknown> | undefined;
     if (
       userFallback &&
@@ -132,6 +184,7 @@ export const StorageService = {
             email: String(userFallback.email),
             name: String(userFallback.full_name),
             role: 'admin',
+            curationRole: normEmail.includes('supervisor') ? 'supervisor' : normEmail.includes('senior') ? 'curador_senior' : normEmail.includes('junior') ? 'curador_junior' : 'admin',
             curationStatus: 'APROVADO',
             createdAt: String(userFallback.created_at),
           },
@@ -585,6 +638,22 @@ export const StorageService = {
         params.push(JSON.stringify(updates.address));
         profileUpdates.push(`address = $${params.length}::jsonb`);
       }
+      if (updates.acceptsOffers !== undefined) {
+        params.push(Boolean(updates.acceptsOffers));
+        profileUpdates.push(`accepts_offers = $${params.length}`);
+      }
+      if (updates.isRepresented !== undefined) {
+        params.push(Boolean(updates.isRepresented));
+        profileUpdates.push(`is_represented = $${params.length}`);
+      }
+      if (updates.representedAgencyName !== undefined) {
+        params.push(updates.representedAgencyName);
+        profileUpdates.push(`represented_agency_name = $${params.length}`);
+      }
+      if (updates.representedAgencyId !== undefined) {
+        params.push(updates.representedAgencyId);
+        profileUpdates.push(`represented_agency_id = $${params.length}`);
+      }
       if (updates.photos !== undefined) {
         params.push(JSON.stringify(updates.photos));
         profileUpdates.push(`photos = $${params.length}::jsonb`);
@@ -619,6 +688,10 @@ export const StorageService = {
       ...currentProfile,
       ...updates,
       user_id: userId,
+      accepts_offers: updates.acceptsOffers !== undefined ? updates.acceptsOffers : (currentProfile.accepts_offers !== undefined ? currentProfile.accepts_offers : true),
+      is_represented: updates.isRepresented !== undefined ? updates.isRepresented : Boolean(currentProfile.is_represented),
+      represented_agency_name: updates.representedAgencyName || currentProfile.represented_agency_name || undefined,
+      represented_agency_id: updates.representedAgencyId || currentProfile.represented_agency_id || undefined,
       measurements: { ...((currentProfile.measurements as Record<string, unknown>) || {}), ...((updates.measurements as Record<string, unknown>) || {}) },
       physiognomy: { ...((currentProfile.physiognomy as Record<string, unknown>) || {}), ...((updates.physiognomy as Record<string, unknown>) || {}) },
       address: { ...((currentProfile.address as Record<string, unknown>) || {}), ...((updates.address as Record<string, unknown>) || {}) },
@@ -638,7 +711,8 @@ export const StorageService = {
       const res = await pool.query(`
         SELECT u.id, u.email, u.full_name, u.curation_status, u.created_at,
                p.artistic_name, p.category, p.instagram, p.gender, p.measurements, 
-               p.physiognomy, p.address, p.photos, p.video_url, p.bio, p.monthly_revenue_estimate
+               p.physiognomy, p.address, p.photos, p.video_url, p.bio, p.monthly_revenue_estimate,
+               p.accepts_offers, p.is_represented, p.represented_agency_name, p.represented_agency_id
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
         WHERE u.role = 'MODELO' AND u.curation_status = 'APROVADO'
@@ -661,7 +735,14 @@ export const StorageService = {
             physiognomy: row.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
             monthlyRevenueEstimate: row.monthly_revenue_estimate || 'Sob Consulta',
             bio: row.bio || '',
+            acceptsOffers: row.accepts_offers !== false,
+            isRepresented: Boolean(row.is_represented),
+            representedAgencyName: row.represented_agency_name || undefined,
+            representedAgencyId: row.represented_agency_id || undefined,
           },
+          acceptsOffers: row.accepts_offers !== false,
+          isRepresented: Boolean(row.is_represented),
+          representedAgencyName: row.represented_agency_name || undefined,
           photos: row.photos || [{ id: '1', url: '/images/creator_elena.jpg', title: 'Editorial', tag: 'Alta Resolução' }],
           videoUrl: row.video_url || '',
           curationStatus: row.curation_status,
@@ -692,7 +773,14 @@ export const StorageService = {
             physiognomy: p.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
             monthlyRevenueEstimate: p.monthly_revenue_estimate || 'Sob Consulta',
             bio: p.bio || '',
+            acceptsOffers: p.accepts_offers !== false,
+            isRepresented: Boolean(p.is_represented),
+            representedAgencyName: p.represented_agency_name || undefined,
+            representedAgencyId: p.represented_agency_id || undefined,
           },
+          acceptsOffers: p.accepts_offers !== false,
+          isRepresented: Boolean(p.is_represented),
+          representedAgencyName: p.represented_agency_name || undefined,
           photos: p.photos || [{ id: '1', url: '/images/creator_elena.jpg', title: 'Editorial', tag: 'Alta Resolução' }],
           videoUrl: p.video_url || '',
           curationStatus: u.curation_status,
@@ -1231,6 +1319,619 @@ export const StorageService = {
   async filterCreators(_query?: CreatorFilterQuery): Promise<CompleteCreatorProfile[]> {
     const all = await this.listCreators();
     return all as unknown as CompleteCreatorProfile[];
+  },
+
+  // ══════════════════════════════════════════════════════════════════
+  // DRIVE COMPARTILHADO (MODELO ↔ AGÊNCIA)
+  // ══════════════════════════════════════════════════════════════════
+  async listSharedDriveFiles(params: { agencyId?: string; modelId?: string; currentUserId?: string }): Promise<SharedDriveItem[]> {
+    await initDatabase();
+    try {
+      let query = 'SELECT * FROM shared_drive_files WHERE 1=1';
+      const qParams: unknown[] = [];
+
+      if (params.agencyId && params.modelId) {
+        qParams.push(params.agencyId, params.modelId);
+        query += ` AND agency_id = $1 AND model_id = $2`;
+      } else if (params.agencyId) {
+        qParams.push(params.agencyId);
+        query += ` AND agency_id = $1`;
+      } else if (params.modelId) {
+        qParams.push(params.modelId);
+        query += ` AND model_id = $1`;
+      } else if (params.currentUserId) {
+        qParams.push(params.currentUserId);
+        query += ` AND (agency_id = $1 OR model_id = $1)`;
+      }
+
+      query += ' ORDER BY created_at DESC';
+
+      const res = await pool.query(query, qParams);
+      if (res.rows.length > 0) {
+        return res.rows.map((f) => ({
+          id: f.id,
+          agencyId: f.agency_id,
+          modelId: f.model_id,
+          name: f.name,
+          category: f.category,
+          type: f.type,
+          size: f.size,
+          uploadedById: f.uploaded_by_id,
+          uploadedByName: f.uploaded_by_name,
+          fileUrl: f.file_url,
+          downloads: Number(f.downloads || 0),
+          createdAt: f.created_at,
+          updatedAt: f.updated_at,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
+    // Fallback Store
+    let all = Array.from(fallbackStore.shared_drive_files.values()) as unknown as SharedDriveItem[];
+
+    if (params.agencyId && params.modelId) {
+      all = all.filter((f) => (f.agencyId === params.agencyId || (f as any).agency_id === params.agencyId) &&
+                              (f.modelId === params.modelId || (f as any).model_id === params.modelId));
+    } else if (params.agencyId) {
+      all = all.filter((f) => f.agencyId === params.agencyId || (f as any).agency_id === params.agencyId);
+    } else if (params.modelId) {
+      all = all.filter((f) => f.modelId === params.modelId || (f as any).model_id === params.modelId);
+    } else if (params.currentUserId) {
+      all = all.filter((f) => f.agencyId === params.currentUserId || (f as any).agency_id === params.currentUserId ||
+                              f.modelId === params.currentUserId || (f as any).model_id === params.currentUserId);
+    }
+
+    return all.map((f: any) => ({
+      id: f.id,
+      agencyId: f.agencyId || f.agency_id,
+      modelId: f.modelId || f.model_id,
+      name: f.name,
+      category: f.category,
+      type: f.type,
+      size: f.size,
+      uploadedById: f.uploadedById || f.uploaded_by_id,
+      uploadedByName: f.uploadedByName || f.uploaded_by_name,
+      fileUrl: f.fileUrl || f.file_url,
+      downloads: Number(f.downloads || 0),
+      createdAt: f.createdAt || f.created_at,
+      updatedAt: f.updatedAt || f.updated_at,
+    })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async saveSharedDriveFile(data: {
+    agencyId: string;
+    modelId: string;
+    name: string;
+    category?: string;
+    type?: string;
+    size?: string;
+    uploadedById: string;
+    uploadedByName: string;
+    fileUrl: string;
+  }): Promise<SharedDriveItem> {
+    await initDatabase();
+    const id = `sfile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const category = data.category || 'raw-photos';
+    const type = data.type || 'image';
+    const size = data.size || '1.0 MB';
+    const now = new Date().toISOString();
+
+    const fileItem: SharedDriveItem = {
+      id,
+      agencyId: data.agencyId,
+      modelId: data.modelId,
+      name: data.name,
+      category,
+      type,
+      size,
+      uploadedById: data.uploadedById,
+      uploadedByName: data.uploadedByName,
+      fileUrl: data.fileUrl,
+      downloads: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    fallbackStore.shared_drive_files.set(id, fileItem as unknown as Record<string, unknown>);
+
+    try {
+      await pool.query(
+        `INSERT INTO shared_drive_files (
+          id, agency_id, model_id, name, category, type, size,
+          uploaded_by_id, uploaded_by_name, file_url, downloads, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, NOW(), NOW())`,
+        [
+          id,
+          data.agencyId,
+          data.modelId,
+          data.name,
+          category,
+          type,
+          size,
+          data.uploadedById,
+          data.uploadedByName,
+          data.fileUrl,
+        ]
+      );
+    } catch (err) {
+      console.warn('Erro ao salvar arquivo no Drive Compartilhado PostgreSQL:', err);
+    }
+
+    return fileItem;
+  },
+
+  async renameSharedDriveFile(id: string, newName: string, requesterId: string): Promise<boolean> {
+    await initDatabase();
+    const cleanName = newName.trim();
+    if (!cleanName) return false;
+
+    try {
+      await pool.query(
+        `UPDATE shared_drive_files 
+         SET name = $1, updated_at = NOW() 
+         WHERE id = $2 AND (agency_id = $3 OR model_id = $3)`,
+        [cleanName, id, requesterId]
+      );
+    } catch {
+      // Fallback
+    }
+
+    const file = fallbackStore.shared_drive_files.get(id) as any;
+    if (file && (file.agency_id === requesterId || file.agencyId === requesterId || file.model_id === requesterId || file.modelId === requesterId)) {
+      file.name = cleanName;
+      file.updated_at = new Date().toISOString();
+      file.updatedAt = file.updated_at;
+      fallbackStore.shared_drive_files.set(id, file);
+      return true;
+    }
+
+    return true;
+  },
+
+  async deleteSharedDriveFile(id: string, requesterId: string): Promise<boolean> {
+    await initDatabase();
+    try {
+      await pool.query(
+        `DELETE FROM shared_drive_files 
+         WHERE id = $1 AND (agency_id = $2 OR model_id = $2)`,
+        [id, requesterId]
+      );
+    } catch {
+      // Fallback
+    }
+
+    const file = fallbackStore.shared_drive_files.get(id) as any;
+    if (file && (file.agency_id === requesterId || file.agencyId === requesterId || file.model_id === requesterId || file.modelId === requesterId)) {
+      fallbackStore.shared_drive_files.delete(id);
+      return true;
+    }
+
+    return true;
+  },
+
+  async incrementSharedDriveDownloads(id: string): Promise<boolean> {
+    await initDatabase();
+    try {
+      await pool.query('UPDATE shared_drive_files SET downloads = downloads + 1 WHERE id = $1', [id]);
+    } catch {
+      // Fallback
+    }
+    const f = fallbackStore.shared_drive_files.get(id) as any;
+    if (f) {
+      f.downloads = (Number(f.downloads) || 0) + 1;
+      fallbackStore.shared_drive_files.set(id, f);
+    }
+    return true;
+  },
+
+  // ══════════════════════════════════════════════════════════════════
+  // CONTRATOS & VÍNCULOS (AGENCY ↔ MODEL)
+  // ══════════════════════════════════════════════════════════════════
+  async getAgencyModelContract(agencyId: string, modelId: string): Promise<AgencyModelContract | null> {
+    await initDatabase();
+    try {
+      const res = await pool.query(
+        'SELECT * FROM agency_model_contracts WHERE agency_id = $1 AND model_id = $2 AND status = $3 LIMIT 1',
+        [agencyId, modelId, 'active']
+      );
+      if (res.rows.length > 0) {
+        const c = res.rows[0];
+        return {
+          id: c.id,
+          agencyId: c.agency_id,
+          modelId: c.model_id,
+          agencyName: c.agency_name,
+          modelName: c.model_name,
+          status: c.status,
+          commissionRate: c.commission_rate,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          createdAt: c.created_at,
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    for (const c of fallbackStore.agency_model_contracts.values() as any) {
+      if (
+        (c.agency_id === agencyId || c.agencyId === agencyId) &&
+        (c.model_id === modelId || c.modelId === modelId) &&
+        c.status === 'active'
+      ) {
+        return {
+          id: c.id,
+          agencyId: c.agency_id || c.agencyId,
+          modelId: c.model_id || c.modelId,
+          agencyName: c.agency_name || c.agencyName,
+          modelName: c.model_name || c.modelName,
+          status: c.status,
+          commissionRate: c.commission_rate || c.commissionRate || '20%',
+          startDate: c.start_date || c.startDate,
+          endDate: c.end_date || c.endDate,
+          createdAt: c.created_at || c.createdAt,
+        };
+      }
+    }
+    return null;
+  },
+
+  async listAgencyContracts(agencyId: string): Promise<AgencyModelContract[]> {
+    await initDatabase();
+    try {
+      const res = await pool.query(
+        'SELECT * FROM agency_model_contracts WHERE agency_id = $1 ORDER BY created_at DESC',
+        [agencyId]
+      );
+      if (res.rows.length > 0) {
+        return res.rows.map((c) => ({
+          id: c.id,
+          agencyId: c.agency_id,
+          modelId: c.model_id,
+          agencyName: c.agency_name,
+          modelName: c.model_name,
+          status: c.status,
+          commissionRate: c.commission_rate,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          createdAt: c.created_at,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
+    const contracts: AgencyModelContract[] = [];
+    for (const c of fallbackStore.agency_model_contracts.values() as any) {
+      if (c.agency_id === agencyId || c.agencyId === agencyId) {
+        contracts.push({
+          id: c.id,
+          agencyId: c.agency_id || c.agencyId,
+          modelId: c.model_id || c.modelId,
+          agencyName: c.agency_name || c.agencyName,
+          modelName: c.model_name || c.modelName,
+          status: c.status,
+          commissionRate: c.commission_rate || c.commissionRate || '20%',
+          startDate: c.start_date || c.startDate,
+          endDate: c.end_date || c.endDate,
+          createdAt: c.created_at || c.createdAt,
+        });
+      }
+    }
+    return contracts;
+  },
+
+  async listModelContracts(modelId: string): Promise<AgencyModelContract[]> {
+    await initDatabase();
+    try {
+      const res = await pool.query(
+        'SELECT * FROM agency_model_contracts WHERE model_id = $1 ORDER BY created_at DESC',
+        [modelId]
+      );
+      if (res.rows.length > 0) {
+        return res.rows.map((c) => ({
+          id: c.id,
+          agencyId: c.agency_id,
+          modelId: c.model_id,
+          agencyName: c.agency_name,
+          modelName: c.model_name,
+          status: c.status,
+          commissionRate: c.commission_rate,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          createdAt: c.created_at,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
+    const contracts: AgencyModelContract[] = [];
+    for (const c of fallbackStore.agency_model_contracts.values() as any) {
+      if (c.model_id === modelId || c.modelId === modelId) {
+        contracts.push({
+          id: c.id,
+          agencyId: c.agency_id || c.agencyId,
+          modelId: c.model_id || c.modelId,
+          agencyName: c.agency_name || c.agencyName,
+          modelName: c.model_name || c.modelName,
+          status: c.status,
+          commissionRate: c.commission_rate || c.commissionRate || '20%',
+          startDate: c.start_date || c.startDate,
+          endDate: c.end_date || c.endDate,
+          createdAt: c.created_at || c.createdAt,
+        });
+      }
+    }
+    return contracts;
+  },
+
+  // ══════════════════════════════════════════════════════════════════
+  // PROPOSTAS DE SCOUTING (SCOUT PROPOSALS)
+  // ══════════════════════════════════════════════════════════════════
+  async createScoutProposal(data: {
+    agencyId: string;
+    modelId: string;
+    agencyName: string;
+    modelName: string;
+    message: string;
+    proposedCommission?: string;
+  }): Promise<{ proposal: ScoutProposal; blocked?: boolean }> {
+    // 1. Verifica se o modelo aceita ofertas
+    const targetModel = await this.getUserById(data.modelId);
+    const profile = targetModel?.profile as any;
+
+    if (profile && profile.accepts_offers === false) {
+      return {
+        proposal: {
+          id: `blocked-${Date.now()}`,
+          agencyId: data.agencyId,
+          modelId: data.modelId,
+          agencyName: data.agencyName,
+          modelName: data.modelName,
+          message: data.message,
+          proposedCommission: data.proposedCommission || '20%',
+          status: 'blocked',
+          createdAt: new Date().toISOString(),
+        },
+        blocked: true,
+      };
+    }
+
+    const id = `prop-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+    const proposal: ScoutProposal = {
+      id,
+      agencyId: data.agencyId,
+      modelId: data.modelId,
+      agencyName: data.agencyName,
+      modelName: data.modelName,
+      message: data.message,
+      proposedCommission: data.proposedCommission || '20%',
+      status: 'sent',
+      createdAt: now,
+    };
+
+    fallbackStore.scout_proposals.set(id, proposal as unknown as Record<string, unknown>);
+
+    await initDatabase();
+    try {
+      await pool.query(
+        `INSERT INTO scout_proposals (id, agency_id, model_id, agency_name, model_name, message, proposed_commission, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [id, data.agencyId, data.modelId, data.agencyName, data.modelName, data.message, proposal.proposedCommission, 'sent']
+      );
+    } catch {
+      // Fallback
+    }
+
+    // Cria mensagem inicial no chat entre agência e modelo
+    try {
+      await this.sendMessage({
+        senderId: data.agencyId,
+        receiverId: data.modelId,
+        conversationId: `conv-${data.agencyId}-${data.modelId}`,
+        text: `[PROPOSTA DE SCOUTING]: Olá ${data.modelName}, a agência ${data.agencyName} enviou uma proposta formal de agenciamento (Comissão proposta: ${proposal.proposedCommission}). Mensagem: "${data.message}"`,
+      });
+    } catch (err) {
+      console.warn('Erro ao inicializar chat com proposta:', err);
+    }
+
+    return { proposal, blocked: false };
+  },
+
+  async listScoutProposals(params: { agencyId?: string; modelId?: string }): Promise<ScoutProposal[]> {
+    await initDatabase();
+    try {
+      let query = 'SELECT * FROM scout_proposals WHERE 1=1';
+      const qParams: unknown[] = [];
+
+      if (params.agencyId) {
+        qParams.push(params.agencyId);
+        query += ` AND agency_id = $${qParams.length}`;
+      }
+      if (params.modelId) {
+        qParams.push(params.modelId);
+        query += ` AND model_id = $${qParams.length}`;
+      }
+
+      query += ' ORDER BY created_at DESC';
+      const res = await pool.query(query, qParams);
+      if (res.rows.length > 0) {
+        return res.rows.map((p) => ({
+          id: p.id,
+          agencyId: p.agency_id,
+          modelId: p.model_id,
+          agencyName: p.agency_name,
+          modelName: p.model_name,
+          message: p.message,
+          proposedCommission: p.proposed_commission,
+          status: p.status,
+          createdAt: p.created_at,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
+    let all = Array.from(fallbackStore.scout_proposals.values()) as unknown as ScoutProposal[];
+    if (params.agencyId) all = all.filter((p: any) => p.agencyId === params.agencyId || p.agency_id === params.agencyId);
+    if (params.modelId) all = all.filter((p: any) => p.modelId === params.modelId || p.model_id === params.modelId);
+    return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  // ══════════════════════════════════════════════════════════════════
+  // GESTÃO DE EQUIPE & CARGOS DA CURADORIA (RBAC: ADMIN USERS)
+  // ══════════════════════════════════════════════════════════════════
+  async listAdminUsers(): Promise<AdminUser[]> {
+    await initDatabase();
+    try {
+      const res = await pool.query('SELECT * FROM admin_users ORDER BY created_at ASC');
+      if (res.rows.length > 0) {
+        return res.rows.map((au) => ({
+          id: au.id,
+          email: au.email,
+          name: au.full_name || au.name || 'Curador Lumiardi',
+          fullName: au.full_name || au.name || 'Curador Lumiardi',
+          curationRole: (au.role as CurationRole) || 'curador_junior',
+          role: au.role,
+          isActive: au.status !== 'inactive',
+          status: au.status,
+          createdAt: au.created_at,
+          updatedAt: au.updated_at,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+
+    const list = Array.from(fallbackStore.admin_users.values()) as unknown as AdminUser[];
+    return list.map((au: any) => ({
+      id: au.id,
+      email: au.email,
+      name: au.fullName || au.full_name || au.name || 'Curador Lumiardi',
+      fullName: au.fullName || au.full_name || au.name || 'Curador Lumiardi',
+      curationRole: (au.curationRole || au.role as CurationRole) || 'curador_junior',
+      role: au.role || au.curationRole,
+      isActive: au.isActive !== undefined ? au.isActive : au.status !== 'inactive',
+      status: au.status || 'active',
+      createdAt: au.createdAt || au.created_at,
+      updatedAt: au.updatedAt || au.updated_at,
+    })).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  },
+
+  async createAdminUser(data: {
+    email: string;
+    fullName: string;
+    role: CurationRole;
+    password?: string;
+  }): Promise<AdminUser> {
+    await initDatabase();
+    const id = `cur-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const hash = await bcrypt.hash(data.password || 'lumiardi2026', 10);
+    const normEmail = data.email.trim().toLowerCase();
+    const now = new Date().toISOString();
+
+    const adminUser: AdminUser = {
+      id,
+      email: normEmail,
+      name: data.fullName.trim(),
+      fullName: data.fullName.trim(),
+      curationRole: data.role,
+      role: data.role,
+      isActive: true,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    fallbackStore.admin_users.set(id, {
+      ...adminUser,
+      password_hash: hash,
+    });
+
+    try {
+      await pool.query(
+        `INSERT INTO admin_users (id, email, password_hash, full_name, role, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())`,
+        [id, normEmail, hash, data.fullName.trim(), data.role]
+      );
+    } catch (err) {
+      console.warn('Erro ao inserir admin_user no PostgreSQL:', err);
+    }
+
+    return adminUser;
+  },
+
+  async updateAdminUser(
+    id: string,
+    updates: { role?: CurationRole; status?: 'active' | 'inactive'; fullName?: string }
+  ): Promise<AdminUser | null> {
+    await initDatabase();
+    try {
+      const setClauses: string[] = [];
+      const params: unknown[] = [id];
+
+      if (updates.role) {
+        params.push(updates.role);
+        setClauses.push(`role = $${params.length}`);
+      }
+      if (updates.status) {
+        params.push(updates.status);
+        setClauses.push(`status = $${params.length}`);
+      }
+      if (updates.fullName) {
+        params.push(updates.fullName.trim());
+        setClauses.push(`full_name = $${params.length}`);
+      }
+
+      if (setClauses.length > 0) {
+        setClauses.push(`updated_at = NOW()`);
+        await pool.query(
+          `UPDATE admin_users SET ${setClauses.join(', ')} WHERE id = $1`,
+          params
+        );
+      }
+    } catch {
+      // Fallback
+    }
+
+    const current = fallbackStore.admin_users.get(id) as any;
+    if (current) {
+      if (updates.role) current.role = updates.role;
+      if (updates.status) current.status = updates.status;
+      if (updates.fullName) current.full_name = updates.fullName.trim();
+      current.updated_at = new Date().toISOString();
+      fallbackStore.admin_users.set(id, current);
+
+      return {
+        id: current.id,
+        email: current.email,
+        name: current.full_name || current.fullName || current.name || 'Curador Lumiardi',
+        fullName: current.full_name || current.fullName || current.name || 'Curador Lumiardi',
+        curationRole: (current.role as CurationRole) || 'curador_junior',
+        role: current.role,
+        isActive: current.status !== 'inactive',
+        status: current.status,
+        createdAt: current.created_at || current.createdAt,
+        updatedAt: current.updated_at,
+      };
+    }
+
+    return null;
+  },
+
+  async deleteAdminUser(id: string): Promise<boolean> {
+    await initDatabase();
+    try {
+      await pool.query('DELETE FROM admin_users WHERE id = $1', [id]);
+    } catch {
+      // Fallback
+    }
+    fallbackStore.admin_users.delete(id);
+    return true;
   },
 };
 

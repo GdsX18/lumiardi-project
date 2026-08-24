@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
+import { AuditLogService } from '@/lib/audit/auditService';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 import { EmailService } from '@/lib/email';
@@ -16,6 +17,19 @@ export async function POST(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
+    const curationRole = session.curationRole || 'curador_junior';
+
+    // Regra RBAC: Curador Júnior não pode aprovar ou recusar aplicações
+    if (curationRole === 'curador_junior') {
+      return NextResponse.json(
+        {
+          error: 'Curador Júnior possui permissão somente de leitura e inserção de notas. Aprovação e recusa exigem Curador Sênior, Supervisor ou Administrador.',
+          code: 'INSUFFICIENT_PERMISSIONS',
+        },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const status = body.status === 'APROVADO' ? 'APROVADO' : 'REJEITADO';
@@ -28,14 +42,35 @@ export async function POST(
       );
     }
 
+    const targetUserRecord = (await StorageService.getUserById(id)) as any;
+    const targetName = targetUserRecord?.fullName || targetUserRecord?.user?.name || targetUserRecord?.basicInfo?.fullName || id;
+
     const success = await StorageService.updateApplicationStatus(id, status, rejectionReason);
+
+    // Registro no Histórico de Auditoria Imutável
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    await AuditLogService.logAction({
+      userId: session.id,
+      userName: session.name,
+      userEmail: session.email,
+      userRole: curationRole,
+      actionType: status === 'APROVADO' ? 'APROVOU_MODELO' : 'RECUSOU_MODELO',
+      targetId: id,
+      targetName,
+      targetType: 'MODELO',
+      details: {
+        status,
+        rejectionReason: rejectionReason || null,
+        decidedAt: new Date().toISOString(),
+      },
+      ipAddress: ip,
+    });
 
     // Dispara e-mail de notificação de decisão da curadoria em segundo plano
     try {
-      const userRecord = await StorageService.getUserById(id);
-      if (userRecord && userRecord.user?.email) {
-        const email = userRecord.user.email;
-        const name = userRecord.user.name || 'Candidata';
+      if (targetUserRecord && targetUserRecord.user?.email) {
+        const email = targetUserRecord.user.email;
+        const name = targetUserRecord.user.name || 'Candidata';
         const referenceCode = `LUM-${id.substring(0, 8).toUpperCase()}`;
         EmailService.sendKYCStatusEmail(
           email,
@@ -61,3 +96,4 @@ export async function POST(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

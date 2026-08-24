@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       name: user.name || 'Mesa de Curadoria Lumiardi',
       role: 'admin',
+      curationRole: user.curationRole || 'admin',
       curationStatus: 'APROVADO',
       createdAt: user.createdAt || new Date().toISOString(),
     };

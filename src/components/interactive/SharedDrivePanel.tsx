@@ -17,6 +17,7 @@ import {
   RefreshCw,
   FileBox,
   Eye,
+  Edit3,
   Copy,
   ExternalLink,
   Sparkles,
@@ -28,25 +29,45 @@ import { useLanguage } from '@/context/LanguageContext';
 export interface DriveItem {
   id: string;
   name: string;
-  category: 'raw-photos' | 'videos' | 'contracts' | 'briefings' | string;
+  category: 'raw-photos' | 'videos' | 'contracts' | 'briefings' | 'compostos' | string;
   type: 'image' | 'video' | 'document' | string;
   size: string;
-  uploadedBy: string;
+  uploadedBy?: string;
+  uploadedByName?: string;
+  uploadedById?: string;
   fileUrl: string;
   downloads: number;
-  privacy: 'public' | 'agency-only' | 'encrypted' | string;
+  privacy?: 'public' | 'agency-only' | 'encrypted' | string;
   createdAt?: string;
+  isShared?: boolean;
 }
 
-export const SharedDrivePanel: React.FC = () => {
+export interface SharedDrivePanelProps {
+  initialDriveMode?: 'private' | 'shared';
+  targetModelId?: string;
+  targetAgencyId?: string;
+}
+
+export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
+  initialDriveMode = 'private',
+  targetModelId,
+  targetAgencyId,
+}) => {
   const { currentUser } = useAuthPortal();
   const { t } = useLanguage();
+  const [driveMode, setDriveMode] = useState<'private' | 'shared'>(initialDriveMode);
   const [files, setFiles] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [activeContract, setActiveContract] = useState<any>(null);
+
+  // Estado para renomear arquivo
+  const [renamingFile, setRenamingFile] = useState<DriveItem | null>(null);
+  const [newFileName, setNewFileName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
 
   const [storageInfo, setStorageInfo] = useState<{
     usedGB: number;
@@ -146,7 +167,6 @@ export const SharedDrivePanel: React.FC = () => {
         }
 
         if (!fileUrl) {
-          // Fallback em Base64
           fileUrl = await new Promise<string>((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
@@ -154,23 +174,43 @@ export const SharedDrivePanel: React.FC = () => {
           });
         }
 
-        // 2. Salvar metadados na API do Drive com validação de cota
-        const driveRes = await fetch('/api/drive', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: file.name,
-            category,
-            type,
-            size: fileSize,
-            fileUrl,
-            privacy: 'agency-only',
-          }),
-        });
+        // 2. Salvar metadados na API correspondente
+        if (driveMode === 'shared') {
+          const res = await fetch('/api/drive/shared', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: file.name,
+              category,
+              type,
+              size: fileSize,
+              fileUrl,
+              modelId: targetModelId,
+              agencyId: targetAgencyId,
+            }),
+          });
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || 'Falha ao salvar no drive compartilhado.');
+          }
+        } else {
+          const driveRes = await fetch('/api/drive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: file.name,
+              category,
+              type,
+              size: fileSize,
+              fileUrl,
+              privacy: 'agency-only',
+            }),
+          });
 
-        if (!driveRes.ok) {
-          const errData = await driveRes.json();
-          throw new Error(errData.error || 'Falha ao salvar no drive.');
+          if (!driveRes.ok) {
+            const errData = await driveRes.json();
+            throw new Error(errData.error || 'Falha ao salvar no drive.');
+          }
         }
       }
 
@@ -182,6 +222,36 @@ export const SharedDrivePanel: React.FC = () => {
       setTimeout(() => setUploadError(null), 6000);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Renomear Arquivo
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renamingFile || !newFileName.trim()) return;
+
+    setIsRenaming(true);
+    try {
+      if (driveMode === 'shared') {
+        const res = await fetch('/api/drive/shared', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: renamingFile.id, name: newFileName.trim() }),
+        });
+        if (!res.ok) throw new Error('Não foi possível renomear o arquivo.');
+      } else {
+        // Renomear localmente para modo privado
+        setFiles((prev) =>
+          prev.map((f) => (f.id === renamingFile.id ? { ...f, name: newFileName.trim() } : f))
+        );
+      }
+      setRenamingFile(null);
+      setNewFileName('');
+      await fetchFiles();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao renomear');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -218,11 +288,13 @@ export const SharedDrivePanel: React.FC = () => {
   // Download Real de Arquivo
   const handleDownload = async (file: DriveItem) => {
     try {
-      await fetch('/api/drive', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: file.id }),
-      });
+      if (driveMode !== 'shared') {
+        await fetch('/api/drive', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: file.id }),
+        });
+      }
 
       if (file.fileUrl) {
         const a = document.createElement('a');
@@ -259,9 +331,15 @@ export const SharedDrivePanel: React.FC = () => {
     if (confirm('Deseja realmente remover este arquivo do Lumiardi Drive?')) {
       try {
         setFiles((prev) => prev.filter((f) => f.id !== id));
-        await fetch(`/api/drive?id=${encodeURIComponent(id)}`, {
-          method: 'DELETE',
-        });
+        if (driveMode === 'shared') {
+          await fetch(`/api/drive/shared?id=${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+          });
+        } else {
+          await fetch(`/api/drive?id=${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+          });
+        }
       } catch (err) {
         console.error('Erro ao excluir:', err);
       }
@@ -275,20 +353,61 @@ export const SharedDrivePanel: React.FC = () => {
   });
 
   return (
-    <div className="w-full bg-[#0D0D0D] border border-gold/30 text-ivory shadow-2xl p-6 md:p-8 space-y-8 rounded-sm">
+    <div className="w-full bg-[#0D0D0D] border border-gold/30 text-ivory shadow-2xl p-6 md:p-8 space-y-6 rounded-sm">
+      {/* SELETOR DE MODO DO DRIVE (PRIVADO VS COMPARTILHADO) */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-2 bg-[#121212] border border-white/10 rounded-sm">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDriveMode('private')}
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-wider font-semibold rounded-xs transition-all cursor-pointer ${
+              driveMode === 'private'
+                ? 'bg-gold text-black-matte shadow-md'
+                : 'text-ivory/60 hover:text-ivory hover:bg-white/5'
+            }`}
+          >
+            🔒 Meu Drive Privado
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDriveMode('shared')}
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-wider font-semibold rounded-xs transition-all cursor-pointer ${
+              driveMode === 'shared'
+                ? 'bg-gold text-black-matte shadow-md'
+                : 'text-ivory/60 hover:text-ivory hover:bg-white/5'
+            }`}
+          >
+            🤝 Drive Compartilhado (Modelo ↔ Agência)
+          </button>
+        </div>
+
+        <div className="text-[11px] font-mono text-gold flex items-center gap-1.5 px-3 py-1 bg-gold/10 border border-gold/20">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>{driveMode === 'shared' ? 'Acesso Exclusivo das Partes Contratantes' : 'Acesso Restrito ao Titular'}</span>
+        </div>
+      </div>
+
       {/* Topo do Drive */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs text-gold font-sans uppercase tracking-wider flex items-center gap-1 font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" /> Storage Privado Cloudflare R2 & Watermark Anti-Vazamento
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {driveMode === 'shared'
+                ? 'Repositório Compartilhado Modelo ↔ Agência'
+                : 'Storage Privado Cloudflare R2 & Watermark Anti-Vazamento'}
             </span>
           </div>
           <h2 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory">
-            {t('drive_title') || 'Lumiardi Drive — Mídias Brutas & Contratos'}
+            {driveMode === 'shared'
+              ? 'Drive Compartilhado — Parceria & Campanhas'
+              : (t('drive_title') || 'Lumiardi Drive — Mídias Brutas & Contratos')}
           </h2>
           <p className="text-xs md:text-sm text-ivory/60 font-sans mt-1">
-            Envie mídias em resolução máxima RAW sem compressão com Presigned URLs de 5 minutos e marca d'água forense.
+            {driveMode === 'shared'
+              ? 'Espaço colaborativo exclusivo entre a modelo e a agência contratante para troca de fotos RAW, contratos, compostos e briefings.'
+              : 'Envie mídias em resolução máxima RAW sem compressão com Presigned URLs de 5 minutos e marca d\'água forense.'}
           </p>
         </div>
 
@@ -296,7 +415,7 @@ export const SharedDrivePanel: React.FC = () => {
         <div className="flex items-center gap-3">
           <label className="px-5 py-2.5 bg-gold text-black-matte text-xs font-sans tracking-[0.15em] uppercase font-bold hover:bg-gold-light transition-all flex items-center gap-2 shadow-lg shadow-gold/20 cursor-pointer rounded-xs">
             <Upload className="w-4 h-4" />
-            <span>{isUploading ? 'Enviando...' : (t('drive_upload_btn') || 'Fazer Upload Real')}</span>
+            <span>{isUploading ? 'Enviando...' : (driveMode === 'shared' ? 'Enviar ao Drive Compartilhado' : (t('drive_upload_btn') || 'Fazer Upload Real'))}</span>
             <input
               type="file"
               multiple
@@ -495,6 +614,17 @@ export const SharedDrivePanel: React.FC = () => {
                   </span>
 
                   <button
+                    onClick={() => {
+                      setRenamingFile(file);
+                      setNewFileName(file.name);
+                    }}
+                    className="p-1 text-ivory/40 hover:text-gold transition-colors cursor-pointer"
+                    title="Renomear Arquivo"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
                     onClick={() => handleDelete(file.id)}
                     className="p-1 text-ivory/40 hover:text-rose-400 transition-colors cursor-pointer"
                     title="Excluir Arquivo"
@@ -538,6 +668,58 @@ export const SharedDrivePanel: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal de Renomear Arquivo */}
+      {renamingFile && (
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+          onClick={() => setRenamingFile(null)}
+        >
+          <div
+            className="w-full max-w-md bg-[#111111] border border-gold/40 p-6 space-y-4 shadow-2xl text-ivory rounded-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="font-serif-lumiardi text-lg text-ivory">Renomear Arquivo</h3>
+              <button onClick={() => setRenamingFile(null)} className="text-ivory/50 hover:text-gold cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRenameSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-wider mb-1">
+                  Nome do Arquivo
+                </label>
+                <input
+                  type="text"
+                  value={newFileName}
+                  onChange={(e) => setNewFileName(e.target.value)}
+                  className="w-full bg-[#181818] border border-white/15 focus:border-gold px-3 py-2 text-xs text-ivory outline-none rounded-xs"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setRenamingFile(null)}
+                  className="px-3 py-1.5 text-xs font-sans text-ivory/60 hover:text-ivory cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRenaming || !newFileName.trim()}
+                  className="px-5 py-2 bg-gold hover:bg-gold-light text-black-matte font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer rounded-xs disabled:opacity-50"
+                >
+                  {isRenaming ? 'Salvando...' : 'Salvar Novo Nome'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

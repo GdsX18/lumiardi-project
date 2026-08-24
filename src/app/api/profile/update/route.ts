@@ -72,6 +72,11 @@ export async function POST(request: NextRequest) {
       }));
     }
 
+    if (body.acceptsOffers !== undefined) sanitizedUpdates.acceptsOffers = Boolean(body.acceptsOffers);
+    if (body.isRepresented !== undefined) sanitizedUpdates.isRepresented = Boolean(body.isRepresented);
+    if (body.representedAgencyName !== undefined) sanitizedUpdates.representedAgencyName = sanitizeInput(body.representedAgencyName);
+    if (body.representedAgencyId !== undefined) sanitizedUpdates.representedAgencyId = sanitizeInput(body.representedAgencyId);
+
     if (body.avatarUrl !== undefined) {
       sanitizedUpdates.avatarUrl = sanitizeInput(body.avatarUrl);
     }

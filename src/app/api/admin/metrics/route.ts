@@ -16,6 +16,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       metrics,
+      currentCurator: {
+        id: session.id,
+        email: session.email,
+        name: session.name,
+        curationRole: session.curationRole || 'admin',
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao obter métricas';

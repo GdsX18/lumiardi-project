@@ -78,11 +78,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [skinTone, setSkinTone] = useState('Clara');
   const [languages, setLanguages] = useState('Português, Inglês');
 
-  // Diretrizes & Negócio
+  // Diretrizes & Negócio & Scout
   const [monthlyRevenueEstimate, setMonthlyRevenueEstimate] = useState('Sob Consulta');
   const [personalLimits, setPersonalLimits] = useState('');
   const [mainGoal, setMainGoal] = useState('');
   const [exposureOpinion, setExposureOpinion] = useState('');
+  const [acceptsOffers, setAcceptsOffers] = useState(true);
 
   useEffect(() => {
     if (initialData) {
@@ -117,6 +118,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setPersonalLimits(initialData.qualitative?.personalLimits || initialData.exposure_opinion || 'Preservação de imagem e contratos sob curadoria exclusiva.');
       setMainGoal(initialData.qualitative?.mainGoal || 'Conectar com agências internacionais de prestígio.');
       setExposureOpinion(initialData.qualitative?.exposureOpinion || 'Posicionamento exclusivo e elegante.');
+      
+      const accOffers = initialData.acceptsOffers !== undefined 
+        ? initialData.acceptsOffers 
+        : (initialData.qualitative?.acceptsOffers !== undefined 
+            ? initialData.qualitative?.acceptsOffers 
+            : initialData.accepts_offers !== false);
+      setAcceptsOffers(accOffers);
     }
   }, [initialData]);
 
@@ -222,6 +230,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       personalLimits,
       mainGoal,
       exposureOpinion,
+      acceptsOffers,
     };
 
     try {
@@ -765,9 +774,42 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </div>
           )}
 
-          {/* ABA 5: Diretrizes, Limites e Negócio */}
+          {/* ABA 5: Diretrizes, Limites, Negócio & Scout */}
           {activeTab === 'limits' && (
-            <div className="space-y-4 animate-fadeIn">
+            <div className="space-y-5 animate-fadeIn">
+              {/* TOGGLE: Aceitar Novas Ofertas de Agências */}
+              <div className="p-4 rounded-sm border border-gold/30 bg-[#161616]/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-sans font-bold text-ivory tracking-wide uppercase">
+                      Aceitar novas ofertas de agências
+                    </span>
+                    <span
+                      className={`text-[9px] font-mono px-2 py-0.5 rounded-full border ${
+                        acceptsOffers
+                          ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300'
+                          : 'border-amber-500/40 bg-amber-950/40 text-amber-300'
+                      }`}
+                    >
+                      {acceptsOffers ? 'ABERTA A PROPOSTAS' : 'PROPOSTAS PAUSADAS'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ivory/60 leading-relaxed max-w-xl">
+                    Seu perfil continua visível no módulo de Scout das agências. Quando desativado, o botão de envio de novas propostas fica desabilitado para novas agências contratantes.
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={acceptsOffers}
+                    onChange={(e) => setAcceptsOffers(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-black peer-checked:bg-gold after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                </label>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
                   Faturamento Mensal Estimado

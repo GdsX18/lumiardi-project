@@ -8,6 +8,7 @@ export interface SessionUser {
   name: string;
   role: 'criadora' | 'agencia' | 'admin';
   curationStatus: 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO';
+  curationRole?: 'curador_junior' | 'curador_senior' | 'supervisor' | 'admin';
   documentName?: string;
   category?: string;
   country?: string;
@@ -40,4 +41,8 @@ export function decodeSession(cookieValue?: string | null): SessionUser | null {
   } catch {
     return null;
   }
+}
+
+export function getSessionFromCookie(cookieValue?: string | null): SessionUser | null {
+  return decodeSession(cookieValue);
 }

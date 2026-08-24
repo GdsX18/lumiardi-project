@@ -207,9 +207,64 @@ export const TalentScoutView: React.FC = () => {
   const [selectedAvailability, setSelectedAvailability] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
-  // Modal de Detalhes do Talento
+  // Modal de Detalhes do Talento e Propostas
   const [selectedTalent, setSelectedTalent] = useState<CompleteCreatorProfile | null>(null);
+  const [proposalModalTalent, setProposalModalTalent] = useState<CompleteCreatorProfile | null>(null);
+  const [blockedModalTalent, setBlockedModalTalent] = useState<CompleteCreatorProfile | null>(null);
+  const [proposalCommission, setProposalCommission] = useState('20%');
+  const [proposalMessage, setProposalMessage] = useState('');
+  const [sendingProposal, setSendingProposal] = useState(false);
   const [proposalSentSuccess, setProposalSentSuccess] = useState<string | null>(null);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+
+  // Helper para verificar status de agenciamento e recebimento de ofertas
+  const getTalentStatusInfo = (c: CompleteCreatorProfile) => {
+    const isRep = Boolean((c as any)?.isRepresented ?? (c as any)?.is_represented);
+    const agencyName = (c as any)?.representedAgencyName || (c as any)?.represented_agency_name || '';
+    const accepts = (c as any)?.acceptsOffers !== undefined
+      ? (c as any)?.acceptsOffers
+      : ((c?.qualitative as any)?.acceptsOffers !== undefined
+          ? (c?.qualitative as any)?.acceptsOffers
+          : (c as any)?.accepts_offers !== false);
+
+    if (isRep && !accepts) {
+      return {
+        label: 'Em agência / Não aceita ofertas',
+        shortLabel: 'Não aceita ofertas',
+        variant: 'blocked' as const,
+        isRep,
+        agencyName,
+        acceptsOffers: false,
+      };
+    } else if (isRep && accepts) {
+      return {
+        label: 'Em agência / Aberta a propostas',
+        shortLabel: 'Aberta a propostas',
+        variant: 'rep_open' as const,
+        isRep,
+        agencyName,
+        acceptsOffers: true,
+      };
+    } else if (!isRep && accepts) {
+      return {
+        label: 'Independente / Aberta a propostas',
+        shortLabel: 'Aberta a propostas',
+        variant: 'indep_open' as const,
+        isRep: false,
+        agencyName: '',
+        acceptsOffers: true,
+      };
+    } else {
+      return {
+        label: 'Independente / Propostas pausadas',
+        shortLabel: 'Propostas pausadas',
+        variant: 'indep_closed' as const,
+        isRep: false,
+        agencyName: '',
+        acceptsOffers: false,
+      };
+    }
+  };
 
   // Filtragem Dinâmica
   const filteredCreators = useMemo(() => {
@@ -278,9 +333,53 @@ export const TalentScoutView: React.FC = () => {
     setSelectedAvailability('all');
   };
 
-  const handleSendProposal = (talent: CompleteCreatorProfile) => {
-    setProposalSentSuccess(talent.qualitative.artisticName);
-    setTimeout(() => setProposalSentSuccess(null), 4000);
+  const handleInitiateProposal = (talent: CompleteCreatorProfile) => {
+    const status = getTalentStatusInfo(talent);
+    if (!status.acceptsOffers) {
+      setBlockedModalTalent(talent);
+    } else {
+      setProposalModalTalent(talent);
+      setProposalCommission('20%');
+      setProposalMessage(`Olá ${talent.qualitative.artisticName}, temos interesse em apresentar uma proposta exclusiva de representação e desenvolvimento de carreira na Lumiardi.`);
+      setProposalError(null);
+    }
+  };
+
+  const handleSendProposalSubmit = async () => {
+    if (!proposalModalTalent) return;
+    setSendingProposal(true);
+    setProposalError(null);
+
+    try {
+      const res = await fetch('/api/scout/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: proposalModalTalent.id,
+          message: proposalMessage,
+          proposedCommission: proposalCommission,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 403) {
+          setBlockedModalTalent(proposalModalTalent);
+          setProposalModalTalent(null);
+          return;
+        }
+        throw new Error(data.error || 'Erro ao transmitir proposta.');
+      }
+
+      setProposalSentSuccess(proposalModalTalent.qualitative.artisticName);
+      setProposalModalTalent(null);
+      setTimeout(() => setProposalSentSuccess(null), 5000);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao enviar proposta.';
+      setProposalError(message);
+    } finally {
+      setSendingProposal(false);
+    }
   };
 
   return (
@@ -448,96 +547,123 @@ export const TalentScoutView: React.FC = () => {
       {/* Exibição em Grid */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCreators.map((creator) => (
-            <div
-              key={creator.id}
-              className="bg-[#0E0E0E] border border-white/10 hover:border-gold/60 transition-all duration-300 flex flex-col justify-between overflow-hidden group shadow-xl"
-            >
-              {/* Imagem do Book com Badges */}
-              <div className="relative h-72 bg-black overflow-hidden">
-                <Image
-                  src={
-                    creator.id === 'creator-sophia-m'
-                      ? '/images/creator_sophia.jpg'
-                      : '/images/creator_elena.jpg'
-                  }
-                  alt={creator.qualitative.artisticName}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+          {filteredCreators.map((creator) => {
+            const statusInfo = getTalentStatusInfo(creator);
 
-                <div className="absolute top-3 left-3 flex gap-2">
-                  <Badge variant="gold">TOP 0.1%</Badge>
-                  <span className="px-2 py-0.5 bg-black/70 backdrop-blur-md text-emerald-400 text-[9px] font-sans uppercase tracking-widest font-semibold border border-emerald-500/30">
-                    Aprovada ✓
-                  </span>
+            return (
+              <div
+                key={creator.id}
+                className="bg-[#0E0E0E] border border-white/10 hover:border-gold/60 transition-all duration-300 flex flex-col justify-between overflow-hidden group shadow-xl"
+              >
+                {/* Imagem do Book com Badges */}
+                <div className="relative h-72 bg-black overflow-hidden">
+                  <Image
+                    src={
+                      creator.id === 'creator-sophia-m'
+                        ? '/images/creator_sophia.jpg'
+                        : '/images/creator_elena.jpg'
+                    }
+                    alt={creator.qualitative.artisticName}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+                  {/* Badges do Card */}
+                  <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
+                    <div className="flex gap-2">
+                      <Badge variant="gold">TOP 0.1%</Badge>
+                      <span className="px-2 py-0.5 bg-black/70 backdrop-blur-md text-emerald-400 text-[9px] font-sans uppercase tracking-widest font-semibold border border-emerald-500/30">
+                        Aprovada ✓
+                      </span>
+                    </div>
+
+                    {/* Badge de Status de Agenciamento / Recebimento de Ofertas */}
+                    <span
+                      className={`px-2 py-0.5 backdrop-blur-md text-[9px] font-mono uppercase tracking-wider font-semibold border rounded-sm ${
+                        statusInfo.variant === 'blocked'
+                          ? 'bg-amber-950/85 text-amber-300 border-amber-500/50'
+                          : statusInfo.variant === 'rep_open'
+                          ? 'bg-purple-950/85 text-purple-300 border-purple-500/50'
+                          : statusInfo.variant === 'indep_open'
+                          ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/50'
+                          : 'bg-zinc-900/85 text-zinc-300 border-zinc-500/50'
+                      }`}
+                    >
+                      {statusInfo.label}
+                    </span>
+                  </div>
+
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <span className="text-[10px] uppercase tracking-widest text-gold font-sans font-semibold block mb-0.5">
+                      {creator.qualitative.category}
+                    </span>
+                    <h3 className="font-serif-lumiardi text-2xl font-medium text-ivory">
+                      {creator.qualitative.artisticName}
+                    </h3>
+                    <p className="text-xs text-ivory/70 font-sans flex items-center gap-1.5 mt-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-bronze" />
+                      <span>
+                        {creator.basicInfo.address.city}, {creator.basicInfo.address.country}
+                      </span>
+                    </p>
+                  </div>
                 </div>
 
-                <div className="absolute bottom-3 left-3 right-3">
-                  <span className="text-[10px] uppercase tracking-widest text-gold font-sans font-semibold block mb-0.5">
-                    {creator.qualitative.category}
-                  </span>
-                  <h3 className="font-serif-lumiardi text-2xl font-medium text-ivory">
-                    {creator.qualitative.artisticName}
-                  </h3>
-                  <p className="text-xs text-ivory/70 font-sans flex items-center gap-1.5 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5 text-bronze" />
-                    <span>
-                      {creator.basicInfo.address.city}, {creator.basicInfo.address.country}
-                    </span>
+                {/* Informações Resumidas da Ficha Técnica */}
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-sans">
+                    <div className="p-2 bg-[#151515] border border-white/5">
+                      <span className="text-[9px] uppercase text-ivory/40 block">Altura</span>
+                      <span className="text-gold font-medium">
+                        {creator.qualitative.measurements.height} cm
+                      </span>
+                    </div>
+                    <div className="p-2 bg-[#151515] border border-white/5">
+                      <span className="text-[9px] uppercase text-ivory/40 block">Faturamento</span>
+                      <span className="text-emerald-400 font-medium truncate block text-[11px]">
+                        {creator.qualitative.monthlyRevenueEstimate.split(' ')[0]}
+                      </span>
+                    </div>
+                    <div className="p-2 bg-[#151515] border border-white/5">
+                      <span className="text-[9px] uppercase text-ivory/40 block">Cabelo</span>
+                      <span className="text-ivory font-medium truncate block text-[11px]">
+                        {creator.qualitative.physiognomy.hairColor}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-sans text-ivory/70 line-clamp-2 italic">
+                    &quot;{creator.qualitative.mainGoal}&quot;
                   </p>
+
+                  {/* Botões de Ação */}
+                  <div className="pt-3 border-t border-white/10 flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedTalent(creator)}
+                      className="flex-1 px-3 py-2 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/10 text-xs font-sans uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-gold" />
+                      <span>Ver Book</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleInitiateProposal(creator)}
+                      className={`flex-1 px-3 py-2 text-xs font-sans font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md ${
+                        statusInfo.acceptsOffers
+                          ? 'bg-gold hover:bg-gold-light text-black-matte'
+                          : 'bg-zinc-800/80 hover:bg-zinc-700 text-ivory/70 border border-white/10'
+                      }`}
+                      title={!statusInfo.acceptsOffers ? 'Ofertas desativadas pelo talento' : 'Enviar proposta formal'}
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{statusInfo.acceptsOffers ? 'Proposta' : 'Ofertas Off'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              {/* Informações Resumidas da Ficha Técnica */}
-              <div className="p-5 space-y-4">
-                <div className="grid grid-cols-3 gap-2 text-center text-xs font-sans">
-                  <div className="p-2 bg-[#151515] border border-white/5">
-                    <span className="text-[9px] uppercase text-ivory/40 block">Altura</span>
-                    <span className="text-gold font-medium">
-                      {creator.qualitative.measurements.height} cm
-                    </span>
-                  </div>
-                  <div className="p-2 bg-[#151515] border border-white/5">
-                    <span className="text-[9px] uppercase text-ivory/40 block">Faturamento</span>
-                    <span className="text-emerald-400 font-medium truncate block text-[11px]">
-                      {creator.qualitative.monthlyRevenueEstimate.split(' ')[0]}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-[#151515] border border-white/5">
-                    <span className="text-[9px] uppercase text-ivory/40 block">Cabelo</span>
-                    <span className="text-ivory font-medium truncate block text-[11px]">
-                      {creator.qualitative.physiognomy.hairColor}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-xs font-sans text-ivory/70 line-clamp-2 italic">
-                  &quot;{creator.qualitative.mainGoal}&quot;
-                </p>
-
-                {/* Botões de Ação */}
-                <div className="pt-3 border-t border-white/10 flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedTalent(creator)}
-                    className="flex-1 px-3 py-2 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/10 text-xs font-sans uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-gold" />
-                    <span>Ver Book</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleSendProposal(creator)}
-                    className="flex-1 px-3 py-2 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Proposta</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -548,70 +674,90 @@ export const TalentScoutView: React.FC = () => {
             <thead>
               <tr className="bg-[#141414] border-b border-white/10 text-ivory/50 uppercase tracking-widest text-[10px]">
                 <th className="p-4">Modelo / Talento</th>
+                <th className="p-4">Status no Scout</th>
                 <th className="p-4">Categoria</th>
                 <th className="p-4">Localização</th>
                 <th className="p-4">Biometria</th>
-                <th className="p-4">Fisiognomia</th>
                 <th className="p-4">Fat. Mensal Estimado</th>
                 <th className="p-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {filteredCreators.map((creator) => (
-                <tr key={creator.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 border border-gold/40 relative bg-black shrink-0 overflow-hidden">
-                        <Image
-                          src={
-                            creator.id === 'creator-sophia-m'
-                              ? '/images/creator_sophia.jpg'
-                              : '/images/creator_elena.jpg'
-                          }
-                          alt={creator.qualitative.artisticName}
-                          fill
-                          className="object-cover"
-                        />
+              {filteredCreators.map((creator) => {
+                const statusInfo = getTalentStatusInfo(creator);
+
+                return (
+                  <tr key={creator.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 border border-gold/40 relative bg-black shrink-0 overflow-hidden">
+                          <Image
+                            src={
+                              creator.id === 'creator-sophia-m'
+                                ? '/images/creator_sophia.jpg'
+                                : '/images/creator_elena.jpg'
+                            }
+                            alt={creator.qualitative.artisticName}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div>
+                          <span className="font-serif-lumiardi text-base text-ivory font-medium block">
+                            {creator.qualitative.artisticName}
+                          </span>
+                          <span className="text-[10px] text-gold">{creator.qualitative.platforms.instagram}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-serif-lumiardi text-base text-ivory font-medium block">
-                          {creator.qualitative.artisticName}
-                        </span>
-                        <span className="text-[10px] text-gold">{creator.qualitative.platforms.instagram}</span>
+                    </td>
+                    <td className="p-4">
+                      <span
+                        className={`px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider font-semibold border rounded-sm ${
+                          statusInfo.variant === 'blocked'
+                            ? 'bg-amber-950/85 text-amber-300 border-amber-500/50'
+                            : statusInfo.variant === 'rep_open'
+                            ? 'bg-purple-950/85 text-purple-300 border-purple-500/50'
+                            : statusInfo.variant === 'indep_open'
+                            ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/50'
+                            : 'bg-zinc-900/85 text-zinc-300 border-zinc-500/50'
+                        }`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    </td>
+                    <td className="p-4 text-ivory/70">{creator.qualitative.category}</td>
+                    <td className="p-4 text-ivory/70">
+                      {creator.basicInfo.address.city}, {creator.basicInfo.address.country}
+                    </td>
+                    <td className="p-4 text-ivory/80">
+                      {creator.qualitative.measurements.height}cm · {creator.qualitative.measurements.weight}kg · {creator.qualitative.measurements.waist}/{creator.qualitative.measurements.bust}/{creator.qualitative.measurements.hips}
+                    </td>
+                    <td className="p-4 text-emerald-400 font-medium">
+                      {creator.qualitative.monthlyRevenueEstimate}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setSelectedTalent(creator)}
+                          className="px-2.5 py-1.5 bg-[#181818] hover:bg-gold hover:text-black-matte text-ivory text-[10px] uppercase font-sans border border-white/10 transition-colors cursor-pointer"
+                        >
+                          Book
+                        </button>
+                        <button
+                          onClick={() => handleInitiateProposal(creator)}
+                          className={`px-3 py-1.5 text-[10px] uppercase font-sans font-semibold transition-colors cursor-pointer ${
+                            statusInfo.acceptsOffers
+                              ? 'bg-gold hover:bg-gold-light text-black-matte'
+                              : 'bg-zinc-800 text-ivory/60 border border-white/10 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {statusInfo.acceptsOffers ? 'Contratar' : 'Ofertas Off'}
+                        </button>
                       </div>
-                    </div>
-                  </td>
-                  <td className="p-4 text-ivory/70">{creator.qualitative.category}</td>
-                  <td className="p-4 text-ivory/70">
-                    {creator.basicInfo.address.city}, {creator.basicInfo.address.country}
-                  </td>
-                  <td className="p-4 text-ivory/80">
-                    {creator.qualitative.measurements.height}cm · {creator.qualitative.measurements.weight}kg · {creator.qualitative.measurements.waist}/{creator.qualitative.measurements.bust}/{creator.qualitative.measurements.hips}
-                  </td>
-                  <td className="p-4 text-ivory/70">
-                    {creator.qualitative.physiognomy.hairColor} · Olhos {creator.qualitative.physiognomy.eyeColor}
-                  </td>
-                  <td className="p-4 text-emerald-400 font-medium">
-                    {creator.qualitative.monthlyRevenueEstimate}
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setSelectedTalent(creator)}
-                        className="px-2.5 py-1.5 bg-[#181818] hover:bg-gold hover:text-black-matte text-ivory text-[10px] uppercase font-sans border border-white/10 transition-colors cursor-pointer"
-                      >
-                        Book
-                      </button>
-                      <button
-                        onClick={() => handleSendProposal(creator)}
-                        className="px-3 py-1.5 bg-gold hover:bg-gold-light text-black-matte text-[10px] uppercase font-sans font-semibold transition-colors cursor-pointer"
-                      >
-                        Contratar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -721,13 +867,175 @@ export const TalentScoutView: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    handleSendProposal(selectedTalent);
+                    const t = selectedTalent;
                     setSelectedTalent(null);
+                    handleInitiateProposal(t);
                   }}
                   className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Enviar Proposta de Agenciamento</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal 1: Formulário de Envio de Proposta Formal */}
+      <AnimatePresence>
+        {proposalModalTalent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#111111] border border-gold/50 p-6 md:p-8 max-w-xl w-full text-ivory shadow-2xl space-y-5 relative rounded-sm"
+            >
+              <button
+                onClick={() => setProposalModalTalent(null)}
+                className="absolute top-4 right-4 text-ivory/60 hover:text-gold cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="border-b border-white/10 pb-4">
+                <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
+                  Scout Oficial Lumiardi
+                </span>
+                <h3 className="font-serif-lumiardi text-2xl text-ivory mt-1">
+                  Enviar Proposta para {proposalModalTalent.qualitative.artisticName}
+                </h3>
+                <p className="text-xs text-ivory/60 font-sans mt-1">
+                  Uma proposta formal será transmitida e um canal de chat seguro será aberto no painel do talento.
+                </p>
+              </div>
+
+              {proposalError && (
+                <div className="p-3 bg-red-950/60 border border-red-500/40 text-red-300 text-xs font-sans">
+                  {proposalError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-wider mb-1">
+                    Comissão Proposta para a Agência
+                  </label>
+                  <input
+                    type="text"
+                    value={proposalCommission}
+                    onChange={(e) => setProposalCommission(e.target.value)}
+                    placeholder="Ex: 20% ou 15%"
+                    className="w-full bg-[#181818] border border-white/15 focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-wider mb-1">
+                    Mensagem de Apresentação e Termos
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={proposalMessage}
+                    onChange={(e) => setProposalMessage(e.target.value)}
+                    placeholder="Apresente as oportunidades, escopo e estrutura da sua agência..."
+                    className="w-full bg-[#181818] border border-white/15 focus:border-gold p-3 text-xs text-ivory outline-none rounded-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setProposalModalTalent(null)}
+                  className="px-4 py-2 text-xs font-sans uppercase text-ivory/60 hover:text-ivory cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={sendingProposal || !proposalMessage.trim()}
+                  onClick={handleSendProposalSubmit}
+                  className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-bold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{sendingProposal ? 'Transmitindo...' : 'Transmitir Proposta'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal 2: Aviso de Ofertas Desativadas / Já Agenciada */}
+      <AnimatePresence>
+        {blockedModalTalent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-[#131313] border border-amber-500/50 p-6 md:p-8 max-w-lg w-full text-ivory shadow-2xl space-y-5 relative rounded-sm text-center"
+            >
+              <button
+                onClick={() => setBlockedModalTalent(null)}
+                className="absolute top-4 right-4 text-ivory/60 hover:text-gold cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="w-12 h-12 rounded-full bg-amber-950/60 border border-amber-500/50 flex items-center justify-center mx-auto text-amber-400">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+
+              <div>
+                <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-amber-400 font-semibold block mb-1">
+                  Propostas Temporariamente Indisponíveis
+                </span>
+                <h3 className="font-serif-lumiardi text-2xl text-ivory">
+                  {blockedModalTalent.qualitative.artisticName}
+                </h3>
+              </div>
+
+              <div className="p-4 bg-black/50 border border-white/5 text-xs font-sans text-ivory/80 leading-relaxed text-left space-y-2 rounded-sm">
+                <p>
+                  <strong>Aviso do Sistema:</strong> Esta modelo já possui contrato e não está recebendo novas ofertas no momento.
+                </p>
+                <p className="text-ivory/60 text-[11px]">
+                  O perfil permanece indexado no catálogo institucional da Lumiardi para fins de portfólio e auditoria. Novas propostas poderão ser enviadas caso a criadora reative a opção em seu painel.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setBlockedModalTalent(null)}
+                  className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-bold text-xs font-sans uppercase tracking-wider cursor-pointer shadow-md rounded-sm"
+                >
+                  Entendido
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = blockedModalTalent;
+                    setBlockedModalTalent(null);
+                    setSelectedTalent(t);
+                  }}
+                  className="px-4 py-2.5 bg-[#181818] border border-white/15 text-ivory text-xs font-sans uppercase tracking-wider hover:border-gold transition-colors cursor-pointer rounded-sm"
+                >
+                  Ver Book Público
                 </button>
               </div>
             </motion.div>

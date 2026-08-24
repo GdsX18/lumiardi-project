@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
+import { AuditLogService } from '@/lib/audit/auditService';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 
@@ -51,6 +52,24 @@ export async function POST(
     const note = await StorageService.addApplicationNote(id, {
       author: session.email || 'curadoria@lumiardi.com',
       text,
+    });
+
+    // Registrar no AuditLog
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const targetUserRecord = (await StorageService.getUserById(id)) as any;
+    const targetName = targetUserRecord?.fullName || targetUserRecord?.user?.name || targetUserRecord?.basicInfo?.fullName || id;
+
+    await AuditLogService.logAction({
+      userId: session.id,
+      userName: session.name,
+      userEmail: session.email,
+      userRole: session.curationRole || 'curador_junior',
+      actionType: 'ADICIONOU_NOTA',
+      targetId: id,
+      targetName,
+      targetType: 'MODELO',
+      details: { noteSnippet: text.length > 100 ? `${text.substring(0, 100)}...` : text },
+      ipAddress: ip,
     });
 
     return NextResponse.json({ success: true, note });

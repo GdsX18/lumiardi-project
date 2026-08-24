@@ -35,11 +35,19 @@ import {
   MessageSquare,
   Send,
   Printer,
+  History,
+  UserPlus,
+  UserCheck,
+  Shield,
+  Lock,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { MediaLightboxModal, MediaItem } from '@/components/admin/MediaLightboxModal';
 import { CurationDossierExport } from '@/components/admin/CurationDossierExport';
+import { CurationTeamTab } from '@/components/admin/CurationTeamTab';
+import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
+import { CurationRole } from '@/types';
 
 interface Application {
   id: string;
@@ -83,7 +91,13 @@ interface Metrics {
 }
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia'>('criadora');
+  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'team' | 'audit'>('criadora');
+  const [currentCurator, setCurrentCurator] = useState<{
+    id: string;
+    email: string;
+    name: string;
+    curationRole: CurationRole;
+  } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
@@ -122,17 +136,25 @@ export default function AdminDashboardPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, aRes] = await Promise.all([
-        fetch('/api/admin/metrics'),
-        fetch(`/api/admin/applications?type=${activeTab}${statusFilter !== 'ALL' ? `&status=${statusFilter}` : ''}`),
-      ]);
-
-      if (mRes.ok) {
-        const mData = await mRes.json();
-        setMetrics(mData.metrics);
+      const isAppTab = activeTab === 'criadora' || activeTab === 'agencia';
+      const promises: Promise<Response>[] = [fetch('/api/admin/metrics')];
+      if (isAppTab) {
+        promises.push(
+          fetch(`/api/admin/applications?type=${activeTab}${statusFilter !== 'ALL' ? `&status=${statusFilter}` : ''}`)
+        );
       }
 
-      if (aRes.ok) {
+      const results = await Promise.all(promises);
+      const mRes = results[0];
+      const aRes = isAppTab ? results[1] : null;
+
+      if (mRes && mRes.ok) {
+        const mData = await mRes.json();
+        if (mData.metrics) setMetrics(mData.metrics);
+        if (mData.currentCurator) setCurrentCurator(mData.currentCurator);
+      }
+
+      if (aRes && aRes.ok) {
         const aData = await aRes.json();
         setApplications(aData.applications || []);
       }
@@ -321,7 +343,26 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2 text-xs font-sans text-ivory/60 bg-[#121212] px-3 py-1.5 border border-white/[0.06] rounded-sm">
             <ShieldCheck className="w-4 h-4 text-gold" />
-            <span>Auditor Conectado: <strong>curadoria@lumiardi.com</strong></span>
+            <span>Auditor: <strong>{currentCurator?.name || currentCurator?.email || 'curadoria@lumiardi.com'}</strong></span>
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 uppercase tracking-wider font-semibold border rounded-xs ${
+                currentCurator?.curationRole === 'admin'
+                  ? 'bg-gold/20 text-gold border-gold/40'
+                  : currentCurator?.curationRole === 'supervisor'
+                  ? 'bg-sky-950/60 text-sky-300 border-sky-600/40'
+                  : currentCurator?.curationRole === 'curador_senior'
+                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-600/40'
+                  : 'bg-amber-950/60 text-amber-300 border-amber-600/40'
+              }`}
+            >
+              {currentCurator?.curationRole === 'admin'
+                ? 'Admin Executivo'
+                : currentCurator?.curationRole === 'supervisor'
+                ? 'Supervisor'
+                : currentCurator?.curationRole === 'curador_senior'
+                ? 'Curador Sênior'
+                : 'Curador Júnior'}
+            </span>
           </div>
 
           <button
@@ -412,11 +453,11 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
-        {/* 2. Abas e Barra de Filtros */}
+        {/* 2. Abas e Navegação */}
         <section className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
             {/* Abas */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setActiveTab('criadora')}
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
@@ -440,225 +481,264 @@ export default function AdminDashboardPage() {
                 <Building2 className="w-3.5 h-3.5" />
                 <span>Novas Agências Corporativas</span>
               </button>
-            </div>
-
-            {/* Filtro de Status, Busca & Filtros Avançados */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nome, e-mail ou @"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-[#121212] border border-white/[0.12] focus:border-gold pl-9 pr-3 py-1.5 text-xs text-ivory placeholder-ivory/30 outline-none rounded-sm w-44 md:w-56"
-                />
-              </div>
-
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-[#121212] border border-white/[0.12] focus:border-gold px-3 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
-              >
-                <option value="ALL">Status: Todos</option>
-                <option value="EM_CURATORIA">Pendentes (Em Curadoria)</option>
-                <option value="APROVADO">Aprovados</option>
-                <option value="REJEITADO">Recusados</option>
-              </select>
 
               <button
-                type="button"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={`px-3 py-1.5 text-xs font-sans flex items-center gap-1.5 border rounded-sm transition-colors cursor-pointer ${
-                  showAdvancedFilters || categoryFilter !== 'ALL' || locationFilter !== 'ALL' || sortBy !== 'newest'
-                    ? 'bg-gold/20 text-gold border-gold/40'
-                    : 'bg-[#121212] text-ivory/70 border-white/[0.12] hover:text-ivory'
+                onClick={() => setActiveTab('team')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
+                  activeTab === 'team'
+                    ? 'bg-gold text-black-matte font-bold shadow-md shadow-gold/20'
+                    : 'bg-[#121212] text-ivory/70 hover:text-ivory border border-white/[0.08]'
                 }`}
               >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>Filtros {categoryFilter !== 'ALL' || locationFilter !== 'ALL' ? '•' : ''}</span>
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Equipe & Cargos (RBAC)</span>
               </button>
 
               <button
-                onClick={loadData}
-                title="Atualizar Dados"
-                className="p-2 bg-[#121212] hover:bg-white/[0.06] border border-white/[0.1] text-ivory/60 hover:text-gold rounded-sm transition-colors cursor-pointer"
+                onClick={() => setActiveTab('audit')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
+                  activeTab === 'audit'
+                    ? 'bg-gold text-black-matte font-bold shadow-md shadow-gold/20'
+                    : 'bg-[#121212] text-ivory/70 hover:text-ivory border border-white/[0.08]'
+                }`}
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <History className="w-3.5 h-3.5" />
+                <span>Histórico de Auditoria</span>
               </button>
             </div>
-          </div>
 
-          {/* Barra de Filtros Avançados Expansível */}
-          {showAdvancedFilters && (
-            <div className="p-3.5 bg-[#101010] border border-white/[0.08] rounded-sm grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in fade-in duration-200">
-              <div>
-                <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
-                  Localização / País / Estado
-                </label>
+            {/* Filtro de Status, Busca & Filtros Avançados (visível nas abas de triagem) */}
+            {(activeTab === 'criadora' || activeTab === 'agencia') && (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nome, e-mail ou @"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-[#121212] border border-white/[0.12] focus:border-gold pl-9 pr-3 py-1.5 text-xs text-ivory placeholder-ivory/30 outline-none rounded-sm w-44 md:w-56"
+                  />
+                </div>
+
                 <select
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-[#121212] border border-white/[0.12] focus:border-gold px-3 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
                 >
-                  <option value="ALL">Todas as Localizações</option>
-                  <option value="Brasil">Brasil</option>
-                  <option value="SP">São Paulo (SP)</option>
-                  <option value="RJ">Rio de Janeiro (RJ)</option>
-                  <option value="Estados Unidos">Estados Unidos / Internacional</option>
+                  <option value="ALL">Status: Todos</option>
+                  <option value="EM_CURATORIA">Pendentes (Em Curadoria)</option>
+                  <option value="APROVADO">Aprovados</option>
+                  <option value="REJEITADO">Recusados</option>
                 </select>
-              </div>
 
-              <div>
-                <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
-                  Nicho / Especialidade
-                </label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={`px-3 py-1.5 text-xs font-sans flex items-center gap-1.5 border rounded-sm transition-colors cursor-pointer ${
+                    showAdvancedFilters || categoryFilter !== 'ALL' || locationFilter !== 'ALL' || sortBy !== 'newest'
+                      ? 'bg-gold/20 text-gold border-gold/40'
+                      : 'bg-[#121212] text-ivory/70 border-white/[0.12] hover:text-ivory'
+                  }`}
                 >
-                  <option value="ALL">Todas as Especialidades</option>
-                  <option value="VIP">Modelo & Criadora VIP</option>
-                  <option value="Alta Moda">Alta Moda & Editorial</option>
-                  <option value="Comercial">Comercial / Publicidade</option>
-                  <option value="Casting">Agência de Casting</option>
-                </select>
-              </div>
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Filtros {categoryFilter !== 'ALL' || locationFilter !== 'ALL' ? '•' : ''}</span>
+                </button>
 
-              <div>
-                <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
-                  Ordenação Cronológica / Alfabética
-                </label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                <button
+                  onClick={loadData}
+                  title="Atualizar Dados"
+                  className="p-2 bg-[#121212] hover:bg-white/[0.06] border border-white/[0.1] text-ivory/60 hover:text-gold rounded-sm transition-colors cursor-pointer"
                 >
-                  <option value="newest">Mais Recentes Primeiro</option>
-                  <option value="oldest">Mais Antigas Primeiro</option>
-                  <option value="name">Nome (A - Z)</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* 3. Tabela de Solicitações Recebidas */}
-          <div className="bg-[#0A0A0A] border border-white/[0.08] overflow-hidden rounded-sm">
-            {loading ? (
-              <div className="p-12 text-center text-xs font-sans text-ivory/50 space-y-2">
-                <div className="inline-block animate-spin text-gold font-bold">↻</div>
-                <p>Carregando solicitações de credencial...</p>
-              </div>
-            ) : filteredApps.length === 0 ? (
-              <div className="p-12 text-center text-xs font-sans text-ivory/40 space-y-1">
-                <p className="text-sm text-ivory/70 font-medium">Nenhuma solicitação encontrada.</p>
-                <p>Altere os filtros de busca ou aguarde novas submissões no site.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-sans">
-                  <thead>
-                    <tr className="border-b border-white/[0.08] bg-[#101010] text-[10px] text-ivory/50 uppercase tracking-widest font-semibold">
-                      <th className="py-3.5 px-4">Candidato / Organização</th>
-                      <th className="py-3.5 px-4">Categoria / Nicho</th>
-                      <th className="py-3.5 px-4">Documento Anexado</th>
-                      <th className="py-3.5 px-4">Data Submissão</th>
-                      <th className="py-3.5 px-4">Status Atual</th>
-                      <th className="py-3.5 px-4 text-right">Ação de Auditoria</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/[0.04]">
-                    {filteredApps.map((app) => {
-                      const isPending = app.curationStatus === 'EM_CURATORIA';
-                      const isApproved = app.curationStatus === 'APROVADO';
-
-                      return (
-                        <tr
-                          key={app.id}
-                          className="hover:bg-white/[0.02] transition-colors group"
-                        >
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-sm bg-gold/10 border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs shrink-0">
-                                {app.fullName.substring(0, 2).toUpperCase()}
-                              </div>
-                              <div className="overflow-hidden">
-                                <span className="font-medium text-ivory block truncate group-hover:text-gold transition-colors">
-                                  {app.fullName}
-                                </span>
-                                <span className="text-[10px] text-ivory/40 block truncate">
-                                  {app.email}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <span className="text-ivory/80 font-medium">
-                              {app.profile?.category || (app.role === 'criadora' ? 'Modelo VIP' : 'Agência')}
-                            </span>
-                            {app.profile?.instagram && (
-                              <span className="text-[10px] text-gold/80 block">
-                                {app.profile.instagram}
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-2 text-ivory/70">
-                              <FileText className="w-3.5 h-3.5 text-gold shrink-0" />
-                              <span className="truncate max-w-[140px] text-[11px]">
-                                {app.documentName || 'doc_comprovante.pdf'}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4 text-ivory/50 text-[11px]">
-                            {new Date(app.createdAt).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            {isPending ? (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                <Clock className="w-3 h-3" /> Em Curadoria
-                              </span>
-                            ) : isApproved ? (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                <CheckCircle2 className="w-3 h-3" /> Aprovado
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                <XCircle className="w-3 h-3" /> Recusado
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4 text-right">
-                            <Button
-                              size="sm"
-                              variant={isPending ? 'primary' : 'secondary'}
-                              onClick={() => setSelectedApp(app)}
-                              className="text-[10px] uppercase tracking-wider py-1.5 px-3 cursor-pointer"
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              Analisar
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>
+
+          {/* Renderização Condicional por Aba */}
+          {activeTab === 'team' && (
+            <CurationTeamTab currentCuratorRole={currentCurator?.curationRole || 'admin'} />
+          )}
+
+          {activeTab === 'audit' && (
+            <AuditLogsTab currentCuratorRole={currentCurator?.curationRole || 'admin'} />
+          )}
+
+          {(activeTab === 'criadora' || activeTab === 'agencia') && (
+            <>
+              {/* Barra de Filtros Avançados Expansível */}
+              {showAdvancedFilters && (
+                <div className="p-3.5 bg-[#101010] border border-white/[0.08] rounded-sm grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs animate-in fade-in duration-200">
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
+                      Localização / País / Estado
+                    </label>
+                    <select
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
+                      className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                    >
+                      <option value="ALL">Todas as Localizações</option>
+                      <option value="Brasil">Brasil</option>
+                      <option value="SP">São Paulo (SP)</option>
+                      <option value="RJ">Rio de Janeiro (RJ)</option>
+                      <option value="Estados Unidos">Estados Unidos / Internacional</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
+                      Nicho / Especialidade
+                    </label>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                    >
+                      <option value="ALL">Todas as Especialidades</option>
+                      <option value="VIP">Modelo & Criadora VIP</option>
+                      <option value="Alta Moda">Alta Moda & Editorial</option>
+                      <option value="Comercial">Comercial / Publicidade</option>
+                      <option value="Casting">Agência de Casting</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-mono text-ivory/50 mb-1">
+                      Ordenação Cronológica / Alfabética
+                    </label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="w-full bg-[#181818] border border-white/[0.1] focus:border-gold px-2.5 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
+                    >
+                      <option value="newest">Mais Recentes Primeiro</option>
+                      <option value="oldest">Mais Antigas Primeiro</option>
+                      <option value="name">Nome (A - Z)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Tabela de Solicitações Recebidas */}
+              <div className="bg-[#0A0A0A] border border-white/[0.08] overflow-hidden rounded-sm">
+                {loading ? (
+                  <div className="p-12 text-center text-xs font-sans text-ivory/50 space-y-2">
+                    <div className="inline-block animate-spin text-gold font-bold">↻</div>
+                    <p>Carregando solicitações de credencial...</p>
+                  </div>
+                ) : filteredApps.length === 0 ? (
+                  <div className="p-12 text-center text-xs font-sans text-ivory/40 space-y-1">
+                    <p className="text-sm text-ivory/70 font-medium">Nenhuma solicitação encontrada.</p>
+                    <p>Altere os filtros de busca ou aguarde novas submissões no site.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs font-sans">
+                      <thead>
+                        <tr className="border-b border-white/[0.08] bg-[#101010] text-[10px] text-ivory/50 uppercase tracking-widest font-semibold">
+                          <th className="py-3.5 px-4">Candidato / Organização</th>
+                          <th className="py-3.5 px-4">Categoria / Nicho</th>
+                          <th className="py-3.5 px-4">Documento Anexado</th>
+                          <th className="py-3.5 px-4">Data Submissão</th>
+                          <th className="py-3.5 px-4">Status Atual</th>
+                          <th className="py-3.5 px-4 text-right">Ação de Auditoria</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.04]">
+                        {filteredApps.map((app) => {
+                          const isPending = app.curationStatus === 'EM_CURATORIA';
+                          const isApproved = app.curationStatus === 'APROVADO';
+
+                          return (
+                            <tr
+                              key={app.id}
+                              className="hover:bg-white/[0.02] transition-colors group"
+                            >
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-sm bg-gold/10 border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs shrink-0">
+                                    {app.fullName.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <span className="font-medium text-ivory block truncate group-hover:text-gold transition-colors">
+                                      {app.fullName}
+                                    </span>
+                                    <span className="text-[10px] text-ivory/40 block truncate">
+                                      {app.email}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <span className="text-ivory/80 font-medium">
+                                  {app.profile?.category || (app.role === 'criadora' ? 'Modelo VIP' : 'Agência')}
+                                </span>
+                                {app.profile?.instagram && (
+                                  <span className="text-[10px] text-gold/80 block">
+                                    {app.profile.instagram}
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-2 text-ivory/70">
+                                  <FileText className="w-3.5 h-3.5 text-gold shrink-0" />
+                                  <span className="truncate max-w-[140px] text-[11px]">
+                                    {app.documentName || 'doc_comprovante.pdf'}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4 text-ivory/50 text-[11px]">
+                                {new Date(app.createdAt).toLocaleDateString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                {isPending ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                    <Clock className="w-3 h-3" /> Em Curadoria
+                                  </span>
+                                ) : isApproved ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                    <CheckCircle2 className="w-3 h-3" /> Aprovado
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                    <XCircle className="w-3 h-3" /> Recusado
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="py-3.5 px-4 text-right">
+                                <Button
+                                  size="sm"
+                                  variant={isPending ? 'primary' : 'secondary'}
+                                  onClick={() => setSelectedApp(app)}
+                                  className="text-[10px] uppercase tracking-wider py-1.5 px-3 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  Analisar
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </section>
       </main>
 
@@ -1068,33 +1148,47 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Rodapé do Modal: Mesa de Decisão */}
-            <div className="px-6 py-4 border-t border-white/[0.08] bg-[#111111] flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-[11px] font-sans text-ivory/40">
-                A aprovação liberará o login imediato do usuário no painel operacional.
-              </span>
+            {(() => {
+              const isJunior = currentCurator?.curationRole === 'curador_junior';
+              return (
+                <div className="px-6 py-4 border-t border-white/[0.08] bg-[#111111] flex flex-col sm:flex-row items-center justify-between gap-3">
+                  {isJunior ? (
+                    <span className="text-[11px] font-sans text-amber-400 bg-amber-950/40 border border-amber-500/30 px-3 py-1.5 rounded-xs flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        <strong>Acesso de Curador Júnior:</strong> Permitido apenas leitura e anotações. Decisões de aprovação e recusa exigem nível <strong>Curador Sênior+</strong>.
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-sans text-ivory/40">
+                      A aprovação liberará o login imediato do usuário no painel operacional.
+                    </span>
+                  )}
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={processingDecision}
-                  className="flex-1 sm:flex-none border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs uppercase tracking-wider py-2.5 px-4 cursor-pointer"
-                >
-                  <X className="w-4 h-4 mr-1.5" />
-                  Recusar Credencial
-                </Button>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowRejectModal(true)}
+                      disabled={processingDecision || isJunior}
+                      className="flex-1 sm:flex-none border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs uppercase tracking-wider py-2.5 px-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <X className="w-4 h-4 mr-1.5" />
+                      Recusar Credencial
+                    </Button>
 
-                <Button
-                  variant="primary"
-                  onClick={() => handleApprove(selectedApp.id)}
-                  disabled={processingDecision || selectedApp.curationStatus === 'APROVADO'}
-                  className="flex-1 sm:flex-none text-xs font-bold uppercase tracking-wider py-2.5 px-5 cursor-pointer shadow-lg shadow-gold/20"
-                >
-                  <Check className="w-4 h-4 mr-1.5" />
-                  {processingDecision ? 'Processando...' : selectedApp.curationStatus === 'APROVADO' ? 'Já Aprovado' : 'Aprovar Credencial'}
-                </Button>
-              </div>
-            </div>
+                    <Button
+                      variant="primary"
+                      onClick={() => handleApprove(selectedApp.id)}
+                      disabled={processingDecision || isJunior || selectedApp.curationStatus === 'APROVADO'}
+                      className="flex-1 sm:flex-none text-xs font-bold uppercase tracking-wider py-2.5 px-5 cursor-pointer shadow-lg shadow-gold/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Check className="w-4 h-4 mr-1.5" />
+                      {processingDecision ? 'Processando...' : selectedApp.curationStatus === 'APROVADO' ? 'Já Aprovado' : 'Aprovar Credencial'}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

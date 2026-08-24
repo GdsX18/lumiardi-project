@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import {
   Users,
@@ -12,12 +12,15 @@ import {
   ShieldCheck,
   HardDrive,
   Plus,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 
 export const AgencyRosterView: React.FC = () => {
   const { allCreators } = useAuthPortal();
+  const [selectedModelDrive, setSelectedModelDrive] = useState<any | null>(null);
 
   const roster = allCreators.map((c, index) => ({
     id: c.id,
@@ -170,14 +173,58 @@ export const AgencyRosterView: React.FC = () => {
 
               <button
                 type="button"
-                className="p-2 bg-[#151515] hover:bg-white/10 text-ivory/60 hover:text-gold border border-white/10 transition-colors cursor-pointer"
-                title="Drive Compartilhado"
+                onClick={() => setSelectedModelDrive(model)}
+                className="p-2 bg-[#151515] hover:bg-gold hover:text-black-matte text-ivory/60 transition-colors cursor-pointer border border-white/10"
+                title={`Abrir Drive Compartilhado de ${model.name}`}
               >
                 <HardDrive className="w-4 h-4" />
               </button>
             </div>
           </div>
         ))}
+        </div>
+      )}
+
+      {/* Modal do Drive Compartilhado com a Modelo */}
+      {selectedModelDrive && (
+        <div
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto"
+          onClick={() => setSelectedModelDrive(null)}
+        >
+          <div
+            className="w-full max-w-5xl bg-[#0D0D0D] border border-gold/40 shadow-2xl relative rounded-sm p-2 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#121212]">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 border border-gold/40 bg-black relative shrink-0 overflow-hidden">
+                  <Image src={selectedModelDrive.image} alt={selectedModelDrive.name} fill className="object-cover" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-sans uppercase tracking-widest text-gold block">
+                    Drive Compartilhado Modelo ↔ Agência
+                  </span>
+                  <h3 className="font-serif-lumiardi text-xl text-ivory font-medium">
+                    {selectedModelDrive.name}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedModelDrive(null)}
+                className="p-2 text-ivory/60 hover:text-gold cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 max-h-[80vh] overflow-y-auto">
+              <SharedDrivePanel
+                initialDriveMode="shared"
+                targetModelId={selectedModelDrive.id}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

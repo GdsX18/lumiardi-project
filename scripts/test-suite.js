@@ -73,10 +73,15 @@ async function runTests() {
     assert(sql.includes('CREATE TABLE IF NOT EXISTS payment_transactions'));
     assert(sql.includes('CREATE TABLE IF NOT EXISTS invoices'));
     assert(sql.includes('CREATE TABLE IF NOT EXISTS payouts'));
+    assert(sql.includes('CREATE TABLE IF NOT EXISTS shared_drive_files'));
+    assert(sql.includes('CREATE TABLE IF NOT EXISTS agency_model_contracts'));
+    assert(sql.includes('CREATE TABLE IF NOT EXISTS scout_proposals'));
+    assert(sql.includes('CREATE TABLE IF NOT EXISTS admin_users'));
+    assert(sql.includes('CREATE TABLE IF NOT EXISTS curation_audit_logs'));
   });
 
-  // 2. Teste de Módulos de Pagamento & Cibersegurança
-  console.log('\n💳 2. Verificação dos Módulos Financeiros, 2FA e Storage:');
+  // 2. Teste de Módulos de Pagamento, RBAC, Auditoria & Cibersegurança
+  console.log('\n💳 2. Verificação dos Módulos Financeiros, RBAC, Auditoria e Storage:');
   const modules = [
     'src/lib/payments/types.ts',
     'src/lib/payments/plansConfig.ts',
@@ -90,6 +95,10 @@ async function runTests() {
     'src/lib/security/turnstile.ts',
     'src/lib/kyc/kycService.ts',
     'src/lib/storage/r2Service.ts',
+    'src/lib/audit/auditService.ts',
+    'src/components/interactive/SharedDrivePanel.tsx',
+    'src/components/admin/CurationTeamTab.tsx',
+    'src/components/admin/AuditLogsTab.tsx',
     'src/proxy.ts',
   ];
 
@@ -124,12 +133,16 @@ async function runTests() {
     assert.strictEqual(hmac.length, 128);
   });
 
-  // 4. Teste das Rotas de API, Webhooks & 2FA
+  // 4. Teste das Rotas de API, Webhooks, Scout, Drive Compartilhado, RBAC & Auditoria
   console.log('\n🌐 4. Verificação de Rotas da API & Webhooks:');
   const apiRoutes = [
     'src/app/api/upload/route.ts',
     'src/app/api/drive/route.ts',
+    'src/app/api/drive/shared/route.ts',
     'src/app/api/drive/signed-url/route.ts',
+    'src/app/api/scout/proposals/route.ts',
+    'src/app/api/admin/team/route.ts',
+    'src/app/api/admin/audit-logs/route.ts',
     'src/app/api/chat/messages/route.ts',
     'src/app/api/chat/conversations/route.ts',
     'src/app/api/kanban/route.ts',

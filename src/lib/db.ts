@@ -10,13 +10,18 @@ export const pool = new Pool({
   connectionTimeoutMillis: 3000, // Timeout rápido resiliente
 });
 
-// Memória resiliente instantânea com suporte completo a pagamentos e assinaturas
+// Memória resiliente instantânea com suporte completo a pagamentos, assinaturas, RBAC, Audit Logs e Drive Compartilhado
 export const fallbackStore = {
   users: new Map<string, Record<string, unknown>>(),
   profiles: new Map<string, Record<string, unknown>>(),
   kanban_tasks: new Map<string, Record<string, unknown>>(),
   messages: new Map<string, Record<string, unknown>>(),
   drive_files: new Map<string, Record<string, unknown>>(),
+  shared_drive_files: new Map<string, Record<string, unknown>>(),
+  agency_model_contracts: new Map<string, Record<string, unknown>>(),
+  scout_proposals: new Map<string, Record<string, unknown>>(),
+  admin_users: new Map<string, Record<string, unknown>>(),
+  curation_audit_logs: new Map<string, Record<string, unknown>>(),
   subscriptions: new Map<string, Record<string, unknown>>(),
   payment_transactions: new Map<string, Record<string, unknown>>(),
   invoices: new Map<string, Record<string, unknown>>(),
@@ -81,6 +86,71 @@ export const fallbackStore = {
 
   defaultUsers.forEach((u) => fallbackStore.users.set(u.email.toLowerCase(), u));
 
+  // Equipe de Curadoria (RBAC) em Memória
+  const defaultAdminUsers = [
+    {
+      id: 'cur-admin-1',
+      email: 'curadoria@lumiardi.com',
+      password_hash: hashPassword,
+      full_name: 'Mesa de Curadoria (Diretoria)',
+      role: 'admin',
+      status: 'active',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'cur-admin-2',
+      email: 'admin@lumiardi.com',
+      password_hash: hashPassword,
+      full_name: 'Administrador Executivo',
+      role: 'admin',
+      status: 'active',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'cur-sup-1',
+      email: 'supervisor@lumiardi.com',
+      password_hash: hashPassword,
+      full_name: 'Clara Bittencourt (Supervisora)',
+      role: 'supervisor',
+      status: 'active',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'cur-snr-1',
+      email: 'curador.senior@lumiardi.com',
+      password_hash: hashPassword,
+      full_name: 'Rodrigo Medeiros (Curador Sênior)',
+      role: 'curador_senior',
+      status: 'active',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'cur-jnr-1',
+      email: 'curador.junior@lumiardi.com',
+      password_hash: hashPassword,
+      full_name: 'Camila Duarte (Curadora Júnior)',
+      role: 'curador_junior',
+      status: 'active',
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  defaultAdminUsers.forEach((au) => {
+    fallbackStore.admin_users.set(au.id, au);
+    // Também mapeia como usuário para login
+    if (!fallbackStore.users.has(au.email.toLowerCase())) {
+      fallbackStore.users.set(au.email.toLowerCase(), {
+        id: au.id,
+        email: au.email,
+        password_hash: au.password_hash,
+        role: 'ADMIN',
+        curation_status: 'APROVADO',
+        full_name: au.full_name,
+        created_at: au.created_at,
+      });
+    }
+  });
+
   fallbackStore.profiles.set('user-model-1', {
     user_id: 'user-model-1',
     artistic_name: 'Sua Conta Modelo',
@@ -91,9 +161,16 @@ export const fallbackStore = {
     measurements: { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
     physiognomy: { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português', 'Inglês'] },
     address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    photos: [],
-    video_url: '',
-    bio: '',
+    photos: [
+      { id: '1', url: '/images/creator_elena.jpg', title: 'Editorial Milan', tag: 'Alta Resolução · RAW' },
+      { id: '2', url: '/images/creator_sophia.jpg', title: 'Studio Portrait', tag: 'Book Oficial' },
+    ],
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    bio: 'Modelo editorial com experiência em alta costura e campanhas internacionais.',
+    accepts_offers: true,
+    is_represented: true,
+    represented_agency_name: 'Sua Agência Corporativa',
+    represented_agency_id: 'user-agency-1',
   });
 
   fallbackStore.profiles.set('user-test-candidata', {
@@ -111,6 +188,8 @@ export const fallbackStore = {
     photos: [],
     video_url: '',
     bio: '',
+    accepts_offers: true,
+    is_represented: false,
   });
 
   fallbackStore.profiles.set('user-agency-1', {
@@ -124,6 +203,113 @@ export const fallbackStore = {
     specialties: ['Alta Moda', 'Editorial', 'Campanhas Digitais'],
     commission_rate: '20%',
   });
+
+  // Contrato Inicial Modelo ↔ Agência
+  fallbackStore.agency_model_contracts.set('contract-model-agency-1', {
+    id: 'contract-model-agency-1',
+    agency_id: 'user-agency-1',
+    model_id: 'user-model-1',
+    agency_name: 'Sua Agência Corporativa',
+    model_name: 'Sua Conta Modelo',
+    status: 'active',
+    commission_rate: '20%',
+    start_date: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  });
+
+  // Arquivos do Drive Compartilhado Iniciais
+  const defaultSharedFiles = [
+    {
+      id: 'sfile-1',
+      agency_id: 'user-agency-1',
+      model_id: 'user-model-1',
+      name: 'Contrato_Agenciamento_Exclusivo_2026.pdf',
+      category: 'contracts',
+      type: 'document',
+      size: '2.4 MB',
+      uploaded_by_id: 'user-agency-1',
+      uploaded_by_name: 'Sua Agência Corporativa',
+      file_url: '/documents/manual_compliance.pdf',
+      downloads: 2,
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'sfile-2',
+      agency_id: 'user-agency-1',
+      model_id: 'user-model-1',
+      name: 'Composto_Digital_Alta_Moda_SS26.pdf',
+      category: 'compostos',
+      type: 'document',
+      size: '4.1 MB',
+      uploaded_by_id: 'user-agency-1',
+      uploaded_by_name: 'Sua Agência Corporativa',
+      file_url: '/documents/modelo_nda.pdf',
+      downloads: 5,
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'sfile-3',
+      agency_id: 'user-agency-1',
+      model_id: 'user-model-1',
+      name: 'Ensaio_Milan_Look01_RAW_Master.jpg',
+      category: 'raw-photos',
+      type: 'image',
+      size: '12.8 MB',
+      uploaded_by_id: 'user-model-1',
+      uploaded_by_name: 'Sua Conta Modelo',
+      file_url: '/images/creator_elena.jpg',
+      downloads: 1,
+      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+  defaultSharedFiles.forEach((sf) => fallbackStore.shared_drive_files.set(sf.id, sf));
+
+  // Logs Iniciais de Auditoria da Curadoria
+  const defaultAuditLogs = [
+    {
+      id: 'log-seed-1',
+      user_id: 'cur-admin-1',
+      user_name: 'Mesa de Curadoria (Diretoria)',
+      user_email: 'curadoria@lumiardi.com',
+      user_role: 'admin',
+      action_type: 'APROVOU_MODELO',
+      target_id: 'user-model-1',
+      target_name: 'Sua Conta Modelo',
+      target_type: 'MODELO',
+      details: { reason: 'Documentação internacional e biometria validadas com sucesso' },
+      ip_address: '127.0.0.1',
+      created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'log-seed-2',
+      user_id: 'cur-admin-1',
+      user_name: 'Mesa de Curadoria (Diretoria)',
+      user_email: 'curadoria@lumiardi.com',
+      user_role: 'admin',
+      action_type: 'APROVOU_AGENCIA',
+      target_id: 'user-agency-1',
+      target_name: 'Sua Agência Corporativa',
+      target_type: 'AGENCIA',
+      details: { reason: 'CNPJ ativo e contrato social corporativo aprovado' },
+      ip_address: '127.0.0.1',
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'log-seed-3',
+      user_id: 'cur-sup-1',
+      user_name: 'Clara Bittencourt (Supervisora)',
+      user_email: 'supervisor@lumiardi.com',
+      user_role: 'supervisor',
+      action_type: 'ADICIONOU_NOTA',
+      target_id: 'user-test-candidata',
+      target_name: 'Isabella Montenegro',
+      target_type: 'MODELO',
+      details: { note: 'Aguardando envio do comprovante de residência atualizado para aprovação final' },
+      ip_address: '127.0.0.1',
+      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+  defaultAuditLogs.forEach((log) => fallbackStore.curation_audit_logs.set(log.id, log));
 
   // Kanban Tasks Iniciais
   const defaultTasks = [
@@ -322,7 +508,7 @@ export const fallbackStore = {
 let isInitialized = false;
 
 /**
- * Inicialização DDL automática do banco de dados PostgreSQL com tabelas financeiras
+ * Inicialização DDL automática do banco de dados PostgreSQL com tabelas financeiras, RBAC, Audit e Drive Compartilhado
  */
 export async function initDatabase(): Promise<boolean> {
   if (isInitialized) return true;
@@ -373,6 +559,10 @@ export async function initDatabase(): Promise<boolean> {
           monthly_revenue_estimate VARCHAR(100),
           commission_rate VARCHAR(50),
           specialties JSONB,
+          accepts_offers BOOLEAN DEFAULT TRUE,
+          is_represented BOOLEAN DEFAULT FALSE,
+          represented_agency_name VARCHAR(255),
+          represented_agency_id VARCHAR(100),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
@@ -408,7 +598,7 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 5. Tabela DRIVE_FILES
+      // 5. Tabela DRIVE_FILES (Privado)
       await client.query(`
         CREATE TABLE IF NOT EXISTS drive_files (
           id VARCHAR(100) PRIMARY KEY,
@@ -425,7 +615,90 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 6. Tabela SUBSCRIPTIONS (CCBill + NOWPayments)
+      // 6. Tabela SHARED_DRIVE_FILES (Drive Compartilhado Modelo ↔ Agência)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS shared_drive_files (
+          id VARCHAR(100) PRIMARY KEY,
+          agency_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          model_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          category VARCHAR(50) NOT NULL DEFAULT 'raw-photos',
+          type VARCHAR(50) NOT NULL DEFAULT 'image',
+          size VARCHAR(50) NOT NULL DEFAULT '0 MB',
+          uploaded_by_id VARCHAR(100) NOT NULL,
+          uploaded_by_name VARCHAR(255) NOT NULL,
+          file_url TEXT NOT NULL,
+          downloads INTEGER DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `);
+
+      // 7. Tabela AGENCY_MODEL_CONTRACTS
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS agency_model_contracts (
+          id VARCHAR(100) PRIMARY KEY,
+          agency_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          model_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          agency_name VARCHAR(255) NOT NULL,
+          model_name VARCHAR(255) NOT NULL,
+          status VARCHAR(30) NOT NULL DEFAULT 'active',
+          commission_rate VARCHAR(50) DEFAULT '20%',
+          start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          end_date TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `);
+
+      // 8. Tabela SCOUT_PROPOSALS
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS scout_proposals (
+          id VARCHAR(100) PRIMARY KEY,
+          agency_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          model_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          agency_name VARCHAR(255) NOT NULL,
+          model_name VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          proposed_commission VARCHAR(50) DEFAULT '20%',
+          status VARCHAR(30) NOT NULL DEFAULT 'sent',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `);
+
+      // 9. Tabela ADMIN_USERS (RBAC Curadoria)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS admin_users (
+          id VARCHAR(100) PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          full_name VARCHAR(255) NOT NULL,
+          role VARCHAR(50) NOT NULL DEFAULT 'curador_junior',
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `);
+
+      // 10. Tabela CURATION_AUDIT_LOGS
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS curation_audit_logs (
+          id VARCHAR(100) PRIMARY KEY,
+          user_id VARCHAR(100) NOT NULL,
+          user_name VARCHAR(255) NOT NULL,
+          user_email VARCHAR(255) NOT NULL,
+          user_role VARCHAR(50) NOT NULL,
+          action_type VARCHAR(100) NOT NULL,
+          target_id VARCHAR(100),
+          target_name VARCHAR(255),
+          target_type VARCHAR(50),
+          details JSONB,
+          ip_address VARCHAR(100),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `);
+
+      // 11. Tabela SUBSCRIPTIONS
       await client.query(`
         CREATE TABLE IF NOT EXISTS subscriptions (
           id VARCHAR(100) PRIMARY KEY,
@@ -448,7 +721,7 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 7. Tabela PAYMENT_TRANSACTIONS (Auditoria e Idempotência)
+      // 12. Tabela PAYMENT_TRANSACTIONS
       await client.query(`
         CREATE TABLE IF NOT EXISTS payment_transactions (
           id VARCHAR(100) PRIMARY KEY,
@@ -469,7 +742,7 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 8. Tabela INVOICES (Faturas e Recibos Fiscais / PDF)
+      // 13. Tabela INVOICES
       await client.query(`
         CREATE TABLE IF NOT EXISTS invoices (
           id VARCHAR(100) PRIMARY KEY,
@@ -488,7 +761,7 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 9. Tabela PAYOUTS (Divisão de Faturamento & Repasses)
+      // 14. Tabela PAYOUTS
       await client.query(`
         CREATE TABLE IF NOT EXISTS payouts (
           id VARCHAR(100) PRIMARY KEY,
@@ -505,7 +778,7 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 10. Índices de Alta Performance
+      // 15. Índices de Alta Performance
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
@@ -514,6 +787,11 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_id ON kanban_tasks(user_id);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
         CREATE INDEX IF NOT EXISTS idx_drive_files_user_id ON drive_files(user_id);
+        CREATE INDEX IF NOT EXISTS idx_shared_drive_files_rel ON shared_drive_files(agency_id, model_id);
+        CREATE INDEX IF NOT EXISTS idx_agency_contracts ON agency_model_contracts(agency_id, model_id);
+        CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_time ON curation_audit_logs(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_action ON curation_audit_logs(action_type);
+        CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_user ON curation_audit_logs(user_id);
         CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
         CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
         CREATE INDEX IF NOT EXISTS idx_payment_transactions_user ON payment_transactions(user_id);
@@ -536,15 +814,26 @@ export async function initDatabase(): Promise<boolean> {
       `, [hashPassword]);
 
       await client.query(`
-        INSERT INTO profiles (user_id, artistic_name, category, instagram, created_at)
+        INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
+        VALUES
+          ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria (Diretoria)', 'admin', 'active'),
+          ('cur-admin-2', 'admin@lumiardi.com', $1, 'Administrador Executivo', 'admin', 'active'),
+          ('cur-sup-1', 'supervisor@lumiardi.com', $1, 'Clara Bittencourt (Supervisora)', 'supervisor', 'active'),
+          ('cur-snr-1', 'curador.senior@lumiardi.com', $1, 'Rodrigo Medeiros (Curador Sênior)', 'curador_senior', 'active'),
+          ('cur-jnr-1', 'curador.junior@lumiardi.com', $1, 'Camila Duarte (Curadora Júnior)', 'curador_junior', 'active')
+        ON CONFLICT (email) DO NOTHING;
+      `, [hashPassword]);
+
+      await client.query(`
+        INSERT INTO profiles (user_id, artistic_name, category, instagram, accepts_offers, is_represented, represented_agency_name, represented_agency_id, created_at)
         VALUES 
-          ('user-model-1', 'Sua Conta Modelo', 'Modelo & Criadora VIP', '@suaconta', NOW()),
-          ('user-test-candidata', 'Isabella M.', 'Alta Moda & Criadora VIP', '@isabella.montenegro', NOW())
+          ('user-model-1', 'Sua Conta Modelo', 'Modelo & Criadora VIP', '@suaconta', true, true, 'Sua Agência Corporativa', 'user-agency-1', NOW()),
+          ('user-test-candidata', 'Isabella M.', 'Alta Moda & Criadora VIP', '@isabella.montenegro', true, false, NULL, NULL, NOW())
         ON CONFLICT (user_id) DO NOTHING;
       `);
 
       isInitialized = true;
-      console.log('✅ PostgreSQL Local (pgAdmin): Tabelas, Finanças e Assinaturas sincronizadas.');
+      console.log('✅ PostgreSQL Local: Tabelas, Finanças, RBAC e Drive Compartilhado sincronizados.');
       return true;
     } finally {
       client.release();
