@@ -332,7 +332,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-3">
           <div className="relative w-8 h-8">
             <Image
-              src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
+              src="/Lumiardi logo2-Trasparente.png"
               alt="Lumiardi Logo"
               fill
               className="object-contain"

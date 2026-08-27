@@ -40,7 +40,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: t('showcase_verified_badge'),
       rating: '5.0',
       hero: true,
-      image: '/api/media/assets/images/agency_aura.jpg',
+      image: '/images/agency_aura.jpg',
       bio: 'Agência de gestão internacional com foco em modelos e criadoras de alto ticket, contratos formais e representação global.',
       metrics: [
         { label: 'Talentos Agenciados', value: '42' },
@@ -55,7 +55,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: 'TOP CREATOR',
       rating: '4.9',
       hero: false,
-      image: '/api/media/assets/images/creator_elena.jpg',
+      image: '/images/creator_elena.jpg',
       bio: 'Criadora e modelo autoral focada em ensaios editoriais de luxo, campanhas de moda e presença digital internacional.',
       metrics: [
         { label: 'Presença Global', value: '12 Países' },
@@ -70,7 +70,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: t('showcase_verified_badge'),
       rating: '5.0',
       hero: false,
-      image: '/api/media/assets/images/agency_vanguard.jpg',
+      image: '/images/agency_vanguard.jpg',
       bio: 'Holding de gestão de talentos executivos e representação de criadoras em grande escala com sigilo de marca.',
       metrics: [
         { label: 'Talentos Ativos', value: '85' },
@@ -85,7 +85,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: 'ICON',
       rating: '5.0',
       hero: false,
-      image: '/api/media/assets/images/creator_sophia.jpg',
+      image: '/images/creator_sophia.jpg',
       bio: 'Modelo editorial de alta performance com portfólio exclusivo para agências registradas Lumiardi Signature.',
       metrics: [
         { label: 'Segmento', value: 'Fashion & Luxury' },

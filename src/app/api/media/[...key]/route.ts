@@ -1,21 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { R2StorageService } from '@/lib/storage/r2Service';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
+import fs from 'fs';
+import path from 'path';
 
 /**
- * Rota proxy para servir qualquer arquivo do Cloudflare R2.
- * Suporta:
- *  - Imagens de perfil/avatar: /api/media/vault/user-id/avatars/...
- *  - Fotos do Book: /api/media/vault/user-id/raw-photos/...
- *  - Uploads gerais: /api/media/vault/user-id/uploads/...
- *  - Documentos e contratos: /api/media/vault/user-id/contracts/...
- *  - Assets globais do site: /api/media/assets/images/... ou /api/media/assets/...
- * 
- * Inclui suporte a:
- *  - Decodificação de URI (espaços, caracteres especiais)
- *  - Streaming de vídeo com HTTP 206 (Range headers)
- *  - Fallbacks de chave contextual (assets/images/...)
- *  - Headers de cache de alta performance
+ * Procura um arquivo correspondente no diretório public local.
+ */
+function findLocalFile(fileKey: string): string | null {
+  const publicDir = path.join(process.cwd(), 'public');
+  const normalizedKey = fileKey.replace(/^\/+/, '');
+
+  const candidatePaths = [
+    path.join(publicDir, normalizedKey),
+    path.join(publicDir, normalizedKey.replace(/^assets\//, '')),
+    path.join(publicDir, 'assets', normalizedKey),
+    path.join(publicDir, 'assets', normalizedKey.replace(/^assets\//, '')),
+    path.join(publicDir, normalizedKey.replace(/_/g, ' ')),
+    path.join(publicDir, normalizedKey.replace(/\s+/g, '_')),
+    path.join(publicDir, 'images', path.basename(normalizedKey)),
+    path.join(publicDir, 'assets', 'images', path.basename(normalizedKey)),
+    path.join(publicDir, path.basename(normalizedKey)),
+    path.join(publicDir, path.basename(normalizedKey).replace(/_/g, ' ')),
+    path.join(publicDir, 'assets', path.basename(normalizedKey)),
+  ];
+
+  for (const p of candidatePaths) {
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        return p;
+      }
+    } catch {
+      // continua buscando
+    }
+  }
+  return null;
+}
+
+/**
+ * Serve um arquivo local com suporte a Range requests (HTTP 206) para vídeos e áudio.
+ */
+function serveLocalFile(filePath: string, request: NextRequest) {
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const rangeHeader = request.headers.get('range');
+  const contentType = inferContentType(filePath);
+
+  if (rangeHeader) {
+    const parts = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+    if (start >= fileSize || end >= fileSize || start > end) {
+      return new NextResponse(null, {
+        status: 416,
+        headers: { 'Content-Range': `bytes */${fileSize}` },
+      });
+    }
+
+    const chunksize = end - start + 1;
+    const stream = fs.createReadStream(filePath, { start, end });
+    const chunks: Buffer[] = [];
+
+    return new Promise<NextResponse>((resolve) => {
+      stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      stream.on('end', () => {
+        const bodyBuffer = Buffer.concat(chunks);
+        resolve(
+          new NextResponse(bodyBuffer, {
+            status: 206,
+            headers: {
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': String(chunksize),
+              'Content-Type': contentType,
+              'Cache-Control': 'public, max-age=31536000, immutable',
+            },
+          })
+        );
+      });
+    });
+  }
+
+  const fileBuffer = fs.readFileSync(filePath);
+  return new NextResponse(fileBuffer, {
+    status: 200,
+    headers: {
+      'Content-Type': contentType,
+      'Content-Length': String(fileSize),
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
+/**
+ * Rota proxy resiliente para servir arquivos locais e do Cloudflare R2.
  */
 export async function GET(
   request: NextRequest,
@@ -29,13 +109,20 @@ export async function GET(
       return NextResponse.json({ error: 'Chave de arquivo inválida.' }, { status: 400 });
     }
 
+    // 1. Tentar localizar primeiro no filesystem local (public) para entrega instantânea com 0 cold-start
+    const localFilePath = findLocalFile(fileKey);
+    if (localFilePath) {
+      return await serveLocalFile(localFilePath, request);
+    }
+
+    // 2. Se não estiver local, busca no Cloudflare R2
     const client = R2StorageService.getClient();
     const bucketName = R2StorageService.getBucketName();
 
     if (!client) {
       return NextResponse.json(
-        { error: 'Cloudflare R2 não configurado no ambiente.' },
-        { status: 503 }
+        { error: 'Arquivo não encontrado localmente e Cloudflare R2 não configurado no ambiente.' },
+        { status: 404 }
       );
     }
 
@@ -51,14 +138,16 @@ export async function GET(
           ...(rangeHeader ? { Range: rangeHeader } : {}),
         })
       );
-    } catch (primaryErr: unknown) {
-      // Se não encontrar, tenta prefixar com 'assets/' ou 'assets/images/'
+    } catch {
+      // Se não encontrar, tenta prefixar com 'assets/' ou 'assets/images/' ou 'vault/'
       const possibleKeys = [
         `assets/${fileKey}`,
         `assets/images/${fileKey}`,
         `vault/${fileKey}`,
         fileKey.replace(/\s+/g, '_'),
         `assets/${fileKey.replace(/\s+/g, '_')}`,
+        fileKey.replace(/^assets\//, ''),
+        fileKey.replace(/^assets\/images\//, ''),
       ];
 
       let found = false;
@@ -82,7 +171,7 @@ export async function GET(
       }
 
       if (!found || !response) {
-        return NextResponse.json({ error: 'Arquivo não encontrado no Cloudflare R2.' }, { status: 404 });
+        return NextResponse.json({ error: 'Arquivo não encontrado no Cloudflare R2 nem localmente.' }, { status: 404 });
       }
     }
 
@@ -116,9 +205,9 @@ export async function GET(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao processar mídia';
     if (message.includes('NoSuchKey') || message.includes('404')) {
-      return NextResponse.json({ error: 'Arquivo não encontrado no Cloudflare R2.' }, { status: 404 });
+      return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 });
     }
-    console.error('[R2 PROXY ERROR]:', err);
+    console.error('[MEDIA PROXY ERROR]:', err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

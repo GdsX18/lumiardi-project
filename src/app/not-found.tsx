@@ -11,7 +11,7 @@ export default function NotFound() {
       <div className="relative z-10 max-w-md w-full text-center space-y-6">
         <div className="flex justify-center">
           <Image
-            src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
+            src="/Lumiardi logo2-Trasparente.png"
             alt="Lumiardi"
             width={120}
             height={40}

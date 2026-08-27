@@ -126,7 +126,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="relative w-6 h-6 md:w-7 md:h-7 transition-transform duration-300 group-hover:scale-105">
             <Image
-              src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
+              src="/Lumiardi logo2-Trasparente.png"
               alt="Lumiardi Emblem"
               fill
               className="object-contain"

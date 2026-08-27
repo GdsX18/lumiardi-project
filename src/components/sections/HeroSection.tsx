@@ -14,7 +14,7 @@ export const HeroSection: React.FC = () => {
     <div id="hero" className="w-full bg-[#0B0B0B] text-ivory">
       <ScrollExpandMedia
         mediaType="video"
-        mediaSrc="/api/media/assets/hero-video.mp4"
+        mediaSrc="/hero-video.mp4"
         useShaderBg={true}
         title="LUMIARDI ECOSYSTEM"
         date="PLATAFORMA GLOBAL & EXCLUSIVA"

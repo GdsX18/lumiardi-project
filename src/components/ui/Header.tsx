@@ -75,7 +75,7 @@ export const Header: React.FC = () => {
           <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
             <div className="relative w-7 h-7 sm:w-8 sm:h-8 transition-transform duration-300 group-hover:scale-105">
               <Image
-                src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
+                src="/Lumiardi logo2-Trasparente.png"
                 alt="Lumiardi Emblem"
                 fill
                 className="object-contain"
@@ -151,7 +151,7 @@ export const Header: React.FC = () => {
                   <div className="flex items-center gap-2.5">
                     <div className="relative w-6 h-6">
                       <Image
-                        src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
+                        src="/Lumiardi logo2-Trasparente.png"
                         alt="Lumiardi Emblem"
                         fill
                         className="object-contain"
