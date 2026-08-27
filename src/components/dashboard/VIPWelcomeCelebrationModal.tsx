@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ShieldCheck, CheckCircle2, ArrowRight, Award, Crown, Star } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, ArrowRight, Award, Crown } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface VIPWelcomeCelebrationModalProps {

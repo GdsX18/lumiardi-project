@@ -161,8 +161,8 @@ export const BillingService = {
           record.updatedAt,
         ]
       );
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('[BillingService createOrRenewSubscription DB ERROR]:', err);
     }
 
     // Salva no fallbackStore
@@ -327,8 +327,8 @@ export const BillingService = {
           record.createdAt,
         ]
       );
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('[BillingService generateInvoice DB ERROR]:', err);
     }
 
     fallbackStore.invoices.set(id, record as unknown as Record<string, unknown>);
@@ -497,5 +497,123 @@ export const BillingService = {
 
     await cache.delete(`sub:${userId}`);
     return true;
+  },
+
+  /**
+   * Processa o estorno/reembolso automático de pagamentos quando a curadoria recusa a aplicação
+   */
+  async processAutomatedRefund(params: {
+    userId: string;
+    reason: string;
+    curatorId?: string;
+  }): Promise<{
+    refunded: boolean;
+    refundCode?: string;
+    amount?: number;
+    currency?: string;
+    refundedAt?: string;
+    message: string;
+  }> {
+    await initDatabase();
+    const now = new Date().toISOString();
+    const refundCode = `REFUND-LUM-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    let totalRefundAmount = 0;
+    let refundCurrency = 'BRL';
+    let hasFoundPayment = false;
+
+    // 1. Busca todas as faturas do usuário
+    const userInvoices = await this.getUserInvoices(params.userId);
+    const paidInvoices = userInvoices.filter((inv) => inv.status === 'paid');
+
+    if (paidInvoices.length > 0) {
+      hasFoundPayment = true;
+      for (const inv of paidInvoices) {
+        totalRefundAmount += inv.amount;
+        refundCurrency = inv.currency || 'BRL';
+
+        // Atualiza a fatura no PostgreSQL
+        try {
+          await pool.query(
+            `UPDATE invoices SET status = 'refunded' WHERE id = $1`,
+            [inv.id]
+          );
+        } catch {
+          // Fallback
+        }
+
+        // Atualiza no fallbackStore
+        const storeInv = fallbackStore.invoices.get(inv.id) as Record<string, any> | undefined;
+        if (storeInv) {
+          storeInv.status = 'refunded';
+          storeInv.refundedAt = now;
+          storeInv.refundCode = refundCode;
+          storeInv.refundReason = params.reason;
+        }
+      }
+    } else {
+      // Se não encontrou faturas com status 'paid', verifica assinatura ativa
+      const sub = await this.getUserSubscription(params.userId);
+      if (sub && sub.amount > 0) {
+        hasFoundPayment = true;
+        totalRefundAmount = sub.amount;
+        refundCurrency = sub.currency || 'BRL';
+      }
+    }
+
+    // 2. Cancela a assinatura ativa
+    try {
+      await pool.query(
+        `UPDATE subscriptions SET status = 'cancelled', updated_at = NOW() WHERE user_id = $1`,
+        [params.userId]
+      );
+    } catch {
+      // Fallback
+    }
+    const storeSub = fallbackStore.subscriptions.get(params.userId) as Record<string, any> | undefined;
+    if (storeSub) {
+      storeSub.status = 'cancelled';
+      storeSub.updated_at = now;
+    }
+
+    // 3. Registra transação de estorno
+    if (totalRefundAmount > 0) {
+      await this.recordTransaction({
+        userId: params.userId,
+        gateway: 'pix',
+        gatewayTransactionId: refundCode,
+        amount: totalRefundAmount,
+        currency: refundCurrency,
+        status: 'refunded',
+        paymentMethod: 'credit_card',
+        rawPayload: {
+          refundCode,
+          reason: params.reason,
+          curatorId: params.curatorId || 'curadoria',
+          refundedAt: now,
+          type: 'AUTOMATIC_CURATION_REJECTION_REFUND',
+        },
+        idempotencyKey: `refund_${refundCode}`,
+      });
+    }
+
+    // 4. Limpa cache
+    await cache.delete(`sub:${params.userId}`);
+
+    if (hasFoundPayment && totalRefundAmount > 0) {
+      return {
+        refunded: true,
+        refundCode,
+        amount: totalRefundAmount,
+        currency: refundCurrency,
+        refundedAt: now,
+        message: `Reembolso automático de ${refundCurrency === 'BRL' ? 'R$ ' : '$'}${totalRefundAmount.toFixed(2)} processado com sucesso. Código: ${refundCode}`,
+      };
+    }
+
+    return {
+      refunded: false,
+      message: 'Nenhum pagamento liquidado pendente de estorno.',
+    };
   },
 };

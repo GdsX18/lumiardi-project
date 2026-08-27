@@ -87,8 +87,25 @@ export async function POST(req: NextRequest) {
       size: size || '1.5 MB',
       uploadedById: session.id,
       uploadedByName: session.name || (session.role === 'agencia' ? 'Agência' : 'Modelo'),
-      fileUrl: fileUrl || '/uploads/sample_shared.jpg',
+      fileUrl: fileUrl || '',
     });
+
+    // Disparar notificação para a contraparte (Modelo ou Agência)
+    const counterpartId = session.id === finalAgencyId ? finalModelId : finalAgencyId;
+    const uploaderLabel = session.role === 'agencia' ? 'Sua Agência' : (session.name || 'Sua Modelo');
+    try {
+      await StorageService.createNotification({
+        userId: counterpartId,
+        title: 'Novo Arquivo no Drive Compartilhado',
+        desc: `${uploaderLabel} adicionou o arquivo "${name || 'Arquivo Compartilhado'}" no Drive Compartilhado.`,
+        category: 'Drive',
+        type: 'info',
+        link: '/dashboard/drive',
+        linkText: 'Acessar Drive',
+      });
+    } catch (e) {
+      console.warn('Erro ao criar notificação de drive compartilhado:', e);
+    }
 
     return NextResponse.json({ success: true, file });
   } catch (error) {

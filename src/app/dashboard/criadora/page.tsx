@@ -17,7 +17,6 @@ import {
   Eye,
   Camera,
   MessageSquare,
-  Sparkles,
   ArrowRight,
 } from 'lucide-react';
 

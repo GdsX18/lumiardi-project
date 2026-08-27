@@ -195,14 +195,14 @@ function LoginForm() {
           </span>
           <div className="flex items-center justify-center gap-4 text-xs font-sans">
             <Link
-              href="/qualificacao"
+              href={searchParams.get('plan') ? `/qualificacao?plan=${searchParams.get('plan')}&billing=${searchParams.get('billing') || 'yearly'}` : '/qualificacao'}
               className="text-gold hover:underline uppercase tracking-wider font-medium"
             >
               {t('login_register_creator') || 'Cadastrar como Modelo'} →
             </Link>
             <span className="text-ivory/30">•</span>
             <Link
-              href="/qualificacao/agencia"
+              href={searchParams.get('plan') ? `/qualificacao/agencia?plan=${searchParams.get('plan')}&billing=${searchParams.get('billing') || 'yearly'}` : '/qualificacao/agencia'}
               className="text-gold hover:underline uppercase tracking-wider font-medium"
             >
               {t('login_register_agency') || 'Credenciar Agência'} →

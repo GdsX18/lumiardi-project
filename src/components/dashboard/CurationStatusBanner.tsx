@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Clock, CheckCircle2, FileCheck, Calendar, Sparkles, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Clock, CheckCircle2, FileCheck, Calendar, RefreshCw } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';

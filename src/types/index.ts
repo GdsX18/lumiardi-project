@@ -308,3 +308,17 @@ export interface CurationAuditLog {
   createdAt: string;
 }
 
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  title: string;
+  desc: string;
+  category: string;
+  type: 'info' | 'success' | 'warn' | 'invite' | string;
+  link?: string;
+  linkText?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+

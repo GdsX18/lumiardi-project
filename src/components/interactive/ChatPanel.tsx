@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   RefreshCw,
   CheckCheck,
-  Sparkles,
   Smile,
   Copy,
   Check,

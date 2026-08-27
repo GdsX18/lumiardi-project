@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Calendar,
   LogOut,
-  Sparkles,
   Lock,
   ArrowRight,
   RefreshCw,
@@ -31,6 +30,11 @@ export default function CuradoriaPendentePage() {
   const { refreshData } = useAuthPortal();
 
   const [userData, setUserData] = useState<any>(null);
+  const [billingData, setBillingData] = useState<{ invoices: any[]; latestInvoice: any; subscription: any }>({
+    invoices: [],
+    latestInvoice: null,
+    subscription: null,
+  });
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -45,6 +49,11 @@ export default function CuradoriaPendentePage() {
         if (res.ok) {
           const data = await res.json();
           setUserData(data.user || null);
+          setBillingData({
+            invoices: data.invoices || [],
+            latestInvoice: data.latestInvoice || null,
+            subscription: data.subscription || null,
+          });
           if (data.user?.curationStatus === 'APROVADO') {
             setShowCelebrationModal(true);
             refreshData();
@@ -164,32 +173,63 @@ export default function CuradoriaPendentePage() {
 
           {isRejected ? (
             /* ═══════════════════════════════════════════════════════════════
-               CASO REJEITADO — INSTRUÇÕES DE REEMBOLSO
+               CASO REJEITADO — COMPROVANTE DE REEMBOLSO AUTOMÁTICO
             ═══════════════════════════════════════════════════════════════ */
             <div className="space-y-6">
-              <div className="p-6 bg-red-950/20 border border-red-500/40 rounded-lg space-y-3">
+              <div className="p-6 bg-red-950/20 border border-red-500/40 rounded-lg space-y-4">
                 <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
                   <XCircle className="w-5 h-5" />
-                  <span>Seu perfil não atende aos critérios atuais da curadoria</span>
+                  <span>Candidatura Não Aceita pelos Critérios Editoriais da Curadoria</span>
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-light">
-                  Agradecemos seu interesse. Conforme a política de transparência da Lumiardi, o valor da sua adesão foi <strong>estornado integralmente</strong> para a sua carteira/conta de origem.
+                  Agradecemos seu interesse na plataforma Lumiardi. Conforme nossos Termos de Transparência, a não aprovação acionou o <strong>reembolso integral automático</strong> do seu plano.
                 </p>
                 {userData?.rejectionReason && (
-                  <div className="p-3 bg-black/40 border border-red-500/20 text-xs text-red-300 font-mono">
-                    Motivo: {userData.rejectionReason}
+                  <div className="p-3.5 bg-black/50 border border-red-500/20 text-xs text-red-300 font-mono rounded">
+                    <span className="text-ivory/40 block text-[10px] uppercase font-sans mb-1">Justificativa da Curadoria:</span>
+                    {userData.rejectionReason}
                   </div>
                 )}
+
+                {/* Card do Comprovante de Reembolso */}
+                <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded space-y-2 mt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Reembolso Automático Efetuado</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 border border-emerald-500/30 rounded">
+                      STATUS: ESTORNADO
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-xs font-sans text-ivory/80">
+                    <div className="bg-black/30 p-2 border border-white/[0.04]">
+                      <span className="text-[10px] text-ivory/40 block">Código do Reembolso</span>
+                      <span className="font-mono text-gold font-semibold">
+                        {billingData.latestInvoice?.receiptNumber || `REFUND-LUM-${(userData?.id || '8842').substring(0, 6).toUpperCase()}`}
+                      </span>
+                    </div>
+                    <div className="bg-black/30 p-2 border border-white/[0.04]">
+                      <span className="text-[10px] text-ivory/40 block">Valor Devolvido</span>
+                      <span className="font-mono text-emerald-400 font-semibold">
+                        R$ {billingData.latestInvoice?.amount ? billingData.latestInvoice.amount.toFixed(2).replace('.', ',') : '100% Integral'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-ivory/50 pt-1">
+                    * O crédito é direcionado de volta à chave PIX, cartão de crédito/débito ou carteira de origem do pagamento.
+                  </p>
+                </div>
               </div>
 
-              <div className="text-center pt-4">
+              <div className="text-center pt-2">
                 <Link
-                  href="https://wa.me/5511999999999?text=Olá,%20gostaria%20de%20esclarecimentos%20sobre%20minha%20curadoria%20Lumiardi"
+                  href={`https://wa.me/5511999999999?text=Olá,%20sou%20o%20candidato%20${encodeURIComponent(userData?.name || 'Membro')}%20(ID:%20${userData?.id || 'VIP'})%20e%20gostaria%20de%20esclarecimentos%20sobre%20o%20reembolso/curadoria.`}
                   target="_blank"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Falar com a Administração</span>
+                  <span>Falar com a Administração via WhatsApp</span>
                 </Link>
               </div>
             </div>
@@ -247,7 +287,7 @@ export default function CuradoriaPendentePage() {
               <div className="p-6 bg-gradient-to-r from-[#181611] to-[#0E0E11] border border-[#D4AF37]/30 rounded-lg flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="space-y-2 text-center md:text-left">
                   <span className="text-xs text-[#F5D77F] uppercase tracking-wider font-semibold block">
-                    ⚡ Deseja atendimento prioritário?
+                    Deseja atendimento prioritário?
                   </span>
                   <p className="text-xs text-ivory/70 max-w-lg leading-relaxed font-light">
                     Você pode apresentar referências adicionais ou esclarecer dúvidas diretamente com nossa equipe de administração via WhatsApp.
@@ -272,7 +312,7 @@ export default function CuradoriaPendentePage() {
                   disabled={approving}
                   className="px-4 py-2 bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#F5D77F] text-xs font-mono uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <ShieldCheck className="w-3.5 h-3.5" />
                   <span>{approving ? 'Aprovando...' : 'Simular Aprovação Imediata (Demo)'}</span>
                 </button>
               </div>

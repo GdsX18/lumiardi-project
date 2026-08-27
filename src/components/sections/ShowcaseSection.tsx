@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ArrowUpRight, Star, Search, UserCheck, Lock, Sparkles, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { ArrowUpRight, Star, Search, UserCheck, Lock, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
@@ -40,7 +40,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: t('showcase_verified_badge'),
       rating: '5.0',
       hero: true,
-      image: '/images/agency_aura.jpg',
+      image: '/api/media/assets/images/agency_aura.jpg',
       bio: 'Agência de gestão internacional com foco em modelos e criadoras de alto ticket, contratos formais e representação global.',
       metrics: [
         { label: 'Talentos Agenciados', value: '42' },
@@ -55,7 +55,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: 'TOP CREATOR',
       rating: '4.9',
       hero: false,
-      image: '/images/creator_elena.jpg',
+      image: '/api/media/assets/images/creator_elena.jpg',
       bio: 'Criadora e modelo autoral focada em ensaios editoriais de luxo, campanhas de moda e presença digital internacional.',
       metrics: [
         { label: 'Presença Global', value: '12 Países' },
@@ -70,7 +70,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: t('showcase_verified_badge'),
       rating: '5.0',
       hero: false,
-      image: '/images/agency_vanguard.jpg',
+      image: '/api/media/assets/images/agency_vanguard.jpg',
       bio: 'Holding de gestão de talentos executivos e representação de criadoras em grande escala com sigilo de marca.',
       metrics: [
         { label: 'Talentos Ativos', value: '85' },
@@ -85,7 +85,7 @@ export const ShowcaseSection: React.FC = () => {
       badge: 'ICON',
       rating: '5.0',
       hero: false,
-      image: '/images/creator_sophia.jpg',
+      image: '/api/media/assets/images/creator_sophia.jpg',
       bio: 'Modelo editorial de alta performance com portfólio exclusivo para agências registradas Lumiardi Signature.',
       metrics: [
         { label: 'Segmento', value: 'Fashion & Luxury' },
@@ -130,7 +130,7 @@ export const ShowcaseSection: React.FC = () => {
         {/* Header */}
         <div className="max-w-4xl space-y-6 mb-20">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-gold font-sans font-medium">
-            <Sparkles className="w-4 h-4 stroke-[1.2]" />
+            <ShieldCheck className="w-4 h-4 stroke-[1.2]" />
             <span>{t('showcase_tag')}</span>
           </div>
 
@@ -233,6 +233,7 @@ export const ShowcaseSection: React.FC = () => {
                     fill
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                     className="object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 group-hover:opacity-100"
+                    unoptimized
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent" />
                 </div>
@@ -279,6 +280,7 @@ export const ShowcaseSection: React.FC = () => {
                     fill
                     sizes="96px"
                     className="object-cover"
+                    unoptimized
                   />
                 </div>
                 <div>

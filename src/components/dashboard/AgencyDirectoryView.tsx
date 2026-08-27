@@ -7,7 +7,6 @@ import {
   Building2,
   ShieldCheck,
   Send,
-  Sparkles,
   Percent,
   MapPin,
   CheckCircle2,
@@ -21,7 +20,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { Badge } from '@/components/ui/Badge';
 
 export const AgencyDirectoryView: React.FC = () => {
-  const { activeCreator } = useAuthPortal();
+  const { currentUser, activeCreator } = useAuthPortal();
   const { t } = useLanguage();
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,9 +69,22 @@ export const AgencyDirectoryView: React.FC = () => {
     setSelectedAgency(agency);
   };
 
-  const handleConfirmApplication = (e: React.FormEvent) => {
+  const handleConfirmApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAgency) return;
+    try {
+      await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          receiverId: selectedAgency.id,
+          conversationId: `conv-${currentUser?.id || 'user-model-1'}-${selectedAgency.id}`,
+          text: `[CANDIDATURA DE CASTING]: Olá! Gostaria de submeter meu portfólio e book oficial para a agência ${selectedAgency.name}. Mensagem: "${customPitch || 'Gostaria de apresentar meu book para casting.'}"`,
+        }),
+      });
+    } catch (err) {
+      console.warn('Erro ao enviar mensagem de candidatura:', err);
+    }
     setProposalSent(selectedAgency.name || selectedAgency.id);
     setSelectedAgency(null);
     setCustomPitch('');
@@ -112,9 +124,7 @@ export const AgencyDirectoryView: React.FC = () => {
           <button
             onClick={() => setProposalSent(null)}
             className="text-emerald-400 hover:text-white text-xs font-bold cursor-pointer"
-          >
-            ✕
-          </button>
+          ><X className="w-4 h-4" /></button>
         </div>
       )}
 

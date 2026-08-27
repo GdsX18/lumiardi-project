@@ -55,6 +55,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    try {
+      await StorageService.createNotification({
+        userId: modelId,
+        title: 'Nova Proposta de Agenciamento',
+        desc: `A agência "${agencyName}" enviou uma proposta formal de casting com comissão de ${proposedCommission || '20%'}.`,
+        category: 'Scout',
+        type: 'invite',
+        link: '/dashboard/chat',
+        linkText: 'Ver Mensagem',
+      });
+    } catch (e) {
+      console.warn('Erro ao criar notificação de proposta:', e);
+    }
+
     return NextResponse.json({
       success: true,
       proposal: result.proposal,

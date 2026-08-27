@@ -13,10 +13,10 @@ import {
   ExternalLink,
   Menu,
   X,
-  Sparkles,
   ShieldCheck,
   KeyRound,
   ScanFace,
+  Check,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -43,6 +43,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     activeCreator,
     activeAgency,
     logout,
+    notifications,
     notificationsCount,
     clearNotifications,
     refreshData,
@@ -60,39 +61,53 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const displayName = currentUser?.name || (isCriadora ? (activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo') : (activeAgency?.basicInfo?.responsibleName || 'Sua Agência'));
   const initials = displayName.substring(0, 2).toUpperCase();
 
-  const dynamicNotifications = [
-    {
-      id: '1',
-      title: isApproved ? '🏆 Credencial Aprovada' : '⏳ Curadoria em Andamento',
-      desc: isApproved
-        ? 'Sua conta foi homologada com sucesso sob o protocolo 18 U.S.C. § 2257. Todos os recursos estão liberados.'
-        : 'Sua solicitação está sendo avaliada pela mesa de curadoria e compliance.',
-      time: 'Recente',
-      category: 'Curadoria',
-      link: isApproved ? '/dashboard/book' : '/dashboard/pendente',
-      linkText: isApproved ? 'Ver Meu Book' : 'Ver Status',
-    },
-    {
-      id: '2',
-      title: '📸 Portfólio & Book Digital',
-      desc: isCriadora
-        ? 'Mantenha suas fotos em alta resolução atualizadas para atrair agências internacionais parceiras.'
-        : 'Explore o catálogo de novas criadoras de elite aprovadas nesta semana.',
-      time: 'Hoje',
-      category: 'Talentos',
-      link: isCriadora ? '/dashboard/book' : '/dashboard/agencias',
-      linkText: isCriadora ? 'Gerenciar Book' : 'Explorar Roster',
-    },
-    {
-      id: '3',
-      title: '🔒 Criptografia Militar E2E',
-      desc: 'Todas as mensagens no Chat e arquivos no Drive Lumiardi são protegidos por AES-256 e SHA-512.',
-      time: 'Ativo',
-      category: 'Segurança',
-      link: '/dashboard/drive',
-      linkText: 'Acessar Drive',
-    },
-  ];
+  const activeNotificationsList = notifications && notifications.length > 0
+    ? notifications.map((n) => ({
+        id: n.id,
+        title: n.title,
+        desc: n.desc,
+        time: n.createdAt ? new Date(n.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Recente',
+        category: n.category || 'Geral',
+        link: n.link,
+        linkText: n.linkText || 'Ver Detalhes',
+        isRead: n.isRead,
+      }))
+    : [
+        {
+          id: '1',
+          title: isApproved ? 'Credencial Aprovada' : 'Curadoria em Andamento',
+          desc: isApproved
+            ? 'Sua conta foi homologada com sucesso sob o protocolo 18 U.S.C. § 2257. Todos os recursos estão liberados.'
+            : 'Sua solicitação está sendo avaliada pela mesa de curadoria e compliance.',
+          time: 'Recente',
+          category: 'Curadoria',
+          link: isApproved ? '/dashboard/book' : '/dashboard/pendente',
+          linkText: isApproved ? 'Ver Meu Book' : 'Ver Status',
+          isRead: false,
+        },
+        {
+          id: '2',
+          title: 'Portfólio & Book Digital',
+          desc: isCriadora
+            ? 'Mantenha suas fotos em alta resolução atualizadas para atrair agências internacionais parceiras.'
+            : 'Explore o catálogo de novas criadoras de elite aprovadas nesta semana.',
+          time: 'Hoje',
+          category: 'Talentos',
+          link: isCriadora ? '/dashboard/book' : '/dashboard/agencias',
+          linkText: isCriadora ? 'Gerenciar Book' : 'Explorar Roster',
+          isRead: false,
+        },
+        {
+          id: '3',
+          title: 'Criptografia Militar E2E',
+          desc: 'Todas as mensagens no Chat e arquivos no Drive Lumiardi são protegidos por AES-256 e SHA-512.',
+          time: 'Ativo',
+          category: 'Segurança',
+          link: '/dashboard/drive',
+          linkText: 'Acessar Drive',
+          isRead: false,
+        },
+      ];
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#080808]/95 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-8 py-3.5 flex items-center justify-between">
@@ -111,7 +126,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="relative w-6 h-6 md:w-7 md:h-7 transition-transform duration-300 group-hover:scale-105">
             <Image
-              src="/Lumiardi logo2-Trasparente.png"
+              src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
               alt="Lumiardi Emblem"
               fill
               className="object-contain"
@@ -164,7 +179,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               >
                 <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-gold" />
+                    <Bell className="w-3.5 h-3.5 text-gold" />
                     <span className="font-serif-lumiardi text-sm font-medium">Central de Notificações</span>
                   </div>
                   <button
@@ -176,10 +191,14 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 </div>
 
                 <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                  {dynamicNotifications.map((n) => (
+                  {activeNotificationsList.map((n) => (
                     <div
                       key={n.id}
-                      className="p-3 bg-[#151515] border border-white/5 hover:border-gold/30 transition-colors space-y-1.5"
+                      className={`p-3 border transition-colors space-y-1.5 ${
+                        !n.isRead
+                          ? 'bg-[#181818] border-gold/40'
+                          : 'bg-[#151515] border-white/5 hover:border-gold/30'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
@@ -236,7 +255,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 {displayName}
               </span>
               <span className="text-[9px] font-sans uppercase tracking-widest text-emerald-400 mt-0.5">
-                {isApproved ? (t('header_verified') || 'Verificado ✓') : (t('header_in_review') || 'Em Análise')}
+                {isApproved ? (t('header_verified') || 'Verificado') : (t('header_in_review') || 'Em Análise')}
               </span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-ivory/50" />
@@ -270,8 +289,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     }}
                     className="w-full flex items-center justify-between p-2 hover:bg-white/5 hover:text-gold transition-colors text-left text-gold font-medium cursor-pointer"
                   >
-                    <span>{isCriadora ? (t('header_edit_profile') || '✏️ Editar Book & Perfil') : (t('header_edit_agency') || '🏢 Editar Dados da Agência')}</span>
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{isCriadora ? (t('header_edit_profile') || 'Editar Book & Perfil') : (t('header_edit_agency') || 'Editar Dados da Agência')}</span>
+                    <Check className="w-3.5 h-3.5" />
                   </button>
 
                   <Link

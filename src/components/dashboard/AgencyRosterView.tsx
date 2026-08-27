@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
   Users,
   DollarSign,
@@ -19,13 +20,14 @@ import { useAuthPortal } from '@/context/AuthPortalContext';
 import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 
 export const AgencyRosterView: React.FC = () => {
+  const router = useRouter();
   const { allCreators } = useAuthPortal();
   const [selectedModelDrive, setSelectedModelDrive] = useState<any | null>(null);
 
   const roster = allCreators.map((c, index) => ({
     id: c.id,
     name: c?.qualitative?.artisticName || c?.basicInfo?.fullName || 'Modelo Lumiardi',
-    image: (c as any)?.avatarUrl || (c as any)?.photos?.[0]?.url || (index % 2 === 0 ? '/images/creator_elena.jpg' : '/images/creator_sophia.jpg'),
+    image: (c as any)?.avatarUrl || (c as any)?.photos?.[0]?.url || (index % 2 === 0 ? '/api/media/assets/images/creator_elena.jpg' : '/api/media/assets/images/creator_sophia.jpg'),
     category: c?.qualitative?.category || 'Modelo Editorial',
     monthlyGross: c?.qualitative?.monthlyRevenueEstimate || 'Sob Consulta',
     agencyNet: 'Comissão 20%',
@@ -95,12 +97,23 @@ export const AgencyRosterView: React.FC = () => {
               <div className="flex items-center justify-between pb-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
                   <div className="relative w-12 h-12 border border-gold/40 bg-black shrink-0 overflow-hidden">
-                    <Image
-                      src={model.image}
-                      alt={model.name}
-                      fill
-                      className="object-cover"
-                    />
+                    {model.image ? (
+                      model.image.startsWith('data:') ? (
+                        <img src={model.image} alt={model.name} className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <Image
+                          src={model.image}
+                          alt={model.name}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      )
+                    ) : (
+                      <div className="w-full h-full bg-[#161616] flex items-center justify-center text-gold font-serif-lumiardi font-bold text-sm">
+                        {model.name?.charAt(0) || 'M'}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <h3 className="font-serif-lumiardi text-xl font-medium text-ivory">
@@ -157,6 +170,7 @@ export const AgencyRosterView: React.FC = () => {
             <div className="pt-4 border-t border-white/10 flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => router.push(`/dashboard/chat?user=${model.id}`)}
                 className="flex-1 py-2 bg-[#151515] hover:bg-gold hover:text-black-matte text-ivory/80 border border-white/10 text-[11px] font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -165,6 +179,7 @@ export const AgencyRosterView: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => router.push(`/dashboard/meet?room=${model.id}`)}
                 className="p-2 bg-[#151515] hover:bg-white/10 text-ivory/60 hover:text-gold border border-white/10 transition-colors cursor-pointer"
                 title="Lumiardi Meet"
               >
@@ -198,7 +213,17 @@ export const AgencyRosterView: React.FC = () => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#121212]">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 border border-gold/40 bg-black relative shrink-0 overflow-hidden">
-                  <Image src={selectedModelDrive.image} alt={selectedModelDrive.name} fill className="object-cover" />
+                  {selectedModelDrive.image ? (
+                    selectedModelDrive.image.startsWith('data:') ? (
+                      <img src={selectedModelDrive.image} alt={selectedModelDrive.name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <Image src={selectedModelDrive.image} alt={selectedModelDrive.name} fill className="object-cover" unoptimized />
+                    )
+                  ) : (
+                    <div className="w-full h-full bg-[#161616] flex items-center justify-center text-gold font-serif-lumiardi font-bold text-xs">
+                      {selectedModelDrive.name?.charAt(0) || 'M'}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] font-sans uppercase tracking-widest text-gold block">

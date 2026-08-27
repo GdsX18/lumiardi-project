@@ -7,7 +7,6 @@ import {
   Calendar,
   ShieldCheck,
   HardDrive,
-  Sparkles,
   X,
   CheckCircle2,
   Lock,
@@ -132,7 +131,7 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
                 disabled={loading}
                 className="w-full sm:flex-1 py-3 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Manter Minha Assinatura</span>
               </button>
 

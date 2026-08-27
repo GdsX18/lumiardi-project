@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Lock,
   ArrowRight,
-  Sparkles,
   RefreshCw,
   EyeOff,
   Zap,
@@ -29,9 +28,10 @@ function CheckoutContent() {
 
   const initialPlanId = (searchParams.get('plan') || 'glow') as PlanId;
   const initialCategory = searchParams.get('category') === 'agencias' ? 'agencias' : 'criadoras';
+  const initialInterval = (searchParams.get('billing') === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
 
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>(initialPlanId);
-  const [billingInterval, setBillingInterval] = useState<BillingInterval>('monthly');
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(initialInterval);
   const [gateway, setGateway] = useState<PaymentGatewayType>('pix');
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoCurrency>('USDTTRC20');
 
@@ -131,20 +131,27 @@ function CheckoutContent() {
 
     try {
       // Simula tokenização bancária segura e registro
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      await fetch('/api/webhooks/nowpayments', {
+      const res = await fetch('/api/checkout/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payment_status: 'finished',
-          payment_id: `card_${Date.now()}`,
-          order_description: `Plano ${currentPlan.name} (Cartão ${cardData.type === 'credit' ? 'Crédito' : 'Débito'})`,
-          price_amount: priceUSD,
-          pay_currency: 'BRL_CARD',
-          userId: currentUser?.id || 'user_card',
+          planId: selectedPlanId,
+          billingInterval,
+          gateway: 'ccbill',
+          paymentMethod: 'credit_card',
+          cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
+          userId: currentUser?.id,
+          userEmail: currentUser?.email,
+          userName: currentUser?.name,
         }),
       });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Falha ao processar pagamento com cartão.');
+      }
 
       if (refreshData) await refreshData();
       setPaymentSuccess(true);
@@ -160,23 +167,33 @@ function CheckoutContent() {
   const handleConfirmInstantPayment = async (methodName: string) => {
     setIsLoading(true);
     try {
-      await fetch('/api/webhooks/nowpayments', {
+      const gatewayType = methodName.toLowerCase().includes('pix') ? 'pix' : 'nowpayments';
+      const paymentMethodType = gatewayType === 'pix' ? 'pix' : 'crypto';
+
+      const res = await fetch('/api/checkout/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payment_status: 'finished',
-          payment_id: `${methodName.toLowerCase()}_${Date.now()}`,
-          order_description: `Plano ${currentPlan.name} ${billingInterval === 'yearly' ? 'Anual' : 'Mensal'} (${methodName})`,
-          price_amount: priceUSD,
-          pay_currency: methodName,
-          userId: currentUser?.id || 'new_user',
+          planId: selectedPlanId,
+          billingInterval,
+          gateway: gatewayType,
+          paymentMethod: paymentMethodType,
+          userId: currentUser?.id,
+          userEmail: currentUser?.email,
+          userName: currentUser?.name,
         }),
       });
 
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Falha ao confirmar pagamento instantâneo.');
+      }
+
       if (refreshData) await refreshData();
       setPaymentSuccess(true);
-    } catch (e) {
-      console.error(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Erro no pagamento';
+      console.error(msg);
       setPaymentSuccess(true);
     } finally {
       setIsLoading(false);
@@ -259,7 +276,7 @@ function CheckoutContent() {
                 Plano {currentPlan.name} Confirmado
               </h2>
               <p className="text-xs text-ivory/70 max-w-md mx-auto leading-relaxed font-light">
-                Sua anuidade foi registrada. Agora seus documentos e perfil foram encaminhados com prioridade para a <strong>Curadoria VIP Lumiardi</strong>.
+                Sua anuidade foi registrada com sucesso. Agora seus documentos e perfil foram encaminhados com prioridade para a <strong>Curadoria VIP Lumiardi</strong>. Em caso de não aprovação, o <strong>reembolso integral</strong> é efetuado automaticamente.
               </p>
             </div>
 
@@ -309,7 +326,7 @@ function CheckoutContent() {
                       </div>
                     </div>
                     <span className="text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-semibold bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 rounded-xs">
-                      Recomendado ⚡
+                      Recomendado
                     </span>
                   </button>
 
@@ -370,11 +387,17 @@ function CheckoutContent() {
                       <div className="flex flex-col sm:flex-row items-center gap-6">
                         {/* QR Code Pix */}
                         <div className="p-3 bg-white rounded-md shrink-0 shadow-2xl">
-                          <img
-                            src={pixQrCodeUrl}
-                            alt="QR Code Pix Oficial"
-                            className="w-40 h-40 object-contain"
-                          />
+                          {pixQrCodeUrl ? (
+                            <img
+                              src={pixQrCodeUrl}
+                              alt="QR Code Pix Oficial"
+                              className="w-40 h-40 object-contain"
+                            />
+                          ) : (
+                            <div className="w-40 h-40 bg-neutral-900 flex items-center justify-center text-gold text-xs">
+                              Carregando Pix...
+                            </div>
+                          )}
                         </div>
 
                         {/* Dados do Pix */}
@@ -420,7 +443,7 @@ function CheckoutContent() {
                             className="px-4 py-2.5 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all cursor-pointer rounded-xs"
                           >
                             <Copy className="w-3.5 h-3.5" />
-                            <span>{isCopied ? 'Copiado! ✓' : 'Copiar'}</span>
+                            <span>{isCopied ? 'Copiado!' : 'Copiar'}</span>
                           </button>
                         </div>
                       </div>
@@ -428,7 +451,7 @@ function CheckoutContent() {
                       {/* Instruções */}
                       <div className="p-4 bg-black/40 border border-white/10 text-xs text-ivory/70 space-y-1 font-light leading-relaxed rounded-xs">
                         <p>1. Abra o app do seu banco no celular (Nubank, Itaú, Bradesco, Inter, Santander, etc.).</p>
-                        <p>2. Escolha <strong>Pix ➔ Pagar com QR Code</strong> ou <strong>Pix Copia e Cola</strong>.</p>
+                        <p>2. Escolha <strong>Pix &gt; Pagar com QR Code</strong> ou <strong>Pix Copia e Cola</strong>.</p>
                         <p>3. Conclua o pagamento e clique no botão abaixo para avançar para a Curadoria.</p>
                       </div>
 
@@ -670,11 +693,13 @@ function CheckoutContent() {
                       <div className="p-6 bg-[#121212] border border-[#D4AF37]/50 space-y-6 rounded-lg">
                         <div className="flex flex-col sm:flex-row items-center gap-6">
                           <div className="p-2 bg-white rounded-sm shrink-0 shadow-lg">
-                            <img
-                              src={cryptoData.qrCodeUrl}
-                              alt="QR Code de Pagamento"
-                              className="w-36 h-36"
-                            />
+                            {cryptoData.qrCodeUrl ? (
+                              <img
+                                src={cryptoData.qrCodeUrl}
+                                alt="QR Code de Pagamento"
+                                className="w-36 h-36"
+                              />
+                            ) : null}
                           </div>
 
                           <div className="space-y-3 w-full min-w-0">
@@ -753,7 +778,7 @@ function CheckoutContent() {
                       isYearly ? 'bg-[#D4AF37] text-[#0B0B0B]' : 'text-ivory/60 hover:text-ivory'
                     }`}
                   >
-                    Anual (20% OFF)
+                    Anual (10% OFF)
                   </button>
                 </div>
 

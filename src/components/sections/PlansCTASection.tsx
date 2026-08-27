@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Sparkles, UserCheck, Building2 } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, UserCheck, Building2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 export const PlansCTASection: React.FC = () => {
@@ -19,7 +19,7 @@ export const PlansCTASection: React.FC = () => {
             {/* Esquerda: Conteúdo & Título */}
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
-                <Sparkles className="w-4 h-4 stroke-[1.2]" />
+                <ShieldCheck className="w-4 h-4 stroke-[1.2]" />
                 <span>{t('plans_tag')}</span>
               </div>
 

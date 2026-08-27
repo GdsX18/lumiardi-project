@@ -27,6 +27,7 @@ export const fallbackStore = {
   invoices: new Map<string, Record<string, unknown>>(),
   payouts: new Map<string, Record<string, unknown>>(),
   application_notes: new Map<string, Record<string, unknown>[]>(),
+  notifications: new Map<string, Record<string, unknown>>(),
 };
 
 // Inicialização imediata síncrona/assíncrona do fallback
@@ -162,8 +163,8 @@ export const fallbackStore = {
     physiognomy: { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português', 'Inglês'] },
     address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
     photos: [
-      { id: '1', url: '/images/creator_elena.jpg', title: 'Editorial Milan', tag: 'Alta Resolução · RAW' },
-      { id: '2', url: '/images/creator_sophia.jpg', title: 'Studio Portrait', tag: 'Book Oficial' },
+      { id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Editorial Milan', tag: 'Alta Resolução · RAW' },
+      { id: '2', url: '/api/media/assets/images/creator_sophia.jpg', title: 'Studio Portrait', tag: 'Book Oficial' },
     ],
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
     bio: 'Modelo editorial com experiência em alta costura e campanhas internacionais.',
@@ -257,7 +258,7 @@ export const fallbackStore = {
       size: '12.8 MB',
       uploaded_by_id: 'user-model-1',
       uploaded_by_name: 'Sua Conta Modelo',
-      file_url: '/images/creator_elena.jpg',
+      file_url: '/api/media/assets/images/creator_elena.jpg',
       downloads: 1,
       created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     },
@@ -503,6 +504,71 @@ export const fallbackStore = {
     },
   ];
   defaultPayouts.forEach((p) => fallbackStore.payouts.set(p.id, p));
+
+  // Notificações Iniciais
+  const defaultNotifications = [
+    {
+      id: 'notif-seed-1',
+      user_id: 'user-model-1',
+      title: 'Credencial Aprovada',
+      description: 'Sua conta foi homologada com sucesso sob o protocolo 18 U.S.C. § 2257. Todos os recursos estão liberados.',
+      category: 'Curadoria',
+      type: 'success',
+      link: '/dashboard/book',
+      link_text: 'Ver Meu Book',
+      is_read: false,
+      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif-seed-2',
+      user_id: 'user-model-1',
+      title: 'Portfólio & Book Digital',
+      description: 'Mantenha suas fotos em alta resolução atualizadas para atrair agências internacionais parceiras.',
+      category: 'Talentos',
+      type: 'info',
+      link: '/dashboard/book',
+      link_text: 'Gerenciar Book',
+      is_read: false,
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif-seed-3',
+      user_id: 'user-model-1',
+      title: 'Criptografia Militar E2E',
+      description: 'Todas as mensagens no Chat e arquivos no Drive Lumiardi são protegidos por AES-256 e SHA-512.',
+      category: 'Segurança',
+      type: 'info',
+      link: '/dashboard/drive',
+      link_text: 'Acessar Drive',
+      is_read: false,
+      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif-seed-4',
+      user_id: 'user-agency-1',
+      title: 'Credencial Aprovada',
+      description: 'Sua agência foi homologada pela Mesa de Curadoria Lumiardi com sucesso.',
+      category: 'Curadoria',
+      type: 'success',
+      link: '/dashboard/agencias',
+      link_text: 'Ver Agência',
+      is_read: false,
+      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif-seed-5',
+      user_id: 'user-agency-1',
+      title: 'Catálogo de Talentos Atualizado',
+      description: 'Novas criadoras de elite foram aprovadas e estão disponíveis para contratação.',
+      category: 'Scout',
+      type: 'info',
+      link: '/dashboard/agencias',
+      link_text: 'Explorar Roster',
+      is_read: false,
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+  defaultNotifications.forEach((n) => fallbackStore.notifications.set(n.id, n));
 })();
 
 let isInitialized = false;
@@ -555,6 +621,8 @@ export async function initDatabase(): Promise<boolean> {
           physiognomy JSONB,
           address JSONB,
           photos JSONB,
+          avatar_url TEXT,
+          logo_url TEXT,
           video_url VARCHAR(255),
           monthly_revenue_estimate VARCHAR(100),
           commission_rate VARCHAR(50),
@@ -566,6 +634,8 @@ export async function initDatabase(): Promise<boolean> {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS logo_url TEXT;
       `);
 
       // 3. Tabela KANBAN_TASKS
@@ -761,6 +831,26 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
+      // Migrações automáticas de colunas para tabelas financeiras existentes
+      await client.query(`
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_interval VARCHAR(20) DEFAULT 'monthly';
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS plan_category VARCHAR(50) DEFAULT 'criadoras';
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_start TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMP WITH TIME ZONE DEFAULT NOW() + INTERVAL '30 days';
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN DEFAULT FALSE;
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS metadata JSONB;
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100);
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(100);
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'BRL';
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS billing_reason TEXT DEFAULT 'Assinatura';
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS due_date TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(100);
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_url TEXT;
+      `);
+
       // 14. Tabela PAYOUTS
       await client.query(`
         CREATE TABLE IF NOT EXISTS payouts (
@@ -778,7 +868,23 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 15. Índices de Alta Performance
+      // 15. Tabela de NOTIFICATIONS
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id VARCHAR(100) PRIMARY KEY,
+          user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          description TEXT NOT NULL,
+          category VARCHAR(100) DEFAULT 'Geral',
+          type VARCHAR(50) DEFAULT 'info',
+          link VARCHAR(255),
+          link_text VARCHAR(100),
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `);
+
+      // 16. Índices de Alta Performance
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
@@ -798,6 +904,8 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_payment_transactions_idemp ON payment_transactions(idempotency_key);
         CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
         CREATE INDEX IF NOT EXISTS idx_payouts_creator_id ON payouts(creator_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
       `);
 
       const hashPassword = await bcrypt.hash('lumiardi2026', 10);
@@ -833,7 +941,7 @@ export async function initDatabase(): Promise<boolean> {
       `);
 
       isInitialized = true;
-      console.log('✅ PostgreSQL Local: Tabelas, Finanças, RBAC e Drive Compartilhado sincronizados.');
+      console.log('[OK] PostgreSQL Local: Tabelas, Finanças, RBAC e Drive Compartilhado sincronizados.');
       return true;
     } finally {
       client.release();

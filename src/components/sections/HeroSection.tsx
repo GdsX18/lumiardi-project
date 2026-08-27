@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import ScrollExpandMedia from '@/components/ui/scroll-expansion-hero';
-import { ArrowUpRight, ShieldCheck, Globe, Sparkles, UserCheck, Lock } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Globe, UserCheck, Lock } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 export const HeroSection: React.FC = () => {
@@ -14,7 +14,7 @@ export const HeroSection: React.FC = () => {
     <div id="hero" className="w-full bg-[#0B0B0B] text-ivory">
       <ScrollExpandMedia
         mediaType="video"
-        mediaSrc="/hero-video.mp4"
+        mediaSrc="/api/media/assets/hero-video.mp4"
         useShaderBg={true}
         title="LUMIARDI ECOSYSTEM"
         date="PLATAFORMA GLOBAL & EXCLUSIVA"
@@ -28,7 +28,7 @@ export const HeroSection: React.FC = () => {
           <div className="max-w-6xl mx-auto w-full flex flex-col items-center text-center space-y-10 relative z-10">
             {/* Tag Subtil */}
             <div className="inline-flex items-center gap-2.5 px-4 py-1.5 border border-gold/30 bg-gold/5 text-gold text-xs font-sans tracking-[0.3em] uppercase">
-              <Sparkles className="w-3.5 h-3.5 stroke-[1.2]" />
+              <ShieldCheck className="w-3.5 h-3.5 stroke-[1.2]" />
               <span>{t('hero_tag')}</span>
             </div>
 
@@ -93,7 +93,7 @@ export const HeroSection: React.FC = () => {
 
               <div className="flex items-start gap-4">
                 <div className="p-3 border border-gold/20 bg-gold/5 text-gold shrink-0">
-                  <Sparkles className="w-5 h-5 stroke-[1.2]" />
+                  <ShieldCheck className="w-5 h-5 stroke-[1.2]" />
                 </div>
                 <div>
                   <h4 className="font-serif-lumiardi text-xl font-normal text-ivory">{t('hero_pillar_3_title')}</h4>

@@ -47,6 +47,34 @@ export async function POST(
 
     const success = await StorageService.updateApplicationStatus(id, status, rejectionReason);
 
+    let refundInfo: { refunded: boolean; refundCode?: string; amount?: number; currency?: string; message: string } | null = null;
+
+    if (status === 'REJEITADO') {
+      try {
+        const { BillingService } = await import('@/lib/payments/billingService');
+        refundInfo = await BillingService.processAutomatedRefund({
+          userId: id,
+          reason: rejectionReason || 'Candidatura não aprovada pela Curadoria',
+          curatorId: session.id,
+        });
+
+        if (refundInfo.refunded) {
+          // Cria notificação formal de estorno para o usuário
+          await StorageService.createNotification({
+            userId: id,
+            title: 'Reembolso Automático Integral Processado',
+            desc: `Sua candidatura não foi aceita pelos critérios editoriais da Curadoria. O reembolso integral de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} foi efetuado com sucesso para sua forma original de pagamento (Código de Estorno: ${refundInfo.refundCode}).`,
+            category: 'Financeiro',
+            type: 'info',
+            link: '/dashboard/pendente',
+            linkText: 'Ver Comprovante de Estorno',
+          });
+        }
+      } catch (refundErr) {
+        console.error('[Curation Rejection] Erro ao processar reembolso automático:', refundErr);
+      }
+    }
+
     // Registro no Histórico de Auditoria Imutável
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
     await AuditLogService.logAction({
@@ -61,6 +89,7 @@ export async function POST(
       details: {
         status,
         rejectionReason: rejectionReason || null,
+        refund: refundInfo || null,
         decidedAt: new Date().toISOString(),
       },
       ipAddress: ip,
@@ -68,9 +97,9 @@ export async function POST(
 
     // Dispara e-mail de notificação de decisão da curadoria em segundo plano
     try {
-      if (targetUserRecord && targetUserRecord.user?.email) {
-        const email = targetUserRecord.user.email;
-        const name = targetUserRecord.user.name || 'Candidata';
+      if (targetUserRecord && (targetUserRecord.user?.email || targetUserRecord.email)) {
+        const email = targetUserRecord.user?.email || targetUserRecord.email;
+        const name = targetUserRecord.user?.name || targetUserRecord.fullName || 'Candidata';
         const referenceCode = `LUM-${id.substring(0, 8).toUpperCase()}`;
         EmailService.sendKYCStatusEmail(
           email,
@@ -89,7 +118,12 @@ export async function POST(
     return NextResponse.json({
       success,
       status,
-      message: status === 'APROVADO' ? 'Credencial aprovada com sucesso.' : 'Credencial recusada com justificativa registrada.',
+      refund: refundInfo,
+      message: status === 'APROVADO'
+        ? 'Credencial aprovada com sucesso.'
+        : refundInfo?.refunded
+          ? `Credencial recusada. Reembolso integral de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} estornado automaticamente (Código: ${refundInfo.refundCode}).`
+          : 'Credencial recusada com justificativa formal registrada.',
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao atualizar status';

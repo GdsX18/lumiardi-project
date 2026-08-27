@@ -20,6 +20,17 @@ export async function GET(request: NextRequest) {
     const currentStatus = userRecord?.user?.curationStatus || session.curationStatus;
     const rejectionReason = userRecord?.user?.rejectionReason;
 
+    // Busca faturas e assinaturas para exibição de status financeiro / comprovante de estorno
+    let invoices: any[] = [];
+    let subscription: any = null;
+    try {
+      const { BillingService } = await import('@/lib/payments/billingService');
+      invoices = await BillingService.getUserInvoices(session.id);
+      subscription = await BillingService.getUserSubscription(session.id);
+    } catch {
+      // Silencioso se billing offline
+    }
+
     return NextResponse.json({
       authenticated: true,
       user: {
@@ -29,6 +40,9 @@ export async function GET(request: NextRequest) {
         name: userRecord?.user?.name || session.name,
       },
       profile: fullProfile,
+      invoices,
+      latestInvoice: invoices[0] || null,
+      subscription,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao recuperar usuário';

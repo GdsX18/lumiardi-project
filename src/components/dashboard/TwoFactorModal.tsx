@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
   Smartphone,
@@ -11,7 +10,6 @@ import {
   X,
   RefreshCw,
   KeyRound,
-  Sparkles,
 } from 'lucide-react';
 
 export interface TwoFactorModalProps {
@@ -241,7 +239,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                       onClick={handleAutoFillTest}
                       className="text-[11px] text-[#C9A96B] hover:text-[#D4B87A] underline flex items-center gap-1 cursor-pointer font-mono"
                     >
-                      <Sparkles className="w-3 h-3" />
+                      <KeyRound className="w-3 h-3" />
                       <span>Preencher código teste ({currentOtp})</span>
                     </button>
                   )}
@@ -310,5 +308,5 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return modalContent;
 };

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
   Camera,
@@ -12,7 +11,6 @@ import {
   RefreshCw,
   ScanFace,
   UserCheck,
-  Sparkles,
   Lock,
   UploadCloud,
   FileText,
@@ -719,7 +717,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               }}
               className="w-full py-3.5 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-widest font-semibold hover:bg-[#D4B87A] transition-all cursor-pointer shadow-lg"
             >
-              Concluir & Retornar ao Formulário ✓
+              Concluir & Retornar ao Formulário
             </button>
           </div>
         )}
@@ -727,5 +725,5 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return modalContent;
 };

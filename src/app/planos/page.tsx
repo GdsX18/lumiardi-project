@@ -4,24 +4,26 @@ import React, { useState } from 'react';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
 import { PricingTable } from '@/components/ui/PricingTable';
-import { Sparkles, Building2, UserCheck, Check, Star, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Building2, UserCheck, Check, ArrowRight, HardDrive, Search, Lock, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 
 export default function PlanosPage() {
   const [planCategory, setPlanCategory] = useState<'criadoras' | 'agencias'>('criadoras');
+  const [isYearly, setIsYearly] = useState(true);
   const { t } = useLanguage();
   const { currentUser } = useAuthPortal();
 
-  // Helper para decidir se manda para cadastro ou checkout direto se já logado
-  const getPlanLink = (planId: string, category: 'criadoras' | 'agencias') => {
-    if (currentUser) {
-      return `/checkout?plan=${planId}&category=${category}`;
+  // Helper para direcionar ao cadastro do plano ou checkout se já aprovado
+  const getPlanLink = (planId: string, category: 'criadoras' | 'agencias', yearly: boolean) => {
+    const billingParam = yearly ? 'yearly' : 'monthly';
+    if (currentUser && currentUser.curationStatus === 'APROVADO') {
+      return `/checkout?plan=${planId}&category=${category}&billing=${billingParam}`;
     }
     return category === 'criadoras'
-      ? `/qualificacao?plan=${planId}`
-      : `/qualificacao/agencia?plan=${planId}`;
+      ? `/qualificacao?plan=${planId}&billing=${billingParam}`
+      : `/qualificacao/agencia?plan=${planId}&billing=${billingParam}`;
   };
 
   return (
@@ -34,7 +36,7 @@ export default function PlanosPage() {
 
         <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 text-center relative z-10 space-y-6">
           <div className="inline-flex items-center gap-2.5 px-4 py-1.5 border border-[#C9A96B]/30 bg-[#C9A96B]/5 text-[#C9A96B] text-xs font-sans tracking-[0.3em] uppercase">
-            <Sparkles className="w-3.5 h-3.5 stroke-[1.2]" />
+            <ShieldCheck className="w-3.5 h-3.5 stroke-[1.2]" />
             <span>{t('plans_hero_tag')}</span>
           </div>
 
@@ -47,30 +49,55 @@ export default function PlanosPage() {
           </p>
 
           {/* Toggle de Categoria: Criadoras vs Agências */}
-          <div className="flex items-center justify-center gap-3 pt-6">
-            <button
-              onClick={() => setPlanCategory('criadoras')}
-              className={`flex items-center gap-2 px-6 py-3 text-xs md:text-sm font-sans tracking-[0.2em] uppercase font-medium transition-all duration-300 cursor-pointer ${
-                planCategory === 'criadoras'
-                  ? 'bg-[#C9A96B] text-[#0B0B0B] shadow-lg'
-                  : 'bg-transparent border border-white/20 text-ivory/70 hover:border-[#C9A96B] hover:text-[#C9A96B]'
-              }`}
-            >
-              <UserCheck className="w-4 h-4" />
-              <span>{t('plans_tab_creators')}</span>
-            </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPlanCategory('criadoras')}
+                className={`flex items-center gap-2 px-6 py-3 text-xs md:text-sm font-sans tracking-[0.2em] uppercase font-medium transition-all duration-300 cursor-pointer ${
+                  planCategory === 'criadoras'
+                    ? 'bg-[#C9A96B] text-[#0B0B0B] shadow-lg'
+                    : 'bg-transparent border border-white/20 text-ivory/70 hover:border-[#C9A96B] hover:text-[#C9A96B]'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>{t('plans_tab_creators')}</span>
+              </button>
 
-            <button
-              onClick={() => setPlanCategory('agencias')}
-              className={`flex items-center gap-2 px-6 py-3 text-xs md:text-sm font-sans tracking-[0.2em] uppercase font-medium transition-all duration-300 cursor-pointer ${
-                planCategory === 'agencias'
-                  ? 'bg-[#C9A96B] text-[#0B0B0B] shadow-lg'
-                  : 'bg-transparent border border-white/20 text-ivory/70 hover:border-[#C9A96B] hover:text-[#C9A96B]'
-              }`}
-            >
-              <Building2 className="w-4 h-4" />
-              <span>{t('plans_tab_agencies')}</span>
-            </button>
+              <button
+                onClick={() => setPlanCategory('agencias')}
+                className={`flex items-center gap-2 px-6 py-3 text-xs md:text-sm font-sans tracking-[0.2em] uppercase font-medium transition-all duration-300 cursor-pointer ${
+                  planCategory === 'agencias'
+                    ? 'bg-[#C9A96B] text-[#0B0B0B] shadow-lg'
+                    : 'bg-transparent border border-white/20 text-ivory/70 hover:border-[#C9A96B] hover:text-[#C9A96B]'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>{t('plans_tab_agencies')}</span>
+              </button>
+            </div>
+
+            {/* Switch Mensal / Anual com Badge de Economia */}
+            <div className="inline-flex items-center gap-2 p-1 bg-white/5 border border-white/10 rounded-full">
+              <button
+                onClick={() => setIsYearly(false)}
+                className={`px-4 py-1.5 text-xs font-sans uppercase tracking-wider rounded-full transition-all cursor-pointer ${
+                  !isYearly ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold' : 'text-ivory/60 hover:text-ivory'
+                }`}
+              >
+                Mensal
+              </button>
+              <button
+                onClick={() => setIsYearly(true)}
+                className={`px-4 py-1.5 text-xs font-sans uppercase tracking-wider rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isYearly ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold' : 'text-ivory/60 hover:text-ivory'
+                }`}
+              >
+                <span>Anual</span>
+                <span className="text-[9px] px-2 py-0.5 bg-emerald-500 text-black-matte font-bold rounded-full">
+                  ECONOMIZE 10%
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -90,8 +117,13 @@ export default function PlanosPage() {
                         {t('plan_glow_badge')}
                       </span>
                       <h3 className="font-serif-lumiardi text-3xl font-normal text-[#0B0B0B]">{t('plan_glow_title')}</h3>
-                      <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
-                        R$ 19,90 <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                      <div className="space-y-0.5">
+                        <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
+                          {isYearly ? 'R$ 17,91' : 'R$ 19,90'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                        </div>
+                        <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
+                          {isYearly ? 'Faturado anualmente por R$ 214,92/ano' : 'Cobrança mensal recorrente'}
+                        </span>
                       </div>
                     </div>
 
@@ -102,29 +134,29 @@ export default function PlanosPage() {
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-xs font-sans text-[#0B0B0B]/85">
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_glow_f1')}</span>
+                        <span>Presença no Catálogo Oficial de Modelos</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_glow_f2')}</span>
+                        <span>Book Digital com até 15 Fotos em Alta Resolução</span>
                       </li>
                       <li className="flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_glow_f3')}</span>
+                        <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span><strong>5 GB</strong> de Armazenamento Seguro no Drive</span>
                       </li>
                       <li className="flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_glow_f4')}</span>
+                        <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span>Proteção Anti-Vazamento e Blindagem E2E</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="pt-6">
                     <Link
-                      href={getPlanLink('glow', 'criadoras')}
+                      href={getPlanLink('glow', 'criadoras', isYearly)}
                       className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.2em] uppercase font-bold hover:bg-[#8C6B2F] transition-all flex items-center justify-center gap-2 shadow-md"
                     >
-                      <span>{currentUser ? 'Assinar Glow →' : 'Cadastre-se para Entrar →'}</span>
+                      <span>Assinar Glow →</span>
                     </Link>
                   </div>
                 </div>
@@ -137,8 +169,13 @@ export default function PlanosPage() {
                         {t('plan_radiance_badge')}
                       </span>
                       <h3 className="font-serif-lumiardi text-3xl font-normal text-[#0B0B0B]">{t('plan_radiance_title')}</h3>
-                      <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
-                        R$ 69,90 <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                      <div className="space-y-0.5">
+                        <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
+                          {isYearly ? 'R$ 62,91' : 'R$ 69,90'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                        </div>
+                        <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
+                          {isYearly ? 'Faturado anualmente por R$ 754,92/ano' : 'Cobrança mensal recorrente'}
+                        </span>
                       </div>
                     </div>
 
@@ -149,29 +186,29 @@ export default function PlanosPage() {
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-xs font-sans text-[#0B0B0B]/85">
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_radiance_f1')}</span>
+                        <span>Destaque no Radar de Scouting Global</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_radiance_f2')}</span>
+                        <span>Book Ilimitado de Fotos + Vídeo Showreel</span>
                       </li>
                       <li className="flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_radiance_f3')}</span>
+                        <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span><strong>25 GB</strong> de Armazenamento Seguro no Drive</span>
                       </li>
                       <li className="flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_radiance_f4')}</span>
+                        <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span>Marca d’água Dinâmica Tokenizada e NDA</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="pt-6">
                     <Link
-                      href={getPlanLink('radiance', 'criadoras')}
+                      href={getPlanLink('radiance', 'criadoras', isYearly)}
                       className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.2em] uppercase font-bold hover:bg-[#8C6B2F] transition-all flex items-center justify-center gap-2 shadow-md"
                     >
-                      <span>{currentUser ? 'Assinar Radiance →' : 'Cadastre-se para Entrar →'}</span>
+                      <span>Assinar Radiance →</span>
                     </Link>
                   </div>
                 </div>
@@ -188,8 +225,13 @@ export default function PlanosPage() {
                         {t('plan_icon_badge')}
                       </span>
                       <h3 className="font-serif-lumiardi text-3xl font-normal text-[#0B0B0B]">{t('plan_icon_title')}</h3>
-                      <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
-                        R$ 129,90 <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                      <div className="space-y-0.5">
+                        <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
+                          {isYearly ? 'R$ 116,91' : 'R$ 129,90'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                        </div>
+                        <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
+                          {isYearly ? 'Faturado anualmente por R$ 1.402,92/ano' : 'Cobrança mensal recorrente'}
+                        </span>
                       </div>
                     </div>
 
@@ -200,29 +242,29 @@ export default function PlanosPage() {
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-xs font-sans text-[#0B0B0B]/85">
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_icon_f1')}</span>
+                        <span>Posicionamento Exclusivo no Topo da Vitrine</span>
+                      </li>
+                      <li className="flex items-center gap-2.5">
+                        <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span><strong>100 GB</strong> de Armazenamento Seguro no Drive</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_icon_f2')}</span>
+                        <span>Propostas Diretas e Buscas Scout Ilimitadas</span>
                       </li>
                       <li className="flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_icon_f3')}</span>
-                      </li>
-                      <li className="flex items-center gap-2.5">
-                        <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_icon_f4')}</span>
+                        <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span>Concierge Dedicado & Suporte VIP Prioritário</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="pt-6">
                     <Link
-                      href={getPlanLink('icon', 'criadoras')}
+                      href={getPlanLink('icon', 'criadoras', isYearly)}
                       className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.2em] uppercase font-bold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-2 shadow-xl"
                     >
-                      <span>{currentUser ? 'Assinar Icon →' : 'Cadastre-se para Entrar →'}</span>
+                      <span>Assinar Icon →</span>
                     </Link>
                   </div>
                 </div>
@@ -268,41 +310,53 @@ export default function PlanosPage() {
                       <h3 className="font-serif-lumiardi text-4xl font-light text-[#0B0B0B]">
                         {t('plan_select_title')}
                       </h3>
-                      <p className="font-serif-lumiardi italic text-xl text-[#A97745]">
+                      <div className="space-y-0.5 pt-1">
+                        <div className="text-3xl font-serif-lumiardi text-[#8C6B2F]">
+                          {isYearly ? 'R$ 233,10' : 'R$ 259,00'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
+                        </div>
+                        <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
+                          {isYearly ? 'Faturado anualmente por R$ 2.797,20/ano' : 'Cobrança mensal recorrente'}
+                        </span>
+                      </div>
+                      <p className="font-serif-lumiardi italic text-lg text-[#A97745] pt-1">
                         {t('plan_select_quote')}
                       </p>
                     </div>
 
                     <p className="text-sm text-[#0B0B0B]/80 font-sans font-light leading-relaxed">
-                      {t('plan_select_sub')}
+                      Solução sob medida para agências boutique com gestão de até 10 modelos agenciadas e acesso ao catálogo oficial de talentos.
                     </p>
 
-                    <ul className="space-y-4 pt-4 border-t border-[#0B0B0B]/10 text-sm font-sans text-[#0B0B0B]/90">
+                    <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-sm font-sans text-[#0B0B0B]/90">
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_select_f1')}</span>
+                        <Search className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span><strong>200 Buscas Scout/mês</strong> com filtros avançados</span>
                       </li>
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_select_f2')}</span>
+                        <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span><strong>Blindagem & NDA</strong> inclusos em todos os contratos</span>
                       </li>
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_select_f3')}</span>
+                        <Lock className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span>Chat interno seguro e gestão de contatos</span>
                       </li>
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#8C6B2F] shrink-0" />
-                        <span>{t('plan_select_f4')}</span>
+                        <Users className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span>Acesso integral ao catálogo de Talentos</span>
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
+                        <span><strong>100 GB de Drive</strong> corporativo criptografado</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="pt-6">
                     <Link
-                      href={getPlanLink('select', 'agencias')}
+                      href={getPlanLink('select', 'agencias', isYearly)}
                       className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#8C6B2F] transition-all block cursor-pointer shadow-lg"
                     >
-                      <span>{currentUser ? 'Assinar Select →' : 'Cadastrar Agência para Entrar →'}</span>
+                      <span>Assinar Select →</span>
                     </Link>
                   </div>
                 </div>
@@ -321,41 +375,53 @@ export default function PlanosPage() {
                       <h3 className="font-serif-lumiardi text-4xl font-light text-ivory">
                         {t('plan_sig_title')}
                       </h3>
-                      <p className="font-serif-lumiardi italic text-xl text-[#C9A96B]">
+                      <div className="space-y-0.5 pt-1">
+                        <div className="text-3xl font-serif-lumiardi text-[#F5D77F]">
+                          {isYearly ? 'R$ 441,00' : 'R$ 490,00'} <span className="text-xs font-sans text-ivory/60 font-light">{t('plans_per_month')}</span>
+                        </div>
+                        <span className="text-[10px] text-ivory/50 font-sans block">
+                          {isYearly ? 'Faturado anualmente por R$ 5.292,00/ano' : 'Cobrança mensal recorrente'}
+                        </span>
+                      </div>
+                      <p className="font-serif-lumiardi italic text-lg text-[#C9A96B] pt-1">
                         {t('plan_sig_quote')}
                       </p>
                     </div>
 
                     <p className="text-sm text-ivory/80 font-sans font-light leading-relaxed">
-                      {t('plan_sig_sub')}
+                      Infraestrutura corporativa completa para holdings e grandes agências com representação ilimitada de elenco e recursos exclusivos.
                     </p>
 
-                    <ul className="space-y-4 pt-4 border-t border-white/10 text-sm font-sans text-ivory/90">
+                    <ul className="space-y-3 pt-4 border-t border-white/10 text-sm font-sans text-ivory/90">
                       <li className="flex items-center gap-3">
-                        <Star className="w-5 h-5 text-[#C9A96B] shrink-0 fill-[#C9A96B]" />
-                        <span>{t('plan_sig_f1')}</span>
+                        <Search className="w-4 h-4 text-[#C9A96B] shrink-0" />
+                        <span><strong>Scout Ilimitado</strong> de modelos e novos talentos</span>
                       </li>
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#C9A96B] shrink-0" />
-                        <span>{t('plan_sig_f2')}</span>
+                        <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
+                        <span><strong>Blindagem & NDA</strong> com suporte jurídico especializado</span>
                       </li>
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#C9A96B] shrink-0" />
-                        <span>{t('plan_sig_f3')}</span>
+                        <Users className="w-4 h-4 text-[#C9A96B] shrink-0" />
+                        <span>Espaços de organização e Kanban Ilimitados</span>
                       </li>
                       <li className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-[#C9A96B] shrink-0" />
-                        <span>{t('plan_sig_f4')}</span>
+                        <Check className="w-4 h-4 text-[#C9A96B] shrink-0" />
+                        <span>Gerente de conta exclusivo e suporte VIP 24/7</span>
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <HardDrive className="w-4 h-4 text-[#C9A96B] shrink-0" />
+                        <span><strong>500 GB de Drive</strong> compartilhado corporativo</span>
                       </li>
                     </ul>
                   </div>
 
                   <div className="pt-6">
                     <Link
-                      href={getPlanLink('signature', 'agencias')}
+                      href={getPlanLink('signature', 'agencias', isYearly)}
                       className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#D4B87A] transition-all block cursor-pointer shadow-xl"
                     >
-                      <span>{currentUser ? 'Assinar Signature →' : 'Cadastrar Agência para Entrar →'}</span>
+                      <span>Assinar Signature →</span>
                     </Link>
                   </div>
                 </div>
@@ -369,3 +435,4 @@ export default function PlanosPage() {
     </main>
   );
 }
+

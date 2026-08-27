@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ShieldCheck, Scale, Cpu, Megaphone, Landmark, Sparkles, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Scale, Cpu, Megaphone, Landmark, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
@@ -103,7 +103,7 @@ export const PartnersSection: React.FC = () => {
         {/* Editorial Top Section */}
         <div className="max-w-4xl space-y-6 mb-20">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
-            <Sparkles className="w-4 h-4 stroke-[1.2]" />
+            <ShieldCheck className="w-4 h-4 stroke-[1.2]" />
             <span>{t('partners_tag')}</span>
           </div>
 

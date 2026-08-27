@@ -370,7 +370,7 @@ export const KanbanBoard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[9px] font-sans uppercase tracking-widest font-semibold rounded-xs">
-                    Entregue ✓
+                    Entregue
                   </span>
                   <div className="flex items-center gap-1">
                     <button

@@ -8,7 +8,7 @@ import {
   HardDrive,
   Search,
   ShieldCheck,
-  Sparkles,
+  Coins,
   X,
   CreditCard,
   QrCode,
@@ -184,7 +184,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   >
                     <span>Anual</span>
                     <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500 text-black-matte font-bold rounded-xs">
-                      Economize 20%
+                      Economize 10%
                     </span>
                   </button>
                 </div>
@@ -318,7 +318,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       R$ {priceBRL.toFixed(2)}
                     </span>
                     <span className="text-[10px] text-ivory/50 font-sans ml-1">
-                      ({isYearly ? 'Ciclo Anual com 20% OFF' : 'Ciclo Mensal'})
+                      ({isYearly ? 'Ciclo Anual com 10% OFF' : 'Ciclo Mensal'})
                     </span>
                   </div>
                   <div className="text-right text-xs font-sans text-emerald-400 flex items-center gap-1.5">
@@ -368,7 +368,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                           : 'bg-[#141414] border-white/10 text-ivory/60 hover:text-ivory'
                       }`}
                     >
-                      <Sparkles className="w-5 h-5" />
+                      <Coins className="w-5 h-5" />
                       <span className="text-xs font-sans">Cripto (USDT)</span>
                     </button>
                   </div>
@@ -380,9 +380,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     <span className="text-xs font-sans text-ivory/80 block">
                       Escaneie o QR Code ou copie o código Pix para aprovação em tempo real:
                     </span>
-                    <div className="w-44 h-44 mx-auto bg-white p-2 border-2 border-gold rounded-xs">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={pixQrCodeUrl} alt="Pix QR Code" className="w-full h-full object-contain" />
+                    <div className="w-44 h-44 mx-auto bg-white p-2 border-2 border-gold rounded-xs flex items-center justify-center">
+                      {pixQrCodeUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={pixQrCodeUrl} alt="Pix QR Code" className="w-full h-full object-contain" />
+                      ) : (
+                        <div className="text-xs text-neutral-600 font-sans">Carregando Pix...</div>
+                      )}
                     </div>
 
                     <button
@@ -538,7 +542,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-ivory/60">Recibo & Fatura Oficial:</span>
-                    <span className="text-emerald-400 font-mono">Gerado ✓</span>
+                    <span className="text-emerald-400 font-mono flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-400" /> Emitido
+                    </span>
                   </div>
                 </div>
 

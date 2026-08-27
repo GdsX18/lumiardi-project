@@ -17,7 +17,6 @@ import {
   HardDrive,
   ArrowRight,
   ShieldCheck,
-  Sparkles,
   Lock,
   ScanFace,
   KeyRound,
@@ -114,7 +113,7 @@ export default function DashboardOverviewPage() {
           <StatsCard
             title={isCriadora ? (t('dash_stat_est_revenue') || 'Faturamento Estimado') : 'Faturamento do Roster'}
             value={isCriadora ? revenue : 'R$ 0,00'}
-            change="Conta Aprovada ✓"
+            change="Conta Aprovada"
             isPositive={true}
             subtitle="Atualizado via Curadoria"
             icon={DollarSign}

@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   ShieldCheck,
   Globe,
-  Sparkles,
   Maximize2,
   Upload,
   Eye,
@@ -21,6 +20,11 @@ import {
   X,
   Edit3,
   Plus,
+  Building2,
+  UserCheck,
+  MapPin,
+  ClipboardList,
+  Share2,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -92,7 +96,7 @@ export const CreatorProfileView: React.FC = () => {
   const creator = {
     ...defaultProfile,
     ...activeCreator,
-    avatarUrl: (activeCreator as any)?.avatarUrl || (activeCreator as any)?.photos?.[0]?.url || defaultProfile.avatarUrl,
+    avatarUrl: (activeCreator as any)?.avatarUrl || (activeCreator as any)?.avatar_url || (activeCreator as any)?.photos?.[0]?.url || defaultProfile.avatarUrl || '/api/media/assets/images/creator_elena.jpg',
     qualitative: {
       ...defaultProfile.qualitative,
       ...(activeCreator?.qualitative || {}),
@@ -135,7 +139,9 @@ export const CreatorProfileView: React.FC = () => {
     representedAgencyName: (activeCreator as any)?.representedAgencyName || (activeCreator as any)?.represented_agency_name || '',
   };
 
-  const bookPhotos = creator.photos || [];
+  const bookPhotos = (Array.isArray(creator.photos) ? creator.photos : []).filter(
+    (photo: any) => photo && typeof photo.url === 'string' && photo.url.trim() !== ''
+  );
 
   return (
     <div className="space-y-8">
@@ -147,18 +153,27 @@ export const CreatorProfileView: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             {/* Foto Principal com Botão de Troca Rápida */}
             <div className="relative w-24 h-24 sm:w-28 sm:h-28 border-2 border-gold/60 p-1 bg-black shrink-0 rounded-sm group cursor-pointer" onClick={() => openEditModal('basic')}>
-              {creator.avatarUrl ? (
+              {Boolean(creator.avatarUrl && typeof creator.avatarUrl === 'string' && creator.avatarUrl.trim() !== '') ? (
                 <div className="relative w-full h-full overflow-hidden">
-                  <Image
-                    src={creator.avatarUrl}
-                    alt={creator.qualitative.artisticName}
-                    fill
-                    className="object-cover"
-                  />
+                  {creator.avatarUrl.startsWith('data:') ? (
+                    <img
+                      src={creator.avatarUrl}
+                      alt={creator.qualitative?.artisticName || 'Modelo'}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Image
+                      src={creator.avatarUrl}
+                      alt={creator.qualitative?.artisticName || 'Modelo'}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="w-full h-full bg-[#141414] border border-white/10 flex flex-col items-center justify-center text-gold font-serif-lumiardi font-bold text-2xl group-hover:border-gold transition-colors">
-                  <span>{creator.qualitative.artisticName.substring(0, 2).toUpperCase()}</span>
+                  <span>{((creator.qualitative?.artisticName || 'MO').trim() || 'MO').substring(0, 2).toUpperCase()}</span>
                   <span className="text-[9px] font-sans font-normal text-gold/80 mt-0.5">+ Foto</span>
                 </div>
               )}
@@ -190,12 +205,14 @@ export const CreatorProfileView: React.FC = () => {
 
                 {/* Badge de Representação por Agência */}
                 {creator.isRepresented ? (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-purple-500/40 bg-purple-950/40 text-purple-300 font-medium">
-                    🏢 {creator.representedAgencyName || 'Em Agência'}
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-purple-500/40 bg-purple-950/40 text-purple-300 font-medium inline-flex items-center gap-1">
+                    <Building2 className="w-3 h-3" />
+                    <span>{creator.representedAgencyName || 'Em Agência'}</span>
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/20 bg-white/5 text-ivory/70">
-                    ✨ Independente
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/20 bg-white/5 text-ivory/70 inline-flex items-center gap-1">
+                    <UserCheck className="w-3 h-3 text-gold" />
+                    <span>Independente</span>
                   </span>
                 )}
 
@@ -216,7 +233,10 @@ export const CreatorProfileView: React.FC = () => {
               </h2>
 
               <p className="text-xs md:text-sm text-ivory/60 font-sans mt-1 flex items-center gap-3">
-                <span>📍 {creator.basicInfo.address.city}, {creator.basicInfo.address.state} — {creator.basicInfo.address.country}</span>
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-gold" />
+                  {creator.basicInfo.address.city}, {creator.basicInfo.address.state} — {creator.basicInfo.address.country}
+                </span>
                 <span>•</span>
                 <span className="text-gold font-medium">{creator.qualitative.platforms.instagram}</span>
               </p>
@@ -248,7 +268,7 @@ export const CreatorProfileView: React.FC = () => {
               }}
               className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md rounded-sm"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Share2 className="w-3.5 h-3.5" />
               <span>{t('book_share_book') || 'Compartilhar Book'}</span>
             </button>
           </div>
@@ -258,33 +278,36 @@ export const CreatorProfileView: React.FC = () => {
         <div className="flex gap-2 mt-8 pt-4 border-t border-white/10 overflow-x-auto">
           <button
             onClick={() => setActiveSubTab('book')}
-            className={`px-4 py-2 text-xs font-sans uppercase tracking-widest font-medium transition-colors border-b-2 cursor-pointer ${
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-widest font-medium transition-colors border-b-2 cursor-pointer flex items-center gap-2 ${
               activeSubTab === 'book'
                 ? 'border-gold text-gold bg-gold/10 font-bold'
                 : 'border-transparent text-ivory/60 hover:text-ivory'
             }`}
           >
-            📸 {t('book_subtab_photos') || 'Book Fotográfico & Showreel'}
+            <Camera className="w-3.5 h-3.5 text-gold" />
+            <span>{t('book_subtab_photos') || 'Fotos do Book'}</span>
           </button>
           <button
             onClick={() => setActiveSubTab('tech-sheet')}
-            className={`px-4 py-2 text-xs font-sans uppercase tracking-widest font-medium transition-colors border-b-2 cursor-pointer ${
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-widest font-medium transition-colors border-b-2 cursor-pointer flex items-center gap-2 ${
               activeSubTab === 'tech-sheet'
                 ? 'border-gold text-gold bg-gold/10 font-bold'
                 : 'border-transparent text-ivory/60 hover:text-ivory'
             }`}
           >
-            📋 {t('book_subtab_tech') || 'Ficha Técnica & Medidas'}
+            <ClipboardList className="w-3.5 h-3.5 text-gold" />
+            <span>{t('book_subtab_tech') || 'Ficha Técnica'}</span>
           </button>
           <button
             onClick={() => setActiveSubTab('limits')}
-            className={`px-4 py-2 text-xs font-sans uppercase tracking-widest font-medium transition-colors border-b-2 cursor-pointer ${
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-widest font-medium transition-colors border-b-2 cursor-pointer flex items-center gap-2 ${
               activeSubTab === 'limits'
                 ? 'border-gold text-gold bg-gold/10 font-bold'
                 : 'border-transparent text-ivory/60 hover:text-ivory'
             }`}
           >
-            🛡️ {t('book_subtab_guidelines') || 'Diretrizes & Objetivos'}
+            <ShieldCheck className="w-3.5 h-3.5 text-gold" />
+            <span>{t('book_subtab_guidelines') || 'Diretrizes'}</span>
           </button>
         </div>
       </div>
@@ -312,7 +335,7 @@ export const CreatorProfileView: React.FC = () => {
               </div>
             </div>
 
-            {creator.videoUrl ? (
+            {creator.videoUrl && creator.videoUrl.trim() !== '' ? (
               <div className="relative w-full h-72 md:h-96 bg-black border border-bronze/30 overflow-hidden group rounded-sm">
                 {isVideoPlaying ? (
                   <video
@@ -404,12 +427,21 @@ export const CreatorProfileView: React.FC = () => {
                     onClick={() => setSelectedPhoto(photo.url)}
                     className="group relative h-80 bg-[#121212] border border-white/10 overflow-hidden cursor-pointer hover:border-gold/60 transition-all duration-300 shadow-lg rounded-sm"
                   >
-                    <Image
-                      src={photo.url}
-                      alt={photo.title || 'Foto do Book'}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                    {photo.url.startsWith('data:') ? (
+                      <img
+                        src={photo.url}
+                        alt={photo.title || 'Foto do Book'}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <Image
+                        src={photo.url}
+                        alt={photo.title || 'Foto do Book'}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        unoptimized
+                      />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/20 opacity-80 group-hover:opacity-95 transition-opacity" />
 
                     <div className="absolute top-3 right-3 p-1.5 bg-black/60 backdrop-blur-md text-ivory/80 group-hover:text-gold transition-colors rounded-xs">
@@ -650,7 +682,7 @@ export const CreatorProfileView: React.FC = () => {
 
       {/* Modal de Zoom de Foto */}
       <AnimatePresence>
-        {selectedPhoto && (
+        {selectedPhoto && selectedPhoto.trim() !== '' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -659,12 +691,23 @@ export const CreatorProfileView: React.FC = () => {
             className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4"
           >
             <div className="relative max-w-4xl max-h-[90vh] w-full h-[80vh]">
-              <Image
-                src={selectedPhoto}
-                alt="Book Zoom"
-                fill
-                className="object-contain"
-              />
+              {selectedPhoto && typeof selectedPhoto === 'string' && selectedPhoto.trim() !== '' ? (
+                selectedPhoto.startsWith('data:') ? (
+                  <img
+                    src={selectedPhoto}
+                    alt="Book Zoom"
+                    className="absolute inset-0 w-full h-full object-contain"
+                  />
+                ) : (
+                  <Image
+                    src={selectedPhoto}
+                    alt="Book Zoom"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                )
+              ) : null}
               <button
                 onClick={() => setSelectedPhoto(null)}
                 className="absolute top-4 right-4 p-2 bg-black/80 text-ivory hover:text-gold transition-colors rounded-full"

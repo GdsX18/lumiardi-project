@@ -12,7 +12,6 @@ import {
   Send,
   MessageSquare,
   Video,
-  Sparkles,
   MapPin,
   Maximize2,
   DollarSign,
@@ -557,16 +556,22 @@ export const TalentScoutView: React.FC = () => {
               >
                 {/* Imagem do Book com Badges */}
                 <div className="relative h-72 bg-black overflow-hidden">
-                  <Image
-                    src={
-                      creator.id === 'creator-sophia-m'
-                        ? '/images/creator_sophia.jpg'
-                        : '/images/creator_elena.jpg'
-                    }
-                    alt={creator.qualitative.artisticName}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  {(() => {
+                    const imgSrc = (creator as any).avatarUrl ||
+                      (creator as any).avatar_url ||
+                      (creator.id === 'creator-sophia-m' ? '/api/media/assets/images/creator_sophia.jpg' : '/api/media/assets/images/creator_elena.jpg');
+                    return imgSrc.startsWith('data:') ? (
+                      <img src={imgSrc} alt={creator.qualitative.artisticName} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <Image
+                        src={imgSrc}
+                        alt={creator.qualitative.artisticName}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        unoptimized
+                      />
+                    );
+                  })()}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
                   {/* Badges do Card */}
@@ -574,7 +579,7 @@ export const TalentScoutView: React.FC = () => {
                     <div className="flex gap-2">
                       <Badge variant="gold">TOP 0.1%</Badge>
                       <span className="px-2 py-0.5 bg-black/70 backdrop-blur-md text-emerald-400 text-[9px] font-sans uppercase tracking-widest font-semibold border border-emerald-500/30">
-                        Aprovada ✓
+                        Aprovada
                       </span>
                     </div>
 
@@ -691,16 +696,22 @@ export const TalentScoutView: React.FC = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 border border-gold/40 relative bg-black shrink-0 overflow-hidden">
-                          <Image
-                            src={
-                              creator.id === 'creator-sophia-m'
-                                ? '/images/creator_sophia.jpg'
-                                : '/images/creator_elena.jpg'
-                            }
-                            alt={creator.qualitative.artisticName}
-                            fill
-                            className="object-cover"
-                          />
+                          {(() => {
+                            const imgSrc = (creator as any).avatarUrl ||
+                              (creator as any).avatar_url ||
+                              (creator.id === 'creator-sophia-m' ? '/api/media/assets/images/creator_sophia.jpg' : '/api/media/assets/images/creator_elena.jpg');
+                            return imgSrc.startsWith('data:') ? (
+                              <img src={imgSrc} alt={creator.qualitative.artisticName} className="absolute inset-0 w-full h-full object-cover" />
+                            ) : (
+                              <Image
+                                src={imgSrc}
+                                alt={creator.qualitative.artisticName}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            );
+                          })()}
                         </div>
                         <div>
                           <span className="font-serif-lumiardi text-base text-ivory font-medium block">
@@ -787,21 +798,29 @@ export const TalentScoutView: React.FC = () => {
 
               <div className="flex items-center gap-4 pb-4 border-b border-white/10">
                 <div className="relative w-16 h-16 border-2 border-gold/40 bg-black shrink-0 overflow-hidden">
-                  <Image
-                    src={
-                      selectedTalent.id === 'creator-sophia-m'
-                        ? '/images/creator_sophia.jpg'
-                        : '/images/creator_elena.jpg'
-                    }
-                    alt={selectedTalent.qualitative.artisticName}
-                    fill
-                    className="object-cover"
-                  />
+                  {(() => {
+                    const imgSrc = (selectedTalent as any).avatarUrl ||
+                      (selectedTalent as any).avatar_url ||
+                      (selectedTalent.id === 'creator-sophia-m'
+                        ? '/api/media/assets/images/creator_sophia.jpg'
+                        : '/api/media/assets/images/creator_elena.jpg');
+                    return imgSrc.startsWith('data:') ? (
+                      <img src={imgSrc} alt={selectedTalent.qualitative.artisticName} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <Image
+                        src={imgSrc}
+                        alt={selectedTalent.qualitative.artisticName}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    );
+                  })()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <Badge variant="gold">APROVADA</Badge>
-                    <span className="text-[10px] text-emerald-400 font-sans">Documentos Verificados ✓</span>
+                    <span className="text-[10px] text-emerald-400 font-sans">Documentos Verificados</span>
                   </div>
                   <h3 className="font-serif-lumiardi text-3xl font-light text-ivory mt-0.5">
                     {selectedTalent.qualitative.artisticName}

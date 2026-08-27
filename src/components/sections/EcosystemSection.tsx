@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Kanban, MessageSquare, HardDrive, BarChart3, Sparkles, Shield, ArrowUpRight } from 'lucide-react';
+import { Kanban, MessageSquare, HardDrive, BarChart3, Shield, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -106,7 +106,7 @@ export const EcosystemSection: React.FC = () => {
         {/* Cabeçalho */}
         <div className="max-w-4xl space-y-6 mb-20">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#C9A96B] font-sans font-medium">
-            <Sparkles className="w-4 h-4 stroke-[1.2]" />
+            <Shield className="w-4 h-4 stroke-[1.2]" />
             <span>{t('eco_tag')}</span>
           </div>
 

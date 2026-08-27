@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   physiognomy JSONB,
   address JSONB,
   photos JSONB,
+  avatar_url TEXT,
+  logo_url TEXT,
   video_url VARCHAR(255),
   monthly_revenue_estimate VARCHAR(100),
   commission_rate VARCHAR(50),
@@ -242,12 +244,28 @@ CREATE TABLE IF NOT EXISTS payouts (
   paid_at TIMESTAMP WITH TIME ZONE
 );
 
--- 15. ÍNDICES DE ALTA PERFORMANCE
+-- 15. TABELA DE NOTIFICAÇÕES EM TEMPO REAL
+CREATE TABLE IF NOT EXISTS notifications (
+  id VARCHAR(100) PRIMARY KEY,
+  user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  category VARCHAR(100) DEFAULT 'Geral',
+  type VARCHAR(50) DEFAULT 'info',
+  link VARCHAR(255),
+  link_text VARCHAR(100),
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 16. ÍNDICES DE ALTA PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_curation_status ON users(curation_status);
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_id ON kanban_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_drive_files_user_id ON drive_files(user_id);
 CREATE INDEX IF NOT EXISTS idx_shared_drive_files_rel ON shared_drive_files(agency_id, model_id);
@@ -336,6 +354,15 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO curation_audit_logs (id, user_id, user_name, user_email, user_role, action_type, target_id, target_name, target_type, details)
 VALUES
   ('log-seed-1', 'cur-admin-1', 'Mesa de Curadoria (Diretoria)', 'curadoria@lumiardi.com', 'admin', 'APROVOU_MODELO', 'user-model-1', 'Sua Conta Modelo', 'MODELO', '{"reason": "Documentação e biometria validadas com sucesso"}'::jsonb),
-  ('log-seed-2', 'cur-admin-1', 'Mesa de Curadoria (Diretoria)', 'curadoria@lumiardi.com', 'admin', 'APROVOU_AGENCIA', 'user-agency-1', 'Sua Agência Corporativa', 'AGENCIA', '{"reason": "CNPJ e contrato social verificados"}'::jsonb),
+  ('log-seed-2', 'cur-admin-1', 'Mesa de Curadoria (Diretoria)', 'curadoria@lumiardi.com', 'admin', 'APROVOU_AGENCIA', 'user-agency-1', 'Sua Agência Corporativa', 'AGENCIA', '{"reason": "CNPJ e contrato social verificados"}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- Notificações Iniciais
+INSERT INTO notifications (id, user_id, title, description, category, type, link, link_text, is_read)
+VALUES
+  ('notif-seed-1', 'user-model-1', 'Credencial Aprovada', 'Sua conta foi homologada com sucesso sob o protocolo 18 U.S.C. § 2257. Todos os recursos estão liberados.', 'Curadoria', 'success', '/dashboard/book', 'Ver Meu Book', false),
+  ('notif-seed-2', 'user-model-1', 'Portfólio & Book Digital', 'Mantenha suas fotos em alta resolução atualizadas para atrair agências internacionais parceiras.', 'Talentos', 'info', '/dashboard/book', 'Gerenciar Book', false),
+  ('notif-seed-3', 'user-model-1', 'Criptografia Militar E2E', 'Todas as mensagens no Chat e arquivos no Drive Lumiardi são protegidos por AES-256 e SHA-512.', 'Segurança', 'info', '/dashboard/drive', 'Acessar Drive', false),
+  ('notif-seed-4', 'user-agency-1', 'Credencial Aprovada', 'Sua agência foi homologada pela Mesa de Curadoria Lumiardi com sucesso.', 'Curadoria', 'success', '/dashboard/agencias', 'Ver Agência', false),
+  ('notif-seed-5', 'user-agency-1', 'Catálogo de Talentos Atualizado', 'Novas criadoras de elite foram aprovadas e estão disponíveis para contratação.', 'Scout', 'info', '/dashboard/agencias', 'Explorar Roster', false)
+ON CONFLICT (id) DO NOTHING;

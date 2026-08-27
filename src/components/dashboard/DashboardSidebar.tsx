@@ -109,7 +109,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             <span className="text-bronze font-medium tracking-wider uppercase">{t('dash_status') || 'Status'}:</span>
             <span className="text-emerald-400 flex items-center gap-1 font-medium">
               <ShieldCheck className="w-3 h-3" />
-              {isApproved ? (t('header_verified') || 'Verificado ✓') : (t('header_in_review') || 'Em Análise')}
+              {isApproved ? (t('header_verified') || 'Verificado') : (t('header_in_review') || 'Em Análise')}
             </span>
           </div>
         </div>

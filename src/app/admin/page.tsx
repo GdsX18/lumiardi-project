@@ -18,7 +18,6 @@ import {
   ExternalLink,
   Download,
   AlertTriangle,
-  Sparkles,
   LogOut,
   ChevronRight,
   Phone,
@@ -81,6 +80,17 @@ interface Application {
     commissionRate?: string;
     specialties?: string[];
   };
+  paymentInfo?: {
+    hasPaid?: boolean;
+    planId?: string;
+    planCategory?: string;
+    billingInterval?: string;
+    amount?: number;
+    currency?: string;
+    status?: string;
+    billingReason?: string;
+    receiptNumber?: string;
+  } | null;
 }
 
 interface Metrics {
@@ -261,10 +271,14 @@ export default function AdminDashboardPage() {
       });
 
       if (res.ok) {
-        setActionSuccessMsg('Credencial recusada com justificativa formal registrada.');
+        const data = await res.json();
+        const refundNote = data.refund?.refunded
+          ? ` • Reembolso de ${data.refund.currency === 'BRL' ? 'R$ ' : '$'}${data.refund.amount?.toFixed(2).replace('.', ',')} efetuado automaticamente (Código: ${data.refund.refundCode})`
+          : '';
+        setActionSuccessMsg(`Credencial recusada com justificativa formal.${refundNote}`);
         setShowRejectModal(false);
         setRejectionReason('');
-        setTimeout(() => setActionSuccessMsg(null), 4000);
+        setTimeout(() => setActionSuccessMsg(null), 6000);
         await loadData();
         setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'REJEITADO', rejectionReason } : null));
       }
@@ -318,7 +332,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-3">
           <div className="relative w-8 h-8">
             <Image
-              src="/Lumiardi logo2-Trasparente.png"
+              src="/api/media/assets/Lumiardi_logo2-Trasparente.png"
               alt="Lumiardi Logo"
               fill
               className="object-contain"
@@ -410,7 +424,7 @@ export default function AdminDashboardPage() {
               <span className="text-[11px] font-sans uppercase tracking-widest text-emerald-400 font-semibold">
                 Modelos Aprovadas
               </span>
-              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="font-serif-lumiardi text-3xl md:text-4xl text-ivory font-light">
               {metrics.approvedModels}
@@ -704,17 +718,36 @@ export default function AdminDashboardPage() {
 
                               <td className="py-3.5 px-4">
                                 {isPending ? (
-                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                    <Clock className="w-3 h-3" /> Em Curadoria
-                                  </span>
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                      <Clock className="w-3 h-3" /> Em Curadoria
+                                    </span>
+                                    {app.paymentInfo?.hasPaid && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono rounded-xs block">
+                                        ✓ {app.paymentInfo.planId?.toUpperCase() || 'PAGO'} (R$ {app.paymentInfo.amount?.toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : isApproved ? (
-                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                    <CheckCircle2 className="w-3 h-3" /> Aprovado
-                                  </span>
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                      <CheckCircle2 className="w-3 h-3" /> Aprovado
+                                    </span>
+                                    {app.paymentInfo?.planId && (
+                                      <span className="text-[9px] font-mono text-gold block">
+                                        Plano {app.paymentInfo.planId.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                    <XCircle className="w-3 h-3" /> Recusado
-                                  </span>
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                      <XCircle className="w-3 h-3" /> Recusado
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[9px] font-mono rounded-xs block">
+                                      ↩ Estornado
+                                    </span>
+                                  </div>
                                 )}
                               </td>
 
@@ -789,6 +822,46 @@ export default function AdminDashboardPage() {
 
             {/* Conteúdo com Scroll */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Seção 0: Status Financeiro & Plano Contratado */}
+              <div className="p-4 bg-gradient-to-r from-[#181611] to-[#111] border border-gold/40 rounded-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Status Financeiro & Plano de Adesão
+                  </span>
+                  {selectedApp.paymentInfo?.hasPaid ? (
+                    <span className="text-[10px] font-mono uppercase bg-emerald-950/60 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-xs">
+                      ✓ Pagamento Confirmado
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono uppercase bg-amber-950/60 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-xs">
+                      Aguardando Confirmação
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-sans">
+                  <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
+                    <span className="text-[10px] text-ivory/40 block">Plano Selecionado</span>
+                    <span className="font-semibold text-gold uppercase">
+                      {selectedApp.paymentInfo?.planId || (selectedApp.role === 'agencia' ? 'SELECT' : 'GLOW')} ({selectedApp.paymentInfo?.billingInterval === 'yearly' ? 'ANUAL' : 'MENSAL'})
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
+                    <span className="text-[10px] text-ivory/40 block">Valor da Adesão</span>
+                    <span className="font-semibold text-emerald-400">
+                      R$ {selectedApp.paymentInfo?.amount ? selectedApp.paymentInfo.amount.toFixed(2).replace('.', ',') : (selectedApp.role === 'agencia' ? '2.797,20' : '1.402,92')}
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
+                    <span className="text-[10px] text-ivory/40 block">Garantia Editorial</span>
+                    <span className="text-ivory/70 text-[11px] block">
+                      Reembolso automático em caso de recusa
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Seção 1: Dados Pessoais / Corporativos */}
               <div className="space-y-3">
                 <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
@@ -940,7 +1013,7 @@ export default function AdminDashboardPage() {
                         onClick={() =>
                           openLightbox([
                             {
-                              url: selectedApp.documentUrl || '/images/hero_visual.jpg',
+                              url: selectedApp.documentUrl || '/api/media/assets/images/hero_visual.jpg',
                               title: `Documento de Identificação - ${selectedApp.fullName}`,
                               tag: 'Documento 2257',
                             },
@@ -957,12 +1030,12 @@ export default function AdminDashboardPage() {
                   <div className="pt-3 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-sans">
                     <div className="flex items-center gap-2 p-2 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span><strong>Biometria 3D Facial (+18):</strong> Homologada ✓</span>
+                      <span><strong>Biometria 3D Facial (+18):</strong> Homologada</span>
                     </div>
 
                     <div className="flex items-center gap-2 p-2 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span><strong>Blindagem 2FA (TOTP):</strong> Ativada ✓</span>
+                      <span><strong>Blindagem 2FA (TOTP):</strong> Ativada</span>
                     </div>
                   </div>
                 </div>
@@ -989,8 +1062,8 @@ export default function AdminDashboardPage() {
                       <div className="grid grid-cols-2 gap-2">
                         {(() => {
                           const photosList = [
-                            { url: selectedApp.profile?.photos?.[0]?.url || '/images/creator_elena.jpg', title: `${selectedApp.fullName} - Ensaio 01`, tag: 'Foto 01' },
-                            { url: selectedApp.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg', title: `${selectedApp.fullName} - Ensaio 02`, tag: 'Foto 02' },
+                            { url: selectedApp.profile?.photos?.[0]?.url || '/api/media/assets/images/creator_elena.jpg', title: `${selectedApp.fullName} - Ensaio 01`, tag: 'Foto 01' },
+                            { url: selectedApp.profile?.photos?.[1]?.url || '/api/media/assets/images/creator_sophia.jpg', title: `${selectedApp.fullName} - Ensaio 02`, tag: 'Foto 02' },
                           ];
                           return photosList.map((p, pIdx) => (
                             <div
@@ -1203,6 +1276,18 @@ export default function AdminDashboardPage() {
                 Recusar Credencial
               </h3>
             </div>
+
+            {selectedApp?.paymentInfo?.hasPaid && (
+              <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded text-xs text-rose-200 font-sans space-y-1">
+                <div className="font-semibold text-rose-300 flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Estorno / Reembolso Automático Ativo</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Ao confirmar a recusa, o valor pago de <strong>R$ {selectedApp.paymentInfo.amount ? selectedApp.paymentInfo.amount.toFixed(2).replace('.', ',') : 'Integral'}</strong> será <strong>estornado/reembolsado automaticamente</strong> para a conta original do cliente.
+                </p>
+              </div>
+            )}
 
             <p className="text-xs text-ivory/60 font-sans leading-relaxed">
               Informe a justificativa formal para a recusa. Este motivo ficará registrado no protocolo do candidato:

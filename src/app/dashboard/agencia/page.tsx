@@ -16,7 +16,6 @@ import {
   Search,
   Kanban,
   Building2,
-  Sparkles,
   ArrowRight,
   Edit3,
 } from 'lucide-react';

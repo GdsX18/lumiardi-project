@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { CompleteCreatorProfile, CompleteAgencyProfile } from '@/types';
+import { CompleteCreatorProfile, CompleteAgencyProfile, NotificationItem } from '@/types';
 import { SessionUser } from '@/lib/auth';
 
 export type UserRole = 'criadora' | 'agencia' | 'admin';
@@ -19,8 +19,9 @@ interface AuthPortalContextType {
   allAgencies: CompleteAgencyProfile[];
   refreshData: () => Promise<void>;
   logout: () => Promise<void>;
+  notifications: NotificationItem[];
   notificationsCount: number;
-  clearNotifications: () => void;
+  clearNotifications: () => Promise<void>;
 }
 
 const AuthPortalContext = createContext<AuthPortalContextType | undefined>(undefined);
@@ -33,7 +34,8 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [activeAgency, setActiveAgency] = useState<CompleteAgencyProfile | null>(null);
   const [allCreators, setAllCreators] = useState<CompleteCreatorProfile[]>([]);
   const [allAgencies, setAllAgencies] = useState<CompleteAgencyProfile[]>([]);
-  const [notificationsCount, setNotificationsCount] = useState<number>(3);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsCount, setNotificationsCount] = useState<number>(0);
 
   const refreshData = useCallback(async () => {
     try {
@@ -72,6 +74,16 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setAllAgencies(aData.agencies);
         }
       }
+
+      // 2. Busca notificações em tempo real
+      const notifRes = await fetch('/api/notifications');
+      if (notifRes.ok) {
+        const nData = await notifRes.json();
+        if (nData.notifications) {
+          setNotifications(nData.notifications);
+          setNotificationsCount(nData.unreadCount ?? nData.notifications.filter((n: any) => !n.isRead).length);
+        }
+      }
     } catch (e) {
       console.error('Erro ao sincronizar sessão:', e);
     }
@@ -93,10 +105,11 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let isMounted = true;
     const loadInitialSession = async () => {
       try {
-        const [meRes, creatorsRes, agenciesRes] = await Promise.all([
+        const [meRes, creatorsRes, agenciesRes, notifRes] = await Promise.all([
           fetch('/api/user/me'),
           fetch('/api/creators'),
           fetch('/api/agencies'),
+          fetch('/api/notifications'),
         ]);
 
         if (!isMounted) return;
@@ -129,6 +142,14 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setAllAgencies(aData.agencies);
           }
         }
+
+        if (notifRes.ok && isMounted) {
+          const nData = await notifRes.json();
+          if (nData.notifications && isMounted) {
+            setNotifications(nData.notifications);
+            setNotificationsCount(nData.unreadCount ?? nData.notifications.filter((n: any) => !n.isRead).length);
+          }
+        }
       } catch (e) {
         console.error('Erro ao carregar sessão inicial:', e);
       }
@@ -141,7 +162,20 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  const clearNotifications = () => setNotificationsCount(0);
+  const clearNotifications = async () => {
+    try {
+      await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      });
+      setNotificationsCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch (e) {
+      console.warn('Erro ao marcar notificações:', e);
+      setNotificationsCount(0);
+    }
+  };
 
   return (
     <AuthPortalContext.Provider
@@ -157,6 +191,7 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         allAgencies,
         refreshData,
         logout,
+        notifications,
         notificationsCount,
         clearNotifications,
       }}

@@ -168,12 +168,14 @@ export const MediaLightboxModal: React.FC<MediaLightboxModalProps> = ({
               transform: `scale(${zoomLevel}) rotate(${rotation}deg)`,
             }}
           >
-            <img
-              src={currentItem.url}
-              alt={currentItem.title || 'Mídia'}
-              className="max-w-[85vw] max-h-[80vh] object-contain select-none shadow-2xl border border-white/10"
-              draggable={false}
-            />
+            {currentItem.url ? (
+              <img
+                src={currentItem.url}
+                alt={currentItem.title || 'Mídia'}
+                className="max-w-[85vw] max-h-[80vh] object-contain select-none shadow-2xl border border-white/10"
+                draggable={false}
+              />
+            ) : null}
           </div>
         )}
       </div>
@@ -204,17 +206,17 @@ export const MediaLightboxModal: React.FC<MediaLightboxModalProps> = ({
                 currentIndex === idx ? 'border-gold scale-105 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'
               }`}
             >
-              {item.type === 'video' || item.url.endsWith('.mp4') ? (
+              {item.type === 'video' || (item.url && item.url.endsWith('.mp4')) ? (
                 <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center text-gold">
                   <Play className="w-4 h-4" />
                 </div>
-              ) : (
+              ) : item.url ? (
                 <img
                   src={item.url}
                   alt={`Thumb ${idx + 1}`}
                   className="w-full h-full object-cover"
                 />
-              )}
+              ) : null}
             </button>
           ))}
         </div>

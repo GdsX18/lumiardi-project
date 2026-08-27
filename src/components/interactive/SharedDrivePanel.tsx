@@ -20,7 +20,7 @@ import {
   Edit3,
   Copy,
   ExternalLink,
-  Sparkles,
+  Users,
   Fingerprint,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
@@ -103,7 +103,16 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
   const fetchFiles = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/drive');
+      const params = new URLSearchParams();
+      if (targetModelId) params.append('modelId', targetModelId);
+      if (targetAgencyId) params.append('agencyId', targetAgencyId);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+      const url = driveMode === 'shared'
+        ? `/api/drive/shared${queryStr}`
+        : '/api/drive';
+
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (data.files) {
@@ -112,13 +121,16 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
         if (data.storage) {
           setStorageInfo(data.storage);
         }
+        if (data.contract) {
+          setActiveContract(data.contract);
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar drive:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [driveMode, targetModelId, targetAgencyId]);
 
   useEffect(() => {
     fetchFiles();
@@ -360,25 +372,27 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           <button
             type="button"
             onClick={() => setDriveMode('private')}
-            className={`px-4 py-2 text-xs font-sans uppercase tracking-wider font-semibold rounded-xs transition-all cursor-pointer ${
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-wider font-semibold rounded-xs transition-all cursor-pointer flex items-center gap-2 ${
               driveMode === 'private'
                 ? 'bg-gold text-black-matte shadow-md'
                 : 'text-ivory/60 hover:text-ivory hover:bg-white/5'
             }`}
           >
-            🔒 Meu Drive Privado
+            <Lock className="w-3.5 h-3.5" />
+            <span>Meu Drive Privado</span>
           </button>
 
           <button
             type="button"
             onClick={() => setDriveMode('shared')}
-            className={`px-4 py-2 text-xs font-sans uppercase tracking-wider font-semibold rounded-xs transition-all cursor-pointer ${
+            className={`px-4 py-2 text-xs font-sans uppercase tracking-wider font-semibold rounded-xs transition-all cursor-pointer flex items-center gap-2 ${
               driveMode === 'shared'
                 ? 'bg-gold text-black-matte shadow-md'
                 : 'text-ivory/60 hover:text-ivory hover:bg-white/5'
             }`}
           >
-            🤝 Drive Compartilhado (Modelo ↔ Agência)
+            <Users className="w-3.5 h-3.5" />
+            <span>Drive Compartilhado (Modelo / Agência)</span>
           </button>
         </div>
 

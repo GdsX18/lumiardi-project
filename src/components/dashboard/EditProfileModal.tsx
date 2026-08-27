@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import {
   X,
@@ -17,7 +16,6 @@ import {
   DollarSign,
   Globe,
   MapPin,
-  Sparkles,
   Layers,
   HelpCircle,
 } from 'lucide-react';
@@ -55,7 +53,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [country, setCountry] = useState('Brasil');
-  const [avatarUrl, setAvatarUrl] = useState('/images/creator_elena.jpg');
+  const [avatarUrl, setAvatarUrl] = useState('/api/media/assets/images/creator_elena.jpg');
   const [bio, setBio] = useState('');
 
   // Fotos do Book
@@ -153,55 +151,57 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setPhotos(photos.filter((p) => p.id !== id));
   };
 
-  // Upload real via /api/upload com fallback local
+  const [uploading, setUploading] = useState(false);
+
+  // Upload direto no Cloudflare R2 via /api/upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'photo' | 'video') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploading(true);
+    setErrorMsg(null);
+
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('category', target === 'avatar' ? 'avatars' : target === 'photo' ? 'raw-photos' : 'videos');
+      
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          if (target === 'avatar') {
-            setAvatarUrl(data.url);
-          } else if (target === 'photo') {
-            setNewPhotoUrl(data.url);
-            if (!newPhotoTitle) {
-              setNewPhotoTitle(file.name.replace(/\.[^/.]+$/, ''));
-            }
-          } else if (target === 'video') {
-            setVideoUrl(data.url);
-          }
-          return;
-        }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao sincronizar arquivo com o Cloudflare R2.');
       }
-    } catch (err) {
-      console.warn('Fallback local para upload:', err);
-    }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
+      const data = await res.json();
+      if (data.url) {
         if (target === 'avatar') {
-          setAvatarUrl(reader.result);
+          setAvatarUrl(data.url);
         } else if (target === 'photo') {
-          setNewPhotoUrl(reader.result);
-          if (!newPhotoTitle) {
-            setNewPhotoTitle(file.name.replace(/\.[^/.]+$/, ''));
-          }
+          const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+          const newEntry = {
+            id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            url: data.url,
+            title: newPhotoTitle.trim() || cleanTitle || `Ensaio ${photos.length + 1}`,
+            tag: newPhotoTag || 'Alta Resolução · RAW',
+          };
+          setPhotos((prev) => [...prev, newEntry]);
+          setNewPhotoUrl('');
+          setNewPhotoTitle('');
         } else if (target === 'video') {
-          setVideoUrl(reader.result);
+          setVideoUrl(data.url);
         }
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro no envio para o Cloudflare R2';
+      console.error('[UPLOAD ERROR]:', err);
+      setErrorMsg(msg);
+    } finally {
+      setUploading(false);
+    }
   };
 
   // Submissão
@@ -261,7 +261,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   if (!isOpen || !mounted) return null;
 
-  return createPortal(
+  const hasAvatar = Boolean(avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim() !== '');
+
+  return (
     <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto">
       <div className="bg-[#0D0D0D] border border-gold/40 w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden rounded-sm animate-scaleIn">
         {/* Header do Modal */}
@@ -377,12 +379,28 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Foto Principal / Avatar */}
               <div className="p-4 bg-[#141414] border border-gold/30 rounded-sm flex flex-col sm:flex-row items-center gap-6">
                 <div className="relative w-28 h-28 border-2 border-gold/60 p-1 bg-black shrink-0 rounded-sm overflow-hidden group">
-                  <Image
-                    src={avatarUrl}
-                    alt="Foto de Perfil"
-                    fill
-                    className="object-cover"
-                  />
+                  {hasAvatar ? (
+                    avatarUrl.startsWith('data:') ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Foto de Perfil"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Image
+                        src={avatarUrl}
+                        alt="Foto de Perfil"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    )
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-[#181818] text-gold font-serif-lumiardi text-lg font-bold">
+                      <Camera className="w-6 h-6 mb-1 opacity-70" />
+                      <span className="text-[9px] font-sans font-normal text-gold/80">+ Foto</span>
+                    </div>
+                  )}
                   <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-gold cursor-pointer transition-opacity">
                     <Camera className="w-5 h-5 mb-1" />
                     <span>Trocar Foto</span>
@@ -581,38 +599,57 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {photos.map((photo, idx) => (
-                    <div
-                      key={photo.id || idx}
-                      className="bg-[#141414] border border-white/[0.1] rounded-sm overflow-hidden group relative"
-                    >
-                      <div className="relative h-44 w-full bg-black">
-                        <Image
-                          src={photo.url}
-                          alt={photo.title}
-                          fill
-                          className="object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePhoto(photo.id)}
-                          className="absolute top-2 right-2 p-1.5 bg-rose-900/80 hover:bg-rose-600 text-white rounded-xs transition-colors cursor-pointer shadow-md"
-                          title="Remover foto do Book"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                  {photos
+                    .map((pItem: any, idx: number) => {
+                      const photoUrl = typeof pItem === 'string' ? pItem : pItem?.url;
+                      const photoId = typeof pItem === 'string' ? `photo-${idx}` : pItem?.id || `photo-${idx}`;
+                      const photoTitle = typeof pItem === 'string' ? `Ensaio ${idx + 1}` : pItem?.title || `Ensaio ${idx + 1}`;
+                      const photoTag = typeof pItem === 'string' ? 'Alta Resolução' : pItem?.tag || 'Alta Resolução';
 
-                      <div className="p-3 space-y-1">
-                        <span className="text-[9px] uppercase tracking-widest text-gold font-sans font-semibold block">
-                          {photo.tag}
-                        </span>
-                        <p className="text-xs font-medium text-ivory truncate">
-                          {photo.title}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                      if (!photoUrl || typeof photoUrl !== 'string' || photoUrl.trim() === '') return null;
+
+                      return (
+                        <div
+                          key={photoId}
+                          className="bg-[#141414] border border-white/[0.1] rounded-sm overflow-hidden group relative"
+                        >
+                          <div className="relative h-44 w-full bg-black">
+                            {photoUrl.startsWith('data:') ? (
+                              <img
+                                src={photoUrl}
+                                alt={photoTitle}
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Image
+                                src={photoUrl}
+                                alt={photoTitle}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(photoId)}
+                              className="absolute top-2 right-2 p-1.5 bg-rose-900/80 hover:bg-rose-600 text-white rounded-xs transition-colors cursor-pointer shadow-md"
+                              title="Remover foto do Book"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="p-3 space-y-1">
+                            <span className="text-[9px] uppercase tracking-widest text-gold font-sans font-semibold block">
+                              {photoTag}
+                            </span>
+                            <p className="text-xs font-medium text-ivory truncate">
+                              {photoTitle}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
@@ -654,11 +691,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
                 </div>
 
-                {videoUrl && (
+                {videoUrl && videoUrl.trim() !== '' ? (
                   <div className="relative aspect-video w-full max-w-lg mx-auto bg-black border border-white/10 rounded-sm overflow-hidden mt-3">
                     <video src={videoUrl} controls className="w-full h-full object-cover" />
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           )}
@@ -879,7 +916,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
         </form>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };

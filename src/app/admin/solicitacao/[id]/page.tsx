@@ -279,7 +279,7 @@ export default function ApplicationDetailPage() {
             onClick={() =>
               openLightbox([
                 {
-                  url: app.documentUrl || '/images/hero_visual.jpg',
+                  url: app.documentUrl || '/api/media/assets/images/hero_visual.jpg',
                   title: `Documento de Identificação - ${app.fullName}`,
                   tag: 'Documento 2257',
                 },
@@ -299,18 +299,20 @@ export default function ApplicationDetailPage() {
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { url: app.profile?.photos?.[0]?.url || '/images/creator_elena.jpg', title: `${app.fullName} - Foto 01` },
-                { url: app.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg', title: `${app.fullName} - Foto 02` },
+                { url: app.profile?.photos?.[0]?.url || '/api/media/assets/images/creator_elena.jpg', title: `${app.fullName} - Foto 01` },
+                { url: app.profile?.photos?.[1]?.url || '/api/media/assets/images/creator_sophia.jpg', title: `${app.fullName} - Foto 02` },
               ].map((p, idx) => (
                 <div
                   key={idx}
                   onClick={() => openLightbox([
-                    { url: app.profile?.photos?.[0]?.url || '/images/creator_elena.jpg', title: `${app.fullName} - Foto 01` },
-                    { url: app.profile?.photos?.[1]?.url || '/images/creator_sophia.jpg', title: `${app.fullName} - Foto 02` },
+                    { url: app.profile?.photos?.[0]?.url || '/api/media/assets/images/creator_elena.jpg', title: `${app.fullName} - Foto 01` },
+                    { url: app.profile?.photos?.[1]?.url || '/api/media/assets/images/creator_sophia.jpg', title: `${app.fullName} - Foto 02` },
                   ], idx)}
                   className="relative aspect-[3/4] bg-black border border-white/10 hover:border-gold rounded-sm overflow-hidden cursor-pointer group"
                 >
-                  <Image src={p.url} alt={p.title} fill className="object-cover group-hover:scale-105 transition-transform" />
+                  {p.url ? (
+                    <Image src={p.url} alt={p.title} fill className="object-cover group-hover:scale-105 transition-transform" />
+                  ) : null}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-gold">
                     <ZoomIn className="w-5 h-5" />
                   </div>

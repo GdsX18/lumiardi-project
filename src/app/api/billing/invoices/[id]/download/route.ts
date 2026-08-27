@@ -57,7 +57,7 @@ export async function GET(
         <div style="font-size: 12px; color: rgba(247,243,236,0.5); margin-top: 4px;">Exclusive Agency & Creator Ecosystem</div>
       </div>
       <div>
-        <span class="badge">Liquidado ✓</span>
+        <span class="badge">Liquidado</span>
       </div>
     </div>
 

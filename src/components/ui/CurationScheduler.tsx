@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { CurationAppointment } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -100,7 +100,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
       <div className="border-b border-[#0B0B0B]/10 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
+            <CalendarIcon className="w-3.5 h-3.5" />
             <span>{t('sched_badge')}</span>
           </div>
           <h3 className="font-serif-lumiardi text-2xl md:text-3xl font-light text-[#0B0B0B]">

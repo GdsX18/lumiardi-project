@@ -5,7 +5,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { IconL3D } from '@/components/3d/IconL3D';
-import { ShieldCheck, Sparkles, EyeOff, Flame, Award } from 'lucide-react';
+import { ShieldCheck, EyeOff, Flame, Award } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
@@ -33,7 +33,7 @@ export const BrandPillarsSection: React.FC = () => {
       title: t('pillar_2_title'),
       subtitle: t('pillar_2_sub'),
       desc: t('pillar_2_desc'),
-      icon: <Sparkles className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
+      icon: <ShieldCheck className="w-5 h-5 stroke-[1.2] text-[#8C6B2F]" />,
       colSpan: 'lg:col-span-5',
       isHero: false,
     },

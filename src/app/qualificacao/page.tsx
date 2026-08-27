@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
 import { QualificationSteps } from '@/components/sections/QualificationSteps';
@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Lock,
   ArrowRight,
-  Sparkles,
   AlertCircle,
   CalendarCheck,
   User,
@@ -23,6 +22,7 @@ import {
   Camera,
   ScanFace,
   CheckCircle2,
+  Check,
   KeyRound,
 } from 'lucide-react';
 import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
@@ -48,8 +48,11 @@ const LANGUAGE_OPTIONS = [
   'Outro',
 ];
 
-export default function QualificacaoPage() {
+function QualificacaoContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedPlan = searchParams.get('plan') || 'glow';
+  const selectedBilling = searchParams.get('billing') || 'yearly';
   const { t } = useLanguage();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -322,6 +325,11 @@ export default function QualificacaoPage() {
 
       setSubmitted(true);
       window.scrollTo({ top: 100, behavior: 'smooth' });
+
+      // Redirecionamento automático imediato para o Checkout do Plano
+      setTimeout(() => {
+        router.push(`/checkout?plan=${selectedPlan}&category=criadoras&billing=${selectedBilling}`);
+      }, 1000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t('err_submission_failed');
       setSubmissionError(msg);
@@ -446,11 +454,11 @@ export default function QualificacaoPage() {
               <div className="pt-6 border-t border-[#0B0B0B]/10 flex flex-col gap-3 justify-center max-w-md mx-auto">
                 <Button
                   variant="primary"
-                  onClick={() => router.push('/planos?category=criadoras&registered=true')}
+                  onClick={() => router.push(`/checkout?plan=${selectedPlan}&category=criadoras&billing=${selectedBilling}`)}
                   className="w-full py-4 text-xs tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl"
                 >
-                  <Sparkles className="w-4 h-4 text-[#C9A96B]" />
-                  <span>Escolher Meu Plano & Concluir Adesão →</span>
+                  <ShieldCheck className="w-4 h-4 text-[#C9A96B]" />
+                  <span>Prosseguir para Pagamento do Plano ({selectedPlan.toUpperCase()}) →</span>
                 </Button>
                 <button
                   type="button"
@@ -590,7 +598,7 @@ export default function QualificacaoPage() {
                           {isKYCVerified ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Documento & Biometria Aprovados ✓</span>
+                              <span>Documento & Biometria Aprovados</span>
                             </span>
                           ) : (
                             <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
@@ -605,8 +613,8 @@ export default function QualificacaoPage() {
 
                         {basicData.document && (
                           <div className="p-2.5 bg-white border border-[#C9A96B]/40 text-xs font-sans text-[#0B0B0B]/80 flex items-center justify-between">
-                            <span className="truncate">📄 <strong>Arquivo:</strong> {basicData.document.fileName}</span>
-                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado ✓</span>
+                            <span className="truncate"><strong>Arquivo:</strong> {basicData.document.fileName}</span>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado</span>
                           </div>
                         )}
 
@@ -638,7 +646,7 @@ export default function QualificacaoPage() {
                         {is2FAVerified ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>2FA Ativado ✓</span>
+                            <span>2FA Ativado</span>
                           </span>
                         ) : (
                           <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
@@ -661,7 +669,7 @@ export default function QualificacaoPage() {
                         }`}
                       >
                         <KeyRound className="w-4 h-4" />
-                        <span>{is2FAVerified ? '2FA Concluído com Sucesso ✓' : 'Escanear QR Code & Ativar 2FA →'}</span>
+                        <span>{is2FAVerified ? '2FA Concluído com Sucesso' : 'Escanear QR Code & Ativar 2FA →'}</span>
                       </button>
                     </div>
                   </div>
@@ -966,7 +974,7 @@ export default function QualificacaoPage() {
                                   : 'bg-[#FAF7F2] text-[#0B0B0B]/70 border-[#0B0B0B]/15 hover:border-[#C9A96B]'
                               }`}
                             >
-                              {p.label} {isSelected && '✓'}
+                              {p.label} {isSelected && '(Selecionado)'}
                             </button>
                           );
                         })}
@@ -1025,7 +1033,7 @@ export default function QualificacaoPage() {
                                   : 'bg-[#FAF7F2] text-[#0B0B0B]/70 border-[#0B0B0B]/15 hover:border-[#8C6B2F]'
                               }`}
                             >
-                              {lang} {isSelected && '✓'}
+                              {lang} {isSelected && '(Selecionado)'}
                             </button>
                           );
                         })}
@@ -1327,7 +1335,7 @@ export default function QualificacaoPage() {
                       onClick={handleFinalSubmit}
                       className="px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.25em] font-semibold hover:bg-[#D4B87A] transition-all flex items-center gap-3 cursor-pointer shadow-xl disabled:opacity-50"
                     >
-                      <Sparkles className="w-4 h-4" />
+                      <Check className="w-4 h-4" />
                       <span>{isSubmitting ? t('qual_btn_submitting') : t('qual_btn_final_submit')}</span>
                     </button>
                   </div>
@@ -1368,5 +1376,13 @@ export default function QualificacaoPage() {
 
       <Footer />
     </main>
+  );
+}
+
+export default function QualificacaoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center text-[#C9A96B] font-serif-lumiardi text-xl">Carregando formulário de qualificação...</div>}>
+      <QualificacaoContent />
+    </Suspense>
   );
 }

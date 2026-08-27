@@ -37,6 +37,20 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
 
+    try {
+      await StorageService.createNotification({
+        userId: savedProfile.id,
+        title: 'Candidatura Submetida',
+        desc: 'Sua candidatura foi submetida com sucesso e está em análise pela Mesa de Curadoria.',
+        category: 'Curadoria',
+        type: 'info',
+        link: '/dashboard/pendente',
+        linkText: 'Acompanhar Status',
+      });
+    } catch (e) {
+      console.warn('Erro ao criar notificação de registro:', e);
+    }
+
     const sessionUser: SessionUser = {
       id: savedProfile.id,
       email: savedProfile.basicInfo.email,

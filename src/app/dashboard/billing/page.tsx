@@ -18,7 +18,7 @@ import {
   Building2,
   FileText,
   Calendar,
-  Sparkles,
+  Crown,
   RotateCcw,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
@@ -376,7 +376,7 @@ export default function BillingPortalPage() {
                   </div>
                   {plan?.limits?.priorityPlacement === 'exclusive' && (
                     <div className="flex items-center gap-2 text-gold font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-gold" />
+                      <Crown className="w-3.5 h-3.5 text-gold" />
                       <span>Destaque Exclusivo no Topo do Scouting</span>
                     </div>
                   )}

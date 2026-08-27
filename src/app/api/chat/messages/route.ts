@@ -53,6 +53,23 @@ export async function POST(request: NextRequest) {
       attachmentType,
     });
 
+    // Disparar notificação para o destinatário da mensagem
+    if (body.receiverId && body.receiverId !== session.id) {
+      try {
+        await StorageService.createNotification({
+          userId: body.receiverId,
+          title: 'Nova Mensagem Recebida',
+          desc: `Mensagem de ${session.name || 'Contato'}: "${text.substring(0, 60)}${text.length > 60 ? '...' : ''}"`,
+          category: 'Chat',
+          type: 'info',
+          link: `/dashboard/chat?conversationId=${conversationId}`,
+          linkText: 'Abrir Conversa',
+        });
+      } catch (e) {
+        console.warn('Erro ao criar notificação de chat:', e);
+      }
+    }
+
     return NextResponse.json({ success: true, message });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao enviar mensagem';

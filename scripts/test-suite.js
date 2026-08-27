@@ -78,6 +78,7 @@ async function runTests() {
     assert(sql.includes('CREATE TABLE IF NOT EXISTS scout_proposals'));
     assert(sql.includes('CREATE TABLE IF NOT EXISTS admin_users'));
     assert(sql.includes('CREATE TABLE IF NOT EXISTS curation_audit_logs'));
+    assert(sql.includes('CREATE TABLE IF NOT EXISTS notifications'));
   });
 
   // 2. Teste de Módulos de Pagamento, RBAC, Auditoria & Cibersegurança
@@ -163,6 +164,8 @@ async function runTests() {
     'src/app/api/billing/subscription/cancel/route.ts',
     'src/app/api/billing/invoices/route.ts',
     'src/app/api/billing/payouts/route.ts',
+    'src/app/api/notifications/route.ts',
+    'src/app/api/notifications/mark-read/route.ts',
   ];
 
   apiRoutes.forEach((route) => {

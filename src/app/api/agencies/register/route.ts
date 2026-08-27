@@ -27,6 +27,20 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
 
+    try {
+      await StorageService.createNotification({
+        userId: savedProfile.id,
+        title: 'Cadastro Corporativo Submetido',
+        desc: 'Os dados da sua agência foram submetidos com sucesso e estão em auditoria pela Mesa de Curadoria.',
+        category: 'Curadoria',
+        type: 'info',
+        link: '/dashboard/pendente',
+        linkText: 'Acompanhar Status',
+      });
+    } catch (e) {
+      console.warn('Erro ao criar notificação de registro de agência:', e);
+    }
+
     const sessionUser: SessionUser = {
       id: savedProfile.id,
       email: savedProfile.basicInfo.corporateEmail,

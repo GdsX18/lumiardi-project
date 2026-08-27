@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import {
   X,
@@ -51,7 +50,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
   const [commissionRate, setCommissionRate] = useState('20%');
   const [specialties, setSpecialties] = useState('Alta Moda, Editorial, Fashion Week');
   const [bio, setBio] = useState('');
-  const [logoUrl, setLogoUrl] = useState('/images/hero_visual.jpg');
+  const [logoUrl, setLogoUrl] = useState('/api/media/assets/images/hero_visual.jpg');
 
   useEffect(() => {
     if (initialData) {
@@ -70,22 +69,43 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
           : initialData.specialties || 'Alta Moda, Editorial, Fashion Week'
       );
       setBio(initialData.qualitative?.bio || initialData.bio || '');
-      setLogoUrl(initialData.logoUrl || '/images/hero_visual.jpg');
+      setLogoUrl(initialData.logoUrl || '/api/media/assets/images/hero_visual.jpg');
     }
   }, [initialData]);
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setLogoUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setUploading(true);
+    setErrorMsg(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'avatars');
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao enviar logo para o Cloudflare R2.');
+      }
+      const data = await res.json();
+      if (data.url) {
+        setLogoUrl(data.url);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar para o Cloudflare R2';
+      console.error('[UPLOAD ERROR]:', err);
+      setErrorMsg(msg);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -136,7 +156,9 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
   if (!isOpen || !mounted) return null;
 
-  return createPortal(
+  const hasLogo = Boolean(logoUrl && typeof logoUrl === 'string' && logoUrl.trim() !== '');
+
+  return (
     <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto">
       <div className="bg-[#0D0D0D] border border-gold/40 w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden rounded-sm animate-scaleIn">
         {/* Header */}
@@ -180,12 +202,28 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
           {/* Logo Corporativa */}
           <div className="p-4 bg-[#141414] border border-gold/30 rounded-sm flex flex-col sm:flex-row items-center gap-6">
             <div className="relative w-24 h-24 border-2 border-gold/60 p-1 bg-black shrink-0 rounded-sm overflow-hidden group">
-              <Image
-                src={logoUrl}
-                alt="Logo da Agência"
-                fill
-                className="object-cover"
-              />
+              {hasLogo ? (
+                logoUrl.startsWith('data:') ? (
+                  <img
+                    src={logoUrl}
+                    alt="Logo da Agência"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={logoUrl}
+                    alt="Logo da Agência"
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                )
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#181818] text-gold font-serif-lumiardi text-lg font-bold">
+                  <Building2 className="w-6 h-6 mb-1 opacity-70" />
+                  <span className="text-[9px] font-sans font-normal text-gold/80">+ Logo</span>
+                </div>
+              )}
               <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-gold cursor-pointer transition-opacity">
                 <Camera className="w-4 h-4 mb-1" />
                 <span>Trocar Logo</span>
@@ -347,7 +385,6 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
           </div>
         </form>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };

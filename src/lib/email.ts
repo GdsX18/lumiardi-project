@@ -181,7 +181,7 @@ export const EmailService = {
     const preheader = `Seu código de verificação 2FA é: ${code}`;
     
     const content = `
-      <div class="badge">🔒 Segurança & Acesso</div>
+      <div class="badge">Segurança & Acesso</div>
       <h2 style="color:#FFF; font-size:20px; margin-top:0;">Autenticação de Dois Fatores</h2>
       <p>Olá, <strong>${recipientName || 'Membro Lumiardi'}</strong>,</p>
       <p>Você solicitou acesso seguro ou autorização de operação na sua conta Lumiardi. Utilize o código de 6 dígitos abaixo para confirmar sua identidade:</p>
@@ -214,7 +214,7 @@ export const EmailService = {
 
     const isCreator = role === 'creator';
     const content = `
-      <div class="badge">✨ Bem-vindo(a) à Lumiardi</div>
+      <div class="badge">Bem-vindo(a) à Lumiardi</div>
       <h2 style="color:#FFF; font-size:22px; margin-top:0;">A sua jornada de exclusividade começa agora</h2>
       <p>Olá, <strong>${name}</strong>,</p>
       <p>É uma honra dar as boas-vindas a você na <strong>Lumiardi</strong> — o ecossistema privado de maior prestígio para criadoras de elite e membros seletos.</p>
@@ -252,7 +252,7 @@ export const EmailService = {
     const preheader = approved ? `Parabéns! Sua auditoria 2257 foi aprovada sob protocolo ${referenceCode}` : 'Avisos sobre o envio dos seus documentos';
 
     const content = approved ? `
-      <div class="badge" style="color:#34C759; border-color:rgba(52, 199, 89, 0.4); background:rgba(52, 199, 89, 0.1);">✅ Homologação Aprovada</div>
+      <div class="badge" style="color:#34C759; border-color:rgba(52, 199, 89, 0.4); background:rgba(52, 199, 89, 0.1);">Homologação Aprovada</div>
       <h2 style="color:#FFF; font-size:22px; margin-top:0;">Auditoria Biométrica Concluída</h2>
       <p>Olá, <strong>${name}</strong>,</p>
       <p>Temos o prazer de informar que seus documentos oficiais e biometria facial foram <strong>homologados com sucesso</strong> em conformidade com as normas internacionais 18 U.S.C. § 2257.</p>
@@ -268,7 +268,7 @@ export const EmailService = {
         <a href="https://www.lumiardi.com/dashboard/criadora" class="btn">Entrar no Painel da Criadora</a>
       </div>
     ` : `
-      <div class="badge" style="color:#FF453A; border-color:rgba(255, 69, 58, 0.4); background:rgba(255, 69, 58, 0.1);">⚠️ Ação Necessária</div>
+      <div class="badge" style="color:#FF453A; border-color:rgba(255, 69, 58, 0.4); background:rgba(255, 69, 58, 0.1);">Ação Necessária</div>
       <h2 style="color:#FFF; font-size:22px; margin-top:0;">Inconsistência nos Documentos</h2>
       <p>Olá, <strong>${name}</strong>,</p>
       <p>Nossa equipe de auditoria e o motor de visão identificaram pendências no seu envio de verificação:</p>
@@ -302,7 +302,7 @@ export const EmailService = {
     const preheader = 'Instruções para redefinir sua senha com segurança.';
 
     const content = `
-      <div class="badge">🔑 Redefinição Segura</div>
+      <div class="badge">Redefinição Segura</div>
       <h2 style="color:#FFF; font-size:20px; margin-top:0;">Redefinição de Senha</h2>
       <p>Olá, <strong>${recipientName || 'Membro Lumiardi'}</strong>,</p>
       <p>Recebemos uma solicitação para redefinir a senha da sua conta Lumiardi. Clique no botão abaixo para criar uma nova senha de acesso:</p>

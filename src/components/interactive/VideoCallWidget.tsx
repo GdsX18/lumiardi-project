@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Layers,
   Plus,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -472,7 +473,7 @@ export const VideoCallWidget: React.FC = () => {
                     <span className="font-serif-lumiardi text-sm text-gold font-medium flex items-center gap-1.5">
                       <FileText className="w-4 h-4" /> Ata & Notas da Reunião
                     </span>
-                    <button onClick={() => setShowNotes(false)} className="text-ivory/50 hover:text-gold text-xs cursor-pointer p-1">✕</button>
+                    <button onClick={() => setShowNotes(false)} className="text-ivory/50 hover:text-gold text-xs cursor-pointer p-1"><X className="w-3.5 h-3.5" /></button>
                   </div>
                   <textarea
                     rows={9}
@@ -505,7 +506,7 @@ export const VideoCallWidget: React.FC = () => {
                   <span className="font-serif-lumiardi text-sm text-gold font-medium flex items-center gap-1.5">
                     <MessageSquare className="w-4 h-4" /> Chat da Sala ({inMeetingMessages.length})
                   </span>
-                  <button onClick={() => setShowChat(false)} className="text-ivory/50 hover:text-gold text-xs cursor-pointer p-1">✕</button>
+                  <button onClick={() => setShowChat(false)} className="text-ivory/50 hover:text-gold text-xs cursor-pointer p-1"><X className="w-3.5 h-3.5" /></button>
                 </div>
 
                 {/* Lista de Mensagens */}

@@ -1,15 +1,11 @@
-/**
- * LUMIARDI — CLOUDFLARE R2 PRIVATE STORAGE & DYNAMIC WATERMARKING
- * Armazenamento de mídia privada compatível com S3 (Zero Egress Fees),
- * emissão de Presigned URLs (expiração 5 min) e aplicação de marca d'água anti-vazamento.
- */
-
 import crypto from 'crypto';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export interface PresignedUrlRequest {
   fileName: string;
   fileType: string;
-  category: 'raw-photos' | 'videos' | 'contracts' | 'briefings';
+  category: 'raw-photos' | 'videos' | 'contracts' | 'briefings' | 'avatars' | 'uploads';
   userId: string;
   operation: 'upload' | 'download';
   expiresInSeconds?: number;
@@ -24,7 +20,46 @@ export interface PresignedUrlResponse {
   headers?: Record<string, string>;
 }
 
+let cachedR2Client: S3Client | null = null;
+
+function getR2Client(): S3Client | null {
+  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    return null;
+  }
+
+  if (!cachedR2Client) {
+    cachedR2Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+  }
+
+  return cachedR2Client;
+}
+
 export const R2StorageService = {
+  /**
+   * Retorna a instância ativa do cliente S3 para Cloudflare R2
+   */
+  getClient(): S3Client | null {
+    return getR2Client();
+  },
+
+  /**
+   * Nome do bucket configurado
+   */
+  getBucketName(): string {
+    return process.env.CLOUDFLARE_R2_BUCKET_NAME || 'lumiardi-vault-private';
+  },
+
   /**
    * Gera a chave única do arquivo no bucket com isolamento por usuário
    */
@@ -35,36 +70,89 @@ export const R2StorageService = {
   },
 
   /**
-   * Gera uma URL assinada (Presigned URL) para upload direto ou download protegido
+   * Realiza o upload direto de um buffer para o Cloudflare R2
    */
-  async createPresignedUrl(req: PresignedUrlRequest): Promise<PresignedUrlResponse> {
-    const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
-    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || 'lumiardi-vault-private';
-    const expiresIn = req.expiresInSeconds || 300; // 5 minutos padrão
-    const fileKey = this.generateFileKey(req.userId, req.category, req.fileName);
+  async uploadBuffer(params: {
+    key: string;
+    buffer: Buffer | Uint8Array;
+    contentType: string;
+    metadata?: Record<string, string>;
+  }): Promise<{ success: boolean; key: string; url: string; error?: string }> {
+    const client = getR2Client();
+    const bucketName = this.getBucketName();
 
-    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+    if (!client) {
+      return { success: false, key: params.key, url: '', error: 'Cloudflare R2 não configurado no ambiente.' };
+    }
 
-    // Em produção com Cloudflare R2 / AWS S3 SDK
-    if (accountId && process.env.CLOUDFLARE_R2_ACCESS_KEY_ID) {
-      // Endpoint R2: https://<accountid>.r2.cloudflarestorage.com/<bucket>/<key>
-      const token = crypto
-        .createHmac('sha256', process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || 'r2_secret')
-        .update(`${fileKey}:${expiresAt}:${req.operation}`)
-        .digest('hex');
+    try {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: params.key,
+          Body: params.buffer,
+          ContentType: params.contentType,
+          Metadata: params.metadata,
+        })
+      );
 
-      const signedUrl = `https://${accountId}.r2.cloudflarestorage.com/${bucketName}/${fileKey}?token=${token}&expires=${expiresIn}`;
+      const publicDomain = process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
+      const url = publicDomain
+        ? `${publicDomain.replace(/\/$/, '')}/${params.key}`
+        : `/api/drive/signed-url/stream?key=${encodeURIComponent(params.key)}`;
 
       return {
         success: true,
-        signedUrl,
-        fileKey,
-        publicCdnUrl: `${process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN || 'https://media.lumiardi.com'}/${fileKey}`,
-        expiresAt,
+        key: params.key,
+        url,
       };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Falha ao enviar objeto para o Cloudflare R2';
+      console.error('Erro R2StorageService.uploadBuffer:', err);
+      return { success: false, key: params.key, url: '', error: errorMsg };
+    }
+  },
+
+  /**
+   * Gera uma URL assinada (Presigned URL) para upload direto ou download protegido
+   */
+  async createPresignedUrl(req: PresignedUrlRequest): Promise<PresignedUrlResponse> {
+    const client = getR2Client();
+    const bucketName = this.getBucketName();
+    const expiresIn = req.expiresInSeconds || 300; // 5 minutos padrão
+    const fileKey = this.generateFileKey(req.userId, req.category, req.fileName);
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    if (client) {
+      try {
+        const command = req.operation === 'upload'
+          ? new PutObjectCommand({
+              Bucket: bucketName,
+              Key: fileKey,
+              ContentType: req.fileType,
+            })
+          : new GetObjectCommand({
+              Bucket: bucketName,
+              Key: fileKey,
+            });
+
+        const signedUrl = await getSignedUrl(client, command, { expiresIn });
+
+        return {
+          success: true,
+          signedUrl,
+          fileKey,
+          publicCdnUrl: process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN
+            ? `${process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN.replace(/\/$/, '')}/${fileKey}`
+            : undefined,
+          expiresAt,
+        };
+      } catch (err) {
+        console.warn('Erro gerando presigned URL AWS SDK, usando fallback assinado:', err);
+      }
     }
 
-    // Modo de Desenvolvimento Local / Fallback Seguro
+    // Fallback assinado local HMAC
     const localToken = crypto.randomBytes(16).toString('hex');
     const signedUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/drive/signed-url/stream?key=${encodeURIComponent(
       fileKey

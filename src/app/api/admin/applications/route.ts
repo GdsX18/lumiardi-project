@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const type = (searchParams.get('type') || 'all') as 'all' | 'criadora' | 'agencia';
+    const type = (searchParams.get('type') || searchParams.get('role') || 'all') as 'all' | 'criadora' | 'agencia';
     const status = searchParams.get('status') || undefined;
 
     const applications = await StorageService.listApplications(type, status);

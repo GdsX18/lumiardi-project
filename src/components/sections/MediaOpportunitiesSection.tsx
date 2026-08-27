@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Rocket, Building2, Users, Handshake, Sparkles } from 'lucide-react';
+import { Rocket, Building2, Users, Handshake } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
@@ -78,7 +78,7 @@ export const MediaOpportunitiesSection: React.FC = () => {
       <div className="w-full max-w-[1920px] mx-auto px-6 md:px-16 lg:px-24">
         <div className="max-w-4xl space-y-6 mb-20">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
-            <Sparkles className="w-4 h-4 stroke-[1.2]" />
+            <Rocket className="w-4 h-4 stroke-[1.2]" />
             <span>{t('mo_tag')}</span>
           </div>
 

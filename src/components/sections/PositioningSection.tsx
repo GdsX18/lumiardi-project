@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Check, X, ShieldCheck, Sparkles } from 'lucide-react';
+import { Check, X, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 if (typeof window !== 'undefined') {
@@ -116,7 +116,7 @@ export const PositioningSection: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-end mb-24">
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium">
-              <Sparkles className="w-4 h-4 stroke-[1.2]" />
+              <ShieldCheck className="w-4 h-4 stroke-[1.2]" />
               <span>{t('pos_tag')}</span>
             </div>
 

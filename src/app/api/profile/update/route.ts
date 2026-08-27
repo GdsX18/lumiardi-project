@@ -80,6 +80,9 @@ export async function POST(request: NextRequest) {
     if (body.avatarUrl !== undefined) {
       sanitizedUpdates.avatarUrl = sanitizeInput(body.avatarUrl);
     }
+    if (body.logoUrl !== undefined) {
+      sanitizedUpdates.logoUrl = sanitizeInput(body.logoUrl);
+    }
 
     // Salva no banco de dados e fallback
     const result = await StorageService.updateUserProfile(session.id, role, sanitizedUpdates);

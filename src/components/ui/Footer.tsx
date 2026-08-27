@@ -15,7 +15,7 @@ export const Footer: React.FC = () => {
         {/* Logo Combinada */}
         <div className="relative w-56 md:w-72 h-20 mb-8">
           <Image
-            src="/LUMIARDI - Logo Combinada trasparente.png"
+            src="/api/media/assets/LUMIARDI_-_Logo_Combinada_trasparente.png"
             alt="LUMIARDI Marca Completa"
             fill
             className="object-contain"
