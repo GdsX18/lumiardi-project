@@ -78,7 +78,7 @@ const ScrollExpandMedia = ({
     const finalH = mobile ? vh * 0.64 : Math.min(vh * 0.76, 750);
 
     const ctx = gsap.context(() => {
-      // Estado inicial garantido
+      // Estado inicial garantido com aceleração 3D
       gsap.set(media, {
         width: initW,
         height: initH,
@@ -88,6 +88,7 @@ const ScrollExpandMedia = ({
         left: '50%',
         top: '50%',
         scale: 1,
+        force3D: true,
       });
 
       if (overlayRef.current) {
@@ -104,20 +105,21 @@ const ScrollExpandMedia = ({
           trigger: section,
           start: 'top top',
           end: '+=700',
-          scrub: 0.6,
+          scrub: 0.4,
           pin: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,
         },
       });
 
-      // ── Card expande até tamanho CRT (0 → 65%) ──
+      // ── Card expande até tamanho CRT (0 → 65%) com hardware acceleration ──
       tl.to(media, {
         width: finalW,
         height: finalH,
         borderRadius: 14,
         ease: 'power2.inOut',
         duration: 0.65,
+        force3D: true,
       }, 0);
 
       // ── Textos saem lateralmente (0 → 35%) ──
@@ -168,6 +170,7 @@ const ScrollExpandMedia = ({
         scale: 0.96,
         duration: 0.35,
         ease: 'power2.out',
+        force3D: true,
       }, 0.55);
 
       // Sombra interna CRT aparece (profundidade)
@@ -218,25 +221,37 @@ const ScrollExpandMedia = ({
         {/* ═══ Card de Mídia + CRT (Sem borda dourada, pura elegância visual) ═══ */}
         <div
           ref={mediaRef}
-          className="absolute left-1/2 top-1/2 overflow-hidden z-10 w-[230px] h-[330px] sm:w-[280px] sm:h-[400px] md:w-[360px] md:h-[500px] rounded-[16px] sm:rounded-[20px] shadow-[0_25px_70px_rgba(0,0,0,0.95)] border-0"
+          className="absolute left-1/2 top-1/2 overflow-hidden z-10 w-[230px] h-[330px] sm:w-[280px] sm:h-[400px] md:w-[360px] md:h-[500px] rounded-[16px] sm:rounded-[20px] shadow-[0_25px_70px_rgba(0,0,0,0.95)] border-0 transform-gpu"
           style={{
-            transform: 'translate(-50%, -50%)',
+            transform: 'translate3d(-50%, -50%, 0)',
+            WebkitTransform: 'translate3d(-50%, -50%, 0)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
             willChange: 'width, height, border-radius, transform',
           }}
         >
           {/* Conteúdo da mídia */}
           {mediaType === 'video' ? (
-            <div className="relative w-full h-full pointer-events-none">
+            <div className="relative w-full h-full pointer-events-none overflow-hidden">
               <video
                 ref={videoRef}
                 src={mediaSrc}
                 poster={posterSrc}
                 muted
                 playsInline
-                preload="metadata"
+                preload="auto"
                 autoPlay
                 loop
-                className="w-full h-full object-cover"
+                controls={false}
+                disablePictureInPicture
+                disableRemotePlayback
+                className="w-full h-full object-cover transform-gpu"
+                style={{
+                  transform: 'translate3d(0, 0, 0)',
+                  WebkitTransform: 'translate3d(0, 0, 0)',
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                }}
               />
               <div
                 ref={overlayRef}
@@ -261,26 +276,25 @@ const ScrollExpandMedia = ({
 
           {/* ═══ CRT "TV Antiga" Layer ═══
               Todas as camadas do efeito ficam dentro deste wrapper.
-              GSAP controla a opacidade deste div inteiro.
+              GSAP controla a opacidade deste div inteiro com aceleração de hardware.
           */}
           <div
             ref={crtLayerRef}
-            className="absolute inset-0 pointer-events-none z-20"
-            style={{ opacity: 0 }}
+            className="absolute inset-0 pointer-events-none z-20 transform-gpu"
+            style={{ opacity: 0, willChange: 'opacity' }}
           >
-            {/* Scanlines horizontais */}
+            {/* Scanlines horizontais ultra-leves sem mixBlendMode */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 background:
-                  'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 4px)',
-                mixBlendMode: 'multiply',
+                  'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px)',
               }}
             />
 
-            {/* Vinheta forte (escurece as bordas como tela CRT curva) */}
+            {/* Vinheta elegante (escurece as bordas com profundidade) */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 background:
                   'radial-gradient(ellipse 85% 80% at 50% 50%, transparent 45%, rgba(0,0,0,0.55) 78%, rgba(0,0,0,0.85) 100%)',
@@ -289,7 +303,7 @@ const ScrollExpandMedia = ({
 
             {/* Aberração cromática nas bordas (RGB fringe sutil) */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 boxShadow:
                   'inset 3px 0 14px rgba(255,30,30,0.07), inset -3px 0 14px rgba(30,30,255,0.07)',
@@ -298,21 +312,11 @@ const ScrollExpandMedia = ({
 
             {/* Reflexo de vidro CRT (brilho diagonal sutil) */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 background:
                   'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 35%, transparent 65%, rgba(255,255,255,0.015) 100%)',
                 borderRadius: 'inherit',
-              }}
-            />
-
-            {/* Noise/grain sutil (textura de fósforo) */}
-            <div
-              className="absolute inset-0 opacity-[0.035]"
-              style={{
-                backgroundImage:
-                  'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")',
-                backgroundSize: '128px 128px',
               }}
             />
           </div>

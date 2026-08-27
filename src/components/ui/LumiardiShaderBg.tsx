@@ -162,10 +162,9 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
     const resizeCanvas = () => {
       if (!canvas) return;
       const isMobile = window.innerWidth < 768;
-      // Em mobile, DPR de 0.85 a 1.0 garante fluidez absoluta de 60fps sem consumo excessivo de bateria
-      const dpr = isMobile ? 0.9 : Math.min(window.devicePixelRatio || 1, 1.2);
-      const displayWidth = Math.floor(canvas.clientWidth * dpr);
-      const displayHeight = Math.floor(canvas.clientHeight * dpr);
+      const dpr = isMobile ? 0.75 : Math.min(window.devicePixelRatio || 1, 0.85);
+      const displayWidth = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const displayHeight = Math.max(1, Math.floor(canvas.clientHeight * dpr));
 
       if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
         canvas.width = displayWidth;
@@ -174,23 +173,33 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
       }
     };
 
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas, { passive: true });
+
+    let lastRenderTime = 0;
+    const targetFps = 45; // 45fps é ultra fluido para ambient background shader e economiza 50% de GPU
+    const frameInterval = 1000 / targetFps;
+
     const startTime = performance.now();
 
     const render = (time: number) => {
       if (!isVisible) return;
 
-      resizeCanvas();
+      const elapsed = time - lastRenderTime;
+      if (elapsed >= frameInterval) {
+        lastRenderTime = time - (elapsed % frameInterval);
 
-      gl.useProgram(program);
-      gl.enableVertexAttribArray(positionAttributeLocation);
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.useProgram(program);
+        gl.enableVertexAttribArray(positionAttributeLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
 
-      gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
-      gl.uniform1f(timeUniformLocation, (time - startTime) * 0.001);
-      gl.uniform2f(mouseUniformLocation, mouseX, mouseY);
+        gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+        gl.uniform1f(timeUniformLocation, (time - startTime) * 0.0008);
+        gl.uniform2f(mouseUniformLocation, mouseX, mouseY);
 
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -217,6 +226,7 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
     return () => {
       observer.disconnect();
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('resize', resizeCanvas);
       cancelAnimationFrame(animationFrameId);
       if (gl) {
         gl.deleteProgram(program);
