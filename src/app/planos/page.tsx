@@ -4,23 +4,17 @@ import React, { useState } from 'react';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
 import { PricingTable } from '@/components/ui/PricingTable';
-import { ShieldCheck, Building2, UserCheck, Check, ArrowRight, HardDrive, Search, Lock, Users } from 'lucide-react';
+import { ShieldCheck, Building2, UserCheck, Check, HardDrive, Search, Lock, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
-import { useAuthPortal } from '@/context/AuthPortalContext';
 
 export default function PlanosPage() {
   const [planCategory, setPlanCategory] = useState<'criadoras' | 'agencias'>('criadoras');
   const [isYearly, setIsYearly] = useState(true);
   const { t } = useLanguage();
-  const { currentUser } = useAuthPortal();
-
-  // Helper para direcionar ao cadastro do plano ou checkout se já aprovado
+  // Helper para direcionar SEMPRE ao cadastro/qualificação do plano selecionado
   const getPlanLink = (planId: string, category: 'criadoras' | 'agencias', yearly: boolean) => {
     const billingParam = yearly ? 'yearly' : 'monthly';
-    if (currentUser && currentUser.curationStatus === 'APROVADO') {
-      return `/checkout?plan=${planId}&category=${category}&billing=${billingParam}`;
-    }
     return category === 'criadoras'
       ? `/qualificacao?plan=${planId}&billing=${billingParam}`
       : `/qualificacao/agencia?plan=${planId}&billing=${billingParam}`;

@@ -95,15 +95,15 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
   };
 
   return (
-    <div className="bg-white border border-[#0B0B0B]/10 p-6 md:p-10 shadow-xl space-y-8">
+    <div className="bg-white border border-[#0B0B0B]/10 p-4 sm:p-6 md:p-10 shadow-xl space-y-6 sm:space-y-8">
       {/* Header do Agendador */}
-      <div className="border-b border-[#0B0B0B]/10 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="border-b border-[#0B0B0B]/10 pb-4 sm:pb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold mb-1">
-            <CalendarIcon className="w-3.5 h-3.5" />
+            <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
             <span>{t('sched_badge')}</span>
           </div>
-          <h3 className="font-serif-lumiardi text-2xl md:text-3xl font-light text-[#0B0B0B]">
+          <h3 className="font-serif-lumiardi text-xl sm:text-2xl md:text-3xl font-light text-[#0B0B0B]">
             {t('sched_title')}
           </h3>
           <p className="text-xs text-[#0B0B0B]/70 font-sans mt-1">
@@ -111,9 +111,9 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 p-3 bg-[#FAF7F2] border border-[#C9A96B]/30 shrink-0">
-          <ShieldCheck className="w-5 h-5 text-[#8C6B2F]" />
-          <span className="text-[11px] text-[#0B0B0B]/80 font-sans">
+        <div className="flex items-center gap-2 p-2.5 sm:p-3 bg-[#FAF7F2] border border-[#C9A96B]/30 shrink-0 w-fit">
+          <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[#8C6B2F] shrink-0" />
+          <span className="text-[10px] sm:text-[11px] text-[#0B0B0B]/80 font-sans">
             {t('sched_encrypted_badge')}
           </span>
         </div>
@@ -122,11 +122,11 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
       {/* 1. Seleção de Dias */}
       <div className="space-y-3">
         <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/80 flex items-center gap-2">
-          <CalendarIcon className="w-4 h-4 text-[#8C6B2F]" />
+          <CalendarIcon className="w-4 h-4 text-[#8C6B2F] shrink-0" />
           <span>{t('sched_select_date_label')}</span>
         </label>
 
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
           {availableDays.map((d) => {
             const isSelected = selectedDate === d.dateStr;
             return (
@@ -134,19 +134,19 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
                 key={d.dateStr}
                 type="button"
                 onClick={() => handleSelect(d.dateStr, selectedSlot)}
-                className={`p-3.5 text-center border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                className={`p-2.5 sm:p-3.5 text-center border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-0.5 min-h-[70px] ${
                   isSelected
-                    ? 'border-[#C9A96B] bg-[#0B0B0B] text-ivory shadow-md scale-105'
+                    ? 'border-[#C9A96B] bg-[#0B0B0B] text-ivory shadow-md scale-[1.02] sm:scale-105'
                     : 'border-[#0B0B0B]/15 bg-[#FAF7F2] text-[#0B0B0B]/80 hover:border-[#C9A96B] hover:bg-white'
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-wider font-sans ${isSelected ? 'text-[#C9A96B]' : 'text-[#0B0B0B]/50'}`}>
+                <span className={`text-[9px] sm:text-[10px] uppercase tracking-wider font-sans ${isSelected ? 'text-[#C9A96B]' : 'text-[#0B0B0B]/50'}`}>
                   {d.weekDay}
                 </span>
-                <span className="font-serif-lumiardi text-2xl font-light">
+                <span className="font-serif-lumiardi text-xl sm:text-2xl font-light">
                   {d.displayDay}
                 </span>
-                <span className="text-[10px] uppercase tracking-widest font-sans opacity-70">
+                <span className="text-[9px] sm:text-[10px] uppercase tracking-widest font-sans opacity-70">
                   {d.displayMonth}
                 </span>
               </button>
@@ -158,7 +158,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
       {/* 2. Seleção de Slots de Horários */}
       <div className="space-y-4 pt-2">
         <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/80 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-[#8C6B2F]" />
+          <Clock className="w-4 h-4 text-[#8C6B2F] shrink-0" />
           <span>{t('sched_select_time_label')}</span>
         </label>
 
@@ -168,7 +168,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
             <span className="text-[11px] font-sans uppercase tracking-wider text-[#8C6B2F] font-semibold block mb-2">
               {t('sched_morning_period')}
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
               {MORNING_SLOTS.map((slot) => {
                 const isSelected = selectedSlot === slot;
                 return (
@@ -176,7 +176,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
                     key={slot}
                     type="button"
                     onClick={() => handleSelect(selectedDate, slot)}
-                    className={`py-2.5 px-4 text-xs font-sans tracking-wider transition-all duration-200 border cursor-pointer ${
+                    className={`min-h-[44px] py-2.5 px-3 sm:px-4 text-xs font-sans tracking-wider transition-all duration-200 border cursor-pointer flex items-center justify-center text-center ${
                       isSelected
                         ? 'bg-[#C9A96B] text-[#0B0B0B] font-bold border-[#C9A96B] shadow-sm'
                         : 'bg-[#FAF7F2] text-[#0B0B0B]/80 border-[#0B0B0B]/10 hover:border-[#C9A96B] hover:bg-white'
@@ -194,7 +194,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
             <span className="text-[11px] font-sans uppercase tracking-wider text-[#8C6B2F] font-semibold block mb-2">
               {t('sched_afternoon_period')}
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
               {AFTERNOON_SLOTS.map((slot) => {
                 const isSelected = selectedSlot === slot;
                 return (
@@ -202,7 +202,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
                     key={slot}
                     type="button"
                     onClick={() => handleSelect(selectedDate, slot)}
-                    className={`py-2.5 px-4 text-xs font-sans tracking-wider transition-all duration-200 border cursor-pointer ${
+                    className={`min-h-[44px] py-2.5 px-3 sm:px-4 text-xs font-sans tracking-wider transition-all duration-200 border cursor-pointer flex items-center justify-center text-center ${
                       isSelected
                         ? 'bg-[#C9A96B] text-[#0B0B0B] font-bold border-[#C9A96B] shadow-sm'
                         : 'bg-[#FAF7F2] text-[#0B0B0B]/80 border-[#0B0B0B]/10 hover:border-[#C9A96B] hover:bg-white'
@@ -220,7 +220,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
             <span className="text-[11px] font-sans uppercase tracking-wider text-[#8C6B2F] font-semibold block mb-2">
               {t('sched_evening_period')}
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
               {EVENING_SLOTS.map((slot) => {
                 const isSelected = selectedSlot === slot;
                 return (
@@ -228,7 +228,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
                     key={slot}
                     type="button"
                     onClick={() => handleSelect(selectedDate, slot)}
-                    className={`py-2.5 px-4 text-xs font-sans tracking-wider transition-all duration-200 border cursor-pointer ${
+                    className={`min-h-[44px] py-2.5 px-3 sm:px-4 text-xs font-sans tracking-wider transition-all duration-200 border cursor-pointer flex items-center justify-center text-center ${
                       isSelected
                         ? 'bg-[#C9A96B] text-[#0B0B0B] font-bold border-[#C9A96B] shadow-sm'
                         : 'bg-[#FAF7F2] text-[#0B0B0B]/80 border-[#0B0B0B]/10 hover:border-[#C9A96B] hover:bg-white'
@@ -245,21 +245,21 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
 
       {/* Resumo do Agendamento Escolhido */}
       {selectedDate && selectedSlot && (
-        <div className="p-4 bg-[#FAF7F2] border border-[#C9A96B]/40 flex items-center justify-between">
+        <div className="p-3.5 sm:p-4 bg-[#FAF7F2] border border-[#C9A96B]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full">
+            <div className="p-2 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full shrink-0">
               <CheckCircle2 className="w-5 h-5 stroke-[1.5]" />
             </div>
             <div>
-              <span className="text-[11px] uppercase tracking-wider text-[#8C6B2F] font-sans font-semibold block">
+              <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#8C6B2F] font-sans font-semibold block">
                 {t('sched_selected_summary_label')}
               </span>
-              <span className="font-serif-lumiardi text-lg text-[#0B0B0B]">
+              <span className="font-serif-lumiardi text-base sm:text-lg text-[#0B0B0B]">
                 {selectedDate.split('-').reverse().join('/')} às {selectedSlot} {t('sched_selected_summary_tz')}
               </span>
             </div>
           </div>
-          <span className="text-[10px] uppercase tracking-widest text-[#0B0B0B]/60 font-sans hidden sm:inline">
+          <span className="text-[10px] uppercase tracking-widest text-[#0B0B0B]/60 font-sans">
             {t('sched_email_link_note')}
           </span>
         </div>

@@ -325,11 +325,6 @@ function QualificacaoContent() {
 
       setSubmitted(true);
       window.scrollTo({ top: 100, behavior: 'smooth' });
-
-      // Redirecionamento automático imediato para o Checkout do Plano
-      setTimeout(() => {
-        router.push(`/checkout?plan=${selectedPlan}&category=criadoras&billing=${selectedBilling}`);
-      }, 1000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t('err_submission_failed');
       setSubmissionError(msg);
@@ -384,17 +379,17 @@ function QualificacaoContent() {
       </div>
 
       {/* Hero da Página */}
-      <section className="pt-36 pb-16 bg-[#0B0B0B] border-b border-[#C9A96B]/25 relative overflow-hidden">
+      <section className="pt-28 pb-10 sm:pt-36 sm:pb-16 bg-[#0B0B0B] border-b border-[#C9A96B]/25 relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#C9A96B]/5 rounded-full blur-[140px] pointer-events-none" />
 
-        <div className="max-w-4xl mx-auto text-center px-6 space-y-6 relative z-10">
+        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 space-y-4 sm:space-y-6 relative z-10">
           <Badge variant="gold">{t('qual_badge') || 'CANDIDATURA DE ELITE'}</Badge>
           
-          <h1 className="font-serif-lumiardi text-4xl sm:text-6xl font-light text-ivory tracking-tight">
+          <h1 className="font-serif-lumiardi text-3xl sm:text-5xl md:text-6xl font-light text-ivory tracking-tight leading-tight">
             {t('qual_title') || 'A entrada começa com qualificação.'}
           </h1>
 
-          <p className="text-base sm:text-lg text-ivory/70 font-sans max-w-2xl mx-auto font-light leading-relaxed">
+          <p className="text-sm sm:text-base md:text-lg text-ivory/70 font-sans max-w-2xl mx-auto font-light leading-relaxed">
             {t('qual_desc') || 'Processo exclusivo para criadoras que desejam gestão internacional, sigilo absoluto e conexões com agências de alta performance.'}
           </p>
 
@@ -403,78 +398,78 @@ function QualificacaoContent() {
       </section>
 
       {/* Container Principal do Formulário */}
-      <section id="qual-form-section" className="py-20 bg-[#F7F3EC] text-[#0B0B0B]">
-        <div className="max-w-4xl mx-auto px-6">
+      <section id="qual-form-section" className="py-8 sm:py-16 md:py-20 bg-[#F7F3EC] text-[#0B0B0B]">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
           {submitted ? (
             /* ═══════════════════════════════════════════════════════════════
                TELA DE SUCESSO & CONFIRMAÇÃO DE AGENDAMENTO
             ═══════════════════════════════════════════════════════════════ */
-            <div className="bg-white border-2 border-[#C9A96B] p-10 md:p-14 text-center space-y-8 shadow-2xl animate-in fade-in duration-500">
-              <div className="w-20 h-20 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full flex items-center justify-center mx-auto border border-[#C9A96B]">
-                <CalendarCheck className="w-10 h-10 stroke-[1.5]" />
+            <div className="bg-white border-2 border-[#C9A96B] p-5 sm:p-8 md:p-14 text-center space-y-6 sm:space-y-8 shadow-2xl animate-in fade-in duration-500">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full flex items-center justify-center mx-auto border border-[#C9A96B]">
+                <CalendarCheck className="w-8 h-8 sm:w-10 sm:h-10 stroke-[1.5]" />
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <span className="text-[10px] uppercase tracking-[0.3em] text-[#8C6B2F] font-sans font-semibold">
                   {t('qual_success_badge')}
                 </span>
-                <h2 className="font-serif-lumiardi text-3xl md:text-5xl font-light text-[#0B0B0B]">
+                <h2 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-5xl font-light text-[#0B0B0B] leading-tight">
                   {t('qual_success_title')}
                 </h2>
-                <p className="text-sm md:text-base text-[#0B0B0B]/75 font-sans leading-relaxed max-w-xl mx-auto font-light">
+                <p className="text-xs sm:text-sm md:text-base text-[#0B0B0B]/75 font-sans leading-relaxed max-w-xl mx-auto font-light">
                   {t('qual_success_desc')}
                 </p>
               </div>
 
               {/* Card Resumo do Agendamento */}
-              <div className="bg-[#FAF7F2] border border-[#C9A96B]/40 p-6 max-w-md mx-auto text-left space-y-3">
-                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-3">
-                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_creator_label')}</span>
-                  <span className="font-serif-lumiardi text-lg font-medium text-[#0B0B0B]">{qualitativeData.artisticName || basicData.fullName}</span>
+              <div className="bg-[#FAF7F2] border border-[#C9A96B]/40 p-4 sm:p-6 max-w-md mx-auto text-left space-y-3">
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_creator_label')}</span>
+                  <span className="font-serif-lumiardi text-base sm:text-lg font-medium text-[#0B0B0B] truncate max-w-[200px]">{qualitativeData.artisticName || basicData.fullName}</span>
                 </div>
-                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-3">
-                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_insta_label')}</span>
-                  <span className="text-xs font-sans text-[#8C6B2F] font-semibold">{qualitativeData.platforms.instagram}</span>
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_insta_label')}</span>
+                  <span className="text-xs font-sans text-[#8C6B2F] font-semibold truncate max-w-[200px]">{qualitativeData.platforms.instagram}</span>
                 </div>
-                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-3">
-                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_date_label')}</span>
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_date_label')}</span>
                   <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? appointment.date.split('-').reverse().join('/') : t('qual_summary_tbd')}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_time_label')}</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_time_label')}</span>
                   <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.timeSlot} {t('qual_summary_tz')}</span>
                 </div>
               </div>
 
-              <div className="p-4 bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-sans flex items-center justify-center gap-2 max-w-md mx-auto">
-                <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                <span>{t('qual_success_email_note')} <strong>{basicData.email}</strong></span>
+              <div className="p-3.5 sm:p-4 bg-emerald-50 border border-emerald-200 text-[11px] sm:text-xs text-emerald-800 font-sans flex items-center justify-center gap-2 max-w-md mx-auto">
+                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{t('qual_success_email_note')} <strong className="break-all">{basicData.email}</strong></span>
               </div>
 
-              <div className="pt-6 border-t border-[#0B0B0B]/10 flex flex-col gap-3 justify-center max-w-md mx-auto">
+              <div className="pt-4 sm:pt-6 border-t border-[#0B0B0B]/10 flex flex-col gap-3 justify-center max-w-md mx-auto">
                 <Button
                   variant="primary"
                   onClick={() => router.push(`/checkout?plan=${selectedPlan}&category=criadoras&billing=${selectedBilling}`)}
-                  className="w-full py-4 text-xs tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl"
+                  className="w-full py-3.5 sm:py-4 px-4 text-xs sm:text-sm tracking-[0.15em] sm:tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl leading-normal text-center"
                 >
-                  <ShieldCheck className="w-4 h-4 text-[#C9A96B]" />
+                  <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
                   <span>Prosseguir para Pagamento do Plano ({selectedPlan.toUpperCase()}) →</span>
                 </Button>
                 <button
                   type="button"
                   onClick={() => router.push('/dashboard/pendente')}
-                  className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/60 hover:text-[#8C6B2F] py-2 transition-colors cursor-pointer"
+                  className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/60 hover:text-[#8C6B2F] py-2 transition-colors cursor-pointer text-center"
                 >
                   Ver Status da Minha Curadoria
                 </button>
               </div>
             </div>
           ) : (
-            <div className="bg-white border border-[#0B0B0B]/10 p-8 md:p-12 shadow-2xl space-y-10">
+            <div className="bg-white border border-[#0B0B0B]/10 p-4 sm:p-8 md:p-12 shadow-2xl space-y-8 sm:space-y-10">
               
               {/* Alerta de Erro de Validação */}
               {submissionError && (
-                <div className="p-4 bg-rose-50 border border-rose-300 text-rose-800 text-xs font-sans flex items-center gap-2.5 animate-in fade-in duration-300">
+                <div className="p-3.5 sm:p-4 bg-rose-50 border border-rose-300 text-rose-800 text-xs font-sans flex items-center gap-2.5 animate-in fade-in duration-300">
                   <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
                   <span>{submissionError}</span>
                 </div>
@@ -586,22 +581,22 @@ function QualificacaoContent() {
 
                     {/* Prova de Vida 3D Facial & Validação de Documento KYC +18 Obrigatório */}
                     <div className="pt-4 border-t border-[#0B0B0B]/10">
-                      <div className="p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/60 rounded-xs space-y-3 shadow-xs">
-                        <div className="flex items-center justify-between">
+                      <div className="p-4 sm:p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/60 rounded-xs space-y-3 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2 text-[#8C6B2F]">
-                            <ScanFace className="w-5 h-5" />
+                            <ScanFace className="w-5 h-5 shrink-0" />
                             <span className="text-xs font-semibold uppercase tracking-wider font-sans">
                               Documento Oficial com Foto & Biometria Facial 3D (+18)
                             </span>
                           </div>
 
                           {isKYCVerified ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span className="w-fit inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                               <span>Documento & Biometria Aprovados</span>
                             </span>
                           ) : (
-                            <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
+                            <span className="w-fit text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
                               Pendente de Validação
                             </span>
                           )}
@@ -613,7 +608,7 @@ function QualificacaoContent() {
 
                         {basicData.document && (
                           <div className="p-2.5 bg-white border border-[#C9A96B]/40 text-xs font-sans text-[#0B0B0B]/80 flex items-center justify-between">
-                            <span className="truncate"><strong>Arquivo:</strong> {basicData.document.fileName}</span>
+                            <span className="truncate max-w-[200px] sm:max-w-xs"><strong>Arquivo:</strong> {basicData.document.fileName}</span>
                             <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado</span>
                           </div>
                         )}
@@ -621,35 +616,35 @@ function QualificacaoContent() {
                         <button
                           type="button"
                           onClick={() => setIsKYCModalOpen(true)}
-                          className={`w-full py-3.5 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                          className={`w-full py-3.5 px-3 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all text-center leading-tight ${
                             isKYCVerified
                               ? 'bg-emerald-700 text-white hover:bg-emerald-800'
                               : 'bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-md'
                           }`}
                         >
-                          <ScanFace className="w-4 h-4" />
+                          <ScanFace className="w-4 h-4 shrink-0" />
                           <span>{isKYCVerified ? 'Refazer Leitura do Documento & Biometria' : 'Anexar Documento & Iniciar Biometria 3D (+18) →'}</span>
                         </button>
                       </div>
                     </div>
 
                     {/* Blindagem 2FA (Google Authenticator) Obrigatória */}
-                    <div className="p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/50 rounded-xs space-y-3">
-                      <div className="flex items-center justify-between">
+                    <div className="p-4 sm:p-5 bg-[#FAF7F2] border-2 border-[#C9A96B]/50 rounded-xs space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-[#8C6B2F]">
-                          <KeyRound className="w-5 h-5" />
+                          <KeyRound className="w-5 h-5 shrink-0" />
                           <span className="text-xs font-semibold uppercase tracking-wider font-sans">
                             Blindagem 2FA (Google Authenticator) Obrigatória
                           </span>
                         </div>
 
                         {is2FAVerified ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span className="w-fit inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                             <span>2FA Ativado</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
+                          <span className="w-fit text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
                             Pendente de Configuração
                           </span>
                         )}
@@ -662,25 +657,25 @@ function QualificacaoContent() {
                       <button
                         type="button"
                         onClick={() => setIs2FAModalOpen(true)}
-                        className={`w-full py-3 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                        className={`w-full py-3.5 px-3 text-xs font-sans uppercase tracking-widest font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all text-center leading-tight ${
                           is2FAVerified
                             ? 'bg-emerald-700 text-white hover:bg-emerald-800'
                             : 'bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory'
                         }`}
                       >
-                        <KeyRound className="w-4 h-4" />
+                        <KeyRound className="w-4 h-4 shrink-0" />
                         <span>{is2FAVerified ? '2FA Concluído com Sucesso' : 'Escanear QR Code & Ativar 2FA →'}</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="pt-6 flex justify-end">
+                  <div className="pt-6 flex flex-col sm:flex-row justify-end">
                     <button
                       type="submit"
-                      className="px-8 py-4 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center gap-3 cursor-pointer shadow-lg"
+                      className="w-full sm:w-auto px-8 py-4 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center justify-center gap-3 cursor-pointer shadow-lg"
                     >
                       <span>{t('qual_btn_next_pre_interview')}</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4 shrink-0" />
                     </button>
                   </div>
                 </form>
@@ -1262,23 +1257,23 @@ function QualificacaoContent() {
                     </div>
                   </div>
 
-                  <div className="pt-6 flex justify-between">
+                  <div className="pt-6 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={() => {
                         setCurrentStep(1);
                         window.scrollTo({ top: 300, behavior: 'smooth' });
                       }}
-                      className="px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer"
+                      className="w-full sm:w-auto px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer text-center"
                     >
                       {t('qual_btn_back_step1')}
                     </button>
                     <button
                       type="submit"
-                      className="px-8 py-4 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center gap-3 cursor-pointer shadow-lg"
+                      className="w-full sm:w-auto px-8 py-4 bg-[#0B0B0B] text-ivory text-xs uppercase tracking-[0.2em] font-medium hover:bg-[#8C6B2F] transition-colors flex items-center justify-center gap-3 cursor-pointer shadow-lg text-center"
                     >
                       <span>{t('qual_btn_next_scheduling')}</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4 shrink-0" />
                     </button>
                   </div>
                 </form>
@@ -1288,12 +1283,12 @@ function QualificacaoContent() {
                   ETAPA 3: AGENDAMENTO DE CURADORIA & FINALIZAÇÃO
               ═══════════════════════════════════════════════════════════════ */}
               {currentStep === 3 && (
-                <div className="space-y-10 animate-in fade-in duration-300">
+                <div className="space-y-8 sm:space-y-10 animate-in fade-in duration-300">
                   <div className="border-b border-[#0B0B0B]/10 pb-4">
                     <span className="text-[10px] uppercase tracking-[0.25em] text-[#8C6B2F] font-sans font-semibold">
                       {t('qual_step3_badge')}
                     </span>
-                    <h2 className="font-serif-lumiardi text-3xl font-light text-[#0B0B0B] mt-1">
+                    <h2 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-[#0B0B0B] mt-1">
                       {t('qual_creator_title3')}
                     </h2>
                     <p className="text-xs text-[#0B0B0B]/60 font-sans mt-1">
@@ -1309,7 +1304,7 @@ function QualificacaoContent() {
 
                   <div className="p-4 bg-[#FAF7F2] border border-[#0B0B0B]/10 text-xs text-[#0B0B0B]/75 font-sans space-y-2">
                     <div className="flex items-center gap-2 text-[#8C6B2F] font-semibold uppercase tracking-wider">
-                      <Lock className="w-4 h-4" />
+                      <Lock className="w-4 h-4 shrink-0" />
                       <span>{t('qual_privacy_guarantee_title')}</span>
                     </div>
                     <p className="leading-relaxed">
@@ -1317,14 +1312,14 @@ function QualificacaoContent() {
                     </p>
                   </div>
 
-                  <div className="pt-6 flex justify-between">
+                  <div className="pt-6 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={() => {
                         setCurrentStep(2);
                         window.scrollTo({ top: 300, behavior: 'smooth' });
                       }}
-                      className="px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer"
+                      className="w-full sm:w-auto px-6 py-3.5 border border-[#0B0B0B]/20 text-xs uppercase tracking-[0.2em] font-medium hover:border-[#0B0B0B] transition-colors cursor-pointer text-center"
                     >
                       {t('qual_btn_back_pre_interview')}
                     </button>
@@ -1333,9 +1328,9 @@ function QualificacaoContent() {
                       type="button"
                       disabled={isSubmitting}
                       onClick={handleFinalSubmit}
-                      className="px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.25em] font-semibold hover:bg-[#D4B87A] transition-all flex items-center gap-3 cursor-pointer shadow-xl disabled:opacity-50"
+                      className="w-full sm:w-auto px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] sm:tracking-[0.25em] font-semibold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 text-center"
                     >
-                      <Check className="w-4 h-4" />
+                      <Check className="w-4 h-4 shrink-0" />
                       <span>{isSubmitting ? t('qual_btn_submitting') : t('qual_btn_final_submit')}</span>
                     </button>
                   </div>

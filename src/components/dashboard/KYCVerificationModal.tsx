@@ -343,7 +343,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       }}
     >
       <div
-        className="w-full max-w-lg my-auto bg-[#0C0C0C] border border-[#C9A96B]/60 p-6 sm:p-8 shadow-[0_0_80px_rgba(0,0,0,0.95)] relative text-[#F7F3EC] space-y-6 rounded-sm animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-lg my-auto bg-[#0C0C0C] border border-[#C9A96B]/60 p-4 sm:p-8 shadow-[0_0_80px_rgba(0,0,0,0.95)] relative text-[#F7F3EC] space-y-4 sm:space-y-6 rounded-sm animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Botão Fechar */}
@@ -352,7 +352,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
             stopCamera();
             onClose();
           }}
-          className="absolute top-4 right-4 text-ivory/50 hover:text-[#C9A96B] p-2 cursor-pointer transition-colors"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 text-ivory/50 hover:text-[#C9A96B] p-2 cursor-pointer transition-colors"
           aria-label="Fechar"
         >
           <X className="w-5 h-5" />
@@ -361,10 +361,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         {/* Cabeçalho */}
         <div className="space-y-2 border-b border-white/10 pb-4 pr-8">
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-[#C9A96B]/10 border border-[#C9A96B]/30 text-[#C9A96B] text-[10px] uppercase font-mono tracking-widest font-semibold">
-            <ScanFace className="w-3 h-3" />
+            <ScanFace className="w-3 h-3 shrink-0" />
             <span>Biometria & OCR Real · 18 U.S.C. § 2257</span>
           </div>
-          <h2 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-ivory">
+          <h2 className="font-serif-lumiardi text-xl sm:text-2xl md:text-3xl font-light text-ivory">
             Leitura de Documento & Face Match
           </h2>
           <p className="text-xs font-sans text-ivory/60">
