@@ -21,6 +21,7 @@ import {
   Check,
   KeyRound,
   Percent,
+  ChevronDown,
 } from 'lucide-react';
 import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
@@ -238,11 +239,28 @@ function AgenciaQualificacaoContent() {
               <span>{t('qual_agency_step3_badge')}</span>
             </div>
           </div>
+
+          {/* Indicador de rolagem clean com seta estática */}
+          <div className="pt-4 sm:pt-6 flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => {
+                document.getElementById('qual-agency-form-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="group inline-flex flex-col items-center gap-1 text-ivory/60 hover:text-[#C9A96B] transition-colors cursor-pointer"
+              aria-label="Rolar até o formulário de cadastro corporativo"
+            >
+              <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#C9A96B]/80 group-hover:text-[#C9A96B] transition-colors">
+                Preencher Cadastro
+              </span>
+              <ChevronDown className="w-4 h-4 text-[#C9A96B]/70 group-hover:text-[#C9A96B] transition-colors stroke-[1.5]" />
+            </button>
+          </div>
         </div>
       </section>
 
       {/* Form Container */}
-      <section className="py-8 sm:py-16 md:py-20 bg-[#F7F3EC] text-[#0B0B0B]">
+      <section id="qual-agency-form-section" className="py-8 sm:py-16 md:py-20 bg-[#F7F3EC] text-[#0B0B0B]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           {submitted ? (
             /* ═══════════════════════════════════════════════════════════════
