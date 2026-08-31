@@ -13,9 +13,12 @@ export default function robots(): MetadataRoute.Robots {
           '/qualificacao',
           '/qualificacao/agencia',
           '/qualificacao/limites',
+          '/portal',
+          '/termos-de-uso',
+          '/politica-privacidade',
+          '/compliance-2257',
           '/termos',
           '/privacidade',
-          '/compliance-2257',
         ],
         disallow: [
           '/dashboard/',

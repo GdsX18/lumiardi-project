@@ -10,16 +10,26 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/qualificacao',
     '/qualificacao/agencia',
     '/qualificacao/limites',
-    '/login',
+    '/portal',
+    '/termos-de-uso',
+    '/politica-privacidade',
+    '/compliance-2257',
     '/termos',
     '/privacidade',
-    '/compliance-2257',
+    '/login',
   ];
 
   return publicRoutes.map((route) => ({
     url: `${baseUrl}${route}`,
     lastModified: now,
     changeFrequency: route === '' ? 'daily' : 'weekly',
-    priority: route === '' ? 1.0 : route === '/planos' || route === '/qualificacao' ? 0.9 : 0.7,
+    priority:
+      route === ''
+        ? 1.0
+        : route === '/planos' || route === '/qualificacao'
+        ? 0.9
+        : route === '/portal'
+        ? 0.8
+        : 0.7,
   }));
 }

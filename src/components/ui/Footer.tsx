@@ -53,14 +53,18 @@ export const Footer: React.FC = () => {
           <LanguageSelector />
         </div>
 
-        {/* Links Legais e Compliance */}
-        <div className="flex flex-wrap justify-center gap-6 mb-8 text-[11px] font-sans uppercase tracking-widest text-ivory/50">
-          <Link href="/termos" className="hover:text-[#C9A96B] transition-colors">
+        {/* Links Legais, Governança e Compliance */}
+        <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-3 mb-8 text-[11px] font-sans uppercase tracking-widest text-ivory/50">
+          <Link href="/termos-de-uso" className="hover:text-[#C9A96B] transition-colors">
             Termos de Uso
           </Link>
           <span>·</span>
-          <Link href="/privacidade" className="hover:text-[#C9A96B] transition-colors">
-            Privacidade & LGPD
+          <Link href="/politica-privacidade" className="hover:text-[#C9A96B] transition-colors">
+            Política de Privacidade & LGPD
+          </Link>
+          <span>·</span>
+          <Link href="/portal" className="hover:text-[#C9A96B] transition-colors text-[#C9A96B]/80 font-medium">
+            Portal de Denúncias & Direitos
           </Link>
           <span>·</span>
           <Link href="/compliance-2257" className="hover:text-[#C9A96B] transition-colors">
@@ -68,13 +72,13 @@ export const Footer: React.FC = () => {
           </Link>
         </div>
 
-        <div className="w-full h-[1px] bg-white/10 mb-10" />
+        <div className="w-full h-[1px] bg-white/10 mb-8" />
 
-        {/* Rodapé inferior editorial */}
+        {/* Rodapé inferior editorial institucional */}
         <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-ivory/40 font-sans tracking-widest font-light">
-          <span>© {new Date().getFullYear()} LUMIARDI. {t('footer_rights')}</span>
+          <span>© {new Date().getFullYear()} LUMIARDI GESTÃO DE CONTEÚDO LTDA. {t('footer_rights')}</span>
           <span className="font-serif-lumiardi italic text-[#C9A96B]/80 text-sm">{t('footer_platform_tag')}</span>
-          <span>{t('footer_tech_tag')}</span>
+          <span>Av. Alm. Julio de Sá Bierrenbach, 65 · RJ</span>
         </div>
       </div>
     </footer>
