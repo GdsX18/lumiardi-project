@@ -604,30 +604,30 @@ function QualificacaoContent() {
                           <div className="flex items-center gap-2 text-[#8C6B2F]">
                             <ScanFace className="w-5 h-5 shrink-0" />
                             <span className="text-xs font-semibold uppercase tracking-wider font-sans">
-                              Documento Oficial com Foto & Biometria Facial 3D (+18)
+                              {t('qual_kyc_creator_title')}
                             </span>
                           </div>
 
                           {isKYCVerified ? (
                             <span className="w-fit inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
                               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                              <span>Documento & Biometria Aprovados</span>
+                              <span>{t('qual_kyc_status_approved')}</span>
                             </span>
                           ) : (
                             <span className="w-fit text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
-                              Pendente de Validação
+                              {t('qual_kyc_status_pending')}
                             </span>
                           )}
                         </div>
 
                         <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
-                          Envie a foto do seu documento oficial (RG, CNH ou Passaporte) e realize a prova de vida facial 3D com a câmera para conformidade legal com a legislação <strong>18 U.S.C. § 2257</strong>.
+                          {t('qual_kyc_creator_desc')}
                         </p>
 
                         {basicData.document && (
                           <div className="p-2.5 bg-white border border-[#C9A96B]/40 text-xs font-sans text-[#0B0B0B]/80 flex items-center justify-between">
-                            <span className="truncate max-w-[200px] sm:max-w-xs"><strong>Arquivo:</strong> {basicData.document.fileName}</span>
-                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado</span>
+                            <span className="truncate max-w-[200px] sm:max-w-xs"><strong>{t('qual_kyc_file_label')}:</strong> {basicData.document.fileName}</span>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">{t('qual_kyc_file_attached')}</span>
                           </div>
                         )}
 
@@ -641,7 +641,7 @@ function QualificacaoContent() {
                           }`}
                         >
                           <ScanFace className="w-4 h-4 shrink-0" />
-                          <span>{isKYCVerified ? 'Refazer Leitura do Documento & Biometria' : 'Anexar Documento & Iniciar Biometria 3D (+18) →'}</span>
+                          <span>{isKYCVerified ? t('qual_kyc_btn_redo') : t('qual_kyc_btn_start_creator')}</span>
                         </button>
                       </div>
                     </div>
@@ -652,24 +652,24 @@ function QualificacaoContent() {
                         <div className="flex items-center gap-2 text-[#8C6B2F]">
                           <KeyRound className="w-5 h-5 shrink-0" />
                           <span className="text-xs font-semibold uppercase tracking-wider font-sans">
-                            Blindagem 2FA (Google Authenticator) Obrigatória
+                            {t('qual_2fa_creator_title')}
                           </span>
                         </div>
 
                         {is2FAVerified ? (
                           <span className="w-fit inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
                             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                            <span>2FA Ativado</span>
+                            <span>{t('qual_2fa_status_active')}</span>
                           </span>
                         ) : (
                           <span className="w-fit text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
-                            Pendente de Configuração
+                            {t('qual_2fa_status_pending')}
                           </span>
                         )}
                       </div>
 
                       <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
-                        Para proteger seus ganhos, dados bancários e book contra sequestro de conta, configure a Autenticação em Dois Fatores (2FA) com o <strong>Google Authenticator</strong> ou <strong>Authy</strong>.
+                        {t('qual_2fa_creator_desc')}
                       </p>
 
                       <button
@@ -682,7 +682,7 @@ function QualificacaoContent() {
                         }`}
                       >
                         <KeyRound className="w-4 h-4 shrink-0" />
-                        <span>{is2FAVerified ? '2FA Concluído com Sucesso' : 'Escanear QR Code & Ativar 2FA →'}</span>
+                        <span>{is2FAVerified ? t('qual_2fa_btn_done') : t('qual_2fa_btn_start_creator')}</span>
                       </button>
                     </div>
                   </div>
