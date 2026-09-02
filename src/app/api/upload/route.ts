@@ -51,8 +51,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      console.log(`[R2 UPLOAD] Arquivo enviado: ${r2Key}`);
-
       // URL via proxy interna — serve o arquivo direto do R2
       const mediaUrl = `/api/media/${r2Key}`;
 

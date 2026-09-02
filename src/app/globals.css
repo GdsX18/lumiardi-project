@@ -105,6 +105,8 @@ body {
   }
 }
 
+/* ============================================================= */
+/* PROTEÇÃO DE CONTEÚDO — Anti-Print, Anti-Copy, Anti-Captura    */
 /* Scrollbar oculta para carrossel horizontal mobile */
 .hide-scrollbar, .no-scrollbar {
   -ms-overflow-style: none;
@@ -114,3 +116,49 @@ body {
 .hide-scrollbar::-webkit-scrollbar, .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ============================================================= */
+
+/* Bloqueia seleção de texto em áreas protegidas (aplicado via classe) */
+.content-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* @media print — Oculta todo conteúdo sensível ao tentar imprimir/salvar PDF */
+@media print {
+  body * {
+    display: none !important;
+  }
+
+  body::after {
+    display: block !important;
+    content: "LUMIARDI — Este conteúdo é protegido por direitos autorais e não pode ser reproduzido.";
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-family: Georgia, serif;
+    color: #111;
+    text-align: center;
+    padding: 40px;
+    background: white;
+  }
+}
+
+/* Suporte a prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+

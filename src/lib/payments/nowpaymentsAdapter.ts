@@ -227,8 +227,6 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
     const paymentId = String(payload.payment_id || payload.id || `nowpay_${Date.now()}`);
     const userId = payload.order_description?.match(/userId:([a-zA-Z0-9_-]+)/)?.[1];
 
-    console.log(`[NOWPayments IPN] Status: ${paymentStatus} para Payment ID: ${paymentId}`);
-
     // Status de sucesso e confirmação na blockchain
     if (paymentStatus === 'finished' || paymentStatus === 'confirmed') {
       return {
@@ -303,8 +301,7 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
     return null;
   }
 
-  async cancelSubscription(gatewaySubscriptionId: string): Promise<boolean> {
-    console.log(`[NOWPayments] Assinaturas cripto (${gatewaySubscriptionId}) encerram automaticamente ao fim do ciclo.`);
+  async cancelSubscription(_gatewaySubscriptionId: string): Promise<boolean> {
     return true;
   }
 }

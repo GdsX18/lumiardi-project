@@ -941,7 +941,6 @@ export async function initDatabase(): Promise<boolean> {
       `);
 
       isInitialized = true;
-      console.log('[OK] PostgreSQL Local: Tabelas, Finanças, RBAC e Drive Compartilhado sincronizados.');
       return true;
     } finally {
       client.release();

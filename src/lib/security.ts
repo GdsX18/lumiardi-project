@@ -28,8 +28,8 @@ export const SECURITY_HEADERS: SecurityHeadersConfig = {
     "form-action 'self'",
   ].join('; '),
 
-  // 2. Proteção de Frames (Clickjacking)
-  xFrameOptions: 'SAMEORIGIN',
+  // 2. Proteção de Frames (Clickjacking) — DENY bloqueia qualquer framing
+  xFrameOptions: 'DENY',
 
   // 4. HSTS (1 ano com subdomínios)
   strictTransportSecurity: 'max-age=31536000; includeSubDomains; preload',

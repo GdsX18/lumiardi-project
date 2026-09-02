@@ -185,8 +185,6 @@ export class CCBillAdapter implements PaymentGatewayService {
     const transactionId = String(payload.transactionId || payload.paymentId || `ccbill_tx_${Date.now()}`);
     const userId = (payload['custom:userId'] || payload.userId || payload.accounting_id) as string | undefined;
 
-    console.log(`[CCBill Webhook] Recebido evento: ${eventType} para sub: ${subscriptionId}`);
-
     switch (eventType) {
       case 'NewSaleSuccess':
       case 'RenewalSuccess':
@@ -244,8 +242,7 @@ export class CCBillAdapter implements PaymentGatewayService {
   /**
    * Solicitação de cancelamento de assinatura no CCBill
    */
-  async cancelSubscription(gatewaySubscriptionId: string): Promise<boolean> {
-    console.log(`[CCBill] Solicitando cancelamento da assinatura ${gatewaySubscriptionId}`);
+  async cancelSubscription(_gatewaySubscriptionId: string): Promise<boolean> {
     return true;
   }
 }

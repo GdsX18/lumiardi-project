@@ -104,7 +104,6 @@ export const KYCService = {
     await initDatabase();
 
     const reviewStatus = String(payload.reviewStatus || payload.status || 'completed');
-    console.log(`[KYC Webhook] Status da revisão: ${reviewStatus}`);
     const reviewResultObj = payload.reviewResult as { reviewAnswer?: string; moderationComment?: string } | undefined;
     const reviewResult = reviewResultObj?.reviewAnswer || (payload.approved ? 'GREEN' : 'RED');
     const userId = (payload.externalUserId || payload.userId) as string | undefined;
