@@ -36,12 +36,24 @@ export default function DashboardOverviewPage() {
 
   React.useEffect(() => {
     if (typeof window !== 'undefined' && currentUser?.curationStatus === 'APROVADO') {
-      const alreadySeen = sessionStorage.getItem('lumiardi_vip_celebrated');
+      const userKey = currentUser.id ? `lumiardi_vip_celebrated_${currentUser.id}` : 'lumiardi_vip_celebrated';
+      const alreadySeen = localStorage.getItem(userKey) || localStorage.getItem('lumiardi_vip_celebrated');
       if (!alreadySeen) {
         setShowCelebration(true);
       }
     }
   }, [currentUser]);
+
+  const handleCloseCelebration = () => {
+    setShowCelebration(false);
+    if (typeof window !== 'undefined') {
+      if (currentUser?.id) {
+        localStorage.setItem(`lumiardi_vip_celebrated_${currentUser.id}`, 'true');
+      }
+      localStorage.setItem('lumiardi_vip_celebrated', 'true');
+      sessionStorage.setItem('lumiardi_vip_celebrated', 'true');
+    }
+  };
 
   const isCriadora = role === 'criadora';
   const displayName =
@@ -58,10 +70,7 @@ export default function DashboardOverviewPage() {
     >
       <VIPWelcomeCelebrationModal
         isOpen={showCelebration}
-        onClose={() => {
-          setShowCelebration(false);
-          sessionStorage.setItem('lumiardi_vip_celebrated', 'true');
-        }}
+        onClose={handleCloseCelebration}
         userName={displayName}
         userRole={role}
         memberId={`LUM-${(currentUser?.id || '8842').substring(0, 6).toUpperCase()}`}

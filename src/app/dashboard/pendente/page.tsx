@@ -55,9 +55,19 @@ export default function CuradoriaPendentePage() {
             subscription: data.subscription || null,
           });
           if (data.user?.curationStatus === 'APROVADO') {
-            setShowCelebrationModal(true);
-            refreshData();
+            const userId = data.user.id;
+            const userKey = userId ? `lumiardi_vip_celebrated_${userId}` : 'lumiardi_vip_celebrated';
+            const alreadySeen = typeof window !== 'undefined' && (localStorage.getItem(userKey) || localStorage.getItem('lumiardi_vip_celebrated'));
+
             if (intervalId) clearInterval(intervalId);
+            refreshData();
+
+            if (alreadySeen) {
+              router.replace('/dashboard');
+              return;
+            }
+
+            setShowCelebrationModal(true);
           }
         }
       } catch (e) {
@@ -77,7 +87,7 @@ export default function CuradoriaPendentePage() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [refreshData]);
+  }, [refreshData, router]);
 
   const handleApproveSimulation = async () => {
     setApproving(true);
@@ -112,6 +122,19 @@ export default function CuradoriaPendentePage() {
     }
   };
 
+  const handleCelebrationClose = () => {
+    setShowCelebrationModal(false);
+    if (typeof window !== 'undefined') {
+      const userId = userData?.id;
+      if (userId) {
+        localStorage.setItem(`lumiardi_vip_celebrated_${userId}`, 'true');
+      }
+      localStorage.setItem('lumiardi_vip_celebrated', 'true');
+      sessionStorage.setItem('lumiardi_vip_celebrated', 'true');
+    }
+    router.push('/dashboard');
+  };
+
   const isRejected = userData?.curationStatus === 'REJEITADO';
 
   return (
@@ -121,10 +144,7 @@ export default function CuradoriaPendentePage() {
       {/* Modal de Celebração de Boas-Vindas quando Aprovada */}
       <VIPWelcomeCelebrationModal
         isOpen={showCelebrationModal}
-        onClose={() => {
-          setShowCelebrationModal(false);
-          router.push('/dashboard');
-        }}
+        onClose={handleCelebrationClose}
         userName={userData?.name || 'Membro VIP'}
         userRole={userData?.role || 'criadora'}
         memberId={`LUM-${(userData?.id || '8842').substring(0, 6).toUpperCase()}`}

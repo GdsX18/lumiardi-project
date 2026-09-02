@@ -11,9 +11,9 @@ export interface LanguageOption {
 }
 
 export const LANGUAGES: LanguageOption[] = [
+  { code: 'en', name: 'English', shortLabel: 'EN' },
   { code: 'pt', name: 'Português', shortLabel: 'PT' },
   { code: 'es', name: 'Español', shortLabel: 'ES' },
-  { code: 'en', name: 'English', shortLabel: 'EN' },
   { code: 'fr', name: 'Français', shortLabel: 'FR' },
   { code: 'it', name: 'Italiano', shortLabel: 'IT' },
   { code: 'ru', name: 'Русский', shortLabel: 'RU' },
@@ -4941,7 +4941,7 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<LanguageCode>('pt');
+  const [language, setLanguageState] = useState<LanguageCode>('en');
 
   useEffect(() => {
     try {
@@ -4960,8 +4960,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const t = (key: string): string => {
-    const dict = translations[language] || translations['pt'];
-    return dict[key] || translations['pt'][key] || key;
+    const dict = translations[language] || translations['en'];
+    return dict[key] || translations['en']?.[key] || translations['pt']?.[key] || key;
   };
 
   return (

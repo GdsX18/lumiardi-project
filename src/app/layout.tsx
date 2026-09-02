@@ -124,7 +124,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="pt-BR"
+      lang="en"
       suppressHydrationWarning
       className={`${cormorant.variable} ${outfit.variable} h-full antialiased`}
     >
