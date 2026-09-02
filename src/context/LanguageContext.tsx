@@ -4940,15 +4940,20 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+const LANG_STORAGE_KEY = 'lumiardi_lang_v2';
+
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<LanguageCode>('en');
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('lumiardi_lang') as LanguageCode;
+      // Only restore if the user explicitly chose a language in this version (v2 key)
+      const saved = localStorage.getItem(LANG_STORAGE_KEY) as LanguageCode;
       if (saved && translations[saved]) {
         queueMicrotask(() => setLanguageState(saved));
       }
+      // Migrate legacy key only if user had explicitly changed from default (not 'pt' default)
+      // We intentionally do NOT read the old 'lumiardi_lang' key to avoid the old 'pt' default persisting
     } catch {
       // Ignore storage access errors
     }
@@ -4956,7 +4961,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setLanguage = (lang: LanguageCode) => {
     setLanguageState(lang);
-    localStorage.setItem('lumiardi_lang', lang);
+    try {
+      localStorage.setItem(LANG_STORAGE_KEY, lang);
+    } catch {
+      // Ignore storage access errors
+    }
   };
 
   const t = (key: string): string => {
