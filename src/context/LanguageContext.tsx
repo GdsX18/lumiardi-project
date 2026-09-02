@@ -270,8 +270,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Positioning Section
     pos_tag: 'POSICIONAMENTO INSTITUCIONAL',
-    pos_title_1: 'Exclusive. Strategic.',
-    pos_title_2: 'Global.',
+    pos_title_1: 'Exclusivo.',
+    pos_title_2: 'Estratégico.',
+    pos_title_3: 'Global.',
     pos_subtitle_1: 'Plataforma premium que conecta criadores a agências verificadas, com segurança, discrição e inteligência',
     pos_subtitle_2: 'A lumiardi conecta criadores +18 a agências de gestão verificadas em um ambiente seguro, exclusivo e orientado a performance. Uma plataforma criada para transformar talento em conexões estratégicas e oportunidades reais de crescimento',
     pos_is_title: 'A LUMIARDI É',
@@ -605,7 +606,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     qual_btn_next: 'Avançar para Limites & Rotina',
 
     // Footer
-    footer_slogan: 'Exclusive. Strategic. Global.',
+    footer_slogan: 'Exclusivo. Estratégico. Global.',
     footer_rights: 'Todos os direitos reservados.',
 
     // Dashboard Top & Tabs
@@ -1163,8 +1164,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Positioning Section
     pos_tag: 'POSICIONAMIENTO INSTITUCIONAL',
-    pos_title_1: 'Exclusivo. Estratégico.',
-    pos_title_2: 'Global.',
+    pos_title_1: 'Exclusivo.',
+    pos_title_2: 'Estratégico.',
+    pos_title_3: 'Global.',
     pos_subtitle_1: 'Plataforma premium que conecta creadores con agencias verificadas, con seguridad, discreción e inteligencia',
     pos_subtitle_2: 'Lumiardi conecta creadores +18 con agencias de gestión verificadas en un entorno seguro, exclusivo y orientado al rendimiento. Una plataforma creada para transformar talento en conexiones estratégicas y oportunidades reales de crecimiento',
     pos_is_title: 'LUMIARDI ES',
@@ -2060,8 +2062,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Positioning Section
     pos_tag: 'INSTITUTIONAL POSITIONING',
-    pos_title_1: 'Exclusive. Strategic.',
-    pos_title_2: 'Global.',
+    pos_title_1: 'Exclusive.',
+    pos_title_2: 'Strategic.',
+    pos_title_3: 'Global.',
     pos_subtitle_1: 'Premium platform connecting creators to verified agencies with security, discretion, and intelligence',
     pos_subtitle_2: 'Lumiardi connects +18 creators to verified management agencies in a secure, exclusive, and performance-oriented environment. Designed to transform talent into strategic connections and real growth opportunities',
     pos_is_title: 'LUMIARDI IS',
@@ -2953,8 +2956,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Positioning Section
     pos_tag: 'POSITIONNEMENT INSTITUTIONNEL',
-    pos_title_1: 'Exclusif. Stratégique.',
-    pos_title_2: 'Global.',
+    pos_title_1: 'Exclusif.',
+    pos_title_2: 'Stratégique.',
+    pos_title_3: 'Global.',
     pos_subtitle_1: 'Plateforme premium connectant créateurs et agences vérifiées en toute sécurité, discrétion et intelligence',
     pos_subtitle_2: 'Lumiardi connecte les créateurs +18 à des agences de gestion vérifiées dans un environnement sécurisé et orienté performance',
     pos_is_title: 'LUMIARDI EST',
@@ -3848,8 +3852,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Positioning Section
     pos_tag: 'POSIZIONAMENTO ISTITUZIONALE',
-    pos_title_1: 'Esclusivo. Strategico.',
-    pos_title_2: 'Globale.',
+    pos_title_1: 'Esclusivo.',
+    pos_title_2: 'Strategico.',
+    pos_title_3: 'Globale.',
     pos_subtitle_1: 'Piattaforma premium che connette creatori ad agenzie verificate con sicurezza e discrezione',
     pos_subtitle_2: 'Lumiardi connette creatori +18 ad agenzie verificate in un ambiente sicuro ed esclusivo',
     pos_is_title: 'LUMIARDI È',
@@ -4743,8 +4748,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Positioning Section
     pos_tag: 'ИНСТИТУЦИОНАЛЬНОЕ ПОЗИЦИОНИРОВАНИЕ',
-    pos_title_1: 'Эксклюзивно. Стратегично.',
-    pos_title_2: 'Глобально.',
+    pos_title_1: 'Эксклюзивно.',
+    pos_title_2: 'Стратегично.',
+    pos_title_3: 'Глобально.',
     pos_subtitle_1: 'Премиальная платформа, соединяющая авторов с проверенными агентствами',
     pos_subtitle_2: 'Lumiardi соединяет авторов +18 с проверенными агентствами в безопасной среде',
     pos_is_title: 'LUMIARDI ЭТО',

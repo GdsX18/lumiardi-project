@@ -125,7 +125,8 @@ export const PositioningSection: React.FC = () => {
               className="font-serif-lumiardi text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-light text-[#0B0B0B] leading-[0.95] tracking-tight"
             >
               {t('pos_title_1')} <br />
-              <span className="text-[#A97745] italic font-normal">{t('pos_title_2')}</span>
+              {t('pos_title_2')} <br />
+              <span className="text-[#A97745] italic font-normal">{t('pos_title_3')}</span>
             </h2>
           </div>
 
