@@ -78,7 +78,7 @@ export default function PlanosPage() {
                   !isYearly ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold' : 'text-ivory/60 hover:text-ivory'
                 }`}
               >
-                Mensal
+                {t('sub_interval_monthly')}
               </button>
               <button
                 onClick={() => setIsYearly(true)}
@@ -86,9 +86,9 @@ export default function PlanosPage() {
                   isYearly ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold' : 'text-ivory/60 hover:text-ivory'
                 }`}
               >
-                <span>Anual</span>
+                <span>{t('sub_interval_yearly')}</span>
                 <span className="text-[9px] px-2 py-0.5 bg-emerald-500 text-black-matte font-bold rounded-full">
-                  ECONOMIZE 10%
+                  {t('sub_save_10')}
                 </span>
               </button>
             </div>
@@ -116,7 +116,7 @@ export default function PlanosPage() {
                           {isYearly ? 'R$ 17,91' : 'R$ 19,90'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
                         </div>
                         <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
-                          {isYearly ? 'Faturado anualmente por R$ 214,92/ano' : 'Cobrança mensal recorrente'}
+                          {isYearly ? t('plans_billed_annually').replace('{amount}', 'R$ 214,92') : t('plans_billed_monthly')}
                         </span>
                       </div>
                     </div>
@@ -128,19 +128,19 @@ export default function PlanosPage() {
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-xs font-sans text-[#0B0B0B]/85">
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Presença no Catálogo Oficial de Modelos</span>
+                        <span>{t('plans_feat_glow_1')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Book Digital com até 15 Fotos em Alta Resolução</span>
+                        <span>{t('plans_feat_glow_2')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span><strong>5 GB</strong> de Armazenamento Seguro no Drive</span>
+                        <span>{t('plans_feat_glow_3')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Proteção Anti-Vazamento e Blindagem E2E</span>
+                        <span>{t('plans_feat_glow_4')}</span>
                       </li>
                     </ul>
                   </div>
@@ -150,7 +150,7 @@ export default function PlanosPage() {
                       href={getPlanLink('glow', 'criadoras', isYearly)}
                       className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.2em] uppercase font-bold hover:bg-[#8C6B2F] transition-all flex items-center justify-center gap-2 shadow-md"
                     >
-                      <span>Assinar Glow →</span>
+                      <span>{t('plans_subscribe_btn').replace('{plan}', 'Glow')}</span>
                     </Link>
                   </div>
                 </div>
@@ -168,7 +168,7 @@ export default function PlanosPage() {
                           {isYearly ? 'R$ 62,91' : 'R$ 69,90'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
                         </div>
                         <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
-                          {isYearly ? 'Faturado anualmente por R$ 754,92/ano' : 'Cobrança mensal recorrente'}
+                          {isYearly ? t('plans_billed_annually').replace('{amount}', 'R$ 754,92') : t('plans_billed_monthly')}
                         </span>
                       </div>
                     </div>
@@ -180,19 +180,19 @@ export default function PlanosPage() {
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-xs font-sans text-[#0B0B0B]/85">
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Destaque no Radar de Scouting Global</span>
+                        <span>{t('plans_feat_radiance_1')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Book Ilimitado de Fotos + Vídeo Showreel</span>
+                        <span>{t('plans_feat_radiance_2')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span><strong>25 GB</strong> de Armazenamento Seguro no Drive</span>
+                        <span>{t('plans_feat_radiance_3')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Marca d’água Dinâmica Tokenizada e NDA</span>
+                        <span>{t('plans_feat_radiance_4')}</span>
                       </li>
                     </ul>
                   </div>
@@ -202,7 +202,7 @@ export default function PlanosPage() {
                       href={getPlanLink('radiance', 'criadoras', isYearly)}
                       className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.2em] uppercase font-bold hover:bg-[#8C6B2F] transition-all flex items-center justify-center gap-2 shadow-md"
                     >
-                      <span>Assinar Radiance →</span>
+                      <span>{t('plans_subscribe_btn').replace('{plan}', 'Radiance')}</span>
                     </Link>
                   </div>
                 </div>
@@ -224,7 +224,7 @@ export default function PlanosPage() {
                           {isYearly ? 'R$ 116,91' : 'R$ 129,90'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
                         </div>
                         <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
-                          {isYearly ? 'Faturado anualmente por R$ 1.402,92/ano' : 'Cobrança mensal recorrente'}
+                          {isYearly ? t('plans_billed_annually').replace('{amount}', 'R$ 1.402,92') : t('plans_billed_monthly')}
                         </span>
                       </div>
                     </div>
@@ -236,19 +236,19 @@ export default function PlanosPage() {
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-xs font-sans text-[#0B0B0B]/85">
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Posicionamento Exclusivo no Topo da Vitrine</span>
+                        <span>{t('plans_feat_icon_1')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span><strong>100 GB</strong> de Armazenamento Seguro no Drive</span>
+                        <span>{t('plans_feat_icon_2')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <Check className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Propostas Diretas e Buscas Scout Ilimitadas</span>
+                        <span>{t('plans_feat_icon_3')}</span>
                       </li>
                       <li className="flex items-center gap-2.5">
                         <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Concierge Dedicado & Suporte VIP Prioritário</span>
+                        <span>{t('plans_feat_icon_4')}</span>
                       </li>
                     </ul>
                   </div>
@@ -258,7 +258,7 @@ export default function PlanosPage() {
                       href={getPlanLink('icon', 'criadoras', isYearly)}
                       className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.2em] uppercase font-bold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-2 shadow-xl"
                     >
-                      <span>Assinar Icon →</span>
+                      <span>{t('plans_subscribe_btn').replace('{plan}', 'Icon')}</span>
                     </Link>
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export default function PlanosPage() {
                           {isYearly ? 'R$ 233,10' : 'R$ 259,00'} <span className="text-xs font-sans text-[#0B0B0B]/60 font-light">{t('plans_per_month')}</span>
                         </div>
                         <span className="text-[10px] text-[#0B0B0B]/50 font-sans block">
-                          {isYearly ? 'Faturado anualmente por R$ 2.797,20/ano' : 'Cobrança mensal recorrente'}
+                          {isYearly ? t('plans_billed_annually').replace('{amount}', 'R$ 2.797,20') : t('plans_billed_monthly')}
                         </span>
                       </div>
                       <p className="font-serif-lumiardi italic text-lg text-[#A97745] pt-1">
@@ -318,29 +318,29 @@ export default function PlanosPage() {
                     </div>
 
                     <p className="text-sm text-[#0B0B0B]/80 font-sans font-light leading-relaxed">
-                      Solução sob medida para agências boutique com gestão de até 10 modelos agenciadas e acesso ao catálogo oficial de talentos.
+                      {t('plan_select_sub')}
                     </p>
 
                     <ul className="space-y-3 pt-4 border-t border-[#0B0B0B]/10 text-sm font-sans text-[#0B0B0B]/90">
                       <li className="flex items-center gap-3">
                         <Search className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span><strong>200 Buscas Scout/mês</strong> com filtros avançados</span>
+                        <span>{t('plans_feat_select_1')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <ShieldCheck className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span><strong>Blindagem & NDA</strong> inclusos em todos os contratos</span>
+                        <span>{t('plans_feat_select_2')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <Lock className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Chat interno seguro e gestão de contatos</span>
+                        <span>{t('plans_feat_select_3')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <Users className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span>Acesso integral ao catálogo de Talentos</span>
+                        <span>{t('plans_feat_select_4')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <HardDrive className="w-4 h-4 text-[#8C6B2F] shrink-0" />
-                        <span><strong>100 GB de Drive</strong> corporativo criptografado</span>
+                        <span>{t('plans_feat_select_5')}</span>
                       </li>
                     </ul>
                   </div>
@@ -350,7 +350,7 @@ export default function PlanosPage() {
                       href={getPlanLink('select', 'agencias', isYearly)}
                       className="w-full py-4 bg-[#0B0B0B] text-ivory text-center text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#8C6B2F] transition-all block cursor-pointer shadow-lg"
                     >
-                      <span>Assinar Select →</span>
+                      <span>{t('plans_subscribe_btn').replace('{plan}', 'Select')}</span>
                     </Link>
                   </div>
                 </div>
@@ -374,7 +374,7 @@ export default function PlanosPage() {
                           {isYearly ? 'R$ 441,00' : 'R$ 490,00'} <span className="text-xs font-sans text-ivory/60 font-light">{t('plans_per_month')}</span>
                         </div>
                         <span className="text-[10px] text-ivory/50 font-sans block">
-                          {isYearly ? 'Faturado anualmente por R$ 5.292,00/ano' : 'Cobrança mensal recorrente'}
+                          {isYearly ? t('plans_billed_annually').replace('{amount}', 'R$ 5.292,00') : t('plans_billed_monthly')}
                         </span>
                       </div>
                       <p className="font-serif-lumiardi italic text-lg text-[#C9A96B] pt-1">
@@ -383,29 +383,29 @@ export default function PlanosPage() {
                     </div>
 
                     <p className="text-sm text-ivory/80 font-sans font-light leading-relaxed">
-                      Infraestrutura corporativa completa para holdings e grandes agências com representação ilimitada de elenco e recursos exclusivos.
+                      {t('plan_sig_sub')}
                     </p>
 
                     <ul className="space-y-3 pt-4 border-t border-white/10 text-sm font-sans text-ivory/90">
                       <li className="flex items-center gap-3">
                         <Search className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                        <span><strong>Scout Ilimitado</strong> de modelos e novos talentos</span>
+                        <span>{t('plans_feat_signature_1')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                        <span><strong>Blindagem & NDA</strong> com suporte jurídico especializado</span>
+                        <span>{t('plans_feat_signature_2')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <Users className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                        <span>Espaços de organização e Kanban Ilimitados</span>
+                        <span>{t('plans_feat_signature_3')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <Check className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                        <span>Gerente de conta exclusivo e suporte VIP 24/7</span>
+                        <span>{t('plans_feat_signature_4')}</span>
                       </li>
                       <li className="flex items-center gap-3">
                         <HardDrive className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                        <span><strong>500 GB de Drive</strong> compartilhado corporativo</span>
+                        <span>{t('plans_feat_signature_5')}</span>
                       </li>
                     </ul>
                   </div>
@@ -415,7 +415,7 @@ export default function PlanosPage() {
                       href={getPlanLink('signature', 'agencias', isYearly)}
                       className="w-full py-4 bg-[#C9A96B] text-[#0B0B0B] text-center text-xs tracking-[0.25em] uppercase font-bold hover:bg-[#D4B87A] transition-all block cursor-pointer shadow-xl"
                     >
-                      <span>Assinar Signature →</span>
+                      <span>{t('plans_subscribe_btn').replace('{plan}', 'Signature')}</span>
                     </Link>
                   </div>
                 </div>

@@ -17,11 +17,13 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 
 export const AgencyRosterView: React.FC = () => {
   const router = useRouter();
   const { allCreators } = useAuthPortal();
+  const { t } = useLanguage();
   const [selectedModelDrive, setSelectedModelDrive] = useState<any | null>(null);
 
   const roster = allCreators.map((c, index) => ({
@@ -43,29 +45,26 @@ export const AgencyRosterView: React.FC = () => {
       <div className="p-6 md:p-8 bg-[#0F0F0F] border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Badge variant="gold">ELENCO DE TALENTOS</Badge>
+            <Badge variant="gold">{t('agency_tab_roster')}</Badge>
             <span className="text-[10px] font-sans text-ivory/50 uppercase tracking-widest">
-              {roster.length} Modelos Vinculadas
+              {roster.length} {t('agency_models_count')}
             </span>
           </div>
           <h2 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-ivory">
-            Gestão de Modelos Agenciadas
+            {t('dash_page_book_title_agency')}
           </h2>
           <p className="text-xs md:text-sm font-sans text-ivory/60 mt-1 max-w-2xl">
-            Acompanhe entregas de campanhas, cumprimento de prazos e contratos vigentes com suas criadoras agenciadas.
+            {t('dash_page_book_sub_agency')}
           </p>
         </div>
 
         <div className="p-4 bg-[#141414] border border-gold/30 flex items-center gap-4">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-ivory/40 block font-sans">
-              Modelos Vinculadas
+              {t('agency_tab_roster')}
             </span>
             <span className="font-serif-lumiardi text-2xl md:text-3xl text-emerald-400 font-medium">
-              {roster.length} Ativas
-            </span>
-            <span className="text-[10px] text-gold font-sans block">
-              Repasses Automatizados
+              {roster.length} {t('header_verified')}
             </span>
           </div>
         </div>

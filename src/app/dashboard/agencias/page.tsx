@@ -5,18 +5,20 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { AgencyDirectoryView } from '@/components/dashboard/AgencyDirectoryView';
 import { TalentScoutView } from '@/components/dashboard/TalentScoutView';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function AgenciasPage() {
   const { role } = useAuthPortal();
+  const { t } = useLanguage();
   const isCriadora = role === 'criadora';
 
   return (
     <DashboardLayout
-      pageTitle={isCriadora ? 'Rede de Agências Parceiras' : 'Talent Scout de Modelos'}
+      pageTitle={isCriadora ? t('dash_page_agencies_title_creator') : t('dash_page_agencies_title_agency')}
       pageSubtitle={
         isCriadora
-          ? 'Catálogo de agências internacionais parceiras da Lumiardi para envio de candidaturas e propostas diretas.'
-          : 'Filtre e descubra novos talentos verificados por categoria, medidas, localização e idiomas.'
+          ? t('dash_page_agencies_sub_creator')
+          : t('dash_page_agencies_sub_agency')
       }
     >
       {isCriadora ? <AgencyDirectoryView /> : <TalentScoutView />}

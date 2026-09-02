@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, CheckCircle2, ArrowRight, Award, Crown } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface VIPWelcomeCelebrationModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function VIPWelcomeCelebrationModal({
   memberId = 'LUM-8842',
   category = 'Criadora de Elite',
 }: VIPWelcomeCelebrationModalProps) {
+  const { t } = useLanguage();
   useEffect(() => {
     if (isOpen) {
       // Dispara confetes dourados e brancos de luxo
@@ -79,16 +81,17 @@ export function VIPWelcomeCelebrationModal({
           {/* Badge Superior */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#D4AF37]/10 border border-[#D4AF37]/40 rounded-full text-[#D4AF37] text-xs uppercase tracking-[0.3em] font-semibold">
             <Crown className="w-3.5 h-3.5 text-[#F5D77F]" />
-            <span>Homologação Concluída</span>
+            <span>{t('vip_celeb_badge')}</span>
           </div>
 
           {/* Título de Celebração */}
           <div className="space-y-3">
             <h2 className="font-serif-lumiardi text-3xl sm:text-5xl font-light text-ivory tracking-tight leading-tight">
-              Você foi <span className="text-[#F5D77F] italic font-normal">Aprovada(o)!</span>
+              {t('vip_celeb_title')}{' '}
+              <span className="text-[#F5D77F] italic font-normal">{t('vip_celeb_title_highlight')}</span>
             </h2>
             <p className="text-sm sm:text-base text-ivory/75 font-sans max-w-md mx-auto font-light leading-relaxed">
-              O Comitê de Curadoria Lumiardi validou seus documentos 18 U.S.C. § 2257 e sua anuidade VIP. Seu acesso de elite está liberado.
+              {t('vip_celeb_desc')}
             </p>
           </div>
 
@@ -105,19 +108,19 @@ export function VIPWelcomeCelebrationModal({
                   LUMIARDI
                 </span>
                 <span className="text-[9px] uppercase tracking-[0.2em] text-[#A89874] block">
-                  Private Members Club
+                  {t('vip_celeb_credential_type')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1 bg-[#D4AF37]/15 border border-[#D4AF37]/30 rounded-full text-[#F5D77F] text-[10px] font-mono font-bold tracking-wider uppercase">
                 <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                <span>Audited § 2257</span>
+                <span>{t('vip_celeb_compliance')}</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-ivory/40 block font-sans">
-                  Nome do Membro
+                  {t('header_connected_as')}
                 </span>
                 <span className="font-serif-lumiardi text-base text-ivory font-medium truncate block">
                   {userName}
@@ -125,7 +128,7 @@ export function VIPWelcomeCelebrationModal({
               </div>
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-ivory/40 block font-sans">
-                  Categoria
+                  {t('dash_status')}
                 </span>
                 <span className="text-xs text-[#F5D77F] font-sans font-semibold truncate block">
                   {category}
@@ -133,15 +136,15 @@ export function VIPWelcomeCelebrationModal({
               </div>
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-ivory/40 block font-sans">
-                  Status de Entrada
+                  {t('dash_status')}
                 </span>
                 <span className="text-xs text-emerald-400 font-sans font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Membro Ativo
+                  <CheckCircle2 className="w-3 h-3" /> {t('header_verified')}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-ivory/40 block font-sans">
-                  Número de Registro
+                  ID
                 </span>
                 <span className="font-mono text-xs text-ivory/80 font-bold">
                   {memberId}
@@ -156,7 +159,7 @@ export function VIPWelcomeCelebrationModal({
               onClick={onClose}
               className="w-full py-4 px-8 bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#C9A96B] hover:brightness-110 text-[#0B0B0B] text-xs sm:text-sm uppercase tracking-[0.25em] font-bold shadow-[0_10px_30px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-3 cursor-pointer rounded-sm"
             >
-              <span>Entrar no Universo Lumiardi</span>
+              <span>{t('vip_celeb_btn_access')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

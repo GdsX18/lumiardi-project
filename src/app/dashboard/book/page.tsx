@@ -5,18 +5,20 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { CreatorProfileView } from '@/components/dashboard/CreatorProfileView';
 import { AgencyRosterView } from '@/components/dashboard/AgencyRosterView';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function BookPage() {
   const { role } = useAuthPortal();
+  const { t } = useLanguage();
   const isCriadora = role === 'criadora';
 
   return (
     <DashboardLayout
-      pageTitle={isCriadora ? 'Meu Book & Ficha Técnica' : 'Gestão de Modelos Agenciadas'}
+      pageTitle={isCriadora ? t('dash_page_book_title_creator') : t('dash_page_book_title_agency')}
       pageSubtitle={
         isCriadora
-          ? 'Área dedicada para upload de ensaios fotográficos em alta resolução, vídeo showreel e medidas corporais.'
-          : 'Acompanhe as criadoras associadas ao seu elenco, contratos de exclusividade e produções ativas.'
+          ? t('dash_page_book_sub_creator')
+          : t('dash_page_book_sub_agency')
       }
     >
       {isCriadora ? <CreatorProfileView /> : <AgencyRosterView />}

@@ -20,6 +20,7 @@ import {
   Fingerprint,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface DocumentUploadPayload {
   type: 'rg_cnh' | 'passaporte' | 'outro';
@@ -48,6 +49,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   onDocumentUpload,
   claimedData,
 }) => {
+  const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const { currentUser, refreshData } = useAuthPortal();
 
@@ -61,7 +63,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [livenessProgress, setLivenessProgress] = useState(0);
-  const [scanPrompt, setScanPrompt] = useState('Olhe diretamente para a câmera...');
+  const [scanPrompt, setScanPrompt] = useState(t('kyc_prompt_look_cam'));
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [verificationResult, setVerificationResult] = useState<any>(null);
 
@@ -107,7 +109,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     if (!file) return;
 
     if (file.size > 25 * 1024 * 1024) {
-      setErrorMsg('O arquivo deve ter no máximo 25MB.');
+      setErrorMsg(t('kyc_err_file_max_size'));
       return;
     }
 
@@ -175,7 +177,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Seu navegador não possui suporte para acesso direto à câmera.');
+        throw new Error(t('kyc_err_browser_no_cam'));
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -196,11 +198,11 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       setCameraActive(false);
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('NotAllowedError') || msg.includes('Permission') || msg.includes('denied')) {
-        setCameraPermissionError('Permissão da câmera foi negada. Clique no ícone de cadeado/câmera na barra do seu navegador e autorize o uso para continuar.');
+        setCameraPermissionError(t('kyc_err_permission_denied'));
       } else if (msg.includes('NotFoundError') || msg.includes('DevicesNotFoundError')) {
-        setCameraPermissionError('Nenhuma câmera física foi detectada no seu dispositivo.');
+        setCameraPermissionError(t('kyc_err_no_cam_detected'));
       } else {
-        setCameraPermissionError('Não foi possível ligar a câmera. Verifique se outro aplicativo está usando-a.');
+        setCameraPermissionError(t('kyc_err_cam_in_use'));
       }
     }
   };
@@ -209,7 +211,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   const startFacialScanRoutine = () => {
     setIsScanning(true);
     setLivenessProgress(0);
-    setScanPrompt('Centralize seu rosto no círculo dourado...');
+    setScanPrompt(t('kyc_prompt_center_face'));
 
     if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
 
@@ -219,11 +221,11 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       setLivenessProgress(prog);
 
       if (prog > 20 && prog <= 45) {
-        setScanPrompt('Mantenha o olhar fixo para a lente...');
+        setScanPrompt(t('kyc_prompt_keep_looking'));
       } else if (prog > 45 && prog <= 75) {
-        setScanPrompt('Lendo profundidade biométrica e traços faciais...');
+        setScanPrompt(t('kyc_prompt_reading_bio'));
       } else if (prog > 75 && prog < 100) {
-        setScanPrompt('Capturando frame em alta definição para OCR e Face Match...');
+        setScanPrompt(t('kyc_prompt_capturing_frame'));
       }
 
       if (prog >= 100) {
@@ -260,7 +262,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }
 
     if (!capturedSelfieBase64 || capturedSelfieBase64.length < 500) {
-      setErrorMsg('Não foi possível capturar a imagem da sua câmera ao vivo. Certifique-se de que a câmera está autorizada e ligada.');
+      setErrorMsg(t('kyc_err_live_capture_failed'));
       setStep('rejected');
       stopCamera();
       return;
@@ -301,14 +303,14 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         if (onSuccess) onSuccess();
       } else {
         setVerificationResult(data);
-        setErrorMsg(data.reasons?.join(' ') || 'Inconsistência biométrica ou documental detectada.');
+        setErrorMsg(data.reasons?.join(' ') || t('kyc_err_inconsistency'));
         setStep('rejected');
       }
     } catch (e: unknown) {
       clearTimeout(timeoutId);
       const msg = e instanceof Error && e.name === 'AbortError'
-        ? 'Tempo limite de análise esgotado. Verifique sua conexão e tente novamente.'
-        : e instanceof Error ? e.message : 'Erro durante o processamento do OCR e Face Match.';
+        ? t('kyc_err_timeout')
+        : e instanceof Error ? e.message : t('kyc_err_processing');
       setErrorMsg(msg);
       setStep('rejected');
     }
@@ -362,13 +364,13 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         <div className="space-y-2 border-b border-white/10 pb-4 pr-8">
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-[#C9A96B]/10 border border-[#C9A96B]/30 text-[#C9A96B] text-[10px] uppercase font-mono tracking-widest font-semibold">
             <ScanFace className="w-3 h-3 shrink-0" />
-            <span>Biometria & OCR Real · 18 U.S.C. § 2257</span>
+            <span>{t('kyc_badge')}</span>
           </div>
           <h2 className="font-serif-lumiardi text-xl sm:text-2xl md:text-3xl font-light text-ivory">
-            Leitura de Documento & Face Match
+            {t('kyc_modal_title')}
           </h2>
           <p className="text-xs font-sans text-ivory/60">
-            Auditoria antifraude com leitura de documento, verificação de maioridade (+18) e confronto biométrico.
+            {t('kyc_modal_desc')}
           </p>
         </div>
 
@@ -377,14 +379,14 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
           <div className="space-y-5">
             <div className="p-4 bg-[#141414] border border-white/5 space-y-3 text-xs">
               <span className="text-ivory/90 font-semibold block uppercase tracking-wider text-[11px] text-[#C9A96B]">
-                1. Selecione o documento oficial que você irá apresentar:
+                {t('kyc_step1_doc_select_title')}
               </span>
 
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: 'cnh', label: 'CNH Digital' },
-                  { id: 'passaporte', label: 'Passaporte' },
-                  { id: 'rg', label: 'RG com Foto' },
+                  { id: 'cnh', label: t('kyc_doc_cnh') },
+                  { id: 'passaporte', label: t('kyc_doc_passport') },
+                  { id: 'rg', label: t('kyc_doc_rg') },
                 ].map((doc) => (
                   <button
                     key={doc.id}
@@ -405,10 +407,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
             <div className="p-3.5 bg-white/[0.03] border border-white/5 space-y-1.5 text-xs text-ivory/70 font-sans leading-relaxed">
               <div className="flex items-center gap-2 text-gold font-medium">
                 <Lock className="w-3.5 h-3.5" />
-                <span>Proteção Criptografada e Anti-Vazamento</span>
+                <span>{t('kyc_security_box_title')}</span>
               </div>
               <p className="text-[11px]">
-                O motor executa OCR para extração de dados e compara o rosto da imagem com a câmera ao vivo, sem compartilhar seus dados com terceiros.
+                {t('kyc_security_box_desc')}
               </p>
             </div>
 
@@ -424,7 +426,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               className="w-full py-3.5 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.2em] font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <FileCheck2 className="w-4 h-4" />
-              <span>Avançar para Envio do Documento →</span>
+              <span>{t('kyc_btn_advance_doc')}</span>
             </button>
           </div>
         )}
@@ -456,10 +458,13 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-ivory">
-                    Clique para selecionar a foto nítida do seu <span className="text-[#C9A96B] uppercase">{docType}</span>
+                    {t('kyc_upload_click_title')}{' '}
+                    <span className="text-[#C9A96B] uppercase">
+                      {docType === 'cnh' ? t('kyc_doc_cnh') : docType === 'passaporte' ? t('kyc_doc_passport') : t('kyc_doc_rg')}
+                    </span>
                   </p>
                   <p className="text-[11px] text-ivory/50">
-                    O documento deve estar aberto, legível e sem reflexos (PNG, JPG máx. 25MB)
+                    {t('kyc_upload_click_desc')}
                   </p>
                 </div>
               </div>
@@ -468,7 +473,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Documento Carregado</span>
+                    <span>{t('kyc_doc_loaded')}</span>
                   </div>
                   <button
                     type="button"
@@ -477,7 +482,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                       setDocumentPreview(null);
                     }}
                     className="text-ivory/40 hover:text-rose-400 p-1 cursor-pointer transition-colors"
-                    title="Remover e trocar"
+                    title={t('kyc_change_doc')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -497,7 +502,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                       {(documentFile.size / (1024 * 1024)).toFixed(2)} MB · {docType.toUpperCase()}
                     </p>
                     <span className="inline-block text-[9px] bg-emerald-950/60 text-emerald-300 px-2 py-0.5 border border-emerald-500/30 uppercase font-mono">
-                      Pronto para Leitura OCR & Face Match
+                      {t('kyc_ready_ocr')}
                     </span>
                   </div>
                 </div>
@@ -507,7 +512,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                   onClick={() => fileInputRef.current?.click()}
                   className="text-[11px] text-[#C9A96B] hover:underline cursor-pointer block text-center w-full pt-1"
                 >
-                  Trocar foto do documento
+                  {t('kyc_change_doc')}
                 </button>
               </div>
             )}
@@ -525,14 +530,14 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 onClick={() => setStep('intro')}
                 className="w-1/3 py-3 bg-white/5 hover:bg-white/10 text-ivory text-xs uppercase tracking-wider font-sans cursor-pointer transition-colors border border-white/10"
               >
-                ← Voltar
+                {t('kyc_btn_back')}
               </button>
 
               <button
                 type="button"
                 onClick={() => {
                   if (!documentFile) {
-                    setErrorMsg('Anexe a foto do documento para prosseguir.');
+                    setErrorMsg(t('kyc_err_attach_doc'));
                     return;
                   }
                   setStep('liveness');
@@ -542,7 +547,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 className="w-2/3 py-3 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-wider font-semibold font-sans flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-50"
               >
                 <Camera className="w-4 h-4" />
-                <span>Ir para Prova Facial ao Vivo →</span>
+                <span>{t('kyc_btn_go_liveness')}</span>
               </button>
             </div>
           </div>
@@ -568,7 +573,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     <Video className="w-8 h-8 text-[#C9A96B] animate-pulse" />
                   </div>
                   <span className="text-[11px] font-sans font-medium text-ivory/80 leading-tight">
-                    Câmera aguardando permissão
+                    {t('kyc_camera_waiting')}
                   </span>
                 </div>
               )}
@@ -595,7 +600,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                   className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Tentar Novamente</span>
+                  <span>{t('kyc_btn_try_again')}</span>
                 </button>
               </div>
             ) : cameraActive ? (
@@ -618,7 +623,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold font-sans flex items-center justify-center gap-2.5 cursor-pointer shadow-lg"
               >
                 <Camera className="w-4 h-4" />
-                <span>Ativar Câmera e Iniciar Análise</span>
+                <span>{t('kyc_btn_activate_cam')}</span>
               </button>
             )}
           </div>
@@ -630,10 +635,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
             <RefreshCw className="w-10 h-10 animate-spin text-[#C9A96B] mx-auto" />
             <div className="space-y-1">
               <p className="text-sm font-semibold uppercase tracking-wider text-ivory font-mono">
-                Analisando Documento & Comparando Rosto...
+                {t('kyc_processing_title')}
               </p>
               <p className="text-[11px] text-ivory/60 font-sans">
-                OCR de alta precisão, validação algorítmica de CPF e Face Match biométrico em execução.
+                {t('kyc_processing_desc')}
               </p>
             </div>
           </div>
@@ -648,10 +653,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
 
             <div className="space-y-2">
               <h3 className="font-serif-lumiardi text-2xl text-rose-400">
-                Homologação Não Aprovada
+                {t('kyc_rejected_title')}
               </h3>
               <p className="text-xs text-rose-200/80 max-w-sm mx-auto leading-relaxed bg-rose-950/40 p-3 border border-rose-500/30">
-                {errorMsg || 'Inconsistência entre os dados do documento e a biometria capturada.'}
+                {errorMsg || t('kyc_err_inconsistency')}
               </p>
             </div>
 
@@ -663,7 +668,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               }}
               className="px-8 py-3.5 bg-white/10 text-ivory hover:bg-white/20 text-xs uppercase tracking-widest font-semibold transition-all cursor-pointer border border-white/20"
             >
-              ← Tentar Enviar Documento Novamente
+              {t('kyc_btn_try_upload_again')}
             </button>
           </div>
         )}
@@ -677,10 +682,10 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
 
             <div className="space-y-1">
               <h3 className="font-serif-lumiardi text-2xl text-ivory">
-                Identidade & Maioridade (+18) Homologadas!
+                {t('kyc_approved_title')}
               </h3>
               <p className="text-xs text-ivory/70 max-w-sm mx-auto font-sans">
-                Documento verificado por OCR e similaridade facial confirmada com sucesso.
+                {t('kyc_approved_desc')}
               </p>
             </div>
 
@@ -688,23 +693,27 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
             {verificationResult?.extractedData && (
               <div className="bg-[#141414] border border-[#C9A96B]/40 p-4 text-left space-y-2.5 text-xs">
                 <div className="flex justify-between border-b border-white/10 pb-1.5">
-                  <span className="text-ivory/50 uppercase font-mono text-[10px]">Nome Lido no Documento:</span>
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">{t('kyc_label_name_read')}</span>
                   <span className="text-ivory font-medium truncate max-w-[200px]">{verificationResult.extractedData.fullName}</span>
                 </div>
                 <div className="flex justify-between border-b border-white/10 pb-1.5">
-                  <span className="text-ivory/50 uppercase font-mono text-[10px]">CPF Validado:</span>
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">{t('kyc_label_cpf_validated')}</span>
                   <span className="text-emerald-400 font-mono font-semibold">{verificationResult.extractedData.cpf}</span>
                 </div>
                 <div className="flex justify-between border-b border-white/10 pb-1.5">
-                  <span className="text-ivory/50 uppercase font-mono text-[10px]">Maioridade Legal (+18):</span>
-                  <span className="text-emerald-400 font-bold">Aprovada ({verificationResult.extractedData.calculatedAge} anos)</span>
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">{t('kyc_label_legal_age')}</span>
+                  <span className="text-emerald-400 font-bold">
+                    {t('kyc_value_legal_age_approved').replace('{age}', String(verificationResult.extractedData.calculatedAge))}
+                  </span>
                 </div>
                 <div className="flex justify-between border-b border-white/10 pb-1.5">
-                  <span className="text-ivory/50 uppercase font-mono text-[10px]">Face Match Score:</span>
-                  <span className="text-[#C9A96B] font-mono font-bold">{verificationResult.faceMatch?.matchScore}% de Similaridade</span>
+                  <span className="text-ivory/50 uppercase font-mono text-[10px]">{t('kyc_label_facematch_score')}</span>
+                  <span className="text-[#C9A96B] font-mono font-bold">
+                    {t('kyc_value_similarity').replace('{score}', String(verificationResult.faceMatch?.matchScore))}
+                  </span>
                 </div>
                 <div className="flex justify-between text-[10px] text-ivory/40 font-mono pt-1">
-                  <span>Protocolo de Custódia:</span>
+                  <span>{t('kyc_label_custody_protocol')}</span>
                   <span className="text-ivory/60">{verificationResult.compliance2257Reference}</span>
                 </div>
               </div>
@@ -717,7 +726,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               }}
               className="w-full py-3.5 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-widest font-semibold hover:bg-[#D4B87A] transition-all cursor-pointer shadow-lg"
             >
-              Concluir & Retornar ao Formulário
+              {t('kyc_btn_finish_return')}
             </button>
           </div>
         )}

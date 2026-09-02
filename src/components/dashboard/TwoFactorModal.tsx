@@ -11,6 +11,7 @@ import {
   RefreshCw,
   KeyRound,
 } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface TwoFactorModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export interface TwoFactorModalProps {
 }
 
 export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'loading' | 'qrcode' | 'success'>('loading');
   const [secret, setSecret] = useState('');
@@ -47,10 +49,10 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
         setCurrentOtp(data.currentOtp || '');
         setStep('qrcode');
       } else {
-        throw new Error(data.error || 'Erro ao gerar segredo 2FA');
+        throw new Error(data.error || t('twofa_err_generate'));
       }
     } catch (e: any) {
-      setErrorMessage(e.message || 'Falha ao conectar com o serviço de segurança.');
+      setErrorMessage(e.message || t('twofa_err_connect'));
       setStep('qrcode');
     }
   };
@@ -65,7 +67,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tokenInput.length !== 6) {
-      setErrorMessage('Digite o código de 6 dígitos completo.');
+      setErrorMessage(t('twofa_err_complete_digits'));
       return;
     }
 
@@ -87,10 +89,10 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
           onSuccess(secret);
         }
       } else {
-        throw new Error(data.error || 'Código incorreto ou expirado.');
+        throw new Error(data.error || t('twofa_err_incorrect'));
       }
     } catch (e: any) {
-      setErrorMessage(e.message || 'Código inválido. Verifique o horário do seu celular.');
+      setErrorMessage(e.message || t('twofa_err_invalid'));
     } finally {
       setIsVerifying(false);
     }
@@ -143,13 +145,13 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
         <div className="space-y-2 border-b border-white/10 pb-4 pr-8">
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-[#C9A96B]/10 border border-[#C9A96B]/30 text-[#C9A96B] text-[10px] uppercase font-mono tracking-widest font-semibold">
             <KeyRound className="w-3 h-3 shrink-0" />
-            <span>Autenticação em Dois Fatores (2FA)</span>
+            <span>{t('twofa_badge')}</span>
           </div>
           <h2 className="font-serif-lumiardi text-xl sm:text-2xl md:text-3xl font-light text-ivory">
-            Blindagem de Acesso da Conta
+            {t('twofa_title')}
           </h2>
           <p className="text-xs font-sans text-ivory/60">
-            Proteja sua conta contra invasões usando o Google Authenticator ou Authy.
+            {t('twofa_desc')}
           </p>
         </div>
 
@@ -157,7 +159,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
           <div className="py-12 text-center space-y-3">
             <RefreshCw className="w-7 h-7 animate-spin text-[#C9A96B] mx-auto" />
             <p className="text-xs uppercase tracking-widest text-ivory/60 font-mono">
-              Gerando chave criptográfica exclusiva...
+              {t('twofa_generating')}
             </p>
           </div>
         )}
@@ -177,7 +179,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                 ) : (
                   <div className="w-28 h-28 sm:w-32 sm:h-32 bg-neutral-900 text-[#C9A96B] flex flex-col items-center justify-center p-2 text-center text-[10px] border border-[#C9A96B]/30">
                     <KeyRound className="w-6 h-6 mb-1 text-[#C9A96B]" />
-                    <span className="font-mono text-[9px] uppercase">Chave:</span>
+                    <span className="font-mono text-[9px] uppercase">{t('twofa_key_label')}</span>
                     <span className="font-mono font-bold text-[9px] truncate max-w-[100px]">
                       {secret.substring(0, 8)}...
                     </span>
@@ -188,15 +190,15 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
               <div className="space-y-2 text-xs font-sans w-full min-w-0">
                 <span className="font-semibold text-ivory flex items-center gap-1.5 text-xs text-[#C9A96B]">
                   <Smartphone className="w-4 h-4" />
-                  <span>Passo 1: Escaneie o QR Code</span>
+                  <span>{t('twofa_step1_title')}</span>
                 </span>
                 <p className="text-ivory/70 text-[11px] leading-relaxed">
-                  No app <strong>Google Authenticator</strong>, toque em <strong>+</strong> e escaneie o código.
+                  {t('twofa_step1_desc')}
                 </p>
 
                 <div className="pt-1">
                   <span className="text-[10px] text-ivory/50 uppercase block font-mono">
-                    Ou copie o código manual:
+                    {t('twofa_or_copy_manual')}
                   </span>
                   <div className="flex items-center gap-1.5 mt-1">
                     <code className="text-[10px] font-mono text-[#C9A96B] bg-[#070707] px-2 py-1 border border-white/10 select-all truncate max-w-[160px]">
@@ -206,17 +208,17 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                       type="button"
                       onClick={copySecret}
                       className="px-2 py-1 bg-white/5 hover:bg-[#C9A96B] text-ivory hover:text-black border border-white/10 text-[10px] transition-colors cursor-pointer shrink-0 flex items-center gap-1"
-                      title="Copiar Chave"
+                      title={t('twofa_copy_key')}
                     >
                       {isCopied ? (
                         <>
                           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>Copiado</span>
+                          <span>{t('twofa_copied')}</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3 h-3" />
-                          <span>Copiar</span>
+                          <span>{t('twofa_copy_key')}</span>
                         </>
                       )}
                     </button>
@@ -230,7 +232,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs uppercase tracking-wider text-ivory/70 font-semibold block">
-                    Passo 2: Digite o código de 6 dígitos:
+                    {t('twofa_step2_title')}
                   </label>
 
                   {currentOtp && (
@@ -240,7 +242,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                       className="text-[11px] text-[#C9A96B] hover:text-[#D4B87A] underline flex items-center gap-1 cursor-pointer font-mono"
                     >
                       <KeyRound className="w-3 h-3" />
-                      <span>Preencher código teste ({currentOtp})</span>
+                      <span>{t('twofa_test_code_fill').replace('{otp}', currentOtp)}</span>
                     </button>
                   )}
                 </div>
@@ -273,7 +275,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Validar & Ativar Blindagem 2FA</span>
+                    <span>{t('twofa_btn_validate')}</span>
                   </>
                 )}
               </button>
@@ -289,10 +291,10 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
 
             <div className="space-y-2">
               <h3 className="font-serif-lumiardi text-2xl text-ivory">
-                2FA Ativado com Sucesso!
+                {t('twofa_success_title')}
               </h3>
               <p className="text-xs text-ivory/70 max-w-sm mx-auto leading-relaxed">
-                A partir de agora, sua conta está blindada com autenticação de dois fatores.
+                {t('twofa_success_desc')}
               </p>
             </div>
 
@@ -300,7 +302,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
               onClick={onClose}
               className="px-6 py-3 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-widest font-semibold hover:bg-[#D4B87A] transition-all cursor-pointer"
             >
-              Concluir & Fechar
+              {t('twofa_btn_finish')}
             </button>
           </div>
         )}

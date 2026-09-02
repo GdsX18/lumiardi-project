@@ -3,12 +3,15 @@
 import React from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { ChatPanel } from '@/components/interactive/ChatPanel';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function ChatPage() {
+  const { t } = useLanguage();
+
   return (
     <DashboardLayout
-      pageTitle="Mensagens & Comunicação Criptografada"
-      pageSubtitle="Canal exclusivo com criptografia ponta a ponta E2E para negociações, alinhamentos e suporte VIP."
+      pageTitle={t('dash_page_chat_title')}
+      pageSubtitle={t('dash_page_chat_sub')}
     >
       <div className="w-full h-full">
         <ChatPanel />

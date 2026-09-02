@@ -10,6 +10,7 @@ import { ChatPanel } from '@/components/interactive/ChatPanel';
 import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
 import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   DollarSign,
   Building2,
@@ -23,6 +24,7 @@ import {
 export default function CriadoraDashboardPage() {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const { activeCreator, currentUser } = useAuthPortal();
+  const { t } = useLanguage();
 
   const name = currentUser?.name || activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo';
   const revenue = activeCreator?.qualitative?.monthlyRevenueEstimate || 'Sob Consulta';
@@ -31,8 +33,8 @@ export default function CriadoraDashboardPage() {
     <DashboardLayout
       activeTab={activeTab}
       setActiveTab={setActiveTab}
-      pageTitle={`Painel da Modelo — ${name}`}
-      pageSubtitle="Gerenciamento de imagem editorial, conexões com agências e entregas de contratos."
+      pageTitle={`${t('dash_nav_overview')} — ${name}`}
+      pageSubtitle={t('dash_page_creator_sub')}
     >
       <div className="space-y-8">
         {/* Visão Geral (Overview) */}

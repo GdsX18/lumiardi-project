@@ -180,13 +180,13 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
                   <div className="flex items-center gap-2">
                     <Bell className="w-3.5 h-3.5 text-gold" />
-                    <span className="font-serif-lumiardi text-sm font-medium">Central de Notificações</span>
+                    <span className="font-serif-lumiardi text-sm font-medium">{t('header_notifications')}</span>
                   </div>
                   <button
                     onClick={clearNotifications}
                     className="text-[10px] text-bronze uppercase tracking-wider hover:text-gold cursor-pointer"
                   >
-                    Marcar lidas
+                    {t('header_mark_read')}
                   </button>
                 </div>
 

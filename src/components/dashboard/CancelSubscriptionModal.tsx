@@ -81,10 +81,10 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-sans uppercase tracking-[0.25em] font-semibold">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Programação de Cancelamento</span>
+                <span>{t('sub_cancel_badge')}</span>
               </div>
               <h3 className="font-serif-lumiardi text-2xl md:text-3xl font-light text-ivory">
-                Deseja cancelar a renovação automática?
+                {t('sub_cancel_title')}
               </h3>
             </div>
 
@@ -94,10 +94,10 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
                 <ShieldCheck className="w-5 h-5 text-gold shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <span className="text-xs font-sans font-semibold text-gold block uppercase tracking-wider">
-                    Acesso Total Garantido até {formattedDate}
+                    {t('sub_cancel_guarantee_title').replace('{date}', formattedDate)}
                   </span>
                   <p className="text-xs text-ivory/80 font-sans leading-relaxed">
-                    Como o seu período atual já foi quitado, <strong>você continuará usufruindo de 100% dos benefícios do Plano {planName}</strong> sem nenhuma interrupção até {formattedDate}.
+                    {t('sub_cancel_guarantee_desc').replace('{plan}', planName).replace('{date}', formattedDate)}
                   </p>
                 </div>
               </div>
@@ -106,21 +106,21 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
               <div className="pt-2 border-t border-white/10 space-y-2 text-xs font-sans text-ivory/70">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Seus {storageGB} GB de arquivos e fotos RAW protegidos no Drive</span>
+                  <span>{t('sub_cancel_feat1').replace('{storage}', String(storageGB))}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Recebimento de propostas e chat ativo com agências</span>
+                  <span>{t('sub_cancel_feat2')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Nenhuma cobrança surpresa após {formattedDate}</span>
+                  <span>{t('sub_cancel_feat3').replace('{date}', formattedDate)}</span>
                 </div>
               </div>
             </div>
 
             <p className="text-[11px] text-ivory/50 font-sans leading-relaxed italic">
-              * Você poderá reativar a renovação automática a qualquer momento com apenas 1 clique no painel antes ou após o término do ciclo.
+              {t('sub_cancel_reactivate_note')}
             </p>
 
             {/* Ações */}
@@ -132,7 +132,7 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
                 className="w-full sm:flex-1 py-3 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Manter Minha Assinatura</span>
+                <span>{t('sub_cancel_btn_keep')}</span>
               </button>
 
               <button
@@ -141,7 +141,7 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
                 disabled={loading}
                 className="w-full sm:w-auto px-4 py-3 bg-transparent hover:bg-rose-950/40 text-rose-300 hover:text-rose-200 border border-rose-600/40 hover:border-rose-500 text-xs font-sans uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
               >
-                {loading ? 'Processando...' : 'Confirmar Cancelamento'}
+                {loading ? t('sub_cancel_btn_processing') : t('sub_cancel_btn_confirm')}
               </button>
             </div>
           </motion.div>

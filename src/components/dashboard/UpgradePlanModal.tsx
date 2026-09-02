@@ -152,13 +152,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <div className="text-center space-y-2">
                   <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-gold/10 border border-gold/40 text-gold text-[10px] font-sans uppercase tracking-[0.25em] font-semibold">
                     <Zap className="w-3.5 h-3.5" />
-                    <span>Upgrade Instantâneo de Plano VIP</span>
+                    <span>{t('sub_upgrade_badge')}</span>
                   </div>
                   <h3 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory">
-                    Eleve o Nível da sua Carreira & Operação
+                    {t('sub_upgrade_title')}
                   </h3>
                   <p className="text-xs md:text-sm text-ivory/60 font-sans max-w-xl mx-auto leading-relaxed">
-                    Aumente sua capacidade de armazenamento no Drive, amplie suas buscas de scouting e receba destaque exclusivo.
+                    {t('sub_upgrade_desc')}
                   </p>
                 </div>
 
@@ -172,7 +172,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                         : 'text-ivory/60 hover:text-ivory bg-[#141414] border border-white/10'
                     }`}
                   >
-                    Mensal
+                    {t('sub_interval_monthly')}
                   </button>
                   <button
                     onClick={() => setInterval('yearly')}
@@ -182,9 +182,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                         : 'text-ivory/60 hover:text-ivory bg-[#141414] border border-white/10'
                     }`}
                   >
-                    <span>Anual</span>
+                    <span>{t('sub_interval_yearly')}</span>
                     <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500 text-black-matte font-bold rounded-xs">
-                      Economize 10%
+                      {t('sub_save_10')}
                     </span>
                   </button>
                 </div>
@@ -218,7 +218,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                         <div className="space-y-3">
                           <div>
                             <span className="text-[10px] uppercase tracking-wider text-ivory/50 font-mono">
-                              {p.category === 'agencias' ? 'Plano Agência' : 'Plano Modelo'}
+                              {p.category === 'agencias' ? t('login_role_agency') : t('login_role_creator')}
                             </span>
                             <h4 className="font-serif-lumiardi text-xl font-medium text-ivory">
                               {p.name}
@@ -227,17 +227,17 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                           <div className="text-2xl font-serif-lumiardi text-gold">
                             R$ {pPrice.toFixed(2)}
-                            <span className="text-[10px] text-ivory/50 font-sans ml-1">/mês</span>
+                            <span className="text-[10px] text-ivory/50 font-sans ml-1">/{t('sub_per_month')}</span>
                           </div>
 
                           <div className="pt-2 border-t border-white/10 space-y-2 text-[11px] font-sans text-ivory/70">
                             <div className="flex items-center gap-1.5 text-ivory">
                               <HardDrive className="w-3.5 h-3.5 text-gold shrink-0" />
-                              <span>{p.limits.maxDriveStorageGB} GB de Drive</span>
+                              <span>{p.limits.maxDriveStorageGB} GB Drive</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-ivory">
                               <Search className="w-3.5 h-3.5 text-gold shrink-0" />
-                              <span>{p.limits.maxScoutSearchesPerMonth === 'unlimited' ? 'Scout Ilimitado' : `${p.limits.maxScoutSearchesPerMonth} Buscas Scout/mês`}</span>
+                              <span>{p.limits.maxScoutSearchesPerMonth === 'unlimited' ? 'Scout Ilimitado' : `${p.limits.maxScoutSearchesPerMonth} Scout/${t('sub_per_month')}`}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-ivory/80">
                               <ShieldCheck className="w-3.5 h-3.5 text-gold shrink-0" />
@@ -249,7 +249,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                         <div className="pt-4 mt-4 border-t border-white/10">
                           {isCurrent ? (
                             <span className="block text-center text-xs font-sans uppercase font-bold text-ivory/40">
-                              Plano Atual
+                              {t('sub_current_plan_badge')}
                             </span>
                           ) : (
                             <button
@@ -265,7 +265,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                                   : 'bg-white/5 text-ivory hover:bg-gold hover:text-black-matte border border-white/10'
                               }`}
                             >
-                              Fazer Upgrade →
+                              {t('sub_btn_upgrade')}
                             </button>
                           )}
                         </div>
@@ -276,14 +276,14 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <div className="flex items-center justify-between pt-4 border-t border-white/10">
                   <span className="text-xs text-ivory/50 font-sans">
-                    Plano selecionado: <strong className="text-gold">{selectedPlan.name}</strong> (R$ {priceBRL.toFixed(2)} / {isYearly ? 'ano' : 'mês'})
+                    {t('sub_selected_plan')} <strong className="text-gold">{selectedPlan.name}</strong> (R$ {priceBRL.toFixed(2)} / {isYearly ? t('sub_per_year') : t('sub_per_month')})
                   </span>
                   <button
                     onClick={() => setStep('pay')}
                     disabled={selectedPlanId === currentPlanId}
                     className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer disabled:opacity-40"
                   >
-                    <span>Prosseguir para Pagamento</span>
+                    <span>{t('sub_btn_proceed_payment')}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -296,41 +296,41 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                   <div>
                     <span className="text-[10px] uppercase tracking-wider text-gold font-sans font-semibold">
-                      Finalização do Upgrade
+                      {t('sub_checkout_badge')}
                     </span>
                     <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                      Upgrade para Plano {selectedPlan.name}
+                      {t('sub_checkout_title').replace('{plan}', selectedPlan.name)}
                     </h3>
                   </div>
                   <button
                     onClick={() => setStep('select')}
                     className="text-xs text-ivory/60 hover:text-gold font-sans underline cursor-pointer"
                   >
-                    ← Trocar Plano
+                    ← {t('sub_btn_change_plan')}
                   </button>
                 </div>
 
                 {/* Resumo Financeiro */}
                 <div className="p-4 bg-[#141414] border border-gold/30 rounded-xs flex items-center justify-between">
                   <div>
-                    <span className="text-xs text-ivory/70 font-sans block">Total a Pagar Agora</span>
+                    <span className="text-xs text-ivory/70 font-sans block">{t('sub_total_to_pay')}</span>
                     <span className="text-2xl font-serif-lumiardi text-gold font-bold">
                       R$ {priceBRL.toFixed(2)}
                     </span>
                     <span className="text-[10px] text-ivory/50 font-sans ml-1">
-                      ({isYearly ? 'Ciclo Anual com 10% OFF' : 'Ciclo Mensal'})
+                      ({isYearly ? t('sub_yearly_discount_note') : t('sub_monthly_cycle_note')})
                     </span>
                   </div>
                   <div className="text-right text-xs font-sans text-emerald-400 flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Ativação Instantânea</span>
+                    <span>{t('sub_instant_activation')}</span>
                   </div>
                 </div>
 
                 {/* Escolha do Método de Pagamento */}
                 <div className="space-y-3">
                   <label className="block text-xs font-sans uppercase tracking-wider text-ivory/70">
-                    Método de Pagamento
+                    {t('sub_payment_method')}
                   </label>
                   <div className="grid grid-cols-3 gap-3">
                     <button
@@ -343,7 +343,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       }`}
                     >
                       <QrCode className="w-5 h-5" />
-                      <span className="text-xs font-sans">Pix Instantâneo</span>
+                      <span className="text-xs font-sans">{t('sub_pay_pix')}</span>
                     </button>
 
                     <button
@@ -356,7 +356,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       }`}
                     >
                       <CreditCard className="w-5 h-5" />
-                      <span className="text-xs font-sans">Cartão de Crédito</span>
+                      <span className="text-xs font-sans">{t('sub_pay_card')}</span>
                     </button>
 
                     <button
@@ -369,7 +369,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       }`}
                     >
                       <Coins className="w-5 h-5" />
-                      <span className="text-xs font-sans">Cripto (USDT)</span>
+                      <span className="text-xs font-sans">{t('sub_pay_crypto')}</span>
                     </button>
                   </div>
                 </div>
@@ -378,7 +378,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 {paymentMethod === 'pix' && (
                   <div className="p-5 bg-[#141414] border border-white/10 rounded-xs space-y-4 text-center">
                     <span className="text-xs font-sans text-ivory/80 block">
-                      Escaneie o QR Code ou copie o código Pix para aprovação em tempo real:
+                      {t('sub_pix_scan_instructions')}
                     </span>
                     <div className="w-44 h-44 mx-auto bg-white p-2 border-2 border-gold rounded-xs flex items-center justify-center">
                       {pixQrCodeUrl ? (
@@ -395,7 +395,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       className="px-4 py-2 bg-[#202020] hover:bg-[#2a2a2a] text-ivory border border-white/10 hover:border-gold text-xs font-sans flex items-center gap-2 mx-auto rounded-xs transition-colors cursor-pointer"
                     >
                       {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-gold" />}
-                      <span>{isCopied ? 'Chave Pix Copiada!' : 'Copiar Código Pix Copia e Cola'}</span>
+                      <span>{isCopied ? t('sub_pix_copied') : t('sub_pix_copy_btn')}</span>
                     </button>
                   </div>
                 )}
@@ -405,7 +405,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   <div className="p-5 bg-[#141414] border border-white/10 rounded-xs space-y-3">
                     <div>
                       <label className="block text-[11px] font-sans text-ivory/70 uppercase mb-1">
-                        Número do Cartão
+                        {t('sub_card_number')}
                       </label>
                       <input
                         type="text"
@@ -417,7 +417,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-[11px] font-sans text-ivory/70 uppercase mb-1">
-                        Nome Impresso no Cartão
+                        {t('sub_card_name')}
                       </label>
                       <input
                         type="text"
@@ -430,7 +430,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-sans text-ivory/70 uppercase mb-1">
-                          Validade (MM/AA)
+                          {t('sub_card_expiry')}
                         </label>
                         <input
                           type="text"
@@ -442,7 +442,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-sans text-ivory/70 uppercase mb-1">
-                          CVV
+                          {t('sub_card_cvv')}
                         </label>
                         <input
                           type="password"
@@ -461,13 +461,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 {paymentMethod === 'crypto' && (
                   <div className="p-5 bg-[#141414] border border-white/10 rounded-xs space-y-3 text-center">
                     <span className="text-xs font-sans text-ivory/80 block">
-                      Transferência Segura USDT (TRC-20):
+                      {t('sub_crypto_transfer')}
                     </span>
                     <div className="p-3 bg-[#181818] border border-gold/30 text-xs font-mono text-gold break-all rounded-xs">
                       TLUMiARdi9842XyZ10478aBcDeFgHiJkLmNo
                     </div>
                     <span className="text-[10px] text-ivory/50 font-sans block">
-                      Validação automática na blockchain via NOWPayments
+                      {t('sub_crypto_validation')}
                     </span>
                   </div>
                 )}
@@ -485,7 +485,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     onClick={() => setStep('select')}
                     className="px-4 py-2.5 text-xs font-sans uppercase text-ivory/60 hover:text-ivory cursor-pointer"
                   >
-                    Voltar
+                    {t('kyc_btn_back')}
                   </button>
 
                   <button
@@ -497,12 +497,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     {isProcessing ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Processando & Ativando...</span>
+                        <span>{t('sub_processing')}</span>
                       </>
                     ) : (
                       <>
                         <Zap className="w-4 h-4" />
-                        <span>Confirmar & Ativar Upgrade Imediato</span>
+                        <span>{t('sub_btn_confirm_upgrade')}</span>
                       </>
                     )}
                   </button>
@@ -519,13 +519,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <div className="space-y-2 max-w-md mx-auto">
                   <span className="text-[10px] uppercase tracking-[0.3em] text-gold font-sans font-semibold">
-                    Upgrade Concluído com Sucesso
+                    {t('sub_success_badge')}
                   </span>
                   <h3 className="font-serif-lumiardi text-3xl font-light text-ivory">
-                    Bem-vindo(a) ao Plano {selectedPlan.name}!
+                    {t('sub_success_title').replace('{plan}', selectedPlan.name)}
                   </h3>
                   <p className="text-xs text-ivory/70 font-sans leading-relaxed">
-                    Sua conta foi atualizada imediatamente. Todos os limites de armazenamento, propostas de scouting e recursos exclusivos do novo plano já estão disponíveis em todos os módulos.
+                    {t('sub_success_desc')}
                   </p>
                 </div>
 
@@ -553,7 +553,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     onClick={handleCloseAll}
                     className="px-8 py-3 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-[0.2em] transition-all cursor-pointer shadow-lg rounded-xs"
                   >
-                    Acessar Meu Painel Atualizado
+                    {t('sub_btn_access_dashboard')}
                   </button>
                 </div>
               </div>

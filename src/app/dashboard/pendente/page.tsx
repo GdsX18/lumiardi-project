@@ -21,13 +21,14 @@ import {
 } from 'lucide-react';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
-import { Badge } from '@/components/ui/Badge';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { VIPWelcomeCelebrationModal } from '@/components/dashboard/VIPWelcomeCelebrationModal';
 
 export default function CuradoriaPendentePage() {
   const router = useRouter();
   const { refreshData } = useAuthPortal();
+  const { t } = useLanguage();
 
   const [userData, setUserData] = useState<any>(null);
   const [billingData, setBillingData] = useState<{ invoices: any[]; latestInvoice: any; subscription: any }>({
@@ -165,18 +166,21 @@ export default function CuradoriaPendentePage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#24221C] pb-6">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <Badge variant="gold">
-                  {isRejected ? 'HOMOLOGAÇÃO REPROVADA' : 'CURADORIA DE ELITE • 18 U.S.C. § 2257'}
-                </Badge>
+                <span className="px-3 py-1 text-[10px] font-sans uppercase tracking-[0.25em] font-semibold border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37]">
+                  {isRejected ? t('pending_badge_rejected') : t('pending_badge_under_curation')}
+                </span>
                 <span className="text-[10px] font-mono text-[#D4AF37] uppercase tracking-widest bg-[#D4AF37]/10 px-2 py-0.5 border border-[#D4AF37]/30">
-                  ID #{userData?.id ? userData.id.substring(0, 8).toUpperCase() : 'PENDENTE'}
+                  {userData?.id ? t('pending_badge_id').replace('{id}', userData.id.substring(0, 8).toUpperCase()) : t('pending_badge_id_pending')}
                 </span>
               </div>
               <h1 className="font-serif-lumiardi text-2xl md:text-4xl text-ivory font-light pt-2">
                 {isRejected ? (
-                  <span className="text-red-400">Solicitação Não Aprovada</span>
+                  <span className="text-red-400">{t('pending_title_rejected')}</span>
                 ) : (
-                  <>Aguardando Homologação da <span className="italic text-[#F5D77F]">Curadoria</span></>
+                  <>
+                    {t('pending_title_waiting')}{' '}
+                    <span className="italic text-[#F5D77F]">{t('pending_title_waiting_highlight')}</span>
+                  </>
                 )}
               </h1>
             </div>
@@ -187,7 +191,7 @@ export default function CuradoriaPendentePage() {
               className="self-start md:self-auto flex items-center gap-2 px-4 py-2 bg-transparent border border-white/10 hover:border-red-500/40 text-ivory/60 hover:text-red-400 text-xs font-mono uppercase tracking-widest transition-all cursor-pointer rounded-sm"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>{loggingOut ? 'Encerrando...' : 'Sair da Conta'}</span>
+              <span>{loggingOut ? t('pending_btn_logging_out') : t('pending_btn_logout')}</span>
             </button>
           </div>
 
@@ -199,14 +203,14 @@ export default function CuradoriaPendentePage() {
               <div className="p-6 bg-red-950/20 border border-red-500/40 rounded-lg space-y-4">
                 <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
                   <XCircle className="w-5 h-5" />
-                  <span>Candidatura Não Aceita pelos Critérios Editoriais da Curadoria</span>
+                  <span>{t('pending_rej_card_title')}</span>
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-light">
-                  Agradecemos seu interesse na plataforma Lumiardi. Conforme nossos Termos de Transparência, a não aprovação acionou o <strong>reembolso integral automático</strong> do seu plano.
+                  {t('pending_rej_card_desc')}
                 </p>
                 {userData?.rejectionReason && (
                   <div className="p-3.5 bg-black/50 border border-red-500/20 text-xs text-red-300 font-mono rounded">
-                    <span className="text-ivory/40 block text-[10px] uppercase font-sans mb-1">Justificativa da Curadoria:</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase font-sans mb-1">{t('pending_rej_justification_label')}</span>
                     {userData.rejectionReason}
                   </div>
                 )}
@@ -216,28 +220,28 @@ export default function CuradoriaPendentePage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
                       <ShieldCheck className="w-4 h-4" />
-                      <span>Reembolso Automático Efetuado</span>
+                      <span>{t('pending_refund_title')}</span>
                     </div>
                     <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 border border-emerald-500/30 rounded">
-                      STATUS: ESTORNADO
+                      {t('pending_refund_status_badge')}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-xs font-sans text-ivory/80">
                     <div className="bg-black/30 p-2 border border-white/[0.04]">
-                      <span className="text-[10px] text-ivory/40 block">Código do Reembolso</span>
+                      <span className="text-[10px] text-ivory/40 block">{t('pending_refund_code_label')}</span>
                       <span className="font-mono text-gold font-semibold">
                         {billingData.latestInvoice?.receiptNumber || `REFUND-LUM-${(userData?.id || '8842').substring(0, 6).toUpperCase()}`}
                       </span>
                     </div>
                     <div className="bg-black/30 p-2 border border-white/[0.04]">
-                      <span className="text-[10px] text-ivory/40 block">Valor Devolvido</span>
+                      <span className="text-[10px] text-ivory/40 block">{t('pending_refund_amount_label')}</span>
                       <span className="font-mono text-emerald-400 font-semibold">
-                        R$ {billingData.latestInvoice?.amount ? billingData.latestInvoice.amount.toFixed(2).replace('.', ',') : '100% Integral'}
+                        {billingData.latestInvoice?.amount ? `R$ ${billingData.latestInvoice.amount.toFixed(2).replace('.', ',')}` : t('pending_refund_amount_integral')}
                       </span>
                     </div>
                   </div>
                   <p className="text-[11px] text-ivory/50 pt-1">
-                    * O crédito é direcionado de volta à chave PIX, cartão de crédito/débito ou carteira de origem do pagamento.
+                    {t('pending_refund_note')}
                   </p>
                 </div>
               </div>
@@ -249,7 +253,7 @@ export default function CuradoriaPendentePage() {
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Falar com a Administração via WhatsApp</span>
+                  <span>{t('pending_btn_whatsapp_support')}</span>
                 </Link>
               </div>
             </div>
@@ -264,13 +268,13 @@ export default function CuradoriaPendentePage() {
                 <div className="p-5 bg-black/40 border border-emerald-500/40 rounded-lg space-y-2 relative">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">
-                      Etapa 1
+                      {t('pending_step1_badge')}
                     </span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <h4 className="text-sm font-semibold text-ivory">Biometria & OCR</h4>
+                  <h4 className="text-sm font-semibold text-ivory">{t('pending_step1_title')}</h4>
                   <p className="text-xs text-ivory/60 leading-relaxed font-light">
-                    Documento oficial e prova facial 3D homologados sob 18 U.S.C. § 2257.
+                    {t('pending_step1_desc')}
                   </p>
                 </div>
 
@@ -278,13 +282,13 @@ export default function CuradoriaPendentePage() {
                 <div className="p-5 bg-black/40 border border-emerald-500/40 rounded-lg space-y-2 relative">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">
-                      Etapa 2
+                      {t('pending_step2_badge')}
                     </span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <h4 className="text-sm font-semibold text-ivory">Plano de Adesão</h4>
+                  <h4 className="text-sm font-semibold text-ivory">{t('pending_step2_title')}</h4>
                   <p className="text-xs text-ivory/60 leading-relaxed font-light">
-                    Assinatura confirmada e reservada para ativação imediata após curadoria.
+                    {t('pending_step2_desc')}
                   </p>
                 </div>
 
@@ -292,13 +296,13 @@ export default function CuradoriaPendentePage() {
                 <div className="p-5 bg-[#D4AF37]/10 border border-[#D4AF37]/60 rounded-lg space-y-2 relative animate-pulse">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono uppercase tracking-widest text-[#F5D77F] font-bold">
-                      Etapa 3
+                      {t('pending_step3_badge')}
                     </span>
                     <Clock className="w-4 h-4 text-[#F5D77F]" />
                   </div>
-                  <h4 className="text-sm font-semibold text-[#F5D77F]">Curadoria VIP</h4>
+                  <h4 className="text-sm font-semibold text-[#F5D77F]">{t('pending_step3_title')}</h4>
                   <p className="text-xs text-ivory/70 leading-relaxed font-light">
-                    Análise em andamento pela diretoria Lumiardi (prazo médio: poucas horas).
+                    {t('pending_step3_desc')}
                   </p>
                 </div>
               </div>
@@ -307,10 +311,10 @@ export default function CuradoriaPendentePage() {
               <div className="p-6 bg-gradient-to-r from-[#181611] to-[#0E0E11] border border-[#D4AF37]/30 rounded-lg flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="space-y-2 text-center md:text-left">
                   <span className="text-xs text-[#F5D77F] uppercase tracking-wider font-semibold block">
-                    Deseja atendimento prioritário?
+                    {t('pending_support_priority_title')}
                   </span>
                   <p className="text-xs text-ivory/70 max-w-lg leading-relaxed font-light">
-                    Você pode apresentar referências adicionais ou esclarecer dúvidas diretamente com nossa equipe de administração via WhatsApp.
+                    {t('pending_support_priority_desc')}
                   </p>
                 </div>
 
@@ -320,20 +324,20 @@ export default function CuradoriaPendentePage() {
                   className="px-5 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 shrink-0"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Falar com a Administração</span>
+                  <span>{t('pending_btn_whatsapp')}</span>
                 </Link>
               </div>
 
               {/* Botão de Simulação para Testes do Administrador */}
               <div className="pt-4 border-t border-[#24221C] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ivory/50">
-                <span>Painel de Demonstração & Validação:</span>
+                <span>{t('pending_demo_title')}</span>
                 <button
                   onClick={handleApproveSimulation}
                   disabled={approving}
                   className="px-4 py-2 bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#F5D77F] text-xs font-mono uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{approving ? 'Aprovando...' : 'Simular Aprovação Imediata (Demo)'}</span>
+                  <span>{approving ? t('pending_demo_btn_approving') : t('pending_demo_btn')}</span>
                 </button>
               </div>
             </div>

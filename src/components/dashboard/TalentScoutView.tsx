@@ -22,11 +22,13 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { CompleteCreatorProfile } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 
 export const TalentScoutView: React.FC = () => {
   const { allCreators } = useAuthPortal();
+  const { t } = useLanguage();
 
   // Modelos expandidas para demonstrar a robustez do Talent Scout
   const defaultCreators: CompleteCreatorProfile[] = [
@@ -387,16 +389,16 @@ export const TalentScoutView: React.FC = () => {
       <div className="p-6 md:p-8 bg-[#0F0F0F] border border-white/10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Badge variant="gold">TALENT SCOUT ELITE</Badge>
+            <Badge variant="gold">{t('agency_tab_scout')}</Badge>
             <span className="text-[10px] font-sans text-emerald-400 flex items-center gap-1 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Apenas Modelos Aprovadas pela Curadoria
+              <CheckCircle2 className="w-3.5 h-3.5" /> {t('header_verified')}
             </span>
           </div>
           <h2 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-ivory">
-            Busca Avançada de Modelos & Criadoras
+            {t('dash_page_agencies_title_agency')}
           </h2>
           <p className="text-xs md:text-sm font-sans text-ivory/60 mt-1 max-w-2xl">
-            Filtre talentos com base em dados verificados da pré-entrevista (biometria, faturamento histórico, fisiognomia e objetivos de carreira).
+            {t('dash_page_agencies_sub_agency')}
           </p>
         </div>
 

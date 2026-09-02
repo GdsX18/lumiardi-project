@@ -10,6 +10,7 @@ import { ChatPanel } from '@/components/interactive/ChatPanel';
 import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
 import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   DollarSign,
   Users,
@@ -25,6 +26,7 @@ export default function AgenciaDashboardPage() {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { activeAgency, currentUser, allCreators, refreshData } = useAuthPortal();
+  const { t } = useLanguage();
 
   const agencyName = currentUser?.name || activeAgency?.basicInfo.responsibleName || 'Sua Agência';
   const creatorsCount = allCreators.length;
@@ -33,8 +35,8 @@ export default function AgenciaDashboardPage() {
     <DashboardLayout
       activeTab={activeTab}
       setActiveTab={setActiveTab}
-      pageTitle={`Painel Corporativo — ${agencyName}`}
-      pageSubtitle="Scout de novos talentos, gestão de agenciadas, contratos de exclusividade e campanhas."
+      pageTitle={`${t('dash_nav_overview')} — ${agencyName}`}
+      pageSubtitle={t('dash_page_agency_sub')}
     >
       <div className="space-y-8">
         {/* Barra de Ações Rápidas Corporativas */}
@@ -44,7 +46,7 @@ export default function AgenciaDashboardPage() {
             className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-semibold uppercase tracking-wider transition-all flex items-center gap-2 rounded-sm cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>Editar Dados da Agência</span>
+            <span>{t('dash_edit_profile')}</span>
           </button>
         </div>
 
