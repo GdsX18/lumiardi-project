@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Lock,
   Sparkles,
-  Play,
   Mic,
   Video as VideoIcon,
   Monitor,

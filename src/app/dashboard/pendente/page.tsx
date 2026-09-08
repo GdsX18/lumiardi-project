@@ -250,6 +250,7 @@ export default function CuradoriaPendentePage() {
                 <Link
                   href={`https://wa.me/5511999999999?text=Olá,%20sou%20o%20candidato%20${encodeURIComponent(userData?.name || 'Membro')}%20(ID:%20${userData?.id || 'VIP'})%20e%20gostaria%20de%20esclarecimentos%20sobre%20o%20reembolso/curadoria.`}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all"
                 >
                   <MessageCircle className="w-4 h-4" />
@@ -321,6 +322,7 @@ export default function CuradoriaPendentePage() {
                 <Link
                   href={`https://wa.me/5511999999999?text=Olá,%20sou%20a%20candidata%20${encodeURIComponent(userData?.name || 'Criadora')}%20(ID:%20${userData?.id || 'VIP'})%20e%20gostaria%20de%20agilizar%20minha%20curadoria%20na%20Lumiardi.`}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="px-5 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 shrink-0"
                 >
                   <MessageCircle className="w-4 h-4" />

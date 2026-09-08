@@ -435,7 +435,7 @@ export const ChatPanel: React.FC = () => {
                         href={msg.attachmentUrl}
                         download={msg.attachmentName || 'anexo_lumiardi'}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="p-1.5 hover:text-gold hover:bg-white/10 transition-all rounded-xs shrink-0"
                         title="Download do Anexo"
                       >

@@ -323,4 +323,54 @@ export const EmailService = {
       html,
     });
   },
+
+  /**
+   * 5. Formulário de Contato — Notificação interna para a equipe Lumiardi
+   */
+  async sendContactForm(data: {
+    name: string;
+    email: string;
+    type: string;
+    subject: string;
+    message: string;
+  }) {
+    const toEmail = process.env.CONTACT_EMAIL || 'contato@lumiardi.com';
+    const title = `[Contato] ${data.subject}`;
+    const preheader = `Nova mensagem de ${data.name} — ${data.type}`;
+
+    const content = `
+      <div class="badge">Nova Mensagem de Contato</div>
+      <h2 style="color:#FFF; font-size:20px; margin-top:0;">${data.subject}</h2>
+
+      <div style="background:#08080A; border:1px solid #2C2C2E; padding:15px 20px; border-radius:8px; margin:20px 0;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px; color:#D1D1D6;">
+          <tr><td style="padding:6px 0; color:#8E8E93; width:130px;">Nome:</td><td style="padding:6px 0;"><strong>${data.name}</strong></td></tr>
+          <tr><td style="padding:6px 0; color:#8E8E93;">E-mail:</td><td style="padding:6px 0;"><a href="mailto:${data.email}" style="color:#D4AF37;">${data.email}</a></td></tr>
+          <tr><td style="padding:6px 0; color:#8E8E93;">Tipo:</td><td style="padding:6px 0;">${data.type}</td></tr>
+          <tr><td style="padding:6px 0; color:#8E8E93;">Assunto:</td><td style="padding:6px 0;">${data.subject}</td></tr>
+        </table>
+      </div>
+
+      <div style="margin-top:20px;">
+        <div style="font-size:11px; color:#8E8E93; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">Mensagem:</div>
+        <div style="background:#070709; border:1px solid #2C2C2E; padding:15px 20px; border-radius:8px; font-size:14px; line-height:1.7; color:#D1D1D6; white-space:pre-wrap;">${data.message}</div>
+      </div>
+
+      <div style="margin-top:25px; text-align:center;">
+        <a href="mailto:${data.email}?subject=Re: ${encodeURIComponent(data.subject)}" class="btn">Responder a ${data.name}</a>
+      </div>
+
+      <p style="font-size:12px; color:#636366; margin-top:20px;">Este e-mail foi gerado automaticamente pelo formulário de contato de www.lumiardi.com</p>
+    `;
+
+    const html = buildLuxuryEmailTemplate(title, preheader, content);
+    const transporter = getTransporter();
+    return transporter.sendMail({
+      from: FROM_EMAIL,
+      to: toEmail,
+      replyTo: `"${data.name}" <${data.email}>`,
+      subject: `[Lumiardi Contact] ${data.type} — ${data.subject}`,
+      html,
+    });
+  },
 };

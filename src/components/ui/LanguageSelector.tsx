@@ -6,9 +6,15 @@ import { useLanguage, LANGUAGES, LanguageCode } from '@/context/LanguageContext'
 
 interface LanguageSelectorProps {
   lightTheme?: boolean;
+  direction?: 'up' | 'down';
+  className?: string;
 }
 
-export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ lightTheme = false }) => {
+export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
+  lightTheme = false,
+  direction = 'down',
+  className = '',
+}) => {
   const { language, setLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -26,7 +32,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ lightTheme =
   }, []);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`relative ${className}`} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-1.5 text-xs font-sans tracking-widest uppercase transition-colors px-2.5 py-1.5 border cursor-pointer ${
@@ -45,7 +51,11 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ lightTheme =
 
       {isOpen && (
         <div
-          className={`absolute right-0 mt-2 w-44 py-2 shadow-2xl border z-50 animate-in fade-in slide-in-from-top-2 duration-200 ${
+          className={`absolute right-0 ${
+            direction === 'up'
+              ? 'bottom-full mb-2 animate-in fade-in slide-in-from-bottom-2'
+              : 'top-full mt-2 animate-in fade-in slide-in-from-top-2'
+          } w-44 py-2 shadow-2xl border z-50 duration-200 ${
             lightTheme
               ? 'bg-white border-[#0B0B0B]/10 text-[#0B0B0B]'
               : 'bg-[#141414] border-white/15 text-ivory'

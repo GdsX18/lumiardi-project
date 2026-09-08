@@ -19,6 +19,8 @@ export default function robots(): MetadataRoute.Robots {
           '/compliance-2257',
           '/termos',
           '/privacidade',
+          '/contato',
+          '/denuncia',
         ],
         disallow: [
           '/dashboard/',

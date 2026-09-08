@@ -8,7 +8,7 @@ import path from 'path';
  * Procura um arquivo correspondente no diretório public local.
  */
 function findLocalFile(fileKey: string): string | null {
-  const publicDir = path.join(process.cwd(), 'public');
+  const publicDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'public');
   const normalizedKey = fileKey.replace(/^\/+/, '');
 
   const candidatePaths = [

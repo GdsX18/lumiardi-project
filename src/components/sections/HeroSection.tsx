@@ -1,13 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ScrollExpandMedia from '@/components/ui/scroll-expansion-hero';
 import { ArrowUpRight, ShieldCheck, Globe, UserCheck, Lock } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { CreatorBenefitsModal } from '@/components/ui/CreatorBenefitsModal';
+import { AgencyBenefitsModal } from '@/components/ui/AgencyBenefitsModal';
 
 export const HeroSection: React.FC = () => {
   const router = useRouter();
+  const [creatorModalOpen, setCreatorModalOpen] = useState(false);
+  const [agencyModalOpen, setAgencyModalOpen] = useState(false);
   const { t } = useLanguage();
 
   return (
@@ -47,7 +51,8 @@ export const HeroSection: React.FC = () => {
             {/* CTAs Assimétricos de Ação */}
             <div className="flex flex-col sm:flex-row items-center gap-5 pt-4 w-full sm:w-auto">
               <button
-                onClick={() => router.push('/qualificacao')}
+                type="button"
+                onClick={() => setCreatorModalOpen(true)}
                 className="w-full sm:w-auto px-8 py-4 bg-[#C9A96B] text-[#0B0B0B] font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-medium hover:bg-[#D4B87A] transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer shadow-lg hover:shadow-gold/20"
               >
                 <UserCheck className="w-4 h-4 stroke-[1.2]" />
@@ -56,7 +61,8 @@ export const HeroSection: React.FC = () => {
               </button>
 
               <button
-                onClick={() => router.push('/qualificacao/agencia')}
+                type="button"
+                onClick={() => setAgencyModalOpen(true)}
                 className="w-full sm:w-auto px-8 py-4 bg-transparent border border-ivory/30 text-ivory font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-light hover:border-gold hover:text-gold transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer"
               >
                 <Lock className="w-4 h-4 stroke-[1.2]" />
@@ -106,6 +112,9 @@ export const HeroSection: React.FC = () => {
           </div>
         </div>
       </ScrollExpandMedia>
+
+      <CreatorBenefitsModal open={creatorModalOpen} onClose={() => setCreatorModalOpen(false)} />
+      <AgencyBenefitsModal open={agencyModalOpen} planId="select" billing="yearly" onClose={() => setAgencyModalOpen(false)} />
     </div>
   );
 };

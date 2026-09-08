@@ -12,17 +12,30 @@ export interface PricingPlan {
   isPopular?: boolean;
 }
 
-export const PricingTable: React.FC = () => {
+interface PricingTableProps {
+  currency?: 'BRL' | 'USD';
+  isYearly?: boolean;
+}
+
+export const PricingTable: React.FC<PricingTableProps> = ({ currency = 'BRL', isYearly = false }) => {
   const { t } = useLanguage();
 
+  const formatPrice = (brl: number, usd: number): string => {
+    const amount = currency === 'USD' ? usd : brl;
+    return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
   const plans: PricingPlan[] = [
-    { name: 'Glow', price: 'R$ 19,90' },
-    { name: 'Radiance', price: 'R$ 69,90' },
-    { name: 'Icon', price: 'R$ 129,90', badge: t('plan_icon_rec_badge'), isPopular: true },
+    { name: 'Glow', price: formatPrice(isYearly ? 17.91 : 19.90, isYearly ? 3.59 : 3.99) },
+    { name: 'Radiance', price: formatPrice(isYearly ? 62.91 : 69.90, isYearly ? 12.59 : 13.99) },
+    { name: 'Icon', price: formatPrice(isYearly ? 116.91 : 129.90, isYearly ? 23.39 : 25.99), badge: t('plan_icon_rec_badge'), isPopular: true },
   ];
 
   const features = [
-    { label: t('plans_month_val'), glow: 'R$ 19,90', radiance: 'R$ 69,90', icon: 'R$ 129,90', isHeader: true },
     { label: t('tbl_f1'), glow: t('tbl_yes'), radiance: t('tbl_yes'), icon: t('tbl_yes') },
     { label: t('tbl_f2'), glow: t('tbl_yes'), radiance: t('tbl_yes'), icon: t('tbl_yes') },
     { label: t('tbl_f3'), glow: t('tbl_unlimited'), radiance: t('tbl_unlimited'), icon: t('tbl_unlimited') },
@@ -72,9 +85,7 @@ export const PricingTable: React.FC = () => {
           {features.map((feature, idx) => (
             <tr
               key={idx}
-              className={`border-b border-black-matte/10 transition-colors hover:bg-black-matte/[0.02] ${
-                feature.isHeader ? 'bg-black-matte/[0.04] font-medium' : ''
-              }`}
+              className="border-b border-black-matte/10 transition-colors hover:bg-black-matte/[0.02]"
             >
               <td className="py-4 px-4 font-sans text-xs md:text-sm text-black-matte/90 font-normal">
                 {feature.label}

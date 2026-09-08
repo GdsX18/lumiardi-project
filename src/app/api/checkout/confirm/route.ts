@@ -20,6 +20,10 @@ export async function POST(request: NextRequest) {
     const plan = getPlan(planId);
     const isYearly = billingInterval === 'yearly';
     const priceBRL = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+    const currency = (rawBody.currency === 'USD' ? 'USD' : 'BRL') as 'BRL' | 'USD';
+    const finalAmount = currency === 'USD'
+      ? (isYearly ? plan.priceUSD.yearly * 12 : plan.priceUSD.monthly)
+      : (isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly);
 
     const userId = session?.id || rawBody.userId;
     if (!userId) {
@@ -39,8 +43,8 @@ export async function POST(request: NextRequest) {
       planId: plan.id,
       planCategory: plan.category,
       billingInterval,
-      amount: priceBRL,
-      currency: 'BRL',
+      amount: finalAmount,
+      currency,
       metadata: {
         paymentMethod,
         cardLast4: rawBody.cardLast4 || undefined,
@@ -56,8 +60,8 @@ export async function POST(request: NextRequest) {
       subscriptionId: subscription.id,
       gateway,
       gatewayTransactionId: txId,
-      amount: priceBRL,
-      currency: 'BRL',
+      amount: finalAmount,
+      currency,
       status: 'success',
       paymentMethod: paymentMethod === 'crypto' ? 'crypto' : 'credit_card',
       rawPayload: {
@@ -72,10 +76,11 @@ export async function POST(request: NextRequest) {
 
     // 3. Cria notificação para o usuário
     try {
+      const formattedTotal = currency === 'USD' ? `$ ${finalAmount.toFixed(2)}` : `R$ ${finalAmount.toFixed(2).replace('.', ',')}`;
       await StorageService.createNotification({
         userId,
         title: 'Pagamento Confirmado',
-        desc: `O pagamento do Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) de R$ ${priceBRL.toFixed(2).replace('.', ',')} foi confirmado. Sua candidatura foi enviada com prioridade para a Mesa de Curadoria.`,
+        desc: `O pagamento do Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) de ${formattedTotal} foi confirmado. Sua candidatura foi enviada com prioridade para a Mesa de Curadoria.`,
         category: 'Pagamentos',
         type: 'success',
         link: '/dashboard/pendente',
@@ -88,7 +93,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       subscription,
-      amountPaid: priceBRL,
+      amountPaid: finalAmount,
+      currency,
       planName: plan.name,
       message: 'Pagamento confirmado com sucesso. Candidatura em análise pela Curadoria VIP.',
     });

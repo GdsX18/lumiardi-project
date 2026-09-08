@@ -16,6 +16,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/compliance-2257',
     '/termos',
     '/privacidade',
+    '/contato',
+    '/denuncia',
     '/login',
   ];
 

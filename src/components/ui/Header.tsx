@@ -9,11 +9,13 @@ import { LanguageSelector } from './LanguageSelector';
 import { useLanguage } from '@/context/LanguageContext';
 import { CreatorBenefitsModal } from './CreatorBenefitsModal';
 import { Menu, X, ArrowUpRight, Lock, UserCheck } from 'lucide-react';
+import { AgencyBenefitsModal } from './AgencyBenefitsModal';
 import { AnimatePresence } from 'framer-motion';
 
 export const Header: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [creatorModalOpen, setCreatorModalOpen] = useState(false);
+  const [agencyModalOpen, setAgencyModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -28,13 +30,15 @@ export const Header: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navLinks: { label: string; href: string; isCreator?: boolean }[] = [
+  const navLinks: { label: string; href: string; isCreator?: boolean; isAgency?: boolean }[] = [
     { label: t('nav_creators'), href: '/#vitrine', isCreator: true },
-    { label: t('nav_agencies'), href: '/qualificacao/agencia' },
+    { label: t('nav_agencies'), href: '/qualificacao/agencia', isAgency: true },
     { label: t('nav_ecosystem'), href: '/#ecossistema' },
     { label: t('nav_partners'), href: '/#parceiros' },
     { label: t('nav_plans'), href: '/planos' },
+    { label: t('nav_contact'), href: '/contato' },
   ];
+
 
   const handleNavigate = (href: string) => {
     setMobileMenuOpen(false);
@@ -92,7 +96,15 @@ export const Header: React.FC = () => {
             {navLinks.map((link) => (
               <button
                 key={link.label}
-                onClick={() => link.isCreator ? setCreatorModalOpen(true) : handleNavigate(link.href)}
+                onClick={() => {
+                  if (link.isCreator) {
+                    setCreatorModalOpen(true);
+                  } else if (link.isAgency) {
+                    setAgencyModalOpen(true);
+                  } else {
+                    handleNavigate(link.href);
+                  }
+                }}
                 className="font-sans text-xs tracking-[0.25em] text-ivory/80 hover:text-gold uppercase font-light transition-colors relative group py-1 cursor-pointer"
               >
                 {link.label}
@@ -178,6 +190,8 @@ export const Header: React.FC = () => {
                         setMobileMenuOpen(false);
                         if (link.isCreator) {
                           setCreatorModalOpen(true);
+                        } else if (link.isAgency) {
+                          setAgencyModalOpen(true);
                         } else {
                           handleNavigate(link.href);
                         }
@@ -204,6 +218,7 @@ export const Header: React.FC = () => {
                   onClick={() => {
                     setMobileMenuOpen(false);
                     router.push('/qualificacao');
+                    setCreatorModalOpen(true);
                   }}
                   className="w-full py-3 text-center bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase font-sans tracking-[0.2em] font-medium block hover:bg-[#D4B87A] transition-colors"
                 >
@@ -216,6 +231,7 @@ export const Header: React.FC = () => {
       </AnimatePresence>
 
       <CreatorBenefitsModal open={creatorModalOpen} onClose={() => setCreatorModalOpen(false)} />
+      <AgencyBenefitsModal open={agencyModalOpen} planId="select" billing="yearly" onClose={() => setAgencyModalOpen(false)} />
     </>
   );
 };

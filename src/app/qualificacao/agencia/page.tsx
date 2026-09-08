@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
@@ -49,7 +49,9 @@ function AgenciaQualificacaoContent() {
   const searchParams = useSearchParams();
   const selectedPlan = searchParams.get('plan') || 'select';
   const selectedBilling = searchParams.get('billing') || 'yearly';
-  const { t } = useLanguage();
+  const paramCurrency = searchParams.get('currency');
+  const { t, currency } = useLanguage();
+  const activeCurrency = paramCurrency || currency || 'BRL';
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +91,36 @@ function AgenciaQualificacaoContent() {
     status: 'scheduled',
     notes: 'Agendamento de Curadoria Corporativa - Agência',
   });
+
+  // ─── DRAFT PERSISTENCE (sessionStorage) ───────────────────────
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('lumiardi_qualificacao_agencia_draft');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.basicData) {
+          setBasicData((prev) => ({ ...prev, ...parsed.basicData, password: '' }));
+        }
+        if (parsed.qualitativeData) {
+          setQualitativeData((prev) => ({ ...prev, ...parsed.qualitativeData }));
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const { password: _, document: __, ...safeBasic } = basicData;
+      sessionStorage.setItem(
+        'lumiardi_qualificacao_agencia_draft',
+        JSON.stringify({ basicData: safeBasic, qualitativeData })
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [basicData, qualitativeData]);
 
   // ─── Validação da Etapa 1 ────────────────────────────────────────
   const handleNextStep1 = (e: React.FormEvent) => {
@@ -183,6 +215,12 @@ function AgenciaQualificacaoContent() {
 
       if (!res.ok) {
         throw new Error(t('err_submission_failed'));
+      }
+
+      try {
+        sessionStorage.removeItem('lumiardi_qualificacao_agencia_draft');
+      } catch {
+        // Ignore storage errors
       }
 
       setSubmitted(true);
@@ -311,7 +349,7 @@ function AgenciaQualificacaoContent() {
               <div className="pt-4 sm:pt-6 border-t border-[#0B0B0B]/10 flex flex-col gap-3 justify-center max-w-md mx-auto">
                 <Button
                   variant="primary"
-                  onClick={() => router.push(`/checkout?plan=${selectedPlan}&category=agencias&billing=${selectedBilling}`)}
+                  onClick={() => router.push(`/checkout?plan=${selectedPlan}&category=agencias&billing=${selectedBilling}&currency=${activeCurrency}`)}
                   className="w-full py-3.5 sm:py-4 px-4 text-xs sm:text-sm tracking-[0.15em] sm:tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl leading-normal text-center"
                 >
                   <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />

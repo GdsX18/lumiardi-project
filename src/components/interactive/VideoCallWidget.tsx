@@ -129,12 +129,32 @@ export const VideoCallWidget: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     if (inCall && camOn) {
       startCamera();
+      void (async () => {
+        try {
+          if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+              audio: true,
+            });
+            if (isMounted) {
+              mediaStreamRef.current = stream;
+              setLocalStream(stream);
+            } else {
+              stream.getTracks().forEach((track) => track.stop());
+            }
+          }
+        } catch (err) {
+          console.warn('Câmera/Microfone não concedido ou indisponível:', err);
+        }
+      })();
     } else {
       stopCamera();
     }
     return () => {
+      isMounted = false;
       stopCamera();
     };
   }, [inCall, camOn, startCamera, stopCamera]);
