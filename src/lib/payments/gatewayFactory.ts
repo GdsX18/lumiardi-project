@@ -1,18 +1,18 @@
 /**
  * LUMIARDI — PAYMENT GATEWAY FACTORY & MANAGER
- * Centralizador de acesso aos provedores CCBill (Fiat) e NOWPayments (Web3/Crypto)
+ * Centralizador de acesso aos provedores Asaas (Fiat BRL - Cartão e Pix) e NOWPayments (Web3/Crypto)
  */
 
 import { PaymentGatewayService, PaymentGatewayType } from './types';
-import { CCBillAdapter } from './ccbillAdapter';
+import { AsaasAdapter } from './asaasAdapter';
 import { NOWPaymentsAdapter } from './nowpaymentsAdapter';
 
 class PaymentGatewayFactory {
-  private ccbillAdapter: CCBillAdapter;
+  private asaasAdapter: AsaasAdapter;
   private nowpaymentsAdapter: NOWPaymentsAdapter;
 
   constructor() {
-    this.ccbillAdapter = new CCBillAdapter();
+    this.asaasAdapter = new AsaasAdapter();
     this.nowpaymentsAdapter = new NOWPaymentsAdapter();
   }
 
@@ -21,8 +21,10 @@ class PaymentGatewayFactory {
    */
   getGateway(gateway: PaymentGatewayType): PaymentGatewayService {
     switch (gateway) {
-      case 'ccbill':
-        return this.ccbillAdapter;
+      case 'asaas':
+      case 'pix':
+      case 'ccbill': // Redireciona chamadas legadas transparentemente para Asaas
+        return this.asaasAdapter;
       case 'nowpayments':
         return this.nowpaymentsAdapter;
       default:
@@ -30,8 +32,8 @@ class PaymentGatewayFactory {
     }
   }
 
-  getCCBillAdapter(): CCBillAdapter {
-    return this.ccbillAdapter;
+  getAsaasAdapter(): AsaasAdapter {
+    return this.asaasAdapter;
   }
 
   getNOWPaymentsAdapter(): NOWPaymentsAdapter {

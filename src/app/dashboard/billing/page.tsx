@@ -265,7 +265,7 @@ export default function BillingPortalPage() {
                   </span>
                   <div className="text-sm font-sans text-ivory font-medium pt-1 uppercase flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-[#C9A96B]" />
-                    <span>{sub?.gateway === 'nowpayments' ? 'NOWPayments (Crypto)' : 'CCBill / Pix'}</span>
+                    <span>{sub?.gateway === 'nowpayments' ? 'NOWPayments (Crypto)' : 'Asaas (Pix / Cartão)'}</span>
                   </div>
                 </div>
               </div>

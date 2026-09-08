@@ -3,7 +3,7 @@
  * Módulo de Multi-Gateway (CCBill + NOWPayments) & Gestão de Faturamento
  */
 
-export type PaymentGatewayType = 'pix' | 'ccbill' | 'nowpayments';
+export type PaymentGatewayType = 'asaas' | 'pix' | 'nowpayments' | 'ccbill';
 
 export type PlanCategory = 'criadoras' | 'agencias';
 
@@ -24,7 +24,8 @@ export type TransactionStatus =
   | 'success'
   | 'failed'
   | 'refunded'
-  | 'chargeback';
+  | 'chargeback'
+  | 'overdue';
 
 export type InvoiceStatus = 'paid' | 'open' | 'void' | 'uncollectible';
 
@@ -56,13 +57,16 @@ export interface PlanDefinition {
     ndaProtection: boolean;
   };
   gatewayIds: {
-    ccbill: {
-      subAccountMonthly: string;
-      subAccountYearly: string;
-      formName: string;
+    asaas?: {
+      planIdentifier: string;
     };
     nowpayments: {
       priceId: string;
+    };
+    ccbill?: {
+      subAccountMonthly: string;
+      subAccountYearly: string;
+      formName: string;
     };
   };
 }
@@ -78,6 +82,8 @@ export interface CreateCheckoutSessionRequest {
   cryptoCurrency?: CryptoCurrency;
   successUrl?: string;
   cancelUrl?: string;
+  cpfCnpj?: string;
+  phone?: string;
 }
 
 export interface CheckoutSessionResponse {
@@ -85,6 +91,12 @@ export interface CheckoutSessionResponse {
   gateway: PaymentGatewayType;
   sessionId: string;
   redirectUrl?: string;
+  pixDetails?: {
+    paymentId: string;
+    encodedImage?: string;
+    payload?: string;
+    expirationDate?: string;
+  };
   cryptoDetails?: {
     paymentId: string;
     payAddress: string;
@@ -145,7 +157,7 @@ export interface TransactionRecord {
   amount: number;
   currency: string;
   status: TransactionStatus;
-  paymentMethod: 'credit_card' | 'crypto';
+  paymentMethod: 'credit_card' | 'crypto' | 'pix';
   cryptoAddress?: string;
   cryptoAmount?: number;
   cryptoCurrency?: string;

@@ -206,8 +206,8 @@ export const BillingService = {
     gatewayTransactionId: string;
     amount: number;
     currency: string;
-    status: 'pending' | 'success' | 'failed' | 'refunded' | 'chargeback';
-    paymentMethod: 'credit_card' | 'crypto';
+    status: 'pending' | 'success' | 'failed' | 'refunded' | 'chargeback' | 'overdue';
+    paymentMethod: 'credit_card' | 'crypto' | 'pix';
     cryptoAddress?: string;
     cryptoAmount?: number;
     cryptoCurrency?: string;

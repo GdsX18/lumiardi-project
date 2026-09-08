@@ -403,9 +403,9 @@ export const fallbackStore = {
     {
       id: 'sub-model-1',
       user_id: 'user-model-1',
-      gateway: 'ccbill',
-      gateway_subscription_id: 'ccbill_sub_998124',
-      gateway_customer_id: 'ccbill_cust_4412',
+      gateway: 'asaas',
+      gateway_subscription_id: 'asaas_sub_998124',
+      gateway_customer_id: 'cus_mock_4412',
       plan_id: 'radiance',
       plan_category: 'criadoras',
       status: 'active',

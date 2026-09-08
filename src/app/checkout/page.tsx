@@ -34,7 +34,7 @@ function CheckoutContent() {
 
   const [selectedPlanId] = useState<PlanId>(initialPlanId);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>(initialInterval);
-  const [gateway, setGateway] = useState<PaymentGatewayType>(currency === 'USD' ? 'ccbill' : 'pix');
+  const [gateway, setGateway] = useState<PaymentGatewayType>(currency === 'USD' ? 'asaas' : 'pix');
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoCurrency>('USDTTRC20');
 
   // Sync currency from URL params if provided
@@ -47,7 +47,7 @@ function CheckoutContent() {
   // Keep gateway synchronized if currency switches to USD while Pix is selected
   useEffect(() => {
     if (currency === 'USD' && gateway === 'pix') {
-      setGateway('ccbill');
+      setGateway('asaas');
     }
   }, [currency, gateway]);
 
@@ -65,6 +65,12 @@ function CheckoutContent() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [pixData, setPixData] = useState<{
+    qrCodeUrl: string;
+    copiaECola: string;
+    paymentId: string;
+  } | null>(null);
+  const [isLoadingPix, setIsLoadingPix] = useState(false);
   const [cryptoData, setCryptoData] = useState<{
     payAddress: string;
     payAmount: number;
@@ -83,9 +89,55 @@ function CheckoutContent() {
   const priceBRL = isYearly ? currentPlan.priceBRL.yearly * 12 : currentPlan.priceBRL.monthly;
   const priceUSD = isYearly ? currentPlan.priceUSD.yearly * 12 : currentPlan.priceUSD.monthly;
 
-  // Código Pix Copia e Cola Padrão BACEN / EMV
-  const pixCopiaECola = `00020126580014br.gov.bcb.pix0136noreply@lumiardi.com520400005303986540${priceBRL.toFixed(2)}5802BR5918LUMIARDI CLUB6009SAO PAULO62070503***6304`;
-  const pixQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCopiaECola)}`;
+  // Carrega Pix dinâmico oficial do Asaas (API v3)
+  useEffect(() => {
+    if (gateway !== 'pix' || currency !== 'BRL') return;
+
+    let isMounted = true;
+    const loadAsaasPix = async () => {
+      setIsLoadingPix(true);
+      try {
+        const res = await fetch('/api/checkout/create-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: selectedPlanId,
+            interval: billingInterval,
+            currency: 'BRL',
+            gateway: 'pix',
+            userId: currentUser?.id,
+            userEmail: currentUser?.email,
+            userName: currentUser?.name,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.pixDetails) {
+            setPixData({
+              qrCodeUrl: data.pixDetails.encodedImage,
+              copiaECola: data.pixDetails.payload,
+              paymentId: data.pixDetails.paymentId,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[Checkout] Erro ao carregar Pix dinâmico Asaas:', err);
+      } finally {
+        if (isMounted) setIsLoadingPix(false);
+      }
+    };
+
+    loadAsaasPix();
+    return () => {
+      isMounted = false;
+    };
+  }, [gateway, currency, selectedPlanId, billingInterval, currentUser]);
+
+  // Código Pix Copia e Cola Padrão Asaas / BACEN EMV
+  const fallbackPixCopiaECola = `00020126580014br.gov.bcb.pix0136pix@asaas.com.br520400005303986540${priceBRL.toFixed(2)}5802BR5916LUMIARDI PLATFORM6009SAO PAULO62070503***6304`;
+  const pixCopiaECola = pixData?.copiaECola || fallbackPixCopiaECola;
+  const pixQrCodeUrl = pixData?.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fallbackPixCopiaECola)}`;
 
   // Formatação de Número de Cartão
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,6 +201,9 @@ function CheckoutContent() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 900));
 
+      const [expMonth, expYear] = cardData.expiry.split('/');
+      const formattedYear = expYear ? (expYear.length === 2 ? `20${expYear}` : expYear) : '';
+
       const res = await fetch('/api/checkout/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,9 +211,18 @@ function CheckoutContent() {
           planId: selectedPlanId,
           billingInterval,
           currency,
-          gateway: 'ccbill',
+          gateway: 'asaas',
           paymentMethod: 'credit_card',
           cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
+          cardData: {
+            number: cardData.number,
+            holderName: cardData.holderName,
+            expiryMonth: expMonth,
+            expiryYear: formattedYear,
+            ccv: cardData.cvv,
+            cpf: cardData.cpf,
+            installments: Number(cardData.installments) || 1,
+          },
           taxId: currency === 'BRL' ? cardData.cpf : cardData.taxId,
           userId: currentUser?.id,
           userEmail: currentUser?.email,
@@ -394,18 +458,18 @@ function CheckoutContent() {
                   <button
                     type="button"
                     onClick={() => {
-                      setGateway('ccbill');
+                      setGateway('asaas');
                       setCryptoData(null);
                     }}
                     className={`p-4 text-left border transition-all cursor-pointer relative rounded-lg ${
-                      gateway === 'ccbill'
+                      gateway === 'asaas'
                         ? 'border-[#D4AF37] bg-[#D4AF37]/15 shadow-[0_0_25px_rgba(212,175,55,0.2)]'
                         : 'border-white/10 bg-[#121212] hover:border-white/25'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2 text-ivory font-medium text-xs">
-                        <CreditCard className={`w-4 h-4 ${gateway === 'ccbill' ? 'text-[#F5D77F]' : 'text-ivory/60'}`} />
+                        <CreditCard className={`w-4 h-4 ${gateway === 'asaas' ? 'text-[#F5D77F]' : 'text-ivory/60'}`} />
                         <span>{t('checkout_tab_card')}</span>
                       </div>
                     </div>
@@ -459,7 +523,7 @@ function CheckoutContent() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setGateway('ccbill')}
+                            onClick={() => setGateway('asaas')}
                             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-xs transition-colors cursor-pointer"
                           >
                             {t('checkout_tab_card')}
@@ -470,11 +534,16 @@ function CheckoutContent() {
                       <div className="p-6 bg-[#121212] border border-[#D4AF37]/50 space-y-6 rounded-lg">
                         <div className="flex flex-col sm:flex-row items-center gap-6">
                           {/* QR Code Pix */}
-                          <div className="p-3 bg-white rounded-md shrink-0 shadow-2xl">
-                            {pixQrCodeUrl ? (
+                          <div className="p-3 bg-white rounded-md shrink-0 shadow-2xl min-w-[160px] min-h-[160px] flex items-center justify-center">
+                            {isLoadingPix ? (
+                              <div className="flex flex-col items-center justify-center gap-2 p-4 text-[#0B0B0B]">
+                                <RefreshCw className="w-6 h-6 animate-spin text-[#AA820A]" />
+                                <span className="text-[10px] text-neutral-600 font-mono">Gerando Pix Asaas...</span>
+                              </div>
+                            ) : pixQrCodeUrl ? (
                               <img
                                 src={pixQrCodeUrl}
-                                alt="QR Code Pix Oficial"
+                                alt="QR Code Pix Oficial Asaas"
                                 className="w-40 h-40 object-contain"
                               />
                             ) : (
@@ -562,7 +631,7 @@ function CheckoutContent() {
                 {/* ═══════════════════════════════════════════════════════════════
                     BLOCO CARTÃO DE CRÉDITO / DÉBITO COMPLETO
                 ═══════════════════════════════════════════════════════════════ */}
-                {gateway === 'ccbill' && (
+                {gateway === 'asaas' && (
                   <form onSubmit={handleCardPayment} className="space-y-6 pt-2 animate-in fade-in duration-300">
                     <div className="p-6 bg-[#121212] border border-[#D4AF37]/50 space-y-5 rounded-lg">
                       {/* Seletor Crédito vs Débito */}

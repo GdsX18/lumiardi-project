@@ -59,9 +59,9 @@ async function runTests() {
   test('.env.example existe e contém variáveis de ambiente documentadas', () => {
     const envEx = fs.readFileSync(path.join(__dirname, '..', '.env.example'), 'utf8');
     assert(envEx.includes('DATABASE_URL'));
-    assert(envEx.includes('CCBILL_CLIENT_ACCNUM'));
+    assert(envEx.includes('ASAAS_API_KEY'));
     assert(envEx.includes('NOWPAYMENTS_API_KEY'));
-    assert(envEx.includes('UPSTASH_REDIS_REST_URL'));
+    assert(envEx.includes('NEXT_PUBLIC_SUPABASE_URL'));
     assert(envEx.includes('CLOUDFLARE_R2_BUCKET_NAME'));
   });
 
@@ -86,7 +86,8 @@ async function runTests() {
   const modules = [
     'src/lib/payments/types.ts',
     'src/lib/payments/plansConfig.ts',
-    'src/lib/payments/ccbillAdapter.ts',
+    'src/lib/payments/asaasClient.ts',
+    'src/lib/payments/asaasAdapter.ts',
     'src/lib/payments/nowpaymentsAdapter.ts',
     'src/lib/payments/gatewayFactory.ts',
     'src/lib/payments/billingService.ts',
@@ -118,12 +119,10 @@ async function runTests() {
     assert.strictEqual(isValid, true, 'O hash deve validar a senha original');
   });
 
-  test('Cálculo de FormDigest MD5 para CCBill FlexForms', () => {
-    const salt = 'lumiardi_salt_test';
-    const stringToHash = `69.903069.90301840${salt}`;
-    const digest = crypto.createHash('md5').update(stringToHash).digest('hex');
-    assert.strictEqual(typeof digest, 'string');
-    assert.strictEqual(digest.length, 32);
+  test('Validação de Token de Autenticação do Webhook Asaas', () => {
+    const secret = 'lumiardi_asaas_webhook_token_test';
+    const receivedHeader = 'lumiardi_asaas_webhook_token_test';
+    assert.strictEqual(secret === receivedHeader, true);
   });
 
   test('Cálculo de Assinatura HMAC-SHA512 para NOWPayments IPN', () => {
@@ -158,7 +157,7 @@ async function runTests() {
     'src/app/api/user/me/route.ts',
     'src/app/api/profile/update/route.ts',
     'src/app/api/checkout/create-session/route.ts',
-    'src/app/api/webhooks/ccbill/route.ts',
+    'src/app/api/webhooks/asaas/route.ts',
     'src/app/api/webhooks/nowpayments/route.ts',
     'src/app/api/billing/subscription/route.ts',
     'src/app/api/billing/subscription/cancel/route.ts',

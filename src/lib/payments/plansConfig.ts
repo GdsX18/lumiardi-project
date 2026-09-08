@@ -36,10 +36,8 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       ndaProtection: true,
     },
     gatewayIds: {
-      ccbill: {
-        subAccountMonthly: '0001',
-        subAccountYearly: '0002',
-        formName: 'lum_glow_flex',
+      asaas: {
+        planIdentifier: 'lum_plan_glow',
       },
       nowpayments: {
         priceId: 'plan_glow_sub',
@@ -79,10 +77,8 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       ndaProtection: true,
     },
     gatewayIds: {
-      ccbill: {
-        subAccountMonthly: '0003',
-        subAccountYearly: '0004',
-        formName: 'lum_radiance_flex',
+      asaas: {
+        planIdentifier: 'lum_plan_radiance',
       },
       nowpayments: {
         priceId: 'plan_radiance_sub',
@@ -121,10 +117,8 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       ndaProtection: true,
     },
     gatewayIds: {
-      ccbill: {
-        subAccountMonthly: '0005',
-        subAccountYearly: '0006',
-        formName: 'lum_icon_flex',
+      asaas: {
+        planIdentifier: 'lum_plan_icon',
       },
       nowpayments: {
         priceId: 'plan_icon_sub',
@@ -164,10 +158,8 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       ndaProtection: true,
     },
     gatewayIds: {
-      ccbill: {
-        subAccountMonthly: '0010',
-        subAccountYearly: '0011',
-        formName: 'lum_agency_select_flex',
+      asaas: {
+        planIdentifier: 'lum_agency_select',
       },
       nowpayments: {
         priceId: 'plan_agency_select',
@@ -209,10 +201,8 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       ndaProtection: true,
     },
     gatewayIds: {
-      ccbill: {
-        subAccountMonthly: '0012',
-        subAccountYearly: '0013',
-        formName: 'lum_agency_signature_flex',
+      asaas: {
+        planIdentifier: 'lum_agency_signature',
       },
       nowpayments: {
         priceId: 'plan_agency_signature',

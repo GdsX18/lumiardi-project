@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       subscription = {
         id: `sub_default_${userId}`,
         userId,
-        gateway: 'ccbill',
+        gateway: 'asaas',
         planId: plan.id,
         planCategory: plan.category,
         status: 'active',

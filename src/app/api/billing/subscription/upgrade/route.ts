@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const isYearly = interval === 'yearly';
     const amount = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
 
-    const gateway: PaymentGatewayType = paymentMethod === 'crypto' ? 'nowpayments' : 'ccbill';
+    const gateway: PaymentGatewayType = paymentMethod === 'crypto' ? 'nowpayments' : 'asaas';
 
     // Cria/Atualiza a assinatura para o novo plano imediatamente
     const updatedSub = await BillingService.createOrRenewSubscription({
