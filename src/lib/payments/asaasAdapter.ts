@@ -214,3 +214,4 @@ export class AsaasAdapter implements PaymentGatewayService {
     return true;
   }
 }
+

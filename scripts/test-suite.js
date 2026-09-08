@@ -60,7 +60,9 @@ async function runTests() {
     const envEx = fs.readFileSync(path.join(__dirname, '..', '.env.example'), 'utf8');
     assert(envEx.includes('DATABASE_URL'));
     assert(envEx.includes('ASAAS_API_KEY'));
+    assert(envEx.includes('ASAAS_WEBHOOK_SECRET'));
     assert(envEx.includes('NOWPAYMENTS_API_KEY'));
+    assert(envEx.includes('UPSTASH_REDIS_REST_URL'));
     assert(envEx.includes('NEXT_PUBLIC_SUPABASE_URL'));
     assert(envEx.includes('CLOUDFLARE_R2_BUCKET_NAME'));
   });
@@ -217,4 +219,7 @@ async function runTests() {
   }
 }
 
-runTests();
+runTests().catch((err) => {
+  console.error('Erro fatal na execução dos testes:', err);
+  process.exit(1);
+});

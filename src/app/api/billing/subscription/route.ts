@@ -3,6 +3,7 @@ import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
+import { SubscriptionRecord } from '@/lib/payments/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       StorageService.getUserDriveUsage(userId),
     ]);
 
-    let subscription = subscriptionRecord;
+    let subscription: SubscriptionRecord | null = subscriptionRecord;
 
     // Se não tiver assinatura ainda, gera padrão do tier básico da categoria
     if (!subscription) {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
         planCategory: plan.category,
         status: 'active',
         billingInterval: 'monthly',
-        amount: userRole === 'agencia' ? plan.priceBRL.monthly : plan.priceBRL.monthly,
+        amount: plan.priceBRL.monthly,
         currency: 'BRL',
         currentPeriodStart: new Date().toISOString(),
         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -40,6 +41,10 @@ export async function GET(request: NextRequest) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+    }
+
+    if (!subscription) {
+      return NextResponse.json({ error: 'Assinatura não localizada.' }, { status: 404 });
     }
 
     const planDetails = getPlan(subscription.planId);

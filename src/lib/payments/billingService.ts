@@ -8,6 +8,7 @@ import { pool, initDatabase, fallbackStore } from '@/lib/db';
 import {
   SubscriptionRecord,
   TransactionRecord,
+  TransactionStatus,
   InvoiceRecord,
   PayoutRecord,
   PlanId,
@@ -206,7 +207,7 @@ export const BillingService = {
     gatewayTransactionId: string;
     amount: number;
     currency: string;
-    status: 'pending' | 'success' | 'failed' | 'refunded' | 'chargeback' | 'overdue';
+    status: TransactionStatus;
     paymentMethod: 'credit_card' | 'crypto' | 'pix';
     cryptoAddress?: string;
     cryptoAmount?: number;

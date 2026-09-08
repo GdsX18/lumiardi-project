@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const planId = (sanitizeInput(rawBody.planId) || 'glow') as PlanId;
     const billingInterval = (rawBody.billingInterval === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
-    const requestedGateway = rawBody.gateway as string;
+    const requestedGateway = (rawBody.gateway as string) || 'pix';
     const gateway: PaymentGatewayType =
       requestedGateway === 'nowpayments'
         ? 'nowpayments'
@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
         ? 'pix'
         : 'asaas';
 
-    const paymentMethod = rawBody.paymentMethod || (gateway === 'pix' ? 'pix' : gateway === 'nowpayments' ? 'crypto' : 'credit_card');
+    const paymentMethod: 'credit_card' | 'crypto' | 'pix' =
+      rawBody.paymentMethod || (gateway === 'pix' ? 'pix' : gateway === 'nowpayments' ? 'crypto' : 'credit_card');
 
     const plan = getPlan(planId);
     const isYearly = billingInterval === 'yearly';
@@ -52,7 +53,6 @@ export async function POST(request: NextRequest) {
       const dueDate = today.toISOString().split('T')[0];
 
       try {
-        // Garante cliente no Asaas
         const customer = await asaasClient.getOrCreateCustomer({
           name: userName,
           email: userEmail,
@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
           externalReference: userId,
         });
 
-        // Cria e processa cobrança no Asaas
         const asaasPayment = await asaasClient.createPayment({
           customerId: customer.id,
           billingType: 'CREDIT_CARD',
@@ -87,7 +86,6 @@ export async function POST(request: NextRequest) {
 
         asaasPaymentId = asaasPayment.id;
 
-        // Se o pagamento for recusado imediatamente
         if (asaasPayment.status === 'OVERDUE' || asaasPayment.status === 'REFUNDED') {
           return NextResponse.json(
             { error: 'Pagamento não aprovado pela operadora do cartão.' },
@@ -102,11 +100,12 @@ export async function POST(request: NextRequest) {
     }
 
     const txId = asaasPaymentId || `${gateway}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const effectiveGateway: PaymentGatewayType = gateway === 'pix' ? 'asaas' : gateway;
 
     // 2. Cria a assinatura no BillingService
     const subscription = await BillingService.createOrRenewSubscription({
       userId,
-      gateway: gateway === 'pix' ? 'asaas' : gateway,
+      gateway: effectiveGateway,
       gatewaySubscriptionId: txId,
       planId: plan.id,
       planCategory: plan.category,
@@ -123,21 +122,28 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    if (!subscription) {
+      return NextResponse.json(
+        { error: 'Falha ao provisionar assinatura do usuário.' },
+        { status: 500 }
+      );
+    }
+
     // 3. Registra a transação de pagamento
     await BillingService.recordTransaction({
       userId,
       subscriptionId: subscription.id,
-      gateway: gateway === 'pix' ? 'asaas' : gateway,
+      gateway: effectiveGateway,
       gatewayTransactionId: txId,
       amount: finalAmount,
       currency,
       status: 'success',
-      paymentMethod: paymentMethod === 'crypto' ? 'crypto' : paymentMethod === 'pix' ? 'pix' : 'credit_card',
+      paymentMethod,
       rawPayload: {
         planId: plan.id,
         planName: plan.name,
         billingInterval,
-        gateway,
+        gateway: effectiveGateway,
         paidAt: new Date().toISOString(),
         asaasPaymentId,
       },

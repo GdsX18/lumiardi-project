@@ -71,3 +71,4 @@ testAsaasIntegration().catch((e) => {
   console.error('❌ Falha:', e);
   process.exit(1);
 });
+

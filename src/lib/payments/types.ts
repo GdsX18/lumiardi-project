@@ -1,9 +1,9 @@
 /**
  * LUMIARDI — DEFINIÇÕES DE TIPOS DE PAGAMENTO E ASSINATURAS
- * Módulo de Multi-Gateway (CCBill + NOWPayments) & Gestão de Faturamento
+ * Módulo de Multi-Gateway (Asaas + NOWPayments) & Gestão de Faturamento
  */
 
-export type PaymentGatewayType = 'asaas' | 'pix' | 'nowpayments' | 'ccbill';
+export type PaymentGatewayType = 'asaas' | 'nowpayments' | 'pix' | 'ccbill';
 
 export type PlanCategory = 'criadoras' | 'agencias';
 

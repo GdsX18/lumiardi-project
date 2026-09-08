@@ -1,0 +1,6 @@
+{
+  "git.enabled": false,
+  "git.autorefresh": false,
+  "git.autoRepositoryDetection": false,
+  "git.decorations.enabled": false
+}

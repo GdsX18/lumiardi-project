@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const planId = sanitizeInput(body.planId) as PlanId;
     const interval = (body.interval === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
-    const paymentMethod = body.paymentMethod || 'pix';
+    const paymentMethod: 'credit_card' | 'crypto' | 'pix' = body.paymentMethod || 'pix';
 
     if (!planId || !LUMIARDI_PLANS[planId]) {
       return NextResponse.json({ error: 'Plano inválido especificado.' }, { status: 400 });
@@ -43,6 +43,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    if (!updatedSub) {
+      return NextResponse.json({ error: 'Falha ao atualizar assinatura.' }, { status: 500 });
+    }
+
     // Registra transação auditável do upgrade
     const tx = await BillingService.recordTransaction({
       userId,
@@ -52,7 +56,7 @@ export async function POST(request: NextRequest) {
       amount,
       currency: 'BRL',
       status: 'success',
-      paymentMethod: paymentMethod === 'crypto' ? 'crypto' : 'credit_card',
+      paymentMethod,
       rawPayload: {
         planId: plan.id,
         planName: plan.name,

@@ -42,6 +42,11 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       nowpayments: {
         priceId: 'plan_glow_sub',
       },
+      ccbill: {
+        subAccountMonthly: '0001',
+        subAccountYearly: '0002',
+        formName: 'lum_glow_flex',
+      },
     },
   },
 
@@ -83,6 +88,11 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       nowpayments: {
         priceId: 'plan_radiance_sub',
       },
+      ccbill: {
+        subAccountMonthly: '0003',
+        subAccountYearly: '0004',
+        formName: 'lum_radiance_flex',
+      },
     },
   },
 
@@ -122,6 +132,11 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       },
       nowpayments: {
         priceId: 'plan_icon_sub',
+      },
+      ccbill: {
+        subAccountMonthly: '0005',
+        subAccountYearly: '0006',
+        formName: 'lum_icon_flex',
       },
     },
   },
@@ -163,6 +178,11 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       },
       nowpayments: {
         priceId: 'plan_agency_select',
+      },
+      ccbill: {
+        subAccountMonthly: '0010',
+        subAccountYearly: '0011',
+        formName: 'lum_agency_select_flex',
       },
     },
   },
@@ -206,6 +226,11 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       },
       nowpayments: {
         priceId: 'plan_agency_signature',
+      },
+      ccbill: {
+        subAccountMonthly: '0012',
+        subAccountYearly: '0013',
+        formName: 'lum_agency_signature_flex',
       },
     },
   },
