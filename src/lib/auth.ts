@@ -88,7 +88,18 @@ export function decodeSession(cookieValue?: string | null): SessionUser | null {
   }
 }
 
-export function getSessionFromCookie(cookieValue?: string | null): SessionUser | null {
-  return decodeSession(cookieValue);
+import { cookies } from 'next/headers';
+
+export async function getSessionFromCookie(cookieValue?: string | null): Promise<SessionUser | null> {
+  if (cookieValue !== undefined) {
+    return decodeSession(cookieValue);
+  }
+  try {
+    const cookieStore = await cookies();
+    const value = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    return decodeSession(value);
+  } catch (e) {
+    return null;
+  }
 }
 

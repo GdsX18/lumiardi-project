@@ -7,7 +7,10 @@ export async function POST(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const userId = session?.id || 'user-model-1';
+    const userId = session?.id;
+    if (!userId) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
     await BillingService.reactivateSubscription(userId);
 
     return NextResponse.json({

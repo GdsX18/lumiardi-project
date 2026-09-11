@@ -69,14 +69,13 @@ export function proxy(request: NextRequest) {
 
   const response = NextResponse.next();
 
-  // Aplica as diretivas de cibersegurança em todas as respostas
+  // Apply security headers in all responses except CSP which is handled by next.config.ts
   response.headers.set('X-Frame-Options', SECURITY_HEADERS.xFrameOptions);
   response.headers.set('X-Content-Type-Options', SECURITY_HEADERS.xContentTypeOptions);
   response.headers.set('X-XSS-Protection', SECURITY_HEADERS.xXssProtection);
   response.headers.set('Referrer-Policy', SECURITY_HEADERS.referrerPolicy);
   response.headers.set('Strict-Transport-Security', SECURITY_HEADERS.strictTransportSecurity);
   response.headers.set('Permissions-Policy', SECURITY_HEADERS.permissionsPolicy);
-  response.headers.set('Content-Security-Policy', SECURITY_HEADERS.csp);
   response.headers.delete('X-Powered-By');
 
   return response;

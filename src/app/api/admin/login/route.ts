@@ -3,8 +3,15 @@ import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 
+import { checkRateLimit } from '@/lib/security/rateLimiter';
+
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('remote-addr') || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json({ error: 'Muitas tentativas de login. Aguarde e tente novamente.' }, { status: 429 });
+    }
+
     const rawBody = await request.json();
     const email = sanitizeInput(rawBody.email);
     const password = typeof rawBody.password === 'string' ? rawBody.password : '';
@@ -49,6 +56,7 @@ export async function POST(request: NextRequest) {
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7,
     });
 

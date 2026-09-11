@@ -87,9 +87,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const agencyId = searchParams.get('agencyId') || (session.role === 'agencia' ? session.id : undefined);
-    const modelId = searchParams.get('modelId') || (session.role === 'criadora' ? session.id : undefined);
+    const searchParams = req.nextUrl.searchParams;
+    let agencyId = searchParams.get('agencyId') || undefined;
+    let modelId = searchParams.get('modelId') || undefined;
+
+    if (session.role !== 'admin') {
+      if (session.role === 'agencia') {
+        agencyId = session.id;
+        modelId = undefined; // Agência só vê suas próprias propostas
+      } else if (session.role === 'criadora') {
+        modelId = session.id;
+        agencyId = undefined; // Modelo só vê propostas direcionadas a ela
+      }
+    }
 
     const proposals = await StorageService.listScoutProposals({ agencyId, modelId });
     return NextResponse.json({ proposals });

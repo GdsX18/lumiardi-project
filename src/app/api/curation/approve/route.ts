@@ -7,6 +7,13 @@ export async function POST(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
+    if (!session || session.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Acesso negado. Apenas curadores podem aprovar perfis.' },
+        { status: 403 }
+      );
+    }
+
     let targetId = session?.id;
 
     // Também aceita id no corpo se enviado por admin

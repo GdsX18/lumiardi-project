@@ -8,11 +8,15 @@ import nodemailer from 'nodemailer';
 
 // Configuração do Transportador SMTP
 function getTransporter() {
-  const host = process.env.SMTP_HOST || '69.6.249.13';
+  const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
-  const user = process.env.SMTP_USER || 'noreply@lumiardi.com';
-  const pass = process.env.SMTP_PASS || '@Sender@#2026';
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    console.warn('Configuração de SMTP incompleta nas variáveis de ambiente. E-mails podem falhar.');
+  }
 
   return nodemailer.createTransport({
     host,

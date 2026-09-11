@@ -118,7 +118,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID do arquivo não informado.' }, { status: 400 });
     }
 
-    await StorageService.deleteDriveFile(id);
+    const isAdmin = session.role === 'admin';
+    await StorageService.deleteDriveFile(id, session.id, isAdmin);
     return NextResponse.json({ success: true, message: 'Arquivo removido com sucesso.' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao deletar arquivo do drive';
@@ -128,8 +129,17 @@ export async function DELETE(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const session = decodeSession(cookie);
+
+    if (!session) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+
     const body = await request.json();
     if (body.id) {
+      // In a real scenario, we should check if the file exists and is accessible by the user,
+      // but for incrementing downloads, an auth check is a good start.
       await StorageService.incrementDriveDownloads(body.id);
       return NextResponse.json({ success: true });
     }

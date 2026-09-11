@@ -3,6 +3,13 @@ import { KYCService } from '@/lib/kyc/kycService';
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization') || request.headers.get('x-kyc-signature');
+    const secret = process.env.KYC_WEBHOOK_SECRET || process.env.SUMSUB_SECRET_KEY;
+    
+    if (secret && authHeader !== secret && authHeader !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: 'Assinatura de webhook inválida' }, { status: 401 });
+    }
+
     const rawBody = await request.text();
     let payload: Record<string, unknown> = {};
 

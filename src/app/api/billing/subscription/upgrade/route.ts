@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan, LUMIARDI_PLANS } from '@/lib/payments/plansConfig';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getSessionFromCookie } from '@/lib/auth';
 import { PlanId, BillingInterval, PaymentGatewayType } from '@/lib/payments/types';
 import { sanitizeInput } from '@/lib/security';
 
 export async function POST(request: NextRequest) {
   try {
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getSessionFromCookie();
 
-    const userId = session?.id || 'user-model-1';
+    if (!session) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+
+    const userId = session.id;
 
     const body = await request.json();
     const planId = sanitizeInput(body.planId) as PlanId;
@@ -27,35 +30,16 @@ export async function POST(request: NextRequest) {
 
     const gateway: PaymentGatewayType = paymentMethod === 'crypto' ? 'nowpayments' : 'asaas';
 
-    // Cria/Atualiza a assinatura para o novo plano imediatamente
-    const updatedSub = await BillingService.createOrRenewSubscription({
-      userId,
-      gateway,
-      planId: plan.id,
-      planCategory: plan.category,
-      billingInterval: interval,
-      amount,
-      currency: 'BRL',
-      metadata: {
-        upgradeReason: `Upgrade para Plano ${plan.name} (${interval === 'yearly' ? 'Anual' : 'Mensal'})`,
-        paymentMethod,
-        upgradedAt: new Date().toISOString(),
-      },
-    });
-
-    if (!updatedSub) {
-      return NextResponse.json({ error: 'Falha ao atualizar assinatura.' }, { status: 500 });
-    }
-
-    // Registra transação auditável do upgrade
+    // Registra transação auditável do upgrade PENDENTE
+    const txId = `upg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const tx = await BillingService.recordTransaction({
       userId,
-      subscriptionId: updatedSub.id,
+      subscriptionId: undefined,
       gateway,
-      gatewayTransactionId: `upg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      gatewayTransactionId: txId,
       amount,
       currency: 'BRL',
-      status: 'success',
+      status: 'pending',
       paymentMethod,
       rawPayload: {
         planId: plan.id,
@@ -63,14 +47,15 @@ export async function POST(request: NextRequest) {
         interval,
         paymentMethod,
       },
+      idempotencyKey: `upgrade_${txId}`,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Upgrade para o plano ${plan.name} realizado com sucesso! Todos os novos limites e recursos foram ativados imediatamente.`,
-      subscription: updatedSub,
-      plan,
+      message: `Solicitação de upgrade para o plano ${plan.name} recebida. Conclua o pagamento no checkout para ativar os novos recursos.`,
       transactionId: tx.id,
+      paymentUrl: `/checkout?plan=${plan.id}&interval=${interval}`,
+      pending: true,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao processar upgrade de plano';

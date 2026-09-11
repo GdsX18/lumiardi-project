@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
       secret,
       otpauthUri,
       qrCodeUrl,
-      currentOtp, // Para conveniência em ambiente de testes/sandbox
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro ao gerar 2FA';

@@ -219,7 +219,8 @@ function CheckoutContent() {
             holderName: cardData.holderName,
             expiryMonth: expMonth,
             expiryYear: formattedYear,
-            ccv: cardData.cvv,
+            cvv: cardData.cvv.trim(),
+            ccv: cardData.cvv.trim(),
             cpf: cardData.cpf,
             installments: Number(cardData.installments) || 1,
           },
@@ -231,14 +232,15 @@ function CheckoutContent() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Falha ao processar pagamento com cartão.');
+        const data = await res.json().catch(() => ({}));
+        // O backend já normaliza a mensagem — exibe diretamente sem alterar
+        throw new Error(data.error || 'Transação não autorizada pela emissora do cartão. Verifique os dados ou tente outro cartão / Pix.');
       }
 
       if (refreshData) await refreshData();
       setPaymentSuccess(true);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Falha ao processar cartão.';
+      const msg = err instanceof Error ? err.message : 'Transação não autorizada. Verifique os dados do cartão e tente novamente.';
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -656,10 +658,29 @@ function CheckoutContent() {
                         </button>
                       </div>
 
-                      {/* Alerta de Erro */}
+                      {/* Alerta de Erro — profissional com opção de tentar novamente */}
                       {errorMessage && (
-                        <div className="p-3 bg-red-950/60 border border-red-500/50 text-red-300 text-xs font-sans rounded-xs">
-                          {errorMessage}
+                        <div className="p-4 bg-red-950/50 border border-red-500/40 rounded-lg space-y-3">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <p className="text-xs text-red-300 leading-relaxed font-sans">{errorMessage}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setErrorMessage(null)}
+                              className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold bg-white/10 hover:bg-white/20 text-ivory rounded-xs transition-colors cursor-pointer"
+                            >
+                              Tentar Novamente
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setErrorMessage(null); setGateway('pix'); }}
+                              className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 text-[#F5D77F] border border-[#D4AF37]/30 rounded-xs transition-colors cursor-pointer"
+                            >
+                              Pagar via Pix
+                            </button>
+                          </div>
                         </div>
                       )}
 

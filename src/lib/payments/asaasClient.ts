@@ -81,20 +81,34 @@ export interface AsaasPixQrCodeResponse {
 }
 
 export class AsaasClient {
-  private readonly apiKey: string;
-  private readonly apiUrl: string;
-  private readonly webhookSecret: string;
+  private readonly apiKey: string = process.env.ASAAS_API_KEY || '';
+  private readonly apiUrl: string = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/+$/, '');
+  private readonly webhookSecret: string = process.env.ASAAS_WEBHOOK_SECRET || '';
 
   constructor() {
-    this.apiKey = process.env.ASAAS_API_KEY || '';
-    this.apiUrl = (process.env.ASAAS_API_URL || 'https://api.asaas.com/v3').replace(/\/+$/, '');
-    this.webhookSecret = process.env.ASAAS_WEBHOOK_SECRET || '';
+    // URL e Secret podem ser estáticos, mas logamos apenas ao instanciar
+  }
+
+  /** Lemos a chave dinamicamente para garantir que o dotenv foi carregado pelo Next.js e usamos fallback explícito */
+  private getApiKey(): string {
+    const key = process.env.ASAAS_API_KEY || this.apiKey;
+    if (!key) {
+      console.error('[AsaasClient] ASAAS_API_KEY is not defined.');
+    }
+    return key.trim();
   }
 
   private getHeaders(): Record<string, string> {
+    const key = this.getApiKey();
+    if (!key || key.startsWith('falha_')) {
+      console.warn('[AsaasClient] AVISO: ASAAS_API_KEY não encontrada no process.env!');
+    } else {
+      console.log(`[AsaasClient] Usando Key prefixo: ${key.slice(0, 15)}...`);
+    }
+
     return {
       'Content-Type': 'application/json',
-      access_token: this.apiKey,
+      access_token: key,
     };
   }
 
@@ -104,18 +118,6 @@ export class AsaasClient {
   async getOrCreateCustomer(params: AsaasCustomerParams): Promise<AsaasCustomerResponse> {
     const cleanCpfCnpj = params.cpfCnpj ? params.cpfCnpj.replace(/\D/g, '') : undefined;
     const cleanPhone = params.phone ? params.phone.replace(/\D/g, '') : undefined;
-
-    // Se a chave não estiver configurada (ex: ambiente de teste sem credencial real), gera mock consistente
-    if (!this.apiKey || this.apiKey.startsWith('$aact_sua_chave') || this.apiKey.includes('sandbox_api_key')) {
-      return {
-        id: `cus_mock_${Date.now()}`,
-        name: params.name,
-        email: params.email,
-        cpfCnpj: cleanCpfCnpj,
-        phone: cleanPhone,
-        externalReference: params.externalReference,
-      };
-    }
 
     try {
       // 1. Tenta buscar cliente existente por e-mail ou CPF
@@ -175,29 +177,6 @@ export class AsaasClient {
    * Criação de cobrança / pagamento (/v3/payments)
    */
   async createPayment(params: AsaasCreatePaymentParams): Promise<AsaasPaymentResponse> {
-    const isMock = !this.apiKey || this.apiKey.startsWith('$aact_sua_chave') || this.apiKey.includes('sandbox_api_key');
-
-    if (isMock) {
-      const paymentId = `pay_mock_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      return {
-        id: paymentId,
-        dateCreated: new Date().toISOString(),
-        customer: params.customerId,
-        value: params.value,
-        billingType: params.billingType,
-        status: params.billingType === 'CREDIT_CARD' ? 'CONFIRMED' : 'PENDING',
-        dueDate: params.dueDate,
-        description: params.description,
-        externalReference: params.externalReference,
-        creditCard: params.creditCard
-          ? {
-              creditCardNumber: params.creditCard.number.slice(-4),
-              creditCardBrand: 'MASTERCARD',
-            }
-          : undefined,
-      };
-    }
-
     const payload: Record<string, unknown> = {
       customer: params.customerId,
       billingType: params.billingType,
@@ -216,13 +195,17 @@ export class AsaasClient {
         expiryYear: params.creditCard.expiryYear,
         ccv: params.creditCard.ccv,
       };
+      const holderInfo = params.creditCardHolderInfo;
+      const holderPhone = (holderInfo.phone || holderInfo.mobilePhone || '11999998888').replace(/\D/g, '');
+
       payload.creditCardHolderInfo = {
-        name: params.creditCardHolderInfo.name,
-        email: params.creditCardHolderInfo.email,
-        cpfCnpj: params.creditCardHolderInfo.cpfCnpj.replace(/\D/g, ''),
-        postalCode: params.creditCardHolderInfo.postalCode || '01310100',
-        addressNumber: params.creditCardHolderInfo.addressNumber || '1',
-        phone: params.creditCardHolderInfo.phone ? params.creditCardHolderInfo.phone.replace(/\D/g, '') : undefined,
+        name: holderInfo.name,
+        email: holderInfo.email,
+        cpfCnpj: holderInfo.cpfCnpj.replace(/\D/g, ''),
+        postalCode: (holderInfo.postalCode || '01310100').replace(/\D/g, ''),
+        addressNumber: holderInfo.addressNumber || '100',
+        phone: holderPhone,
+        mobilePhone: holderPhone,
       };
 
       if (params.installmentCount && params.installmentCount > 1) {
@@ -250,7 +233,7 @@ export class AsaasClient {
    * Obtém QR Code e Copia e Cola Pix (/v3/payments/{id}/pixQrCode)
    */
   async getPixQrCode(paymentId: string, amount: number = 19.90): Promise<AsaasPixQrCodeResponse> {
-    const isMock = !this.apiKey || this.apiKey.startsWith('$aact_sua_chave') || this.apiKey.includes('sandbox_api_key') || paymentId.startsWith('pay_mock_');
+    const isMock = !this.apiKey || this.apiKey === '$aact_sua_chave' || paymentId.startsWith('pay_mock_');
 
     if (isMock) {
       const formattedAmount = amount.toFixed(2);

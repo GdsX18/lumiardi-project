@@ -3,12 +3,20 @@ import bcrypt from 'bcryptjs';
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 
-export const pool = new Pool({
+declare global {
+  var __pgPool: Pool | undefined;
+}
+
+export const pool = globalThis.__pgPool || new Pool({
   connectionString,
-  max: 20, // Otimizado para concorrência
+  max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 3000, // Timeout rápido resiliente
+  connectionTimeoutMillis: 3000,
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.__pgPool = pool;
+}
 
 // Memória resiliente instantânea com suporte completo a pagamentos, assinaturas, RBAC, Audit Logs e Drive Compartilhado
 export const fallbackStore = {
@@ -840,6 +848,8 @@ export async function initDatabase(): Promise<boolean> {
         ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN DEFAULT FALSE;
         ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS metadata JSONB;
         ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS amount NUMERIC(10,2) DEFAULT 0;
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'BRL';
 
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100);
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(100);
@@ -849,6 +859,8 @@ export async function initDatabase(): Promise<boolean> {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(100);
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_url TEXT;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS gateway VARCHAR(30);
+        ALTER TABLE invoices ALTER COLUMN gateway DROP NOT NULL;
       `);
 
       // 14. Tabela PAYOUTS

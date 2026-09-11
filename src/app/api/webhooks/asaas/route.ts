@@ -38,6 +38,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment object or ID missing' }, { status: 400 });
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // IDEMPOTÊNCIA: chave única por evento + paymentId
+    // Se já processamos este evento, retorna 200 sem reprocessar
+    // ─────────────────────────────────────────────────────────────────────
+    const idempotencyKey = `asaas_${paymentId}_${event.toLowerCase()}`;
+    await initDatabase();
+
+    try {
+      const existing = await pool.query(
+        'SELECT id, status FROM payment_transactions WHERE idempotency_key = $1 LIMIT 1',
+        [idempotencyKey]
+      );
+      if (existing.rows.length > 0) {
+        console.log(`[Asaas Webhook] Evento duplicado ignorado (idempotent): ${idempotencyKey}`);
+        return NextResponse.json({ received: true, action: 'already_processed' });
+      }
+    } catch {
+      // Se a consulta falhar, prossegue e confia na constraint UNIQUE da coluna
+    }
+
     // 2. Extração de metadados da transação (externalReference: userId:planId:interval)
     let userId = '';
     let planId: PlanId = 'glow';
@@ -65,7 +85,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Se o userId não veio no externalReference, tenta localizar em payment_transactions existentes
-    await initDatabase();
     if (!userId) {
       try {
         const txRes = await pool.query(
@@ -76,7 +95,7 @@ export async function POST(request: NextRequest) {
           userId = txRes.rows[0].user_id;
         }
       } catch {
-        // Fallback
+        // Fallback em memória
         for (const tx of fallbackStore.payment_transactions.values()) {
           const t = tx as Record<string, any>;
           if (t.gateway_transaction_id === paymentId && t.user_id) {
@@ -101,7 +120,38 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ received: true, note: 'User ID unmapped' });
         }
 
-        // Ativa ou renova a assinatura do usuário
+        // Verifica se já existe assinatura ativa para não reativar indevidamente
+        let existingSubId: string | null = null;
+        try {
+          const subRes = await pool.query(
+            "SELECT id FROM subscriptions WHERE user_id = $1 AND gateway_subscription_id = $2 AND status = 'active' LIMIT 1",
+            [userId, paymentId]
+          );
+          if (subRes.rows.length > 0) {
+            existingSubId = subRes.rows[0].id;
+          }
+        } catch {
+          // prossegue sem verificação
+        }
+
+        if (existingSubId) {
+          // Já ativa — só registra a transação idempotentemente e retorna
+          await BillingService.recordTransaction({
+            userId,
+            subscriptionId: existingSubId,
+            gateway: 'asaas',
+            gatewayTransactionId: paymentId,
+            amount,
+            currency: 'BRL',
+            status: 'success',
+            paymentMethod,
+            rawPayload: payload,
+            idempotencyKey,
+          });
+          return NextResponse.json({ received: true, action: 'already_active', subscriptionId: existingSubId });
+        }
+
+        // Ativa ou renova a assinatura do usuário (primeira vez)
         const subscription = await BillingService.createOrRenewSubscription({
           userId,
           gateway: 'asaas',
@@ -121,7 +171,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Atualiza/Registra a transação com status 'success'
+        // Registra a transação com chave idempotente
         await BillingService.recordTransaction({
           userId,
           subscriptionId: subscription.id,
@@ -132,13 +182,13 @@ export async function POST(request: NextRequest) {
           status: 'success',
           paymentMethod,
           rawPayload: payload,
-          idempotencyKey: `asaas_${paymentId}_confirmed`,
+          idempotencyKey,
         });
 
-        // Atualiza status se transação pendente já existia
+        // Atualiza transações pendentes anteriores para o mesmo paymentId
         try {
           await pool.query(
-            "UPDATE payment_transactions SET status = 'success', subscription_id = $1 WHERE gateway_transaction_id = $2",
+            "UPDATE payment_transactions SET status = 'success', subscription_id = $1 WHERE gateway_transaction_id = $2 AND status != 'success'",
             [subscription.id, paymentId]
           );
         } catch {
@@ -164,21 +214,20 @@ export async function POST(request: NextRequest) {
       }
 
       case 'PAYMENT_OVERDUE': {
-        // Atualiza a transação como falha/vencida
+        // Só atualiza status — sem criar registros novos
         try {
           await pool.query(
-            "UPDATE payment_transactions SET status = 'failed' WHERE gateway_transaction_id = $1",
+            "UPDATE payment_transactions SET status = 'failed' WHERE gateway_transaction_id = $1 AND status != 'failed'",
             [paymentId]
           );
         } catch {
           // Fallback
         }
 
-        // Se houver assinatura vinculada, altera para past_due
         if (userId) {
           try {
             await pool.query(
-              "UPDATE subscriptions SET status = 'past_due', updated_at = NOW() WHERE user_id = $1 AND (gateway_subscription_id = $2 OR gateway = 'asaas')",
+              "UPDATE subscriptions SET status = 'past_due', updated_at = NOW() WHERE user_id = $1 AND (gateway_subscription_id = $2 OR gateway = 'asaas') AND status != 'past_due'",
               [userId, paymentId]
             );
           } catch {
@@ -186,13 +235,12 @@ export async function POST(request: NextRequest) {
           }
 
           const fallbackSub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
-          if (fallbackSub) {
+          if (fallbackSub && fallbackSub.status !== 'past_due') {
             fallbackSub.status = 'past_due';
             fallbackSub.updated_at = new Date().toISOString();
             fallbackStore.subscriptions.set(userId, fallbackSub);
           }
 
-          // Notificação de cobrança vencida
           try {
             await StorageService.createNotification({
               userId,
@@ -212,21 +260,20 @@ export async function POST(request: NextRequest) {
       }
 
       case 'PAYMENT_REFUNDED': {
-        // Atualiza status da transação para estornada
+        // Só atualiza status — sem criar registros novos
         try {
           await pool.query(
-            "UPDATE payment_transactions SET status = 'refunded' WHERE gateway_transaction_id = $1",
+            "UPDATE payment_transactions SET status = 'refunded' WHERE gateway_transaction_id = $1 AND status != 'refunded'",
             [paymentId]
           );
         } catch {
           // Fallback
         }
 
-        // Suspende a assinatura do usuário
         if (userId) {
           try {
             await pool.query(
-              "UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE user_id = $1 AND (gateway_subscription_id = $2 OR gateway = 'asaas')",
+              "UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE user_id = $1 AND (gateway_subscription_id = $2 OR gateway = 'asaas') AND status != 'canceled'",
               [userId, paymentId]
             );
           } catch {
@@ -240,7 +287,6 @@ export async function POST(request: NextRequest) {
             fallbackStore.subscriptions.set(userId, fallbackSub);
           }
 
-          // Notificação de estorno
           try {
             await StorageService.createNotification({
               userId,
@@ -269,4 +315,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
-

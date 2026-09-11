@@ -70,11 +70,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID da tarefa obrigatório.' }, { status: 400 });
     }
 
+    const isAdmin = session.role === 'admin';
     await StorageService.updateKanbanTask(body.id, {
       columnStatus: body.columnStatus,
       title: body.title ? sanitizeInput(body.title) : undefined,
       priority: body.priority,
-    });
+    }, session.id, isAdmin);
 
     return NextResponse.json({ success: true, message: 'Tarefa atualizada com sucesso.' });
   } catch (err: unknown) {
@@ -99,7 +100,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID da tarefa obrigatório.' }, { status: 400 });
     }
 
-    await StorageService.deleteKanbanTask(id);
+    const isAdmin = session.role === 'admin';
+    await StorageService.deleteKanbanTask(id, session.id, isAdmin);
     return NextResponse.json({ success: true, message: 'Tarefa removida com sucesso.' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao deletar tarefa';

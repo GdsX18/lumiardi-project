@@ -7,7 +7,13 @@ export async function GET(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const userId = session?.id || (request.nextUrl.searchParams.get('userId') || 'user-model-1');
+    const requestedUserId = request.nextUrl.searchParams.get('userId');
+    const userId = (session?.role === 'admin' && requestedUserId) ? requestedUserId : session?.id;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+
     const payouts = await BillingService.getUserPayouts(userId);
 
     const totalPaid = payouts

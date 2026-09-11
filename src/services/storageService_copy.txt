@@ -323,7 +323,7 @@ export const StorageService = {
             if (sub || latestInv) {
               paymentInfo = {
                 hasPaid: sub?.status === 'active' || latestInv?.status === 'paid',
-                planId: sub?.plan_id,
+                planId: sub?.plan_id || latestInv?.plan_id,
                 planCategory: sub?.plan_category,
                 billingInterval: sub?.billing_interval,
                 amount: latestInv?.amount || sub?.amount,
@@ -369,6 +369,7 @@ export const StorageService = {
               },
               paymentInfo: paymentInfo || (row as any).payment_info || null,
             };
+          })
           });
         return apps;
       }
@@ -482,13 +483,13 @@ export const StorageService = {
           if (sub || latestInv) {
             paymentInfo = {
               hasPaid: sub?.status === 'active' || latestInv?.status === 'paid',
-              planId: sub?.planId,
-              planCategory: sub?.planCategory,
-              billingInterval: sub?.billingInterval,
+              planId: sub?.plan_id || latestInv?.plan_id,
+              planCategory: sub?.plan_category,
+              billingInterval: sub?.billing_interval,
               amount: latestInv?.amount || sub?.amount,
               currency: latestInv?.currency || 'BRL',
               status: latestInv?.status || sub?.status || 'pending',
-              receiptNumber: latestInv?.receiptNumber,
+              receiptNumber: latestInv?.receipt_number,
             };
           }
         } catch {}
