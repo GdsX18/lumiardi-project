@@ -130,6 +130,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setActiveTab(defaultTab);
   }, [defaultTab, isOpen]);
 
+  const [uploading, setUploading] = useState(false);
+
   if (!isOpen) return null;
 
   // Adicionar foto ao Book
@@ -150,8 +152,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const handleRemovePhoto = (id: string) => {
     setPhotos(photos.filter((p) => p.id !== id));
   };
-
-  const [uploading, setUploading] = useState(false);
 
   // Upload direto no Cloudflare R2 via /api/upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'photo' | 'video') => {

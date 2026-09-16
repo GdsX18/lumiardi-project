@@ -73,9 +73,9 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
     }
   }, [initialData]);
 
-  if (!isOpen) return null;
-
   const [uploading, setUploading] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

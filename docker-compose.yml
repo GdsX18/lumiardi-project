@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-lumiardi_db}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./lumiardi_schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -21,19 +21,24 @@ services:
     networks:
       - lumiardi_network
 
-  # Aplicação Lumiardi Web (Next.js 15)
+  # Aplicação Lumiardi Web (Next.js 16 Standalone)
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://lumiardi.com}
     container_name: lumiardi_app
     restart: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-lumiardi_db}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-lumiardi_super_secret_jwt_key_2026_prod}
+      JWT_SECRET: ${JWT_SECRET:-lumiardi_super_secret_jwt_key_2026_prod}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     volumes:
       - uploads_data:/app/public/uploads

@@ -53,6 +53,23 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Migrações idempotentes para bancos pré-existentes
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS document_type VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS document_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS document_url VARCHAR(255);
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS accepts_offers BOOLEAN DEFAULT TRUE;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_represented BOOLEAN DEFAULT FALSE;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS represented_agency_name VARCHAR(255);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS represented_agency_id VARCHAR(100);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS corporate_name VARCHAR(255);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS responsible_name VARCHAR(255);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cnpj VARCHAR(100);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS commission_rate VARCHAR(50);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS specialties JSONB;
+
 -- 3. TABELA DE TAREFAS DO KANBAN
 CREATE TABLE IF NOT EXISTS kanban_tasks (
   id VARCHAR(100) PRIMARY KEY,
@@ -283,19 +300,19 @@ CREATE INDEX IF NOT EXISTS idx_payouts_user_id ON payouts(recipient_id);
 -- 16. SEED DAS CONTAS DE TESTE & CURADORIA (Senha padrão: lumiardi2026)
 INSERT INTO users (id, email, password_hash, role, curation_status, full_name)
 VALUES 
-  ('admin-curadoria-1', 'curadoria@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi'),
-  ('user-admin-model', 'admin@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'ADMIN', 'APROVADO', 'Administrador Lumiardi'),
-  ('user-model-1', 'modelo@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'MODELO', 'APROVADO', 'Sua Conta Modelo'),
-  ('user-agency-1', 'agencia@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa')
+  ('admin-curadoria-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi'),
+  ('user-admin-model', 'admin@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'ADMIN', 'APROVADO', 'Administrador Lumiardi'),
+  ('user-model-1', 'modelo@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'MODELO', 'APROVADO', 'Sua Conta Modelo'),
+  ('user-agency-1', 'agencia@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa')
 ON CONFLICT (email) DO NOTHING;
 
 -- Equipe de Curadoria (RBAC)
 INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
 VALUES
-  ('cur-admin-1', 'curadoria@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'Mesa de Curadoria (Diretoria)', 'admin', 'active'),
-  ('cur-admin-2', 'admin@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'Administrador Executivo', 'admin', 'active'),
-  ('cur-snr-1', 'curador.senior@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'Rodrigo Medeiros (Curador Sênior)', 'curador_senior', 'active'),
-  ('cur-jnr-1', 'curador.junior@lumiardi.com', '$2a$10$7v2M3Xg5zKq3R2V6xO5dOeo4YpZ0f7jJ7v5X6n8z9m0k1l2m3n4o', 'Camila Duarte (Curadora Júnior)', 'curador_junior', 'active')
+  ('cur-admin-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Mesa de Curadoria (Diretoria)', 'admin', 'active'),
+  ('cur-admin-2', 'admin@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Administrador Executivo', 'admin', 'active'),
+  ('cur-snr-1', 'curador.senior@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Rodrigo Medeiros (Curador Sênior)', 'curador_senior', 'active'),
+  ('cur-jnr-1', 'curador.junior@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Camila Duarte (Curadora Júnior)', 'curador_junior', 'active')
 ON CONFLICT (email) DO NOTHING;
 
 -- Perfis Iniciais

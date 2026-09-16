@@ -137,9 +137,9 @@ export const ChatPanel: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('folder', 'chat');
+      formData.append('category', 'chat');
 
-      const res = await fetch('/api/drive/upload', {
+      const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
@@ -148,7 +148,7 @@ export const ChatPanel: React.FC = () => {
         const data = await res.json();
         setAttachedFile({
           name: file.name,
-          url: data.file?.url,
+          url: data.url || data.file?.url,
           type: file.type.startsWith('image/') ? 'image' : 'file',
         });
       } else {

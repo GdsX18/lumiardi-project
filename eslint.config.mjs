@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
           "varsIgnorePattern": "^_",
         },
       ],
+      "react-hooks/set-state-in-effect": "warn",
+      "react/no-unescaped-entities": "off",
+      "prefer-const": "warn",
     },
   },
   // Override default ignores of eslint-config-next.
@@ -24,6 +27,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "scripts/**",
+    "scratch/**",
   ]),
 ]);
 

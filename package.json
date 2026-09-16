@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:init": "node scripts/init-db.js",
+    "admin:create": "node scripts/create-admin.js",
     "test": "node scripts/test-suite.js"
   },
   "dependencies": {

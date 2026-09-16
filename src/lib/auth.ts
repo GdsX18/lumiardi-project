@@ -19,6 +19,7 @@ export interface SessionUser {
   category?: string;
   country?: string;
   city?: string;
+  rejectionReason?: string;
   createdAt: string;
 }
 

@@ -316,7 +316,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }
   };
 
-  const stopCamera = () => {
+  function stopCamera() {
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;

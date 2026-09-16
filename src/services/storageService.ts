@@ -288,8 +288,8 @@ export const StorageService = {
           BillingService = billingModule.BillingService;
         } catch {}
 
-        let subsMap = new Map();
-        let invsMap = new Map();
+        const subsMap = new Map();
+        const invsMap = new Map();
 
         if (BillingService) {
           try {

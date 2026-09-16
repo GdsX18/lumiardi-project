@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 
 export async function GET(request: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Busca o usuário e perfil mais recente no Storage
     const userRecord = await StorageService.getUserById(session.id);
     const fullProfile = userRecord?.profile || null;
-    const currentStatus = userRecord?.user?.curationStatus || session.curationStatus;
+    const currentStatus = (userRecord?.user?.curationStatus as SessionUser['curationStatus']) || session.curationStatus;
     const rejectionReason = userRecord?.user?.rejectionReason;
 
     // Busca faturas e assinaturas para exibição de status financeiro / comprovante de estorno
@@ -31,19 +31,39 @@ export async function GET(request: NextRequest) {
       // Silencioso se billing offline
     }
 
-    return NextResponse.json({
+    const hasStatusChanged = currentStatus !== session.curationStatus;
+    const hasNameChanged = Boolean(userRecord?.user?.name && userRecord.user.name !== session.name);
+
+    const updatedSession: SessionUser = {
+      ...session,
+      curationStatus: currentStatus,
+      rejectionReason: rejectionReason,
+      name: userRecord?.user?.name || session.name,
+    };
+
+    const response = NextResponse.json({
       authenticated: true,
-      user: {
-        ...session,
-        curationStatus: currentStatus,
-        rejectionReason: rejectionReason,
-        name: userRecord?.user?.name || session.name,
-      },
+      user: updatedSession,
       profile: fullProfile,
       invoices,
       latestInvoice: invoices[0] || null,
       subscription,
     });
+
+    // Se o status ou nome mudou no banco (ex: curadoria aprovou), atualiza o cookie assinado
+    if (hasStatusChanged || hasNameChanged) {
+      response.cookies.set({
+        name: SESSION_COOKIE_NAME,
+        value: encodeSession(updatedSession),
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    }
+
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao recuperar usuário';
     return NextResponse.json(
