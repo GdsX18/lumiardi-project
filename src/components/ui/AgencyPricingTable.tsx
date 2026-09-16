@@ -13,32 +13,23 @@ interface AgencyPlan {
 }
 
 interface AgencyPricingTableProps {
-  currency: 'BRL' | 'USD';
+  currency?: 'BRL' | 'USD' | 'EUR';
   isYearly: boolean;
 }
 
-export const AgencyPricingTable: React.FC<AgencyPricingTableProps> = ({ currency, isYearly }) => {
-  const { t } = useLanguage();
-
-  const formatPrice = (brl: number, usd: number): string => {
-    const amount = currency === 'USD' ? usd : brl;
-    return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
+export const AgencyPricingTable: React.FC<AgencyPricingTableProps> = ({ isYearly }) => {
+  const { t, formatPrice } = useLanguage();
 
   const plans: AgencyPlan[] = [
     {
       name: 'Select',
-      price: formatPrice(isYearly ? 233.10 : 259.00, isYearly ? 44.10 : 49.00),
+      price: formatPrice(isYearly ? 233.10 : 259.00, isYearly ? 44.10 : 49.00, isYearly ? 40.50 : 45.00),
       badge: undefined,
       isPopular: false,
     },
     {
       name: 'Signature',
-      price: formatPrice(isYearly ? 441.00 : 490.00, isYearly ? 89.10 : 99.00),
+      price: formatPrice(isYearly ? 441.00 : 490.00, isYearly ? 89.10 : 99.00, isYearly ? 80.10 : 89.00),
       badge: t('plan_sig_rec_badge'),
       isPopular: true,
     },

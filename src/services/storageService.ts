@@ -541,7 +541,7 @@ export const StorageService = {
    */
   async updateApplicationStatus(
     id: string,
-    status: 'APROVADO' | 'REJEITADO',
+    status: 'APROVADO' | 'REJEITADO' | 'EM_CURATORIA',
     rejectionReason?: string
   ): Promise<boolean> {
     await initDatabase();

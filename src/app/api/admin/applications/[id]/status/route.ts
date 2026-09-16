@@ -32,7 +32,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const status = body.status === 'APROVADO' ? 'APROVADO' : 'REJEITADO';
+    const status = body.status === 'APROVADO' ? 'APROVADO' : body.status === 'EM_CURATORIA' ? 'EM_CURATORIA' : 'REJEITADO';
     const rejectionReason = body.rejectionReason ? sanitizeInput(body.rejectionReason) : undefined;
 
     if (status === 'REJEITADO' && !rejectionReason) {
@@ -121,9 +121,11 @@ export async function POST(
       refund: refundInfo,
       message: status === 'APROVADO'
         ? 'Credencial aprovada com sucesso.'
-        : refundInfo?.refunded
-          ? `Credencial recusada. Reembolso integral de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} estornado automaticamente (Código: ${refundInfo.refundCode}).`
-          : 'Credencial recusada com justificativa formal registrada.',
+        : status === 'EM_CURATORIA'
+          ? 'Credencial reaberta e reencaminhada para a Mesa de Curadoria.'
+          : refundInfo?.refunded
+            ? `Credencial recusada. Reembolso integral de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} estornado automaticamente (Código: ${refundInfo.refundCode}).`
+            : 'Credencial recusada com justificativa formal registrada.',
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao atualizar status';

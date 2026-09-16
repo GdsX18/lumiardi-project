@@ -44,9 +44,9 @@ function CheckoutContent() {
     }
   }, [paramCurrency, setCurrency]);
 
-  // Keep gateway synchronized if currency switches to USD while Pix is selected
+  // Keep gateway synchronized if currency switches to USD or EUR while Pix is selected
   useEffect(() => {
-    if (currency === 'USD' && gateway === 'pix') {
+    if ((currency === 'USD' || currency === 'EUR') && gateway === 'pix') {
       setGateway('asaas');
     }
   }, [currency, gateway]);
@@ -364,6 +364,17 @@ function CheckoutContent() {
                 }`}
               >
                 USD ($)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('EUR')}
+                className={`px-3 py-1 text-xs font-semibold rounded-xs transition-all cursor-pointer ${
+                  currency === 'EUR'
+                    ? 'bg-[#D4AF37] text-black shadow-md'
+                    : 'text-ivory/70 hover:text-white'
+                }`}
+              >
+                EUR (€)
               </button>
             </div>
           </div>

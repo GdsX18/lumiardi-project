@@ -21,9 +21,15 @@ const PartnersSection = dynamic(() =>
 const MediaOpportunitiesSection = dynamic(() =>
   import('@/components/sections/MediaOpportunitiesSection').then(m => ({ default: m.MediaOpportunitiesSection }))
 );
-const ShowcaseSection = dynamic(() =>
-  import('@/components/sections/ShowcaseSection').then(m => ({ default: m.ShowcaseSection }))
-);
+// Feature flag: Vitrine "Explorar Rede de Elite" ocultada temporariamente a pedido da cliente
+// Alternar para true quando houver modelos e agências reais aprovadas na curadoria
+const SHOW_SHOWCASE_SECTION = false;
+
+// Se a vitrine estiver desativada, não avalia o import dinâmico nem carrega assets no bundle da Home
+const ShowcaseSection = SHOW_SHOWCASE_SECTION
+  ? dynamic(() => import('@/components/sections/ShowcaseSection').then((m) => ({ default: m.ShowcaseSection })))
+  : null;
+
 const DashboardShowcaseSection = dynamic(() =>
   import('@/components/sections/DashboardShowcaseSection').then(m => ({ default: m.DashboardShowcaseSection }))
 );
@@ -61,7 +67,7 @@ export default function Home() {
       <EcosystemSection />
       <PartnersSection />
       <MediaOpportunitiesSection />
-      <ShowcaseSection />
+      {ShowcaseSection && <ShowcaseSection />}
       <DashboardShowcaseSection />
       <PlansCTASection />
       <Footer />

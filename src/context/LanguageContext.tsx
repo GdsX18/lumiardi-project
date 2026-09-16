@@ -7360,7 +7360,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
   },
 };
 
-export type CurrencyCode = 'BRL' | 'USD';
+export type CurrencyCode = 'BRL' | 'USD' | 'EUR';
 
 const CHECKOUT_TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
   pt: {
@@ -7730,7 +7730,7 @@ interface LanguageContextType {
   setLanguage: (lang: LanguageCode) => void;
   currency: CurrencyCode;
   setCurrency: (curr: CurrencyCode) => void;
-  formatPrice: (brl: number, usd: number) => string;
+  formatPrice: (brl: number, usd: number, eur?: number) => string;
   t: (key: string) => string;
 }
 
@@ -7738,6 +7738,15 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 const LANG_STORAGE_KEY = 'lumiardi_lang_v2';
 const CURRENCY_STORAGE_KEY = 'lumiardi_currency';
+
+const localeMap: Record<LanguageCode, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  it: 'it-IT',
+  ru: 'ru-RU',
+};
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<LanguageCode>('en');
@@ -7753,10 +7762,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Migrate legacy key only if user had explicitly changed from default (not 'pt' default)
       // We intentionally do NOT read the old 'lumiardi_lang' key to avoid the old 'pt' default persisting
       const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY) as CurrencyCode;
-      if (savedCurrency === 'BRL' || savedCurrency === 'USD') {
+      if (savedCurrency === 'BRL' || savedCurrency === 'USD' || savedCurrency === 'EUR') {
         queueMicrotask(() => setCurrencyState(savedCurrency));
       } else if (savedLang) {
-        queueMicrotask(() => setCurrencyState(savedLang === 'pt' ? 'BRL' : 'USD'));
+        queueMicrotask(() => setCurrencyState(savedLang === 'pt' ? 'BRL' : (savedLang === 'fr' || savedLang === 'it' || savedLang === 'es') ? 'EUR' : 'USD'));
       }
     } catch {
       // Ignore storage access errors
@@ -7767,10 +7776,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLanguageState(lang);
     try {
       localStorage.setItem(LANG_STORAGE_KEY, lang);
-      // Automatically default currency to BRL for PT, USD for international if currency wasn't explicitly locked
+      // Automatically default currency to BRL for PT, EUR for European languages, USD for international if currency wasn't explicitly locked
       const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY);
       if (!savedCurrency) {
-        setCurrencyState(lang === 'pt' ? 'BRL' : 'USD');
+        setCurrencyState(lang === 'pt' ? 'BRL' : (lang === 'fr' || lang === 'it' || lang === 'es') ? 'EUR' : 'USD');
       }
     } catch {
       // Ignore storage access errors
@@ -7786,9 +7795,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const formatPrice = (brl: number, usd: number): string => {
-    const amount = currency === 'USD' ? usd : brl;
-    return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', {
+  const formatPrice = (brl: number, usd: number, eur?: number): string => {
+    let amount = brl;
+    if (currency === 'USD') {
+      amount = usd;
+    } else if (currency === 'EUR') {
+      amount = eur ?? Math.round(usd * 0.92 * 100) / 100;
+    }
+    const locale = localeMap[language] || 'pt-BR';
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
       minimumFractionDigits: 2,

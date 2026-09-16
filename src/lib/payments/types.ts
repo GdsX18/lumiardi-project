@@ -43,6 +43,10 @@ export interface PlanDefinition {
     monthly: number;
     yearly: number;
   };
+  priceEUR: {
+    monthly: number;
+    yearly: number;
+  };
   badge?: string;
   isPopular?: boolean;
   description: string;
@@ -113,7 +117,7 @@ export interface CheckoutSessionResponse {
     category: PlanCategory;
     interval: BillingInterval;
     amount: number;
-    currency: 'BRL' | 'USD';
+    currency: 'BRL' | 'USD' | 'EUR';
   };
   error?: string;
 }

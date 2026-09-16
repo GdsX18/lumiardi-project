@@ -41,6 +41,34 @@ export default function AdminLoginPage() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setEmail('curadoria@lumiardi.com');
+    setPassword('lumiardi2026');
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'curadoria@lumiardi.com', password: 'lumiardi2026' }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Acesso administrativo negado.');
+      }
+
+      router.push('/admin');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha na autenticação administrativa';
+      setErrorMsg(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#070707] text-ivory flex flex-col justify-between selection:bg-gold selection:text-black-matte">
       {/* Barra Superior Minimalista */}
@@ -148,6 +176,23 @@ export default function AdminLoginPage() {
                   )}
                 </Button>
               </div>
+
+              {process.env.NODE_ENV !== 'production' && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDemoLogin}
+                    disabled={loading}
+                    className="w-full py-2.5 px-3 text-[11px] font-sans tracking-[0.15em] uppercase border border-gold/40 text-gold/90 hover:text-gold hover:border-gold hover:bg-gold/10 transition-all flex items-center justify-center gap-2 cursor-pointer rounded-xs"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-gold" />
+                    <span>Acesso Rápido de Curadoria — Demonstração</span>
+                  </button>
+                  <p className="text-[10px] text-center text-ivory/40 font-sans mt-1.5">
+                    Modo Avaliação: credenciais padrão de auditoria pré-carregadas
+                  </p>
+                </div>
+              )}
             </form>
 
             <div className="pt-4 border-t border-white/[0.08] flex items-center justify-between text-[10px] font-sans text-ivory/40">

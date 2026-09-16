@@ -53,7 +53,7 @@ interface Application {
   email: string;
   fullName: string;
   role: 'criadora' | 'agencia';
-  curationStatus: 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO';
+  curationStatus: 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO' | 'RECUSADO';
   phone?: string;
   documentType?: string;
   documentName?: string;
@@ -157,6 +157,16 @@ export default function AdminDashboardPage() {
       const results = await Promise.all(promises);
       const mRes = results[0];
       const aRes = isAppTab ? results[1] : null;
+
+      if (mRes && (mRes.status === 401 || mRes.status === 403)) {
+        window.location.href = '/admin/login';
+        return;
+      }
+
+      if (aRes && (aRes.status === 401 || aRes.status === 403)) {
+        window.location.href = '/admin/login';
+        return;
+      }
 
       if (mRes && mRes.ok) {
         const mData = await mRes.json();
@@ -273,7 +283,7 @@ export default function AdminDashboardPage() {
       if (res.ok) {
         const data = await res.json();
         const refundNote = data.refund?.refunded
-          ? ` • Reembolso de ${data.refund.currency === 'BRL' ? 'R$ ' : '$'}${data.refund.amount?.toFixed(2).replace('.', ',')} efetuado automaticamente (Código: ${data.refund.refundCode})`
+          ? ` • Reembolso de ${data.refund.currency === 'BRL' ? 'R$ ' : '$'}${Number(data.refund.amount || 0).toFixed(2).replace('.', ',')} efetuado automaticamente (Código: ${data.refund.refundCode})`
           : '';
         setActionSuccessMsg(`Credencial recusada com justificativa formal.${refundNote}`);
         setShowRejectModal(false);
@@ -724,7 +734,7 @@ export default function AdminDashboardPage() {
                                     </span>
                                     {app.paymentInfo?.hasPaid && (
                                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono rounded-xs block">
-                                        ✓ {app.paymentInfo.planId?.toUpperCase() || 'PAGO'} (R$ {app.paymentInfo.amount?.toFixed(2)})
+                                        ✓ {app.paymentInfo.planId?.toUpperCase() || 'PAGO'} (R$ {Number(app.paymentInfo.amount || 0).toFixed(2)})
                                       </span>
                                     )}
                                   </div>
@@ -803,12 +813,12 @@ export default function AdminDashboardPage() {
                   className={`text-[10px] font-sans px-2.5 py-1 uppercase tracking-widest font-semibold rounded-xs border ${
                     selectedApp.curationStatus === 'APROVADO'
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                      : selectedApp.curationStatus === 'REJEITADO'
+                      : selectedApp.curationStatus === 'REJEITADO' || selectedApp.curationStatus === 'RECUSADO'
                       ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                       : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
                   }`}
                 >
-                  {selectedApp.curationStatus}
+                  {selectedApp.curationStatus === 'REJEITADO' ? 'RECUSADO' : selectedApp.curationStatus}
                 </span>
 
                 <button
@@ -850,7 +860,7 @@ export default function AdminDashboardPage() {
                   <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
                     <span className="text-[10px] text-ivory/40 block">Valor da Adesão</span>
                     <span className="font-semibold text-emerald-400">
-                      R$ {selectedApp.paymentInfo?.amount ? selectedApp.paymentInfo.amount.toFixed(2).replace('.', ',') : (selectedApp.role === 'agencia' ? '2.797,20' : '1.402,92')}
+                      R$ {selectedApp.paymentInfo?.amount ? Number(selectedApp.paymentInfo.amount).toFixed(2).replace('.', ',') : (selectedApp.role === 'agencia' ? '2.797,20' : '1.402,92')}
                     </span>
                   </div>
                   <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
@@ -1284,7 +1294,7 @@ export default function AdminDashboardPage() {
                   <span>Estorno / Reembolso Automático Ativo</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Ao confirmar a recusa, o valor pago de <strong>R$ {selectedApp.paymentInfo.amount ? selectedApp.paymentInfo.amount.toFixed(2).replace('.', ',') : 'Integral'}</strong> será <strong>estornado/reembolsado automaticamente</strong> para a conta original do cliente.
+                  Ao confirmar a recusa, o valor pago de <strong>R$ {selectedApp.paymentInfo.amount ? Number(selectedApp.paymentInfo.amount).toFixed(2).replace('.', ',') : 'Integral'}</strong> será <strong>estornado/reembolsado automaticamente</strong> para a conta original do cliente.
                 </p>
               </div>
             )}

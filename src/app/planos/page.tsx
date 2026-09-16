@@ -10,7 +10,7 @@ import { AgencyBenefitsModal } from '@/components/ui/AgencyBenefitsModal';
 import { ShieldCheck, Building2, UserCheck, Check, HardDrive, Search, Lock, Users, DollarSign } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
-type Currency = 'BRL' | 'USD';
+type Currency = 'BRL' | 'USD' | 'EUR';
 
 const PLAN_CONTENT = {
   pt: {
@@ -216,9 +216,22 @@ export default function PlanosPage() {
   const { language, t, currency, setCurrency, formatPrice } = useLanguage();
   const c = PLAN_CONTENT[language as keyof typeof PLAN_CONTENT] || PLAN_CONTENT.pt;
 
-  const formatAnnual = (brl: number, usd: number): string => {
-    const amount = currency === 'USD' ? usd : brl;
-    return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', {
+  const formatAnnual = (brl: number, usd: number, eur: number): string => {
+    let amount = brl;
+    if (currency === 'USD') {
+      amount = usd;
+    } else if (currency === 'EUR') {
+      amount = eur;
+    }
+    const localeMap: Record<string, string> = {
+      pt: 'pt-BR',
+      en: 'en-US',
+      es: 'es-ES',
+      fr: 'fr-FR',
+      it: 'it-IT',
+      ru: 'ru-RU',
+    };
+    return new Intl.NumberFormat(localeMap[language] || 'pt-BR', {
       style: 'currency',
       currency,
       minimumFractionDigits: 2,
@@ -226,23 +239,23 @@ export default function PlanosPage() {
   };
 
   // Creator prices
-  const glowMonthly = formatPrice(19.90, 3.99);
-  const glowYearly = formatPrice(17.91, 3.59);
-  const glowAnnual = formatAnnual(17.91, 3.59);
-  const radianceMonthly = formatPrice(69.90, 13.99);
-  const radianceYearly = formatPrice(62.91, 12.59);
-  const radianceAnnual = formatAnnual(62.91, 12.59);
-  const iconMonthly = formatPrice(129.90, 25.99);
-  const iconYearly = formatPrice(116.91, 23.39);
-  const iconAnnual = formatAnnual(116.91, 23.39);
+  const glowMonthly = formatPrice(19.90, 3.99, 3.69);
+  const glowYearly = formatPrice(17.91, 3.59, 3.29);
+  const glowAnnual = formatAnnual(17.91, 3.59, 3.29);
+  const radianceMonthly = formatPrice(69.90, 13.99, 12.99);
+  const radianceYearly = formatPrice(62.91, 12.59, 11.69);
+  const radianceAnnual = formatAnnual(62.91, 12.59, 11.69);
+  const iconMonthly = formatPrice(129.90, 25.99, 23.99);
+  const iconYearly = formatPrice(116.91, 23.39, 21.59);
+  const iconAnnual = formatAnnual(116.91, 23.39, 21.59);
 
   // Agency prices
-  const selectMonthly = formatPrice(259.00, 49.00);
-  const selectYearly = formatPrice(233.10, 44.10);
-  const selectAnnual = formatAnnual(233.10, 44.10);
-  const sigMonthly = formatPrice(490.00, 99.00);
-  const sigYearly = formatPrice(441.00, 89.10);
-  const sigAnnual = formatAnnual(441.00, 89.10);
+  const selectMonthly = formatPrice(259.00, 49.00, 45.00);
+  const selectYearly = formatPrice(233.10, 44.10, 40.50);
+  const selectAnnual = formatAnnual(233.10, 44.10, 40.50);
+  const sigMonthly = formatPrice(490.00, 99.00, 89.00);
+  const sigYearly = formatPrice(441.00, 89.10, 80.10);
+  const sigAnnual = formatAnnual(441.00, 89.10, 80.10);
 
   const handleAgencyCTA = (planId: string) => {
     setAgencyModal({ planId, billing: isYearly ? 'yearly' : 'monthly' });
@@ -325,12 +338,12 @@ export default function PlanosPage() {
             {/* Currency selector */}
             <div className="inline-flex items-center gap-1.5 p-1 bg-white/5 border border-white/10 rounded-full">
               <DollarSign className="w-3.5 h-3.5 text-ivory/40 ml-1.5" />
-              {(['BRL', 'USD'] as Currency[]).map((cur) => (
+              {(['BRL', 'USD', 'EUR'] as Currency[]).map((cur) => (
                 <button
                   key={cur}
                   onClick={() => setCurrency(cur)}
                   className={`px-3.5 py-1.5 text-xs font-sans uppercase tracking-wider rounded-full transition-all cursor-pointer ${
-                    currency === cur ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold' : 'text-ivory/60 hover:text-ivory'
+                    currency === cur ? 'bg-[#C9A96B] text-[#0B0B0B] font-semibold shadow-sm' : 'text-ivory/60 hover:text-ivory'
                   }`}
                 >
                   {cur}

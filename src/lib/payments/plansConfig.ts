@@ -18,6 +18,10 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       monthly: 3.99,
       yearly: 3.59,
     },
+    priceEUR: {
+      monthly: 3.69,
+      yearly: 3.29,
+    },
     badge: 'Essencial',
     description: 'Entrada no ecossistema Lumiardi com Book digital seguro e presença no catálogo oficial.',
     features: [
@@ -61,6 +65,10 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
     priceUSD: {
       monthly: 13.99,
       yearly: 12.59,
+    },
+    priceEUR: {
+      monthly: 12.99,
+      yearly: 11.69,
     },
     badge: 'Mais Escolhido',
     isPopular: true,
@@ -108,6 +116,10 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       monthly: 25.99,
       yearly: 23.39,
     },
+    priceEUR: {
+      monthly: 23.99,
+      yearly: 21.59,
+    },
     badge: 'Máximo Prestígio',
     description: 'Máximo posicionamento, concierge de carreira e negociações de alto valor.',
     features: [
@@ -152,6 +164,10 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
     priceUSD: {
       monthly: 49.00,
       yearly: 44.10,
+    },
+    priceEUR: {
+      monthly: 45.00,
+      yearly: 40.50,
     },
     badge: 'Agências Boutique',
     description: 'Solução sob medida para agências boutique com gestão de até 10 modelos agenciadas.',
@@ -198,6 +214,10 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
     priceUSD: {
       monthly: 99.00,
       yearly: 89.10,
+    },
+    priceEUR: {
+      monthly: 89.00,
+      yearly: 80.10,
     },
     badge: 'Grandes Agências & Holdings',
     isPopular: true,

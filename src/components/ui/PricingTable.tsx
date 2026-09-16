@@ -13,26 +13,17 @@ export interface PricingPlan {
 }
 
 interface PricingTableProps {
-  currency?: 'BRL' | 'USD';
+  currency?: 'BRL' | 'USD' | 'EUR';
   isYearly?: boolean;
 }
 
-export const PricingTable: React.FC<PricingTableProps> = ({ currency = 'BRL', isYearly = false }) => {
-  const { t } = useLanguage();
-
-  const formatPrice = (brl: number, usd: number): string => {
-    const amount = currency === 'USD' ? usd : brl;
-    return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
+export const PricingTable: React.FC<PricingTableProps> = ({ isYearly = false }) => {
+  const { t, formatPrice } = useLanguage();
 
   const plans: PricingPlan[] = [
-    { name: 'Glow', price: formatPrice(isYearly ? 17.91 : 19.90, isYearly ? 3.59 : 3.99) },
-    { name: 'Radiance', price: formatPrice(isYearly ? 62.91 : 69.90, isYearly ? 12.59 : 13.99) },
-    { name: 'Icon', price: formatPrice(isYearly ? 116.91 : 129.90, isYearly ? 23.39 : 25.99), badge: t('plan_icon_rec_badge'), isPopular: true },
+    { name: 'Glow', price: formatPrice(isYearly ? 17.91 : 19.90, isYearly ? 3.59 : 3.99, isYearly ? 3.29 : 3.69) },
+    { name: 'Radiance', price: formatPrice(isYearly ? 62.91 : 69.90, isYearly ? 12.59 : 13.99, isYearly ? 11.69 : 12.99) },
+    { name: 'Icon', price: formatPrice(isYearly ? 116.91 : 129.90, isYearly ? 23.39 : 25.99, isYearly ? 21.59 : 23.99), badge: t('plan_icon_rec_badge'), isPopular: true },
   ];
 
   const features = [
