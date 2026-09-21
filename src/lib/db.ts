@@ -220,11 +220,8 @@ export const fallbackStore = {
     measurements: { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
     physiognomy: { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português', 'Inglês'] },
     address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    photos: [
-      { id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Editorial Milan', tag: 'Alta Resolução · RAW' },
-      { id: '2', url: '/api/media/assets/images/creator_sophia.jpg', title: 'Studio Portrait', tag: 'Book Oficial' },
-    ],
-    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    photos: [],
+    video_url: '',
     bio: 'Modelo editorial com experiência em alta costura e campanhas internacionais.',
     accepts_offers: true,
     is_represented: true,
@@ -475,6 +472,8 @@ export const fallbackStore = {
     {
       id: 'msg-1',
       sender_id: 'admin-curadoria-1',
+      sender_name: 'Mesa de Curadoria Lumiardi',
+      sender_role: 'curadoria',
       receiver_id: 'user-model-1',
       conversation_id: 'curation',
       text: 'Bem-vinda à plataforma Lumiardi! Seu acesso exclusivo está liberado e protegido por criptografia de ponta a ponta. Você pode utilizar este canal para tirar dúvidas com nossa equipe ou receber propostas de agências parceiras.',
@@ -834,6 +833,8 @@ export async function initDatabase(): Promise<boolean> {
         CREATE TABLE IF NOT EXISTS messages (
           id VARCHAR(100) PRIMARY KEY,
           sender_id VARCHAR(100) NOT NULL,
+          sender_name VARCHAR(255),
+          sender_role VARCHAR(50),
           receiver_id VARCHAR(100),
           conversation_id VARCHAR(100) NOT NULL,
           text TEXT NOT NULL,
@@ -1030,6 +1031,9 @@ export async function initDatabase(): Promise<boolean> {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_url TEXT;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS gateway VARCHAR(30);
         ALTER TABLE invoices ALTER COLUMN gateway DROP NOT NULL;
+
+        ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
+        ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_role VARCHAR(50);
       `);
 
       // 14. Tabela PAYOUTS

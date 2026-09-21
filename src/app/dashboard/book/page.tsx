@@ -1,27 +1,36 @@
-'use client';
+import { cookies } from 'next/headers';
+import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { StorageService } from '@/services/storageService';
+import BookPageClient from './BookPageClient';
 
-import React from 'react';
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-import { CreatorProfileView } from '@/components/dashboard/CreatorProfileView';
-import { AgencyRosterView } from '@/components/dashboard/AgencyRosterView';
-import { useAuthPortal } from '@/context/AuthPortalContext';
-import { useLanguage } from '@/context/LanguageContext';
+export const dynamic = 'force-dynamic';
 
-export default function BookPage() {
-  const { role } = useAuthPortal();
-  const { t } = useLanguage();
-  const isCriadora = role === 'criadora';
+export default async function BookPage() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = decodeSession(sessionCookie);
+
+  let initialProfile = null;
+  let initialRole: 'criadora' | 'agencia' | 'admin' = (session?.role as 'criadora' | 'agencia' | 'admin') || 'criadora';
+
+  if (session?.id) {
+    try {
+      const userRecord = await StorageService.getUserById(session.id);
+      if (userRecord?.profile) {
+        initialProfile = userRecord.profile;
+      }
+      if (userRecord?.user?.role) {
+        initialRole = userRecord.user.role as 'criadora' | 'agencia' | 'admin';
+      }
+    } catch (e) {
+      console.warn('[BookPage SSR] Erro ao carregar dados do usuário:', e);
+    }
+  }
 
   return (
-    <DashboardLayout
-      pageTitle={isCriadora ? t('dash_page_book_title_creator') : t('dash_page_book_title_agency')}
-      pageSubtitle={
-        isCriadora
-          ? t('dash_page_book_sub_creator')
-          : t('dash_page_book_sub_agency')
-      }
-    >
-      {isCriadora ? <CreatorProfileView /> : <AgencyRosterView />}
-    </DashboardLayout>
+    <BookPageClient
+      initialProfile={initialProfile}
+      initialRole={initialRole}
+    />
   );
 }

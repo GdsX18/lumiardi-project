@@ -81,33 +81,34 @@ export interface AsaasPixQrCodeResponse {
 }
 
 export class AsaasClient {
-  private readonly apiKey: string = process.env.ASAAS_API_KEY || '';
-  private readonly apiUrl: string = (process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3').replace(/\/+$/, '');
-  private readonly webhookSecret: string = process.env.ASAAS_WEBHOOK_SECRET || '';
-
-  constructor() {
-    // URL e Secret podem ser estáticos, mas logamos apenas ao instanciar
+  /** Lemos a URL base dinamicamente com fallback oficial para a API de Produção */
+  private get apiUrl(): string {
+    return (process.env.ASAAS_API_URL || 'https://api.asaas.com/v3').replace(/\/+$/, '');
   }
 
-  /** Lemos a chave dinamicamente para garantir que o dotenv foi carregado pelo Next.js e usamos fallback explícito */
+  /** Lemos a chave dinamicamente para garantir que o dotenv foi carregado pelo Next.js */
   private getApiKey(): string {
-    const key = process.env.ASAAS_API_KEY || this.apiKey;
+    const key = (process.env.ASAAS_API_KEY || '').trim();
     if (!key) {
       console.error('[AsaasClient] ASAAS_API_KEY is not defined.');
     }
-    return key.trim();
+    return key;
+  }
+
+  /** Lemos o segredo do webhook dinamicamente */
+  private getWebhookSecret(): string {
+    return (process.env.ASAAS_WEBHOOK_SECRET || '').trim();
   }
 
   private getHeaders(): Record<string, string> {
     const key = this.getApiKey();
     if (!key || key.startsWith('falha_')) {
       console.warn('[AsaasClient] AVISO: ASAAS_API_KEY não encontrada no process.env!');
-    } else {
-      console.log(`[AsaasClient] Usando Key prefixo: ${key.slice(0, 15)}...`);
     }
 
     return {
       'Content-Type': 'application/json',
+      'User-Agent': 'Lumiardi/1.0.0',
       access_token: key,
     };
   }
@@ -233,7 +234,8 @@ export class AsaasClient {
    * Obtém QR Code e Copia e Cola Pix (/v3/payments/{id}/pixQrCode)
    */
   async getPixQrCode(paymentId: string, amount: number = 19.90): Promise<AsaasPixQrCodeResponse> {
-    const isMock = !this.apiKey || this.apiKey === '$aact_sua_chave' || paymentId.startsWith('pay_mock_');
+    const apiKey = this.getApiKey();
+    const isMock = !apiKey || apiKey === '$aact_sua_chave' || paymentId.startsWith('pay_mock_');
 
     if (isMock) {
       const formattedAmount = amount.toFixed(2);
@@ -266,7 +268,9 @@ export class AsaasClient {
    * Asaas envia o token no header: 'asaas-access-token'
    */
   verifyWebhookToken(receivedToken: string | null | undefined): boolean {
-    if (!this.webhookSecret) {
+    const secret = this.getWebhookSecret();
+
+    if (!secret) {
       // Se não configurou segredo ainda, permite em ambiente não produtivo
       return process.env.NODE_ENV !== 'production';
     }
@@ -275,7 +279,7 @@ export class AsaasClient {
       return false;
     }
 
-    return receivedToken.trim() === this.webhookSecret.trim();
+    return receivedToken.trim() === secret;
   }
 }
 

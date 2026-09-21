@@ -35,8 +35,11 @@ export async function GET(request: NextRequest) {
     // Não bloqueia o login mesmo se o DB estiver offline — o fallbackStore cuida disso
   }
 
-  // Usuário que já existe semeado no seu db.ts e fallbackStore
-  const testUser: SessionUser = {
+  const searchParams = request.nextUrl.searchParams;
+  const targetUserId = searchParams.get('userId');
+  const redirectTarget = searchParams.get('redirect') || '/checkout';
+
+  let testUser: SessionUser = {
     id: 'user-test-candidata',
     email: 'candidata.teste@lumiardi.com',
     name: 'Isabella Montenegro (Candidata Teste)',
@@ -45,11 +48,31 @@ export async function GET(request: NextRequest) {
     createdAt: new Date().toISOString()
   };
 
+  if (targetUserId === 'user-model-1') {
+    testUser = {
+      id: 'user-model-1',
+      email: 'modelo@lumiardi.com',
+      name: 'Sua Conta Modelo',
+      role: 'criadora',
+      curationStatus: 'APROVADO',
+      createdAt: '2026-08-14T20:09:06.068Z'
+    };
+  } else if (targetUserId === 'user-agency-1') {
+    testUser = {
+      id: 'user-agency-1',
+      email: 'agencia@lumiardi.com',
+      name: 'Sua Agência Corporativa',
+      role: 'agencia',
+      curationStatus: 'APROVADO',
+      createdAt: '2026-08-14T20:09:06.068Z'
+    };
+  }
+
   // Gera o cookie JWT assinado
   const token = encodeSession(testUser);
 
-  // Redireciona de volta para a página de checkout
-  const response = NextResponse.redirect(new URL('/checkout', request.url));
+  // Redireciona de volta para o destino solicitado
+  const response = NextResponse.redirect(new URL(redirectTarget, request.url));
   
   response.cookies.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,

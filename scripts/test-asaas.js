@@ -16,6 +16,16 @@ async function testAsaasIntegration() {
   assert(!envLocal.includes('CCBILL_CLIENT_ACCNUM'), 'Não deve conter variáveis CCBILL');
   console.log('✅ Variáveis de ambiente Asaas e ausência de CCBILL verificadas em .env.local.');
 
+  // Lê e valida .env (produção / docker)
+  if (fs.existsSync(path.join(__dirname, '..', '.env'))) {
+    const envRoot = fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8');
+    assert(envRoot.includes('ASAAS_API_KEY'));
+    assert(envRoot.includes('ASAAS_API_URL'));
+    assert(envRoot.includes('ASAAS_WEBHOOK_SECRET'));
+    assert(envRoot.includes('api.asaas.com'), 'Deve apontar para api.asaas.com');
+    console.log('✅ Variáveis de produção do Asaas verificadas em .env.');
+  }
+
   // Lê e valida .env.production
   const envProd = fs.readFileSync(path.join(__dirname, '..', '.env.production'), 'utf8');
   assert(envProd.includes('ASAAS_API_KEY'));

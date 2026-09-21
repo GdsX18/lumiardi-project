@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import {
   X,
@@ -53,7 +54,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [country, setCountry] = useState('Brasil');
-  const [avatarUrl, setAvatarUrl] = useState('/api/media/assets/images/creator_elena.jpg');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [imgError, setImgError] = useState(false);
   const [bio, setBio] = useState('');
 
   // Fotos do Book
@@ -92,6 +94,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setState(initialData.basicInfo?.address?.state || initialData.address?.state || 'SP');
       setCountry(initialData.basicInfo?.address?.country || initialData.address?.country || 'Brasil');
       setAvatarUrl(initialData.avatarUrl || initialData.photos?.[0]?.url || '');
+      setImgError(false);
       setBio(initialData.qualitative?.bio || initialData.bio || '');
 
       const initialPhotos = initialData.photos || initialData.qualitative?.photos || [];
@@ -259,13 +262,19 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     }
   };
 
-  if (!isOpen || !mounted) return null;
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
   const hasAvatar = Boolean(avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim() !== '');
 
-  return (
-    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-      <div className="bg-[#0D0D0D] border border-gold/40 w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden rounded-sm animate-scaleIn">
+  const modalContent = (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+      {/* Backdrop separado com z-[60] */}
+      <div
+        className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="bg-[#0D0D0D] border border-gold/40 w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl relative z-[70] overflow-hidden rounded-sm animate-scaleIn my-auto">
         {/* Header do Modal */}
         <div className="px-6 py-4 border-b border-white/[0.08] bg-[#111111] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -379,12 +388,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Foto Principal / Avatar */}
               <div className="p-4 bg-[#141414] border border-gold/30 rounded-sm flex flex-col sm:flex-row items-center gap-6">
                 <div className="relative w-28 h-28 border-2 border-gold/60 p-1 bg-black shrink-0 rounded-sm overflow-hidden group">
-                  {hasAvatar ? (
+                  {hasAvatar && !imgError ? (
                     avatarUrl.startsWith('data:') ? (
                       <img
                         src={avatarUrl}
                         alt="Foto de Perfil"
                         className="absolute inset-0 w-full h-full object-cover"
+                        onError={() => setImgError(true)}
                       />
                     ) : (
                       <Image
@@ -393,6 +403,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                         fill
                         className="object-cover"
                         unoptimized
+                        onError={() => setImgError(true)}
                       />
                     )
                   ) : (
@@ -918,4 +929,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

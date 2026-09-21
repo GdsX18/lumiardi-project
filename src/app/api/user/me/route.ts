@@ -20,15 +20,22 @@ export async function GET(request: NextRequest) {
     const currentStatus = (userRecord?.user?.curationStatus as SessionUser['curationStatus']) || session.curationStatus;
     const rejectionReason = userRecord?.user?.rejectionReason;
 
-    // Busca faturas e assinaturas para exibição de status financeiro / comprovante de estorno
+    // Busca faturas e assinaturas apenas se solicitado ou em tela de billing
     let invoices: any[] = [];
     let subscription: any = null;
-    try {
-      const { BillingService } = await import('@/lib/payments/billingService');
-      invoices = await BillingService.getUserInvoices(session.id);
-      subscription = await BillingService.getUserSubscription(session.id);
-    } catch {
-      // Silencioso se billing offline
+    const includeBilling = request.nextUrl.searchParams.get('billing') === 'true';
+    if (includeBilling) {
+      try {
+        const { BillingService } = await import('@/lib/payments/billingService');
+        const [invs, sub] = await Promise.all([
+          BillingService.getUserInvoices(session.id),
+          BillingService.getUserSubscription(session.id),
+        ]);
+        invoices = invs;
+        subscription = sub;
+      } catch {
+        // Silencioso se billing offline
+      }
     }
 
     const hasStatusChanged = currentStatus !== session.curationStatus;
@@ -49,6 +56,8 @@ export async function GET(request: NextRequest) {
       latestInvoice: invoices[0] || null,
       subscription,
     });
+
+    response.headers.set('Cache-Control', 'private, no-cache, no-transform, stale-while-revalidate=30');
 
     // Se o status ou nome mudou no banco (ex: curadoria aprovou), atualiza o cookie assinado
     if (hasStatusChanged || hasNameChanged) {

@@ -69,6 +69,8 @@ export const VideoCallWidget: React.FC = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const meetingMessagesRef = useRef<HTMLDivElement | null>(null);
+  const prevMeetingMessagesCountRef = useRef<number>(0);
 
   // Vídeo Refs com estados para gatilho reativo no React
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -261,7 +263,25 @@ export const VideoCallWidget: React.FC = () => {
 
     setInMeetingMessages((prev) => [...prev, newMsg]);
     setChatInput('');
+    setTimeout(() => {
+      if (meetingMessagesRef.current) {
+        meetingMessagesRef.current.scrollTop = meetingMessagesRef.current.scrollHeight;
+      }
+    }, 50);
   };
+
+  useEffect(() => {
+    if (inMeetingMessages.length > prevMeetingMessagesCountRef.current) {
+      if (meetingMessagesRef.current) {
+        const container = meetingMessagesRef.current;
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        if (isNearBottom) {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        }
+      }
+    }
+    prevMeetingMessagesCountRef.current = inMeetingMessages.length;
+  }, [inMeetingMessages]);
 
   // Salvar Notas
   const handleSaveNotes = () => {
@@ -530,7 +550,7 @@ export const VideoCallWidget: React.FC = () => {
                 </div>
 
                 {/* Lista de Mensagens */}
-                <div className="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
+                <div ref={meetingMessagesRef} className="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
                   {inMeetingMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4 text-ivory/40 space-y-1">
                       <MessageSquare className="w-6 h-6 text-gold/40 mb-1" />

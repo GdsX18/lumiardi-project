@@ -359,7 +359,7 @@ export const StorageService = {
                 measurements: row.measurements || (isModel ? { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' } : null),
                 physiognomy: row.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
                 address: row.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-                photos: row.photos || (isModel ? [{ id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Ensaio 01', tag: 'Alta Resolução' }] : []),
+                photos: row.photos || [],
                 videoUrl: row.video_url || '',
                 bio: row.bio || '',
                 exposureOpinion: row.exposure_opinion || '',
@@ -441,7 +441,7 @@ export const StorageService = {
           measurements: p.measurements || (isModel ? { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' } : null),
           physiognomy: p.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
           address: p.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-          photos: p.photos || (isModel ? [{ id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Ensaio 01', tag: 'Alta Resolução' }] : []),
+          photos: p.photos || [],
           videoUrl: p.video_url || '',
           bio: p.bio || '',
           exposureOpinion: p.exposure_opinion || '',
@@ -518,7 +518,7 @@ export const StorageService = {
             measurements: row.measurements || (isModel ? { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' } : null),
             physiognomy: row.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
             address: row.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-            photos: row.photos || (isModel ? [{ id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Ensaio 01', tag: 'Alta Resolução' }] : []),
+            photos: row.photos || [],
             videoUrl: row.video_url || '',
             bio: row.bio || '',
             exposureOpinion: row.exposure_opinion || '',
@@ -660,61 +660,69 @@ export const StorageService = {
     await initDatabase();
 
     try {
-      const res = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-      if (res.rows.length > 0) {
-        const u = res.rows[0];
-        const pRes = await pool.query('SELECT * FROM profiles WHERE user_id = $1', [userId]);
-        const rawProfile = (pRes.rows[0] as Record<string, unknown>) || null;
-        
-        let formattedProfile = null;
-        if (rawProfile) {
-          const rawPhotos = (rawProfile.photos as Array<{ id: string; url: string; title: string; tag?: string }>) || [];
-          const avatarUrl = (rawProfile.avatar_url as string) || (rawPhotos.length > 0 && rawPhotos[0]?.url ? rawPhotos[0].url : '/api/media/assets/images/creator_elena.jpg');
-          const logoUrl = (rawProfile.logo_url as string) || '';
+      const res = await pool.query(`
+        SELECT 
+          u.id, u.email, u.full_name, u.role, u.curation_status, u.rejection_reason, u.created_at,
+          p.user_id, p.avatar_url, p.photos, p.video_url, p.logo_url, p.artistic_name, p.category, p.gender,
+          p.instagram, p.measurements, p.physiognomy, p.address, p.monthly_revenue_estimate, p.bio,
+          p.exposure_opinion, p.accepts_offers, p.is_represented,
+          p.represented_agency_name, p.represented_agency_id, p.corporate_name, p.responsible_name
+        FROM users u
+        LEFT JOIN profiles p ON u.id = p.user_id
+        WHERE u.id = $1
+        LIMIT 1;
+      `, [userId]);
 
-          formattedProfile = {
-            ...rawProfile,
-            avatarUrl,
-            avatar_url: avatarUrl,
-            logoUrl,
-            logo_url: logoUrl,
-            videoUrl: (rawProfile.video_url as string) || '',
-            video_url: (rawProfile.video_url as string) || '',
-            photos: rawPhotos,
-            basicInfo: {
-              fullName: u.full_name,
-              email: u.email,
-              address: (rawProfile.address as Record<string, unknown>) || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-            },
-            qualitative: {
-              artisticName: (rawProfile.artistic_name as string) || u.full_name,
-              category: (rawProfile.category as string) || (u.role === 'MODELO' ? 'Modelo Editorial & Criadora VIP' : 'Agência de Casting'),
-              gender: (rawProfile.gender as string) || 'Feminino',
-              platforms: { instagram: (rawProfile.instagram as string) || '@suaconta' },
-              measurements: (rawProfile.measurements as Record<string, unknown>) || { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
-              physiognomy: (rawProfile.physiognomy as Record<string, unknown>) || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
-              monthlyRevenueEstimate: (rawProfile.monthly_revenue_estimate as string) || 'Sob Consulta',
-              bio: (rawProfile.bio as string) || '',
-              exposureOpinion: (rawProfile.exposure_opinion as string) || '',
-              personalLimits: (rawProfile.personal_limits as string) || '',
-              mainGoal: (rawProfile.main_goal as string) || '',
-              acceptsOffers: rawProfile.accepts_offers !== false,
-              isRepresented: Boolean(rawProfile.is_represented),
-              representedAgencyName: (rawProfile.represented_agency_name as string) || undefined,
-              representedAgencyId: (rawProfile.represented_agency_id as string) || undefined,
-            },
-          };
-        }
+      if (res.rows.length > 0) {
+        const row = res.rows[0];
+        const rawPhotos = Array.isArray(row.photos) ? row.photos : [];
+        const avatarUrl = (row.avatar_url as string) || (rawPhotos.length > 0 && rawPhotos[0]?.url ? rawPhotos[0].url : '');
+        const logoUrl = (row.logo_url as string) || '';
+
+        const formattedProfile = {
+          userId: row.id,
+          avatarUrl,
+          avatar_url: avatarUrl,
+          logoUrl,
+          logo_url: logoUrl,
+          videoUrl: (row.video_url as string) || '',
+          video_url: (row.video_url as string) || '',
+          photos: rawPhotos,
+          basicInfo: {
+            fullName: row.full_name,
+            email: row.email,
+            address: (row.address as Record<string, unknown>) || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
+            corporateName: (row.corporate_name as string) || row.full_name,
+            responsibleName: (row.responsible_name as string) || row.full_name,
+          },
+          qualitative: {
+            artisticName: (row.artistic_name as string) || row.full_name,
+            category: (row.category as string) || (row.role === 'MODELO' ? 'Modelo Editorial & Criadora VIP' : 'Agência de Casting'),
+            gender: (row.gender as string) || 'Feminino',
+            platforms: { instagram: (row.instagram as string) || '@suaconta' },
+            measurements: (row.measurements as Record<string, unknown>) || { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
+            physiognomy: (row.physiognomy as Record<string, unknown>) || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
+            monthlyRevenueEstimate: (row.monthly_revenue_estimate as string) || 'Sob Consulta',
+            bio: (row.bio as string) || '',
+            exposureOpinion: (row.exposure_opinion as string) || '',
+            personalLimits: (row.personal_limits as string) || '',
+            mainGoal: (row.main_goal as string) || '',
+            acceptsOffers: row.accepts_offers !== false,
+            isRepresented: Boolean(row.is_represented),
+            representedAgencyName: (row.represented_agency_name as string) || undefined,
+            representedAgencyId: (row.represented_agency_id as string) || undefined,
+          },
+        };
 
         return {
           user: {
-            id: u.id,
-            email: u.email,
-            name: u.full_name,
-            role: u.role === 'MODELO' ? 'criadora' : u.role === 'ADMIN' ? 'admin' : 'agencia',
-            curationStatus: u.curation_status,
-            rejectionReason: u.rejection_reason || undefined,
-            createdAt: u.created_at,
+            id: row.id,
+            email: row.email,
+            name: row.full_name,
+            role: row.role === 'MODELO' ? 'criadora' : row.role === 'ADMIN' ? 'admin' : 'agencia',
+            curationStatus: row.curation_status,
+            rejectionReason: row.rejection_reason || undefined,
+            createdAt: row.created_at,
           },
           profile: formattedProfile,
         };
@@ -727,7 +735,7 @@ export const StorageService = {
       if (u.id === userId || u.email === userId) {
         const prof = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
         const rawPhotos = (prof.photos as Array<{ id: string; url: string; title: string; tag?: string }>) || [];
-        const avatarUrl = (prof.avatarUrl as string) || (prof.avatar_url as string) || (rawPhotos.length > 0 && rawPhotos[0]?.url ? rawPhotos[0].url : '/api/media/assets/images/creator_elena.jpg');
+        const avatarUrl = (prof.avatarUrl as string) || (prof.avatar_url as string) || (rawPhotos.length > 0 && rawPhotos[0]?.url ? rawPhotos[0].url : '');
         const logoUrl = (prof.logoUrl as string) || (prof.logo_url as string) || '';
 
         const formattedProfile = {
@@ -998,7 +1006,7 @@ export const StorageService = {
           acceptsOffers: row.accepts_offers !== false,
           isRepresented: Boolean(row.is_represented),
           representedAgencyName: row.represented_agency_name || undefined,
-          photos: row.photos || [{ id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Editorial', tag: 'Alta Resolução' }],
+          photos: row.photos || [],
           videoUrl: row.video_url || '',
           curationStatus: row.curation_status,
           createdAt: row.created_at,
@@ -1036,7 +1044,7 @@ export const StorageService = {
           acceptsOffers: p.accepts_offers !== false,
           isRepresented: Boolean(p.is_represented),
           representedAgencyName: p.represented_agency_name || undefined,
-          photos: p.photos || [{ id: '1', url: '/api/media/assets/images/creator_elena.jpg', title: 'Editorial', tag: 'Alta Resolução' }],
+          photos: p.photos || [],
           videoUrl: p.video_url || '',
           curationStatus: u.curation_status,
           createdAt: u.created_at,
@@ -1274,16 +1282,29 @@ export const StorageService = {
         [conversationId]
       );
       if (res.rows.length > 0) {
-        return res.rows.map((m) => ({
-          id: m.id,
-          senderId: m.sender_id,
-          text: m.text,
-          attachmentUrl: m.attachment_url,
-          attachmentName: m.attachment_name,
-          attachmentType: m.attachment_type,
-          createdAt: m.created_at,
-          isRead: m.is_read,
-        }));
+        return res.rows.map((m) => {
+          let sName = m.sender_name;
+          let sRole = m.sender_role;
+          if (!sName && m.sender_id) {
+            if (m.sender_id.startsWith('admin') || m.sender_id.includes('curadoria')) {
+              sName = 'Mesa de Curadoria Lumiardi';
+              sRole = 'curadoria';
+            }
+          }
+          return {
+            id: m.id,
+            senderId: m.sender_id,
+            senderName: sName,
+            senderRole: sRole,
+            receiverId: m.receiver_id,
+            text: m.text,
+            attachmentUrl: m.attachment_url,
+            attachmentName: m.attachment_name,
+            attachmentType: m.attachment_type,
+            createdAt: m.created_at,
+            isRead: m.is_read,
+          };
+        });
       }
     } catch {
       // Fallback
@@ -1293,20 +1314,40 @@ export const StorageService = {
       .filter((m) => m.conversation_id === conversationId)
       .sort((a, b) => new Date(String(a.created_at)).getTime() - new Date(String(b.created_at)).getTime());
 
-    return msgs.map((m) => ({
-      id: m.id as string,
-      senderId: m.sender_id as string,
-      text: m.text as string,
-      attachmentUrl: m.attachment_url as string | undefined,
-      attachmentName: m.attachment_name as string | undefined,
-      attachmentType: m.attachment_type as string | undefined,
-      createdAt: m.created_at as string,
-      isRead: Boolean(m.is_read),
-    }));
+    return msgs.map((m: any) => {
+      let sName = m.sender_name;
+      let sRole = m.sender_role;
+      if (!sName && m.sender_id) {
+        if (m.sender_id.startsWith('admin') || m.sender_id.includes('curadoria')) {
+          sName = 'Mesa de Curadoria Lumiardi';
+          sRole = 'curadoria';
+        } else if (fallbackStore.users.has(m.sender_id)) {
+          const u = fallbackStore.users.get(m.sender_id);
+          const p = fallbackStore.profiles.get(m.sender_id);
+          sName = (p?.artistic_name as string) || (p?.artisticName as string) || (u?.full_name as string);
+          sRole = u?.role === 'MODELO' ? 'modelo' : u?.role === 'AGENCIA' ? 'agencia' : 'admin';
+        }
+      }
+      return {
+        id: m.id as string,
+        senderId: m.sender_id as string,
+        senderName: sName,
+        senderRole: sRole,
+        receiverId: m.receiver_id as string | undefined,
+        text: m.text as string,
+        attachmentUrl: m.attachment_url as string | undefined,
+        attachmentName: m.attachment_name as string | undefined,
+        attachmentType: m.attachment_type as string | undefined,
+        createdAt: m.created_at as string,
+        isRead: Boolean(m.is_read),
+      };
+    });
   },
 
   async sendMessage(data: {
     senderId: string;
+    senderName?: string;
+    senderRole?: string;
     receiverId?: string;
     conversationId: string;
     text: string;
@@ -1320,11 +1361,13 @@ export const StorageService = {
 
     try {
       await pool.query(
-        `INSERT INTO messages (id, sender_id, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, NOW())`,
+        `INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, NOW())`,
         [
           id,
           data.senderId,
+          data.senderName || null,
+          data.senderRole || null,
           data.receiverId || null,
           data.conversationId,
           data.text,
@@ -1340,6 +1383,8 @@ export const StorageService = {
     const msgObj = {
       id,
       sender_id: data.senderId,
+      sender_name: data.senderName,
+      sender_role: data.senderRole,
       receiver_id: data.receiverId,
       conversation_id: data.conversationId,
       text: data.text,
@@ -1354,6 +1399,10 @@ export const StorageService = {
     return {
       id,
       senderId: data.senderId,
+      senderName: data.senderName,
+      senderRole: data.senderRole,
+      receiverId: data.receiverId,
+      conversationId: data.conversationId,
       text: data.text,
       attachmentUrl: data.attachmentUrl,
       attachmentName: data.attachmentName,

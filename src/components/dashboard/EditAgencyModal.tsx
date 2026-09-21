@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import {
   X,
@@ -50,7 +51,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
   const [commissionRate, setCommissionRate] = useState('20%');
   const [specialties, setSpecialties] = useState('Alta Moda, Editorial, Fashion Week');
   const [bio, setBio] = useState('');
-  const [logoUrl, setLogoUrl] = useState('/api/media/assets/images/hero_visual.jpg');
+  const [logoUrl, setLogoUrl] = useState('');
 
   useEffect(() => {
     if (initialData) {
@@ -154,13 +155,19 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
     }
   };
 
-  if (!isOpen || !mounted) return null;
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
   const hasLogo = Boolean(logoUrl && typeof logoUrl === 'string' && logoUrl.trim() !== '');
 
-  return (
-    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-      <div className="bg-[#0D0D0D] border border-gold/40 w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden rounded-sm animate-scaleIn">
+  const modalContent = (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+      {/* Backdrop separado com z-[60] */}
+      <div
+        className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="bg-[#0D0D0D] border border-gold/40 w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl relative z-[70] overflow-hidden rounded-sm animate-scaleIn my-auto">
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/[0.08] bg-[#111111] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -387,4 +394,6 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

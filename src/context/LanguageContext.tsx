@@ -141,6 +141,11 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "dash_page_agency_panel_title": "Painel Corporativo",
     "dash_page_book_model_sub": "Área dedicada para upload de ensaios fotográficos em alta resolução, vídeo showreel e medidas corporais.",
     "dash_page_book_model_title": "Meu Book & Ficha Técnica",
+    "dash_page_book_sub_agency": "Visualização e curadoria de materiais de portfólio, ensaios e casting do elenco.",
+    "dash_page_book_sub_creator": "Área dedicada para upload de ensaios fotográficos em alta resolução, vídeo showreel e medidas corporais.",
+    "dash_page_book_title_agency": "Gestão de Book das Agenciadas",
+    "dash_edit_profile": "Editar Perfil & Dados",
+    "dash_page_book_title_creator": "Book Editorial & Portfólio",
     "dash_page_chat_sub": "Canal exclusivo com criptografia ponta a ponta E2E para negociações, alinhamentos e suporte VIP.",
     "dash_page_chat_title": "Mensagens & Comunicação Criptografada",
     "dash_page_creator_panel_sub": "Gerenciamento de imagem editorial, conexões com agências e entregas de contratos.",
@@ -1364,6 +1369,11 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "dash_page_agency_panel_title": "Panel Corporativo",
     "dash_page_book_model_sub": "Área dedicada para subir sesiones fotográficas en alta resolución, showreel de video y medidas.",
     "dash_page_book_model_title": "Mi Book y Ficha Técnica",
+    "dash_page_book_sub_agency": "Visualización y curaduría de materiales de portafolio, sesiones y casting del elenco.",
+    "dash_page_book_sub_creator": "Área dedicada para subir sesiones fotográficas en alta resolución, showreel de video y medidas corporales.",
+    "dash_page_book_title_agency": "Gestión de Book de Modelos",
+    "dash_edit_profile": "Editar Perfil y Datos",
+    "dash_page_book_title_creator": "Book Editorial y Portafolio",
     "dash_page_chat_sub": "Canal exclusivo con cifrado de extremo a extremo E2E para negociaciones, acuerdos y soporte VIP.",
     "dash_page_chat_title": "Mensajes y Comunicación Cifrada",
     "dash_page_creator_panel_sub": "Gestión de imagen editorial, conexiones con agencias y entregas de contratos.",
@@ -2587,6 +2597,11 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "dash_page_agency_panel_title": "Agency Executive Dashboard",
     "dash_page_book_model_sub": "Dedicated area for uploading high-resolution photoshoots, showreel videos, and body measurements.",
     "dash_page_book_model_title": "My Book & Technical Sheet",
+    "dash_page_book_sub_agency": "Review and curation of portfolio materials, photoshoots, and casting roster.",
+    "dash_page_book_sub_creator": "Dedicated area for uploading high-resolution photoshoots, showreel videos, and body measurements.",
+    "dash_page_book_title_agency": "Roster Book Management",
+    "dash_edit_profile": "Edit Profile & Details",
+    "dash_page_book_title_creator": "Editorial Book & Portfolio",
     "dash_page_chat_sub": "Exclusive end-to-end encrypted channel for bookings, contract negotiations, and VIP support.",
     "dash_page_chat_title": "Encrypted Messages & Communication",
     "dash_page_creator_panel_sub": "Editorial brand management, direct agency connections, and contract deliverable tracking.",
@@ -3810,6 +3825,11 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "dash_page_agency_panel_title": "Tableau de Bord Entreprise",
     "dash_page_book_model_sub": "Espace dédié au téléversement de séances photo haute résolution, showreel vidéo et mensurations.",
     "dash_page_book_model_title": "Mon Book & Fiche Technique",
+    "dash_page_book_sub_agency": "Visualisation et curation des matériels de portfolio et casting.",
+    "dash_page_book_sub_creator": "Espace dédié au téléversement de séances photo haute résolution, showreel vidéo et mensurations.",
+    "dash_page_book_title_agency": "Gestion des Books Mannequins",
+    "dash_edit_profile": "Modifier le Profil & Données",
+    "dash_page_book_title_creator": "Book Éditorial & Portfolio",
     "dash_page_chat_sub": "Canal exclusif avec chiffrement de bout en bout E2E pour négociations et support VIP.",
     "dash_page_chat_title": "Messages & Communication Chiffrée",
     "dash_page_creator_panel_sub": "Gestion d’image éditoriale, connexions avec les agences et suivi des contrats.",
@@ -5033,6 +5053,11 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "dash_page_agency_panel_title": "Pannello Aziendale",
     "dash_page_book_model_sub": "Area dedicata per il caricamento di shooting ad alta risoluzione, showreel video e misure corporee.",
     "dash_page_book_model_title": "Il Mio Book & Scheda Tecnica",
+    "dash_page_book_sub_agency": "Visualizzazione e curatela di materiali di portfolio, shooting e casting.",
+    "dash_page_book_sub_creator": "Area dedicata per il caricamento di shooting ad alta risoluzione, showreel video e misure corporee.",
+    "dash_page_book_title_agency": "Gestione Book delle Modelle",
+    "dash_edit_profile": "Modifica Profilo & Dati",
+    "dash_page_book_title_creator": "Book Editoriale & Portfolio",
     "dash_page_chat_sub": "Canale esclusivo con crittografia end-to-end E2E per trattative, accordi e supporto VIP.",
     "dash_page_chat_title": "Messaggi & Comunicazione Crittografata",
     "dash_page_creator_panel_sub": "Gestione dell’immagine editoriale, collegamenti con agenzie e consegne contrattuali.",
@@ -6256,6 +6281,11 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "dash_page_agency_panel_title": "Корпоративная панель управления",
     "dash_page_book_model_sub": "Раздел для загрузки фотосессий высокого разрешения, видеовизитки и параметров фигуры.",
     "dash_page_book_model_title": "Мой бук и параметры",
+    "dash_page_book_sub_agency": "Просмотр и курация материалов портфолио, фотосессий и кастинга.",
+    "dash_page_book_sub_creator": "Раздел для загрузки фотосессий высокого разрешения, видеовизитки и параметров фигуры.",
+    "dash_page_book_title_agency": "Управление буками моделей",
+    "dash_edit_profile": "Редактировать профиль и данные",
+    "dash_page_book_title_creator": "Эдиториал бук и портфолио",
     "dash_page_chat_sub": "Защищенный E2E-канал для переговоров по контрактам, согласований и VIP-поддержки.",
     "dash_page_chat_title": "Зашифрованные сообщения и связь",
     "dash_page_creator_panel_sub": "Управление имиджем, контакты с агентствами и выполнение контрактных обязательств.",
@@ -7731,7 +7761,7 @@ interface LanguageContextType {
   currency: CurrencyCode;
   setCurrency: (curr: CurrencyCode) => void;
   formatPrice: (brl: number, usd: number, eur?: number) => string;
-  t: (key: string) => string;
+  t: (key: string, fallback?: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -7810,11 +7840,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }).format(amount);
   };
 
-  const t = (key: string): string => {
+  const t = (key: string, fallback?: string): string => {
     const custom = CHECKOUT_TRANSLATIONS[language]?.[key] || CHECKOUT_TRANSLATIONS['en']?.[key] || CHECKOUT_TRANSLATIONS['pt']?.[key];
     if (custom) return custom;
     const dict = translations[language] || translations['en'];
-    return dict[key] || translations['en']?.[key] || translations['pt']?.[key] || key;
+    return dict[key] || translations['en']?.[key] || translations['pt']?.[key] || fallback || key;
   };
 
   return (

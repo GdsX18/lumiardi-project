@@ -22,16 +22,50 @@ interface AuthPortalContextType {
   notifications: NotificationItem[];
   notificationsCount: number;
   clearNotifications: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const AuthPortalContext = createContext<AuthPortalContextType | undefined>(undefined);
 
+const CACHE_USER_KEY = 'lumiardi_cached_user';
+const CACHE_CREATOR_KEY = 'lumiardi_cached_creator';
+const CACHE_AGENCY_KEY = 'lumiardi_cached_agency';
+
 export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [role, setRole] = useState<UserRole>('criadora');
   const [curationStatus, setCurationStatus] = useState<CurationStatus>('APROVADO');
-  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
-  const [activeCreator, setActiveCreator] = useState<CompleteCreatorProfile | null>(null);
-  const [activeAgency, setActiveAgency] = useState<CompleteAgencyProfile | null>(null);
+  
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(CACHE_USER_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [activeCreator, setActiveCreator] = useState<CompleteCreatorProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(CACHE_CREATOR_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [activeAgency, setActiveAgency] = useState<CompleteAgencyProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(CACHE_AGENCY_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return null;
+  });
+
   const [allCreators, setAllCreators] = useState<CompleteCreatorProfile[]>([]);
   const [allAgencies, setAllAgencies] = useState<CompleteAgencyProfile[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -39,27 +73,38 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const refreshData = useCallback(async () => {
     try {
-      // 1. Busca usuário da sessão atual via /api/user/me
-      const [meRes, creatorsRes, agenciesRes] = await Promise.all([
-        fetch('/api/user/me'),
-        fetch('/api/creators'),
-        fetch('/api/agencies'),
-      ]);
-
+      // 1. Prioridade: busca usuário da sessão atual via /api/user/me
+      const meRes = await fetch('/api/user/me');
       if (meRes.ok) {
         const meData = await meRes.json();
         if (meData.authenticated && meData.user) {
           setCurrentUser(meData.user);
           setRole(meData.user.role);
           setCurationStatus(meData.user.curationStatus);
+          try {
+            localStorage.setItem(CACHE_USER_KEY, JSON.stringify(meData.user));
+          } catch {}
 
           if (meData.user.role === 'criadora' && meData.profile) {
             setActiveCreator(meData.profile);
+            try {
+              localStorage.setItem(CACHE_CREATOR_KEY, JSON.stringify(meData.profile));
+            } catch {}
           } else if (meData.user.role === 'agencia' && meData.profile) {
             setActiveAgency(meData.profile);
+            try {
+              localStorage.setItem(CACHE_AGENCY_KEY, JSON.stringify(meData.profile));
+            } catch {}
           }
         }
       }
+
+      // 2. Segundo plano: atualiza listas e notificações
+      const [creatorsRes, agenciesRes, notifRes] = await Promise.all([
+        fetch('/api/creators'),
+        fetch('/api/agencies'),
+        fetch('/api/notifications'),
+      ]);
 
       if (creatorsRes.ok) {
         const cData = await creatorsRes.json();
@@ -75,8 +120,6 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       }
 
-      // 2. Busca notificações em tempo real
-      const notifRes = await fetch('/api/notifications');
       if (notifRes.ok) {
         const nData = await notifRes.json();
         if (nData.notifications) {
@@ -86,6 +129,8 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     } catch (e) {
       console.error('Erro ao sincronizar sessão:', e);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -93,7 +138,14 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       setCurrentUser(null);
+      setActiveCreator(null);
+      setActiveAgency(null);
       setCurationStatus('EM_CURATORIA');
+      try {
+        localStorage.removeItem(CACHE_USER_KEY);
+        localStorage.removeItem(CACHE_CREATOR_KEY);
+        localStorage.removeItem(CACHE_AGENCY_KEY);
+      } catch {}
       window.location.href = '/login';
     } catch (e) {
       console.error('Erro ao deslogar:', e);
@@ -105,13 +157,8 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let isMounted = true;
     const loadInitialSession = async () => {
       try {
-        const [meRes, creatorsRes, agenciesRes, notifRes] = await Promise.all([
-          fetch('/api/user/me'),
-          fetch('/api/creators'),
-          fetch('/api/agencies'),
-          fetch('/api/notifications'),
-        ]);
-
+        // Prioridade 1: /api/user/me
+        const meRes = await fetch('/api/user/me');
         if (!isMounted) return;
 
         if (meRes.ok) {
@@ -120,23 +167,49 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setCurrentUser(meData.user);
             setRole(meData.user.role);
             setCurationStatus(meData.user.curationStatus);
+            try {
+              localStorage.setItem(CACHE_USER_KEY, JSON.stringify(meData.user));
+            } catch {}
 
             if (meData.user.role === 'criadora' && meData.profile) {
               setActiveCreator(meData.profile);
+              try {
+                localStorage.setItem(CACHE_CREATOR_KEY, JSON.stringify(meData.profile));
+              } catch {}
             } else if (meData.user.role === 'agencia' && meData.profile) {
               setActiveAgency(meData.profile);
+              try {
+                localStorage.setItem(CACHE_AGENCY_KEY, JSON.stringify(meData.profile));
+              } catch {}
             }
           }
         }
+      } catch (e) {
+        console.error('Erro ao carregar sessão inicial:', e);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
 
-        if (creatorsRes.ok && isMounted) {
+      // Prioridade 2: Carregamento em segundo plano sem bloquear a renderização inicial
+      try {
+        const [creatorsRes, agenciesRes, notifRes] = await Promise.all([
+          fetch('/api/creators'),
+          fetch('/api/agencies'),
+          fetch('/api/notifications'),
+        ]);
+
+        if (!isMounted) return;
+
+        if (creatorsRes.ok) {
           const cData = await creatorsRes.json();
           if (Array.isArray(cData.creators) && isMounted) {
             setAllCreators(cData.creators);
           }
         }
 
-        if (agenciesRes.ok && isMounted) {
+        if (agenciesRes.ok) {
           const aData = await agenciesRes.json();
           if (Array.isArray(aData.agencies) && isMounted) {
             setAllAgencies(aData.agencies);
@@ -151,7 +224,7 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
       } catch (e) {
-        console.error('Erro ao carregar sessão inicial:', e);
+        console.warn('Erro ao sincronizar dados secundários:', e);
       }
     };
 
@@ -194,6 +267,7 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         notifications,
         notificationsCount,
         clearNotifications,
+        isLoading,
       }}
     >
       {children}

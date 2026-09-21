@@ -21,11 +21,14 @@ import {
   Check,
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuthPortal } from '@/context/AuthPortalContext';
 
 export interface ChatMessage {
   id: string;
   senderId?: string;
   sender?: string;
+  senderName?: string;
+  senderRole?: string;
   text: string;
   time?: string;
   createdAt?: string;
@@ -49,6 +52,7 @@ export interface Conversation {
 
 export const ChatPanel: React.FC = () => {
   const { t } = useLanguage();
+  const { currentUser, activeCreator } = useAuthPortal();
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: 'curation',
@@ -70,7 +74,9 @@ export const ChatPanel: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [showMobileList, setShowMobileList] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const prevMessagesCountRef = useRef<number>(0);
+  const isInitialLoadRef = useRef<boolean>(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId) || conversations[0];
@@ -90,32 +96,51 @@ export const ChatPanel: React.FC = () => {
     }
   }, []);
 
-  // Carregar mensagens da conversa ativa
+  // Carregar mensagens da conversa ativa com autoria e alinhamento reais
   const fetchMessages = useCallback(async () => {
     try {
       const res = await fetch(`/api/chat/messages?conversationId=${encodeURIComponent(activeConvId)}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.messages)) {
+          const currentId = currentUser?.id || data.currentUserId;
+          const myName = activeCreator?.qualitative?.artisticName || currentUser?.name || data.currentUserName || 'Você';
+
           setMessages(
-            data.messages.map((m: any) => ({
-              id: m.id || String(Math.random()),
-              senderId: m.senderId,
-              sender: m.sender || m.senderName || 'Lumiardi Member',
-              text: m.text || m.content || '',
-              time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Agora'),
-              isMe: m.isMe !== undefined ? m.isMe : m.senderId === 'me' || m.sender === 'Você',
-              hasAttachment: !!m.hasAttachment || !!m.attachmentUrl,
-              attachmentName: m.attachmentName,
-              attachmentUrl: m.attachmentUrl,
-              attachmentType: m.attachmentType || 'file',
-            }))
+            data.messages.map((m: any) => {
+              const isMe = m.isMe !== undefined
+                ? Boolean(m.isMe)
+                : Boolean((currentId && m.senderId === currentId) || m.senderId === 'me');
+
+              const senderDisplayName = isMe ? myName : (m.sender || m.senderName || 'Mesa de Curadoria Lumiardi');
+
+              return {
+                id: m.id || String(Math.random()),
+                senderId: m.senderId,
+                sender: senderDisplayName,
+                senderName: m.senderName || senderDisplayName,
+                senderRole: m.senderRole,
+                text: m.text || m.content || '',
+                time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Agora'),
+                isMe,
+                hasAttachment: !!m.hasAttachment || !!m.attachmentUrl,
+                attachmentName: m.attachmentName,
+                attachmentUrl: m.attachmentUrl,
+                attachmentType: m.attachmentType || 'file',
+              };
+            })
           );
         }
       }
     } catch (err) {
       console.error('Erro ao carregar mensagens:', err);
     }
+  }, [activeConvId, currentUser?.id, currentUser?.name, activeCreator]);
+
+  // Ao trocar de conversa ativa, reinicia sinalizador de scroll inicial
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+    prevMessagesCountRef.current = 0;
   }, [activeConvId]);
 
   useEffect(() => {
@@ -125,8 +150,30 @@ export const ChatPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchConversations, fetchMessages]);
 
+  // Scroll estritamente contido no contêiner interno — sem tocar no scroll da janela/viewport
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    // Primeiro carregamento da conversa: rola diretamente até o fim sem animação intrusiva
+    if (isInitialLoadRef.current && messages.length > 0) {
+      container.scrollTop = container.scrollHeight;
+      isInitialLoadRef.current = false;
+      prevMessagesCountRef.current = messages.length;
+      return;
+    }
+
+    // Só dispara se o número de mensagens REALMENTE aumentou (nova mensagem recebida ou enviada)
+    // NUNCA dispara em polling repetitivo de mensagens inalteradas
+    if (messages.length > prevMessagesCountRef.current) {
+      // Trava de leitura (stick-to-bottom): só rola se o usuário já estiver perto do final
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+      if (isNearBottom) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      }
+    }
+
+    prevMessagesCountRef.current = messages.length;
   }, [messages]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,11 +222,14 @@ export const ChatPanel: React.FC = () => {
     const currentText = inputVal.trim();
     const currentAttachment = attachedFile;
 
+    const myDisplayName = activeCreator?.qualitative?.artisticName || currentUser?.name || 'Você';
     const tempId = String(Date.now());
     const optimisticMsg: ChatMessage = {
       id: tempId,
-      senderId: 'me',
-      sender: 'Você',
+      senderId: currentUser?.id || 'me',
+      sender: myDisplayName,
+      senderName: myDisplayName,
+      senderRole: currentUser?.role === 'criadora' ? 'modelo' : (currentUser?.role || 'modelo'),
       text: currentText,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMe: true,
@@ -192,6 +242,13 @@ export const ChatPanel: React.FC = () => {
     setMessages((prev) => [...prev, optimisticMsg]);
     setInputVal('');
     setAttachedFile(null);
+
+    // Scroll imediato no contêiner interno apenas (sem tocar na viewport da página)
+    setTimeout(() => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      }
+    }, 50);
 
     try {
       const res = await fetch('/api/chat/messages', {
@@ -380,7 +437,7 @@ export const ChatPanel: React.FC = () => {
         </div>
 
         {/* Histórico de Mensagens com Design Limpo e Fluido */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
           <div className="flex items-center justify-center my-2">
             <div className="px-4 py-1.5 bg-[#121212] border border-white/[0.06] text-[10px] text-ivory/50 font-sans uppercase tracking-[0.2em] rounded-full flex items-center gap-2 shadow-sm">
               <Lock className="w-3 h-3 text-gold/70" />
@@ -388,75 +445,120 @@ export const ChatPanel: React.FC = () => {
             </div>
           </div>
 
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} space-y-1.5 group`}
-            >
+          {messages.map((msg) => {
+            const initials = msg.sender
+              ? msg.sender
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((n: string) => n[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase()
+              : 'LM';
+
+            return (
               <div
-                className={`max-w-xl md:max-w-2xl p-4 rounded-sm text-xs font-sans leading-relaxed shadow-lg relative transition-all ${
-                  msg.isMe
-                    ? 'bg-gradient-to-br from-gold/90 via-gold to-gold-dark text-black-matte font-medium rounded-tr-none'
-                    : 'bg-[#141414] border border-white/[0.08] text-ivory/90 rounded-tl-none hover:border-gold/30'
-                }`}
+                key={msg.id}
+                className={`flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'} items-end gap-2.5 group`}
               >
-                {/* Header da Bolha de Mensagem */}
-                <div className="flex items-center justify-between gap-6 mb-1.5 text-[10px] opacity-80 border-b border-current/10 pb-1">
-                  <span className="font-bold tracking-wide">{msg.sender}</span>
-                  <div className="flex items-center gap-1.5">
-                    <span>{msg.time}</span>
-                    {msg.isMe && <CheckCheck className="w-3.5 h-3.5" />}
-                  </div>
-                </div>
-
-                {/* Conteúdo Textual */}
-                <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{msg.text}</p>
-
-                {/* Bloco de Anexo Fluido */}
-                {msg.hasAttachment && (
+                {/* Avatar da Curadoria / Terceiros (Aparece à esquerda para mensagens recebidas) */}
+                {!msg.isMe && (
                   <div
-                    className={`mt-3 p-3 rounded-xs flex items-center justify-between gap-3 border transition-all ${
-                      msg.isMe
-                        ? 'bg-black/15 border-black/20 text-black-matte'
-                        : 'bg-[#1C1C1C] border-white/[0.08] text-ivory'
-                    }`}
+                    className="w-8 h-8 rounded-full bg-[#141414] border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs shrink-0 shadow-md mb-0.5"
+                    title={msg.sender}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
-                      {msg.attachmentType === 'image' ? (
-                        <ImageIcon className="w-4 h-4 text-gold shrink-0" />
-                      ) : (
-                        <FileText className="w-4 h-4 text-gold shrink-0" />
-                      )}
-                      <span className="truncate text-xs font-medium">{msg.attachmentName || 'Anexo Lumiardi'}</span>
-                    </div>
-
-                    {msg.attachmentUrl && (
-                      <a
-                        href={msg.attachmentUrl}
-                        download={msg.attachmentName || 'anexo_lumiardi'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 hover:text-gold hover:bg-white/10 transition-all rounded-xs shrink-0"
-                        title="Download do Anexo"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                    )}
+                    {activeConv.avatarText || initials || 'LM'}
                   </div>
                 )}
 
-                {/* Botão Flutuante de Copiar */}
-                <button
-                  onClick={() => copyMessageText(msg.id, msg.text)}
-                  title="Copiar mensagem"
-                  className={`absolute -top-2 ${msg.isMe ? '-left-6' : '-right-6'} opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-[#181818] border border-white/10 rounded-xs text-ivory/60 hover:text-gold shadow-md cursor-pointer`}
+                {/* Balão de Mensagem */}
+                <div
+                  className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-xl md:max-w-2xl space-y-1`}
                 >
-                  {copiedMsgId === msg.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                </button>
+                  <div
+                    className={`p-4 rounded-2xl text-xs font-sans leading-relaxed shadow-lg relative transition-all ${
+                      msg.isMe
+                        ? 'bg-[#1C1914] border border-gold/40 text-[#F5F2EB] rounded-tr-xs shadow-gold/5'
+                        : 'bg-[#141414] border border-white/[0.08] text-ivory/90 rounded-tl-xs hover:border-gold/30'
+                    }`}
+                  >
+                    {/* Header da Bolha de Mensagem */}
+                    <div
+                      className={`flex items-center justify-between gap-6 mb-1.5 text-[10px] pb-1 border-b ${
+                        msg.isMe ? 'border-gold/15 text-gold/85' : 'border-white/[0.06] text-ivory/60'
+                      }`}
+                    >
+                      <span className="font-serif-lumiardi font-semibold flex items-center gap-1.5">
+                        {msg.sender}
+                        {!msg.isMe && <ShieldCheck className="w-3 h-3 text-gold shrink-0" />}
+                      </span>
+                      <div className="flex items-center gap-1.5 opacity-80">
+                        <span>{msg.time}</span>
+                        {msg.isMe && <CheckCheck className="w-3.5 h-3.5 text-gold" />}
+                      </div>
+                    </div>
+
+                    {/* Conteúdo Textual */}
+                    <p className={`whitespace-pre-wrap text-[13px] leading-relaxed ${msg.isMe ? 'text-[#F5F2EB]/95' : 'text-ivory/90'}`}>
+                      {msg.text}
+                    </p>
+
+                    {/* Bloco de Anexo Fluido */}
+                    {msg.hasAttachment && (
+                      <div
+                        className={`mt-3 p-3 rounded-xs flex items-center justify-between gap-3 border transition-all ${
+                          msg.isMe
+                            ? 'bg-black/30 border-gold/20 text-[#F5F2EB]'
+                            : 'bg-[#1C1C1C] border-white/[0.08] text-ivory'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          {msg.attachmentType === 'image' ? (
+                            <ImageIcon className="w-4 h-4 text-gold shrink-0" />
+                          ) : (
+                            <FileText className="w-4 h-4 text-gold shrink-0" />
+                          )}
+                          <span className="truncate text-xs font-medium">{msg.attachmentName || 'Anexo Lumiardi'}</span>
+                        </div>
+
+                        {msg.attachmentUrl && (
+                          <a
+                            href={msg.attachmentUrl}
+                            download={msg.attachmentName || 'anexo_lumiardi'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 hover:text-gold hover:bg-white/10 transition-all rounded-xs shrink-0"
+                            title="Download do Anexo"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Botão Flutuante de Copiar */}
+                    <button
+                      onClick={() => copyMessageText(msg.id, msg.text)}
+                      title="Copiar mensagem"
+                      className={`absolute -top-2 ${msg.isMe ? '-left-6' : '-right-6'} opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-[#181818] border border-white/10 rounded-xs text-ivory/60 hover:text-gold shadow-md cursor-pointer`}
+                    >
+                      {copiedMsgId === msg.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Avatar do Autor (Aparece à direita para mensagens enviadas pelo próprio usuário) */}
+                {msg.isMe && (
+                  <div
+                    className="w-8 h-8 rounded-full bg-gold/15 border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs shrink-0 shadow-md mb-0.5"
+                    title={msg.sender}
+                  >
+                    {initials || 'VC'}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
+            );
+          })}
         </div>
 
         {/* Prévia de Anexo Selecionado */}

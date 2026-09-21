@@ -31,9 +31,15 @@ import { useLanguage } from '@/context/LanguageContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EditProfileModal } from './EditProfileModal';
+import { CreatorProfileSkeleton } from './CreatorProfileSkeleton';
 
-export const CreatorProfileView: React.FC = () => {
-  const { activeCreator, refreshData } = useAuthPortal();
+export interface CreatorProfileViewProps {
+  initialCreator?: any;
+}
+
+export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialCreator }) => {
+  const { activeCreator: contextCreator, isLoading, refreshData } = useAuthPortal();
+  const activeCreator = contextCreator || initialCreator;
   const { t } = useLanguage();
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -48,17 +54,22 @@ export const CreatorProfileView: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
-  // Fallback padrão para primeiro acesso
+  // Se ainda estiver carregando sem nenhum dado de perfil (nem cache nem SSR), exibe Skeleton elegante
+  if (isLoading && !activeCreator) {
+    return <CreatorProfileSkeleton />;
+  }
+
+  // Fallback seguro e limpo para conta recém-criada
   const defaultProfile = {
     avatarUrl: '',
     videoUrl: '',
     qualitative: {
-      artisticName: 'Sua Conta Modelo',
-      category: 'Modelo & Criadora VIP',
+      artisticName: 'Minha Conta Modelo',
+      category: 'Modelo Editorial & Criadora VIP',
       gender: 'Feminino',
-      hobbies: 'Moda, Produção Editorial e Fotografia',
+      hobbies: '',
       platforms: {
-        instagram: '@suaconta',
+        instagram: '',
         privacy: '',
         onlyfans: '',
       },
@@ -96,7 +107,7 @@ export const CreatorProfileView: React.FC = () => {
   const creator = {
     ...defaultProfile,
     ...activeCreator,
-    avatarUrl: (activeCreator as any)?.avatarUrl || (activeCreator as any)?.avatar_url || (activeCreator as any)?.photos?.[0]?.url || defaultProfile.avatarUrl || '/api/media/assets/images/creator_elena.jpg',
+    avatarUrl: (activeCreator as any)?.avatarUrl || (activeCreator as any)?.avatar_url || (activeCreator as any)?.photos?.[0]?.url || '',
     qualitative: {
       ...defaultProfile.qualitative,
       ...(activeCreator?.qualitative || {}),

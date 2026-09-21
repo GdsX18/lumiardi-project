@@ -46,7 +46,7 @@ export default function AgenciaDashboardPage() {
             className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-semibold uppercase tracking-wider transition-all flex items-center gap-2 rounded-sm cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>{t('dash_edit_profile')}</span>
+            <span>{t('dash_edit_profile', 'Editar Perfil & Dados')}</span>
           </button>
         </div>
 
