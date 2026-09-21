@@ -1416,6 +1416,39 @@ export const StorageService = {
   // ══════════════════════════════════════════════════════════════════
   async listDriveFiles(userId?: string) {
     await initDatabase();
+    const mockNames = new Set([
+      'Manual_de_Compliance_e_Diretrizes_Lumiardi.pdf',
+      'Modelo_Padrao_NDA_Blindagem_de_Imagem.pdf',
+    ]);
+
+    const officialDoc = {
+      id: `official-termos-${userId || 'root'}`,
+      name: 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf',
+      category: 'contracts',
+      type: 'document',
+      size: '1.2 MB',
+      uploadedBy: 'Lumiardi Compliance Oficial',
+      fileUrl: '/documents/Termos_de_Uso_e_Diretrizes_Lumiardi.pdf',
+      downloads: 0,
+      privacy: 'official',
+      isOfficial: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    let files: Array<{
+      id: string;
+      name: string;
+      category: string;
+      type: string;
+      size: string;
+      uploadedBy: string;
+      fileUrl: string;
+      downloads: number;
+      privacy: string;
+      isOfficial?: boolean;
+      createdAt: string;
+    }> = [];
+
     try {
       const res = await pool.query(
         userId
@@ -1424,40 +1457,56 @@ export const StorageService = {
         userId ? [userId] : []
       );
       if (res.rows.length > 0) {
-        return res.rows.map((f) => ({
-          id: f.id,
-          name: f.name,
-          category: f.category,
-          type: f.type,
-          size: f.size,
-          uploadedBy: f.uploaded_by,
-          fileUrl: f.file_url,
-          downloads: f.downloads,
-          privacy: f.privacy,
-          createdAt: f.created_at,
-        }));
+        files = res.rows
+          .filter((f) => !mockNames.has(f.name))
+          .map((f) => ({
+            id: f.id,
+            name: f.name,
+            category: f.category,
+            type: f.type,
+            size: f.size,
+            uploadedBy: f.uploaded_by,
+            fileUrl: f.file_url,
+            downloads: f.downloads,
+            privacy: f.privacy,
+            isOfficial: Boolean(f.is_official || f.name === 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf'),
+            createdAt: f.created_at,
+          }));
       }
     } catch {
       // Fallback
     }
 
-    const allFiles = Array.from(fallbackStore.drive_files.values());
-    const files = userId
-      ? allFiles.filter((f) => f.user_id === userId)
-      : allFiles;
+    if (files.length === 0) {
+      const allFiles = Array.from(fallbackStore.drive_files.values());
+      const rawFallback = userId
+        ? allFiles.filter((f) => f.user_id === userId)
+        : allFiles;
 
-    return files.map((f) => ({
-      id: f.id as string,
-      name: f.name as string,
-      category: f.category as string,
-      type: f.type as string,
-      size: f.size as string,
-      uploadedBy: (f.uploaded_by || f.uploadedBy) as string,
-      fileUrl: (f.file_url || f.fileUrl) as string,
-      downloads: Number(f.downloads || 0),
-      privacy: f.privacy as string,
-      createdAt: f.created_at as string,
-    }));
+      files = rawFallback
+        .filter((f) => !mockNames.has(String(f.name)))
+        .map((f) => ({
+          id: f.id as string,
+          name: f.name as string,
+          category: f.category as string,
+          type: f.type as string,
+          size: f.size as string,
+          uploadedBy: (f.uploaded_by || f.uploadedBy) as string,
+          fileUrl: (f.file_url || f.fileUrl) as string,
+          downloads: Number(f.downloads || 0),
+          privacy: f.privacy as string,
+          isOfficial: Boolean(f.is_official || (f as any).isOfficial || f.name === 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf'),
+          createdAt: f.created_at as string,
+        }));
+    }
+
+    // Garante que o documento oficial obrigatório está sempre presente
+    const hasOfficial = files.some((f) => f.name === 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf');
+    if (!hasOfficial) {
+      files.unshift(officialDoc);
+    }
+
+    return files;
   },
 
   async saveDriveFile(data: {
@@ -1469,6 +1518,7 @@ export const StorageService = {
     uploadedBy?: string;
     fileUrl: string;
     privacy?: string;
+    isOfficial?: boolean;
   }) {
     await initDatabase();
     const id = `drive-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
@@ -1477,13 +1527,14 @@ export const StorageService = {
     const size = data.size || '1.0 MB';
     const uploadedBy = data.uploadedBy || 'Você';
     const privacy = data.privacy || 'agency-only';
+    const isOfficial = Boolean(data.isOfficial);
     const now = new Date().toISOString();
 
     try {
       await pool.query(
-        `INSERT INTO drive_files (id, user_id, name, category, type, size, uploaded_by, file_url, downloads, privacy, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, NOW())`,
-        [id, data.userId || null, data.name, category, type, size, uploadedBy, data.fileUrl, privacy]
+        `INSERT INTO drive_files (id, user_id, name, category, type, size, uploaded_by, file_url, downloads, privacy, is_official, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, NOW())`,
+        [id, data.userId || null, data.name, category, type, size, uploadedBy, data.fileUrl, privacy, isOfficial]
       );
     } catch {
       // Fallback
@@ -1500,6 +1551,7 @@ export const StorageService = {
       file_url: data.fileUrl,
       downloads: 0,
       privacy,
+      is_official: isOfficial,
       created_at: now,
     };
     fallbackStore.drive_files.set(id, fileObj);
@@ -1514,13 +1566,24 @@ export const StorageService = {
       fileUrl: data.fileUrl,
       downloads: 0,
       privacy,
+      isOfficial,
       createdAt: now,
     };
   },
 
   async deleteDriveFile(id: string, userId?: string, isAdmin?: boolean) {
+    if (id.startsWith('official-')) {
+      return false; // Documento oficial protegido contra exclusão
+    }
     await initDatabase();
     try {
+      const checkRes = await pool.query('SELECT name, is_official FROM drive_files WHERE id = $1', [id]);
+      if (checkRes.rows.length > 0) {
+        if (checkRes.rows[0].is_official || checkRes.rows[0].name === 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf') {
+          return false;
+        }
+      }
+
       if (isAdmin) {
         await pool.query('DELETE FROM drive_files WHERE id = $1', [id]);
       } else if (userId) {
@@ -1531,6 +1594,9 @@ export const StorageService = {
     }
     const f = fallbackStore.drive_files.get(id);
     if (f && (isAdmin || f.user_id === userId)) {
+      if (f.name === 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf' || (f as any).is_official) {
+        return false;
+      }
       fallbackStore.drive_files.delete(id);
     }
     return true;
@@ -1581,6 +1647,53 @@ export const StorageService = {
       totalGB: Number(totalGB.toFixed(2)),
       fileCount: files.length,
     };
+  },
+
+  /**
+   * Cálculo de cota total consumida pela Agência (arquivos privados + todos os compartilhados de suas modelos)
+   */
+  async getAgencyTotalDriveUsage(agencyId: string): Promise<{ totalBytes: number; totalGB: number; fileCount: number }> {
+    await initDatabase();
+    let totalBytes = 0;
+    let fileCount = 0;
+
+    try {
+      // 1. Arquivos privados da agência
+      const privRes = await pool.query('SELECT size FROM drive_files WHERE user_id = $1', [agencyId]);
+      for (const row of privRes.rows) {
+        totalBytes += this.parseSizeToBytes(row.size);
+        fileCount++;
+      }
+
+      // 2. Arquivos compartilhados onde a agência é a contratante responsável
+      const sharedRes = await pool.query('SELECT size FROM shared_drive_files WHERE agency_id = $1', [agencyId]);
+      for (const row of sharedRes.rows) {
+        totalBytes += this.parseSizeToBytes(row.size);
+        fileCount++;
+      }
+
+      const totalGB = Number((totalBytes / (1024 * 1024 * 1024)).toFixed(2));
+      return { totalBytes, totalGB, fileCount };
+    } catch {
+      // Fallback
+    }
+
+    for (const f of fallbackStore.drive_files.values()) {
+      if (f.user_id === agencyId) {
+        totalBytes += this.parseSizeToBytes(String(f.size || ''));
+        fileCount++;
+      }
+    }
+    for (const sf of fallbackStore.shared_drive_files.values()) {
+      const sAgencyId = sf.agency_id || (sf as any).agencyId;
+      if (sAgencyId === agencyId) {
+        totalBytes += this.parseSizeToBytes(String(sf.size || ''));
+        fileCount++;
+      }
+    }
+
+    const totalGB = Number((totalBytes / (1024 * 1024 * 1024)).toFixed(2));
+    return { totalBytes, totalGB, fileCount };
   },
 
   async saveCreator(creatorData: Partial<CompleteCreatorProfile>): Promise<CompleteCreatorProfile> {
@@ -1662,6 +1775,14 @@ export const StorageService = {
   // ══════════════════════════════════════════════════════════════════
   async listSharedDriveFiles(params: { agencyId?: string; modelId?: string; currentUserId?: string }): Promise<SharedDriveItem[]> {
     await initDatabase();
+    const mockNames = new Set([
+      'Contrato_Agenciamento_Exclusivo_2026.pdf',
+      'Composto_Digital_Alta_Moda_SS26.pdf',
+      'Ensaio_Milan_Look01_RAW_Master.jpg',
+      'Manual_de_Compliance_e_Diretrizes_Lumiardi.pdf',
+      'Modelo_Padrao_NDA_Blindagem_de_Imagem.pdf',
+    ]);
+
     try {
       let query = 'SELECT * FROM shared_drive_files WHERE 1=1';
       const qParams: unknown[] = [];
@@ -1684,21 +1805,23 @@ export const StorageService = {
 
       const res = await pool.query(query, qParams);
       if (res.rows.length > 0) {
-        return res.rows.map((f) => ({
-          id: f.id,
-          agencyId: f.agency_id,
-          modelId: f.model_id,
-          name: f.name,
-          category: f.category,
-          type: f.type,
-          size: f.size,
-          uploadedById: f.uploaded_by_id,
-          uploadedByName: f.uploaded_by_name,
-          fileUrl: f.file_url,
-          downloads: Number(f.downloads || 0),
-          createdAt: f.created_at,
-          updatedAt: f.updated_at,
-        }));
+        return res.rows
+          .filter((f) => !mockNames.has(f.name))
+          .map((f) => ({
+            id: f.id,
+            agencyId: f.agency_id,
+            modelId: f.model_id,
+            name: f.name,
+            category: f.category,
+            type: f.type,
+            size: f.size,
+            uploadedById: f.uploaded_by_id,
+            uploadedByName: f.uploaded_by_name,
+            fileUrl: f.file_url,
+            downloads: Number(f.downloads || 0),
+            createdAt: f.created_at,
+            updatedAt: f.updated_at,
+          }));
       }
     } catch {
       // Fallback

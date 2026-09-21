@@ -119,7 +119,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     const isAdmin = session.role === 'admin';
-    await StorageService.deleteDriveFile(id, session.id, isAdmin);
+    const success = await StorageService.deleteDriveFile(id, session.id, isAdmin);
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Este documento oficial da plataforma é obrigatório e protegido contra exclusão.' },
+        { status: 403 }
+      );
+    }
     return NextResponse.json({ success: true, message: 'Arquivo removido com sucesso.' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao deletar arquivo do drive';

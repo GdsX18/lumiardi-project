@@ -338,52 +338,9 @@ export const fallbackStore = {
     created_at: new Date().toISOString(),
   });
 
-  // Arquivos do Drive Compartilhado Iniciais
-  const defaultSharedFiles = [
-    {
-      id: 'sfile-1',
-      agency_id: 'user-agency-1',
-      model_id: 'user-model-1',
-      name: 'Contrato_Agenciamento_Exclusivo_2026.pdf',
-      category: 'contracts',
-      type: 'document',
-      size: '2.4 MB',
-      uploaded_by_id: 'user-agency-1',
-      uploaded_by_name: 'Sua Agência Corporativa',
-      file_url: '/documents/manual_compliance.pdf',
-      downloads: 2,
-      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'sfile-2',
-      agency_id: 'user-agency-1',
-      model_id: 'user-model-1',
-      name: 'Composto_Digital_Alta_Moda_SS26.pdf',
-      category: 'compostos',
-      type: 'document',
-      size: '4.1 MB',
-      uploaded_by_id: 'user-agency-1',
-      uploaded_by_name: 'Sua Agência Corporativa',
-      file_url: '/documents/modelo_nda.pdf',
-      downloads: 5,
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 'sfile-3',
-      agency_id: 'user-agency-1',
-      model_id: 'user-model-1',
-      name: 'Ensaio_Milan_Look01_RAW_Master.jpg',
-      category: 'raw-photos',
-      type: 'image',
-      size: '12.8 MB',
-      uploaded_by_id: 'user-model-1',
-      uploaded_by_name: 'Sua Conta Modelo',
-      file_url: '/api/media/assets/images/creator_elena.jpg',
-      downloads: 1,
-      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-  defaultSharedFiles.forEach((sf) => fallbackStore.shared_drive_files.set(sf.id, sf));
+  // Drive Compartilhado Inicial 100% Limpo (Sem arquivos mockados)
+  // Toda nova parceria inicia vazia para upload real
+
 
   // Logs Iniciais de Auditoria da Curadoria
   const defaultAuditLogs = [
@@ -486,32 +443,34 @@ export const fallbackStore = {
   ];
   defaultMessages.forEach((m) => fallbackStore.messages.set(m.id, m));
 
-  // Drive Files Iniciais
+  // Drive Inicial: Único documento oficial padrão obrigatório (somente leitura / download permitido)
   const defaultDriveFiles = [
     {
-      id: 'file-1',
+      id: 'official-doc-termos-lumiardi',
       user_id: 'user-model-1',
-      name: 'Manual_de_Compliance_e_Diretrizes_Lumiardi.pdf',
+      name: 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf',
       category: 'contracts',
       type: 'document',
-      size: '1.8 MB',
-      uploaded_by: 'Equipe de Curadoria Lumiardi',
-      file_url: '/documents/manual_compliance.pdf',
-      downloads: 1,
-      privacy: 'encrypted',
+      size: '1.2 MB',
+      uploaded_by: 'Lumiardi Compliance Oficial',
+      file_url: '/documents/Termos_de_Uso_e_Diretrizes_Lumiardi.pdf',
+      downloads: 0,
+      privacy: 'official',
+      is_official: true,
       created_at: new Date().toISOString(),
     },
     {
-      id: 'file-2',
-      user_id: 'user-model-1',
-      name: 'Modelo_Padrao_NDA_Blindagem_de_Imagem.pdf',
+      id: 'official-doc-termos-agencia',
+      user_id: 'user-agency-1',
+      name: 'Termos_de_Uso_e_Diretrizes_Lumiardi.pdf',
       category: 'contracts',
       type: 'document',
-      size: '850 KB',
-      uploaded_by: 'Assessoria Jurídica Lumiardi',
-      file_url: '/documents/modelo_nda.pdf',
+      size: '1.2 MB',
+      uploaded_by: 'Lumiardi Compliance Oficial',
+      file_url: '/documents/Termos_de_Uso_e_Diretrizes_Lumiardi.pdf',
       downloads: 0,
-      privacy: 'agency-only',
+      privacy: 'official',
+      is_official: true,
       created_at: new Date().toISOString(),
     },
   ];
@@ -1034,6 +993,18 @@ export async function initDatabase(): Promise<boolean> {
 
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_role VARCHAR(50);
+
+        -- Migrações e higienização do Lumiardi Drive
+        ALTER TABLE drive_files ADD COLUMN IF NOT EXISTS is_official BOOLEAN DEFAULT FALSE;
+        DELETE FROM drive_files WHERE name IN (
+          'Manual_de_Compliance_e_Diretrizes_Lumiardi.pdf',
+          'Modelo_Padrao_NDA_Blindagem_de_Imagem.pdf'
+        );
+        DELETE FROM shared_drive_files WHERE name IN (
+          'Contrato_Agenciamento_Exclusivo_2026.pdf',
+          'Composto_Digital_Alta_Moda_SS26.pdf',
+          'Ensaio_Milan_Look01_RAW_Master.jpg'
+        );
       `);
 
       // 14. Tabela PAYOUTS

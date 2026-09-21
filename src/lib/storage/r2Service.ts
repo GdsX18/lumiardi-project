@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export interface PresignedUrlRequest {
@@ -9,6 +9,9 @@ export interface PresignedUrlRequest {
   userId: string;
   operation: 'upload' | 'download';
   expiresInSeconds?: number;
+  context?: 'private' | 'shared';
+  agencyId?: string;
+  modelId?: string;
 }
 
 export interface PresignedUrlResponse {
@@ -61,12 +64,46 @@ export const R2StorageService = {
   },
 
   /**
-   * Gera a chave única do arquivo no bucket com isolamento por usuário
+   * Gera a chave única do arquivo no bucket com isolamento por usuário ou espaço compartilhado
    */
-  generateFileKey(userId: string, category: string, fileName: string): string {
-    const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  generateFileKey(
+    userOrParams: string | { userId: string; category: string; fileName: string; context?: 'private' | 'shared'; agencyId?: string; modelId?: string },
+    cat?: string,
+    fName?: string
+  ): string {
+    if (typeof userOrParams === 'object') {
+      const { userId, category, fileName, context, agencyId, modelId } = userOrParams;
+      const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const hash = crypto.randomBytes(6).toString('hex');
+      if (context === 'shared' && agencyId && modelId) {
+        return `vault/shared/${agencyId}/${modelId}/${category}/${Date.now()}_${hash}_${cleanName}`;
+      }
+      return `vault/${userId}/${category}/${Date.now()}_${hash}_${cleanName}`;
+    }
+    const cleanName = (fName || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
     const hash = crypto.randomBytes(6).toString('hex');
-    return `vault/${userId}/${category}/${Date.now()}_${hash}_${cleanName}`;
+    return `vault/${userOrParams}/${cat || 'raw-photos'}/${Date.now()}_${hash}_${cleanName}`;
+  },
+
+  /**
+   * Remove objeto diretamente do Cloudflare R2
+   */
+  async deleteObject(fileKey: string): Promise<boolean> {
+    const client = getR2Client();
+    const bucketName = this.getBucketName();
+    if (!client || !fileKey) return false;
+    try {
+      await client.send(
+        new DeleteObjectCommand({
+          Bucket: bucketName,
+          Key: fileKey,
+        })
+      );
+      return true;
+    } catch (err) {
+      console.warn('Erro ao deletar objeto do R2:', err);
+      return false;
+    }
   },
 
   /**
@@ -120,7 +157,7 @@ export const R2StorageService = {
     const client = getR2Client();
     const bucketName = this.getBucketName();
     const expiresIn = req.expiresInSeconds || 300; // 5 minutos padrão
-    const fileKey = this.generateFileKey(req.userId, req.category, req.fileName);
+    const fileKey = this.generateFileKey(req);
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
     if (client) {
