@@ -11,22 +11,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
-    const curationMsgs = await StorageService.listMessages('curation');
-    const lastCurationMsg = curationMsgs[curationMsgs.length - 1];
-
-    // Apenas canais reais e oficiais
-    const conversations = [
-      {
-        id: 'curation',
-        name: 'Mesa de Curadoria Lumiardi',
-        avatarText: 'LM',
-        subtitle: 'Suporte Oficial & Atendimento VIP',
-        lastMessage: lastCurationMsg?.text || 'Canal direto com a equipe de Curadoria e Compliance.',
-        lastTime: 'Hoje',
-        unreadCount: 0,
-        verified: true,
-      },
-    ];
+    // Canais dinâmicos: Curadoria sempre presente + canais diretos condicionados a contratos ativos
+    const conversations = await StorageService.listActiveConversations(session.id, session.role);
 
     return NextResponse.json({ success: true, conversations });
   } catch (err: unknown) {

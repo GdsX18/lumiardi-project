@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import {
   Mic,
@@ -11,241 +12,519 @@ import {
   PhoneCall,
   Shield,
   MonitorUp,
-  FileText,
   MessageSquare,
   Maximize,
   Minimize,
   Copy,
   Check,
-  Volume2,
-  VolumeX,
   Send,
-  RefreshCw,
-  Layers,
-  Plus,
   X,
+  Lock,
+  Plus,
+  ArrowRight,
+  AlertCircle,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { useLanguage } from '@/context/LanguageContext';
 
-export const VideoCallWidget: React.FC = () => {
+// Subcomponente de contagem isolado para eliminar re-renderizações cíclicas no vídeo
+const CallTimer = memo(({ active }: { active: boolean }) => {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+  return <strong className="text-gold font-mono text-xs">{formatted}</strong>;
+});
+CallTimer.displayName = 'CallTimer';
+
+export interface VideoCallWidgetProps {
+  roomId?: string;
+  autoStart?: boolean;
+  isModal?: boolean;
+  onClose?: () => void;
+  counterpartyName?: string;
+  counterpartyRole?: string;
+}
+
+export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
+  roomId: propRoomId,
+  autoStart = false,
+  isModal = false,
+  onClose,
+  counterpartyName: propCounterparty,
+}) => {
   const { t } = useLanguage();
   const searchParams = useSearchParams();
-  const initialRoom = searchParams.get('room') || 'LM-904-VIP';
 
-  // Estados da Chamada
-  const [inCall, setInCall] = useState(true);
+  // Se veio via URL ou via Prop (sem mocks fictícios por padrão)
+  const initialRoom = propRoomId || searchParams.get('room') || '';
+  const [activeRoomId, setActiveRoomId] = useState<string>(initialRoom);
+  const [joinInputId, setJoinInputId] = useState<string>('');
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+
+  // Estados da Chamada em Direto
+  const [inCall, setInCall] = useState<boolean>(Boolean(initialRoom || autoStart));
+  const [isEnding, setIsEnding] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [screenShare, setScreenShare] = useState(false);
-  const [audioMuted, setAudioMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mainStageView, setMainStageView] = useState<'camera' | 'screen' | 'waiting'>('camera');
-
-  // Painéis laterais
-  const [showNotes, setShowNotes] = useState(false);
   const [showChat, setShowChat] = useState(false);
-
-  // Timer Real da Chamada
-  const [callSeconds, setCallSeconds] = useState(0);
+  const [swappedViews, setSwappedViews] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [roomId, setRoomId] = useState(initialRoom);
+
+  // Tratamento de Permissões Negadas
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+
+  // Interlocutor e WebRTC
+  const [remoteParticipant, setRemoteParticipant] = useState<{ id: string; name: string } | null>(null);
+  const [hasRemoteStream, setHasRemoteStream] = useState(false);
   const [dailyUrl, setDailyUrl] = useState<string | null>(null);
 
-  // Chat interno da chamada
+  // Chat interno durante a chamada
   const [inMeetingMessages, setInMeetingMessages] = useState<
     Array<{ id: string; sender: string; text: string; time: string; isMe: boolean }>
   >([]);
   const [chatInput, setChatInput] = useState('');
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
-  // Notas de Reunião
-  const [meetingNotes, setMeetingNotes] = useState(
-    '• Pauta da Reunião de Casting:\n• Alinhamentos de Produção & Direitos de Imagem:\n• Prazos de Entrega & Locação:'
-  );
-  const [notesSaved, setNotesSaved] = useState(false);
+  // Auto-ocultação da barra cinema
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Streams WebRTC Reais
-  const mediaStreamRef = useRef<MediaStream | null>(null);
+  // Refs de Hardware e WebRTC
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const signalingPollRef = useRef<NodeJS.Timeout | null>(null);
+  const participantIdRef = useRef<string>(`part-${Math.random().toString(36).substring(2, 8)}`);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const meetingMessagesRef = useRef<HTMLDivElement | null>(null);
-  const prevMeetingMessagesCountRef = useRef<number>(0);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Vídeo Refs com estados para gatilho reativo no React
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-
-  // Sincronização do Fullscreen Nativo e Tecla ESC
+  // Trava de Scroll no body quando em modo Modal Portal
   useEffect(() => {
-    const handleFullscreenChange = () => {
+    if (isModal && inCall) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isModal, inCall]);
+
+  // Listener de Fullscreen Nativo
+  useEffect(() => {
+    const handleFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // Contador de Tempo Real
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (inCall) {
-      interval = setInterval(() => {
-        setCallSeconds((prev) => prev + 1);
-      }, 1000);
+  // Limpeza Completa de Recursos de Mídia (Zero Memory Leaks)
+  const stopAllMediaTracks = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      localStreamRef.current = null;
     }
-    return () => clearInterval(interval);
-  }, [inCall]);
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      screenStreamRef.current = null;
+    }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      remoteStreamRef.current = null;
+    }
 
-  const formatCallTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
 
-  // Inicialização e controle da Câmera Real
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    if (signalingPollRef.current) {
+      clearInterval(signalingPollRef.current);
+      signalingPollRef.current = null;
+    }
+
+    setHasRemoteStream(false);
+  }, []);
+
+  // Auto-ocultação inteligente da barra de controles por inatividade do rato
+  const triggerUserActivity = useCallback(() => {
+    setControlsVisible(true);
+    if (hideControlsTimeoutRef.current) {
+      clearTimeout(hideControlsTimeoutRef.current);
+    }
+    hideControlsTimeoutRef.current = setTimeout(() => {
+      // Não oculta se o chat da reunião estiver aberto
+      if (!showChat) {
+        setControlsVisible(false);
+      }
+    }, 3500);
+  }, [showChat]);
+
+  // Inicialização e Captura Segura de Mídia Local
   const startCamera = useCallback(async () => {
     try {
-      if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true,
-        });
-        mediaStreamRef.current = stream;
-        setLocalStream(stream);
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        setPermissionError('Navegador não suporta captura de áudio/vídeo WebRTC.');
+        return null;
       }
-    } catch (err) {
-      console.warn('Câmera/Microfone não concedido ou indisponível:', err);
+
+      setPermissionError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      });
+
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      // Adiciona faixas ao RTCPeerConnection se já existir
+      if (peerConnectionRef.current) {
+        stream.getTracks().forEach((track) => {
+          peerConnectionRef.current?.addTrack(track, stream);
+        });
+      }
+
+      return stream;
+    } catch (err: unknown) {
+      const e = err as { name?: string };
+      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        setPermissionError(
+          'Permissão de câmera ou microfone foi bloqueada. Desbloqueie o acesso no ícone de configurações/cadeado na barra do navegador e clique em Tentar Novamente.'
+        );
+      } else if (e.name === 'NotFoundError') {
+        setPermissionError('Nenhuma câmera ou microfone detectado neste dispositivo.');
+      } else {
+        setPermissionError('Não foi possível inicializar dispositivo de mídia.');
+      }
+      return null;
     }
   }, []);
 
-  const stopCamera = useCallback(() => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-      setLocalStream(null);
-    }
-  }, []);
+  // WebRTC PeerConnection & Sinalização Leve
+  const initWebRTC = useCallback(
+    async (roomId: string) => {
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      });
+      peerConnectionRef.current = pc;
 
-  useEffect(() => {
-    let isMounted = true;
-    if (inCall && camOn) {
-      startCamera();
-      void (async () => {
-        try {
-          if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-              audio: true,
+      // Receptor de Stream Remoto
+      pc.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          remoteStreamRef.current = event.streams[0];
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = event.streams[0];
+          }
+          setHasRemoteStream(true);
+        }
+      };
+
+      // Envio de ICE Candidates ao outro participante
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            await fetch('/api/meet/signal', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'signal',
+                roomId,
+                participantId: participantIdRef.current,
+                type: 'candidate',
+                data: event.candidate,
+              }),
             });
-            if (isMounted) {
-              mediaStreamRef.current = stream;
-              setLocalStream(stream);
+          } catch {
+            // Silencioso para não poluir console
+          }
+        }
+      };
+
+      // Adiciona faixas locais se o stream já estiver ativo
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+      }
+
+      // Registro na sala de sinalização
+      try {
+        const joinRes = await fetch('/api/meet/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'join',
+            roomId,
+            participantId: participantIdRef.current,
+            participantName: 'Membro VIP Lumiardi',
+          }),
+        });
+
+        if (joinRes.ok) {
+          const joinData = await joinRes.json();
+          // Se for o primeiro participante (caller), gera oferta WebRTC
+          if (joinData.role === 'caller') {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await fetch('/api/meet/signal', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'signal',
+                roomId,
+                participantId: participantIdRef.current,
+                type: 'offer',
+                data: offer,
+              }),
+            });
+          }
+        }
+      } catch {
+        // Fallback gracioso
+      }
+
+      // Polling leve de sinalização (intervalo seguro sem vazamento)
+      if (signalingPollRef.current) clearInterval(signalingPollRef.current);
+      signalingPollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await fetch('/api/meet/signal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'poll',
+              roomId,
+              participantId: participantIdRef.current,
+            }),
+          });
+
+          if (!pollRes.ok) return;
+          const pollData = await pollRes.json();
+
+          // Atualiza interlocutor se presente
+          if (Array.isArray(pollData.participants)) {
+            const other = pollData.participants.find(
+              (p: { id: string; name: string }) => p.id !== participantIdRef.current
+            );
+            if (other) {
+              setRemoteParticipant({ id: other.id, name: other.name });
             } else {
-              stream.getTracks().forEach((track) => track.stop());
+              setRemoteParticipant(null);
             }
           }
-        } catch (err) {
-          console.warn('Câmera/Microfone não concedido ou indisponível:', err);
+
+          // Processa ofertas, respostas e ICE candidates recebidos
+          if (Array.isArray(pollData.signals)) {
+            for (const sig of pollData.signals) {
+              if (sig.type === 'offer' && pc.signalingState !== 'closed') {
+                await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                await fetch('/api/meet/signal', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    action: 'signal',
+                    roomId,
+                    participantId: participantIdRef.current,
+                    type: 'answer',
+                    data: answer,
+                  }),
+                });
+              } else if (sig.type === 'answer' && pc.signalingState !== 'closed') {
+                if (pc.signalingState === 'have-local-offer') {
+                  await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+                }
+              } else if (sig.type === 'candidate' && pc.signalingState !== 'closed') {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(sig.data));
+                } catch {
+                  // Silencioso
+                }
+              }
+            }
+          }
+        } catch {
+          // Erro de rede temporário ignorado
+        }
+      }, 1500);
+    },
+    []
+  );
+
+  // Inicialização quando a chamada é ativada
+  useEffect(() => {
+    let mounted = true;
+
+    if (inCall && activeRoomId) {
+      (async () => {
+        const stream = await startCamera();
+        if (mounted && stream) {
+          await initWebRTC(activeRoomId);
         }
       })();
-    } else {
-      stopCamera();
     }
-    return () => {
-      isMounted = false;
-      stopCamera();
-    };
-  }, [inCall, camOn, startCamera, stopCamera]);
 
-  // Toggle Microfone Real
+    return () => {
+      mounted = false;
+      stopAllMediaTracks();
+    };
+  }, [inCall, activeRoomId, startCamera, initWebRTC, stopAllMediaTracks]);
+
+  // Criação Dinâmica e Instantânea de Nova Sala Efémera
+  const handleCreateNewRoom = async () => {
+    setIsCreatingRoom(true);
+    try {
+      const res = await fetch('/api/meet/room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create' }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setActiveRoomId(data.roomId);
+        if (data.dailyRoomUrl) {
+          setDailyUrl(data.dailyRoomUrl);
+        }
+        if (typeof window !== 'undefined' && !isModal) {
+          window.history.replaceState(null, '', `/dashboard/meet?room=${encodeURIComponent(data.roomId)}`);
+        }
+        setInCall(true);
+      }
+    } catch {
+      setPermissionError('Falha de conexão ao criar sala de reunião.');
+    } finally {
+      setIsCreatingRoom(false);
+    }
+  };
+
+  // Ingressar em Sala por Código
+  const handleJoinExistingRoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanId = joinInputId.trim().toUpperCase();
+    if (!cleanId) return;
+
+    setActiveRoomId(cleanId);
+    if (typeof window !== 'undefined' && !isModal) {
+      window.history.replaceState(null, '', `/dashboard/meet?room=${encodeURIComponent(cleanId)}`);
+    }
+    setInCall(true);
+  };
+
+  // Controles de Mídia: Microfone
   const toggleMic = () => {
     const nextState = !micOn;
     setMicOn(nextState);
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getAudioTracks().forEach((track) => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach((track) => {
         track.enabled = nextState;
       });
     }
   };
 
-  // Toggle Câmera Real
+  // Controles de Mídia: Câmera
   const toggleCam = () => {
     const nextState = !camOn;
     setCamOn(nextState);
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getVideoTracks().forEach((track) => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach((track) => {
         track.enabled = nextState;
       });
     }
   };
 
-  // Compartilhamento de Tela 100% Real
+  // Compartilhamento de Ecrã
   const toggleScreenShare = async () => {
     if (!screenShare) {
       try {
-        if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia) {
           const stream = await navigator.mediaDevices.getDisplayMedia({
             video: true,
             audio: false,
           });
-          screenStreamRef.current = stream;
-          setScreenStream(stream);
-          setScreenShare(true);
-          setMainStageView('screen');
 
-          // Quando o usuário cancela ou para o compartilhamento via navegador
+          screenStreamRef.current = stream;
+          if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = stream;
+          }
+          setScreenShare(true);
+
+          // Ao encerrar compartilhamento pelo controle do navegador
           stream.getVideoTracks()[0].onended = () => {
             setScreenShare(false);
-            setScreenStream(null);
-            screenStreamRef.current = null;
-            setMainStageView('camera');
+            if (screenStreamRef.current) {
+              screenStreamRef.current.getTracks().forEach((t) => t.stop());
+              screenStreamRef.current = null;
+            }
           };
         }
-      } catch (err) {
-        console.warn('Compartilhamento de tela cancelado:', err);
+      } catch {
+        // Cancelado pelo usuário
       }
     } else {
       if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((track) => track.stop());
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
       }
-      setScreenStream(null);
       setScreenShare(false);
-      setMainStageView('camera');
     }
   };
 
-  // Alternar Tela Cheia com Suporte a Fullscreen API e Overlay
+  // Alternar Modo Tela Cheia
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      if (containerRef.current?.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => {
-          setIsFullscreen(true);
-        });
-      } else {
-        setIsFullscreen(true);
-      }
+      containerRef.current?.requestFullscreen?.().catch(() => setIsFullscreen(true));
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-      setIsFullscreen(false);
+      document.exitFullscreen?.().catch(() => setIsFullscreen(false));
     }
   };
 
-  // Copiar link da sala
+  // Copiar Link de Convite
   const handleCopyLink = () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/dashboard/meet?room=${encodeURIComponent(roomId)}` : `https://lumiardi.com/dashboard/meet?room=${encodeURIComponent(roomId)}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://lumiardi.com';
+    const url = `${origin}/dashboard/meet?room=${encodeURIComponent(activeRoomId)}`;
     navigator.clipboard?.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  // Envio de mensagem no chat da reunião
+  // Envio de Mensagens no Chat da Reunião
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -254,7 +533,7 @@ export const VideoCallWidget: React.FC = () => {
     const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
     const newMsg = {
-      id: Date.now().toString(),
+      id: `msg-${Date.now()}`,
       sender: 'Você',
       text: chatInput.trim(),
       time: timeString,
@@ -264,329 +543,332 @@ export const VideoCallWidget: React.FC = () => {
     setInMeetingMessages((prev) => [...prev, newMsg]);
     setChatInput('');
     setTimeout(() => {
-      if (meetingMessagesRef.current) {
-        meetingMessagesRef.current.scrollTop = meetingMessagesRef.current.scrollHeight;
-      }
+      chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 50);
   };
 
-  useEffect(() => {
-    if (inMeetingMessages.length > prevMeetingMessagesCountRef.current) {
-      if (meetingMessagesRef.current) {
-        const container = meetingMessagesRef.current;
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-        if (isNearBottom) {
-          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-        }
-      }
-    }
-    prevMeetingMessagesCountRef.current = inMeetingMessages.length;
-  }, [inMeetingMessages]);
+  // Encerrar Chamada e Purgar Estados
+  const handleEndCall = async () => {
+    setIsEnding(true);
+    stopAllMediaTracks();
 
-  // Salvar Notas
-  const handleSaveNotes = () => {
-    setNotesSaved(true);
-    setTimeout(() => setNotesSaved(false), 2500);
+    // Notifica o servidor para decrementar participantes ou destruir a sala se vazia
+    try {
+      if (activeRoomId) {
+        await fetch('/api/meet/room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'leave',
+            roomId: activeRoomId,
+            participantId: participantIdRef.current,
+          }),
+        });
+        await fetch('/api/meet/signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'leave',
+            roomId: activeRoomId,
+            participantId: participantIdRef.current,
+          }),
+        });
+      }
+    } catch {
+      // Ignora erro de rede ao sair
+    }
+
+    setInCall(false);
+    setIsEnding(false);
+    if (onClose) {
+      onClose();
+    }
   };
 
-  return (
+  // JSX do Widget
+  const content = (
     <div
       ref={containerRef}
-      className={`w-full bg-[#080808] border border-gold/30 text-ivory shadow-2xl transition-all duration-300 ${
-        isFullscreen
-          ? 'fixed inset-0 z-[99999] h-screen w-screen p-4 md:p-6 flex flex-col justify-between rounded-none'
-          : 'p-4 md:p-6 space-y-4 rounded-sm'
+      onMouseMove={triggerUserActivity}
+      onTouchStart={triggerUserActivity}
+      className={`relative w-full bg-[#050505] text-ivory select-none overflow-hidden transition-all duration-300 font-sans ${
+        isModal
+          ? 'fixed inset-0 z-[80] h-screen w-screen flex flex-col justify-between rounded-none'
+          : isFullscreen
+          ? 'fixed inset-0 z-[9999] h-screen w-screen flex flex-col justify-between'
+          : 'h-[calc(100vh-230px)] min-h-[580px] rounded-sm border border-gold/30 shadow-2xl flex flex-col justify-between'
       }`}
     >
-      {/* Header do Lumiardi Meet */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gold/10 border border-gold/40 flex items-center justify-center text-gold rounded-sm shrink-0">
-            <VideoIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-serif-lumiardi text-lg md:text-xl font-medium text-ivory">
-                {t('meet_vip_room') || 'Lumiardi Meet — Sala Executiva VIP'}
-              </h3>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            </div>
-            <div className="flex items-center gap-2 text-[11px] font-sans text-ivory/60">
-              <span>Sala: <strong className="text-gold font-mono">{roomId}</strong></span>
-              <span>•</span>
-              <span className="text-emerald-400 font-medium flex items-center gap-1">
-                <Shield className="w-3 h-3 text-gold" /> {t('meet_e2e_active') || 'Criptografia E2E Ativa'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={async () => {
-              try {
-                const res = await fetch('/api/meet/room', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({}),
-                });
-                if (res.ok) {
-                  const data = await res.json();
-                  setRoomId(data.roomId);
-                  if (typeof window !== 'undefined') {
-                    window.history.replaceState(null, '', `/dashboard/meet?room=${encodeURIComponent(data.roomId)}`);
-                  }
-                  if (data.dailyRoomUrl) {
-                    setDailyUrl(data.dailyRoomUrl);
-                  }
-                  setCallSeconds(0);
-                }
-              } catch (e) {
-                console.error('Erro ao gerar sala:', e);
-              }
-            }}
-            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-ivory/80 hover:text-gold border border-white/10 text-xs font-sans font-medium transition-all flex items-center gap-1.5 rounded-sm cursor-pointer"
-            title="Gerar novo código de sala VIP"
-          >
-            <Plus className="w-3.5 h-3.5 text-gold" />
-            <span>{t('meet_new_room') || 'Nova Sala VIP'}</span>
-          </button>
-
-          <button
-            onClick={handleCopyLink}
-            className="px-3.5 py-1.5 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-sans font-medium transition-all flex items-center gap-1.5 rounded-sm cursor-pointer shadow-sm active:scale-95"
-          >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? (t('meet_invite_copied') || 'Link Copiado!') : (t('meet_copy_invite') || 'Copiar Convite')}</span>
-          </button>
-        </div>
-      </div>
-
+      {/* ─────────────────────────────────────────────────────────────
+          1. CENÁRIO A: CHAMADA EM ANDAMENTO (CINEMA 1-ON-1 GRID)
+         ───────────────────────────────────────────────────────────── */}
       {inCall ? (
-        <div className={`relative w-full bg-black border border-white/10 overflow-hidden flex flex-col justify-between rounded-sm shadow-2xl ${
-          isFullscreen ? 'flex-1 min-h-0 my-3' : 'h-[calc(100vh-270px)] min-h-[580px]'
-        }`}>
-          {/* PALCO PRINCIPAL DE VÍDEO / DISPLAY */}
-          <div className="relative w-full h-full bg-[#040404] flex items-center justify-center overflow-hidden">
+        <div className="relative w-full h-full flex flex-col bg-black overflow-hidden">
+          {/* Top Bar Minimalista Translúcida */}
+          <div
+            className={`absolute top-0 left-0 right-0 z-30 p-4 sm:p-5 flex items-center justify-between transition-opacity duration-300 pointer-events-auto bg-gradient-to-b from-black/80 via-black/40 to-transparent ${
+              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold">
+                <Shield className="w-4 h-4 text-gold" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-serif-lumiardi text-sm sm:text-base font-medium tracking-wide text-ivory">
+                    Lumiardi Meet VIP
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-ivory/60 font-mono">
+                  <span>Sala: <strong className="text-gold">{activeRoomId}</strong></span>
+                  <span>·</span>
+                  <CallTimer active={inCall} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyLink}
+                className="px-3 py-1.5 bg-black/60 hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-medium rounded-full transition-all flex items-center gap-1.5 backdrop-blur-md cursor-pointer active:scale-95 shadow-lg"
+              >
+                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{copiedLink ? 'Link Copiado' : 'Copiar Convite'}</span>
+              </button>
+
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 bg-black/60 hover:bg-white/10 text-ivory/70 hover:text-gold border border-white/15 rounded-full transition-colors backdrop-blur-md cursor-pointer"
+                title={isFullscreen ? 'Sair da Tela Cheia' : 'Modo Tela Cheia'}
+              >
+                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              </button>
+
+              {isModal && onClose && (
+                <button
+                  onClick={handleEndCall}
+                  className="p-2 bg-black/60 hover:bg-rose-500/30 text-ivory/70 hover:text-rose-400 border border-white/15 rounded-full transition-colors backdrop-blur-md cursor-pointer"
+                  title="Fechar Janela"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Banner Discreto para Permissões Negadas */}
+          {permissionError && (
+            <div className="absolute top-16 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-xl z-40 bg-neutral-900/95 border border-gold/40 backdrop-blur-xl p-3 sm:p-4 rounded-sm shadow-2xl text-xs flex items-start gap-3 text-ivory animate-in fade-in slide-in-from-top-2">
+              <AlertCircle className="w-5 h-5 text-gold shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="font-medium text-gold">{permissionError}</p>
+                <p className="text-[11px] text-ivory/60">
+                  Clique no ícone de cadeado na barra de endereço do navegador para permitir o uso da câmera e do microfone.
+                </p>
+              </div>
+              <button
+                onClick={startCamera}
+                className="px-2.5 py-1 bg-gold text-black-matte text-[11px] font-semibold rounded-xs hover:bg-gold-light transition-colors shrink-0 cursor-pointer"
+              >
+                Tentar Novamente
+              </button>
+              <button
+                onClick={() => setPermissionError(null)}
+                className="text-ivory/40 hover:text-ivory p-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* PALCO PRINCIPAL (INTERLOCUTOR OU TELA COMPARTILHADA) */}
+          <div className="relative w-full h-full flex-1 bg-[#040404] flex items-center justify-center overflow-hidden">
             {dailyUrl ? (
-              <div className="relative w-full h-full bg-black">
-                <iframe
-                  src={dailyUrl}
-                  allow="camera; microphone; fullscreen; display-capture; autoplay"
-                  className="w-full h-full border-0"
+              <iframe
+                src={dailyUrl}
+                allow="camera; microphone; fullscreen; display-capture; autoplay"
+                className="w-full h-full border-0"
+              />
+            ) : screenShare ? (
+              /* Transmissão de Ecrã */
+              <div className="relative w-full h-full bg-black flex items-center justify-center">
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain bg-black"
+                />
+                <div className="absolute top-20 left-6 bg-black/80 backdrop-blur-md px-3 py-1.5 text-xs text-gold border border-gold/40 flex items-center gap-2 rounded-full shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-gold animate-ping" />
+                  <span className="text-[10px] uppercase font-mono tracking-wider">Apresentando Ecrã</span>
+                </div>
+              </div>
+            ) : hasRemoteStream && !swappedViews ? (
+              /* Interlocutor Remoto em Destaque */
+              <div className="relative w-full h-full">
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-20 left-6 bg-black/75 backdrop-blur-md px-3.5 py-1.5 text-xs text-ivory border border-white/10 rounded-full flex items-center gap-2 shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="font-serif-lumiardi font-medium text-gold">
+                    {remoteParticipant?.name || propCounterparty || 'Interlocutor VIP'}
+                  </span>
+                  <span className="text-[10px] text-ivory/50 font-mono">· HD E2E</span>
+                </div>
+              </div>
+            ) : swappedViews && localStreamRef.current ? (
+              /* Feed Local em Destaque (Quando o usuário alternou no PiP) */
+              <div className="relative w-full h-full">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
                 />
               </div>
             ) : (
-              <>
-                {/* 1. MODO COMPARTILHAMENTO DE TELA */}
-                {screenShare && screenStream && mainStageView === 'screen' && (
-                  <div className="relative w-full h-full bg-black flex items-center justify-center">
-                    <video
-                      ref={(el) => {
-                        if (el && screenStream) {
-                          el.srcObject = screenStream;
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-contain bg-black"
-                    />
-                    <div className="absolute top-4 left-4 bg-black/90 backdrop-blur-md px-3.5 py-1.5 text-xs font-sans text-gold border border-gold/40 flex items-center gap-2 rounded-xs z-10 shadow-lg">
-                      <span className="w-2 h-2 rounded-full bg-gold animate-ping" />
-                      <span className="font-semibold uppercase tracking-wider text-[10px]">Transmitindo Sua Tela (Full HD 60FPS)</span>
-                    </div>
+              /* LOUNGE DE ESPERA LUXO (Aguardando Convidado Conectar) */
+              <div className="relative w-full h-full bg-gradient-to-b from-[#090909] via-[#050505] to-black flex flex-col items-center justify-center text-center p-6 space-y-5">
+                <div className="w-20 h-20 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold relative shadow-2xl">
+                  <span className="w-full h-full absolute rounded-full border border-gold/20 animate-ping opacity-60" />
+                  <Shield className="w-8 h-8 text-gold" />
+                </div>
+
+                <div className="max-w-md space-y-2 z-10">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-[10px] uppercase font-mono tracking-widest text-gold">
+                    <Lock className="w-3 h-3 text-gold" />
+                    <span>Criptografia Ponta-a-Ponta Ativa</span>
                   </div>
-                )}
+                  <h3 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-ivory">
+                    Aguardando Interlocutor...
+                  </h3>
+                  <p className="text-xs text-ivory/60 font-sans leading-relaxed">
+                    Sua conexão executiva está segura. Envie o link de acesso para o participante entrar diretamente na sala.
+                  </p>
+                </div>
 
-            {/* 2. MODO CÂMERA DO USUÁRIO NO PALCO PRINCIPAL */}
-            {(!screenShare || mainStageView === 'camera') && (
-              <div className="relative w-full h-full bg-[#050505] flex items-center justify-center">
-                {camOn && localStream ? (
-                  <div className="relative w-full h-full">
-                    <video
-                      ref={(el) => {
-                        if (el && localStream) {
-                          el.srcObject = localStream;
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                      style={{ transform: 'scaleX(-1)' }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
-
-                    {/* Tag de Transmissão Ativa */}
-                    <div className="absolute top-4 left-4 bg-black/85 backdrop-blur-md px-3 py-1.5 text-xs font-sans text-ivory border border-gold/30 flex items-center gap-2 rounded-xs z-10 shadow-lg">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="font-medium text-gold">Sua Câmera HD Ao Vivo</span>
-                      <span className="text-[10px] text-ivory/50 font-mono">· 1080p Master</span>
-                    </div>
-                  </div>
-                ) : (
-                  /* Sala de Espera Luxo quando a câmera está desligada */
-                  <div className="relative w-full h-full bg-gradient-to-br from-[#0c0c0c] via-[#050505] to-black flex flex-col items-center justify-center text-center p-6 space-y-4">
-                    <div className="w-20 h-20 rounded-full bg-gold/10 border-2 border-gold/40 flex items-center justify-center text-gold relative shadow-2xl">
-                      <span className="w-full h-full absolute rounded-full border border-gold/30 animate-ping opacity-75" />
-                      <Shield className="w-10 h-10 text-gold" />
-                    </div>
-
-                    <div className="max-w-md space-y-1.5 z-10">
-                      <span className="text-[10px] uppercase font-sans tracking-[0.25em] text-gold font-semibold block">
-                        Sala Executiva Criptografada (E2E)
-                      </span>
-                      <h3 className="font-serif-lumiardi text-2xl md:text-3xl font-light text-ivory">
-                        Conexão VIP Estabelecida
-                      </h3>
-                      <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-                        Sua sala está pronta e segura. Ligue sua câmera abaixo ou envie o link de convite para a agência ou contratante ingressar na conferência.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 z-10 pt-1">
-                      <button
-                        onClick={toggleCam}
-                        className="px-4 py-2 bg-gold hover:bg-gold-light text-black-matte font-sans font-semibold text-xs uppercase tracking-wider transition-all flex items-center gap-2 rounded-sm cursor-pointer shadow-lg active:scale-95"
-                      >
-                        <VideoIcon className="w-4 h-4" />
-                        <span>Ligar Minha Câmera</span>
-                      </button>
-
-                      <button
-                        onClick={handleCopyLink}
-                        className="px-4 py-2 bg-[#161616] hover:bg-[#222222] border border-gold/40 text-gold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copiar Convite</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-              </>
-            )}
-
-            {/* PIP / MINIATURA NO CANTO SUPERIOR (Alternância quando compartilhando tela) */}
-            {screenShare && (
-              <div
-                onClick={() => setMainStageView(mainStageView === 'screen' ? 'camera' : 'screen')}
-                className="absolute top-4 right-4 w-40 h-28 sm:w-52 sm:h-36 bg-[#111111] border-2 border-gold shadow-2xl overflow-hidden rounded-xs z-20 group cursor-pointer transition-transform hover:scale-102"
-                title="Clique para alternar entre sua câmera e a tela no palco principal"
-              >
-                {camOn && localStream ? (
-                  <video
-                    ref={(el) => {
-                      if (el && localStream) {
-                        el.srcObject = localStream;
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover mirror"
-                    style={{ transform: 'scaleX(-1)' }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#141414] text-ivory/50 text-xs font-sans">
-                    <VideoOff className="w-6 h-6 mb-1 text-rose-400" />
-                    <span className="text-[10px]">Câmera Desligada</span>
-                  </div>
-                )}
-
-                <div className="absolute bottom-1 left-1 right-1 bg-black/85 backdrop-blur-xs px-2 py-0.5 text-[10px] font-sans text-gold flex items-center justify-between">
-                  <span className="truncate flex items-center gap-1">
-                    <Layers className="w-3 h-3 text-gold" />
-                    <span>Alternar Visualização</span>
-                  </span>
-                  <span>{micOn ? <Mic className="w-3 h-3 text-emerald-400" /> : <MicOff className="w-3 h-3 text-rose-400" />}</span>
+                <div className="flex items-center gap-3 pt-2 z-10">
+                  <button
+                    onClick={handleCopyLink}
+                    className="px-5 py-2.5 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs uppercase tracking-wider rounded-full shadow-lg shadow-gold/15 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    {copiedLink ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedLink ? 'Link Copiado!' : 'Copiar Convite'}</span>
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* PAINEL LATERAL 1: NOTAS DE CASTING & ATA */}
-            {showNotes && (
-              <div className="absolute top-0 bottom-0 left-0 w-80 max-w-full bg-black/95 backdrop-blur-md border-r border-gold/40 p-4 text-xs font-sans flex flex-col justify-between z-30 animate-in fade-in slide-in-from-left">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                    <span className="font-serif-lumiardi text-sm text-gold font-medium flex items-center gap-1.5">
-                      <FileText className="w-4 h-4" /> Ata & Notas da Reunião
-                    </span>
-                    <button onClick={() => setShowNotes(false)} className="text-ivory/50 hover:text-gold text-xs cursor-pointer p-1"><X className="w-3.5 h-3.5" /></button>
-                  </div>
-                  <textarea
-                    rows={9}
-                    value={meetingNotes}
-                    onChange={(e) => setMeetingNotes(e.target.value)}
-                    placeholder="Anote detalhes de cachê, datas e exigências contratuais..."
-                    className="w-full bg-[#141414] border border-white/15 focus:border-gold p-3 text-xs text-ivory outline-none rounded-xs resize-none font-sans leading-relaxed"
-                  />
-                  {notesSaved && (
-                    <div className="p-2 bg-emerald-950/80 border border-emerald-500 text-emerald-300 text-[11px] flex items-center gap-1.5 rounded-xs animate-in fade-in">
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Ata salva e sincronizada no Lumiardi Drive!</span>
-                    </div>
+            {/* ─────────────────────────────────────────────────────────────
+                PICTURE-IN-PICTURE (FEED DO PRÓPRIO USUÁRIO)
+               ───────────────────────────────────────────────────────────── */}
+            <div
+              onClick={() => setSwappedViews(!swappedViews)}
+              className={`absolute bottom-24 right-5 sm:bottom-28 sm:right-8 w-36 sm:w-52 aspect-video bg-neutral-950/85 border border-gold/40 rounded-sm shadow-2xl backdrop-blur-md overflow-hidden cursor-pointer z-20 group transition-all duration-300 hover:scale-105 hover:border-gold ${
+                showChat ? 'sm:right-[340px]' : ''
+              }`}
+              title="Clique para alternar visão do palco"
+            >
+              {camOn ? (
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#101010] text-ivory/50">
+                  <VideoOff className="w-5 h-5 text-rose-400 mb-1" />
+                  <span className="text-[9px]">Câmera Desligada</span>
+                </div>
+              )}
+
+              <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between pointer-events-none text-[9px] font-mono">
+                <span className="bg-black/80 px-1.5 py-0.5 rounded-xs text-gold border border-white/10">
+                  Você
+                </span>
+                <span className="p-1 bg-black/80 rounded-full border border-white/10">
+                  {micOn ? (
+                    <Mic className="w-2.5 h-2.5 text-emerald-400" />
+                  ) : (
+                    <MicOff className="w-2.5 h-2.5 text-rose-400" />
                   )}
-                </div>
-                <Button
-                  variant="primary"
-                  onClick={handleSaveNotes}
-                  className="w-full py-2 text-xs uppercase font-bold tracking-wider cursor-pointer"
-                >
-                  Salvar Ata no Drive
-                </Button>
+                </span>
               </div>
-            )}
+            </div>
 
-            {/* PAINEL LATERAL 2: CHAT AO VIVO DA REUNIÃO */}
+            {/* ─────────────────────────────────────────────────────────────
+                PAINEL LATERAL: CHAT DA REUNIÃO (GAVETA DESLIZANTE)
+               ───────────────────────────────────────────────────────────── */}
             {showChat && (
-              <div className="absolute top-0 bottom-0 right-0 w-80 max-w-full bg-black/95 backdrop-blur-md border-l border-gold/40 p-4 text-xs font-sans flex flex-col justify-between z-30 animate-in fade-in slide-in-from-right">
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <span className="font-serif-lumiardi text-sm text-gold font-medium flex items-center gap-1.5">
-                    <MessageSquare className="w-4 h-4" /> Chat da Sala ({inMeetingMessages.length})
-                  </span>
-                  <button onClick={() => setShowChat(false)} className="text-ivory/50 hover:text-gold text-xs cursor-pointer p-1"><X className="w-3.5 h-3.5" /></button>
+              <div className="absolute top-0 bottom-0 right-0 w-80 sm:w-84 max-w-full bg-[#080808]/95 backdrop-blur-2xl border-l border-gold/30 p-4 flex flex-col justify-between z-30 animate-in fade-in slide-in-from-right duration-300">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-gold" />
+                    <span className="font-serif-lumiardi text-sm text-ivory font-medium">Chat da Sala</span>
+                    <span className="text-[10px] font-mono text-gold bg-gold/10 px-1.5 py-0.5 rounded-full">
+                      {inMeetingMessages.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowChat(false)}
+                    className="p-1 text-ivory/50 hover:text-gold transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Lista de Mensagens */}
-                <div ref={meetingMessagesRef} className="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
+                <div className="flex-1 overflow-y-auto py-3 space-y-2 pr-1 text-xs">
                   {inMeetingMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4 text-ivory/40 space-y-1">
-                      <MessageSquare className="w-6 h-6 text-gold/40 mb-1" />
-                      <p className="text-xs">Nenhuma mensagem no chat.</p>
-                      <p className="text-[10px]">Envie mensagens em tempo real durante a chamada.</p>
+                      <MessageSquare className="w-6 h-6 text-gold/30 mb-1" />
+                      <p className="text-xs">Nenhuma mensagem no momento.</p>
+                      <p className="text-[10px]">Envie mensagens instantâneas nesta chamada.</p>
                     </div>
                   ) : (
                     inMeetingMessages.map((m) => (
                       <div
                         key={m.id}
-                        className={`p-2.5 rounded-xs text-[11px] leading-relaxed ${
-                          m.isMe ? 'bg-gold/15 border border-gold/30 ml-4' : 'bg-[#181818] border border-white/10 mr-4'
+                        className={`p-2.5 rounded-xs leading-relaxed ${
+                          m.isMe
+                            ? 'bg-gold/15 border border-gold/30 ml-4 text-ivory'
+                            : 'bg-[#151515] border border-white/10 mr-4 text-ivory/90'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-1 text-[10px]">
                           <span className={`font-semibold ${m.isMe ? 'text-gold' : 'text-ivory'}`}>{m.sender}</span>
-                          <span className="text-[9px] text-ivory/40">{m.time}</span>
+                          <span className="text-ivory/40">{m.time}</span>
                         </div>
-                        <p className="text-ivory/90">{m.text}</p>
+                        <p className="text-xs">{m.text}</p>
                       </div>
                     ))
                   )}
+                  <div ref={chatMessagesEndRef} />
                 </div>
 
                 {/* Input de Envio */}
-                <form onSubmit={handleSendMessage} className="flex gap-2 pt-2 border-t border-white/10">
+                <form onSubmit={handleSendMessage} className="flex gap-2 pt-2 border-t border-white/10 shrink-0">
                   <input
                     type="text"
-                    placeholder="Mensagem rápida na sala..."
+                    placeholder="Mensagem rápida..."
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    className="flex-1 bg-[#161616] border border-white/15 focus:border-gold px-3 py-2 text-xs text-ivory outline-none rounded-xs"
+                    className="flex-1 bg-[#141414] border border-white/15 focus:border-gold px-3 py-2 text-xs text-ivory outline-none rounded-xs placeholder:text-ivory/30"
                   />
                   <button
                     type="submit"
-                    className="px-3.5 py-2 bg-gold text-black-matte font-bold rounded-xs hover:bg-gold-light transition-colors cursor-pointer"
+                    className="px-3 py-2 bg-gold text-black-matte font-bold rounded-xs hover:bg-gold-light transition-colors cursor-pointer"
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>
@@ -595,161 +877,173 @@ export const VideoCallWidget: React.FC = () => {
             )}
           </div>
 
-          {/* BARRA DE CONTROLES INFERIOR DINÂMICA E ELEGANTE */}
-          <div className="p-3.5 bg-black/95 backdrop-blur-md border-t border-white/10 flex items-center justify-between z-20 flex-wrap gap-3 shrink-0">
-            {/* Indicador de Tempo Real e Áudio */}
-            <div className="flex items-center gap-3 text-xs font-sans">
-              <div className="flex items-center gap-2 bg-[#121212] border border-white/10 px-3 py-1.5 rounded-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-ivory/60 text-[11px]">Duração:</span>
-                <strong className="text-gold font-mono text-xs">{formatCallTime(callSeconds)}</strong>
-              </div>
-
-              <button
-                onClick={() => setAudioMuted(!audioMuted)}
-                className="p-2 bg-[#141414] hover:bg-white/10 border border-white/10 text-ivory/70 hover:text-gold transition-colors rounded-xs cursor-pointer"
-                title={audioMuted ? 'Desmutar Áudio da Sala' : 'Mutar Áudio da Sala'}
-              >
-                {audioMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-              </button>
-            </div>
-
-            {/* Ações Centrais de Mídia (Microfone, Câmera, Tela, Notas, Chat, Desconectar) */}
-            <div className="flex items-center gap-2.5 mx-auto">
+          {/* ─────────────────────────────────────────────────────────────
+              BARRA DE CONTROLES FLUTUANTE MINIMALISTA (ESTILO CINEMA)
+             ───────────────────────────────────────────────────────────── */}
+          <div
+            className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 pointer-events-auto ${
+              controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+            }`}
+          >
+            <div className="bg-black/65 backdrop-blur-2xl border border-gold/30 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] flex items-center gap-3 sm:gap-4">
+              {/* Microfone */}
               <button
                 onClick={toggleMic}
-                className={`p-3 rounded-xs transition-all cursor-pointer border shadow-md active:scale-95 ${
+                className={`p-3 rounded-full transition-all cursor-pointer border shadow-md active:scale-95 ${
                   micOn
-                    ? 'bg-[#181818] text-ivory hover:bg-white/10 border-white/10 hover:border-gold/50'
-                    : 'bg-rose-950/90 border-rose-500 text-rose-300'
+                    ? 'bg-[#181818]/90 text-ivory hover:text-gold border-white/10 hover:border-gold/50'
+                    : 'bg-rose-950/80 border-rose-500 text-rose-300'
                 }`}
                 title={micOn ? 'Desativar Microfone' : 'Ativar Microfone'}
               >
                 {micOn ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4" />}
               </button>
 
+              {/* Câmera */}
               <button
                 onClick={toggleCam}
-                className={`p-3 rounded-xs transition-all cursor-pointer border shadow-md active:scale-95 ${
+                className={`p-3 rounded-full transition-all cursor-pointer border shadow-md active:scale-95 ${
                   camOn
-                    ? 'bg-[#181818] text-ivory hover:bg-white/10 border-white/10 hover:border-gold/50'
-                    : 'bg-rose-950/90 border-rose-500 text-rose-300'
+                    ? 'bg-[#181818]/90 text-ivory hover:text-gold border-white/10 hover:border-gold/50'
+                    : 'bg-rose-950/80 border-rose-500 text-rose-300'
                 }`}
-                title={camOn ? 'Desligar Minha Câmera' : 'Ligar Minha Câmera'}
+                title={camOn ? 'Desligar Câmera' : 'Ligar Câmera'}
               >
                 {camOn ? <VideoIcon className="w-4 h-4 text-emerald-400" /> : <VideoOff className="w-4 h-4" />}
               </button>
 
+              {/* Compartilhamento de Ecrã */}
               <button
                 onClick={toggleScreenShare}
-                className={`p-3 rounded-xs transition-all cursor-pointer border shadow-md active:scale-95 ${
+                className={`p-3 rounded-full transition-all cursor-pointer border shadow-md active:scale-95 ${
                   screenShare
                     ? 'bg-gold text-black-matte border-gold font-bold shadow-gold/30'
-                    : 'bg-[#181818] text-ivory hover:bg-white/10 border-white/10 hover:border-gold/50'
+                    : 'bg-[#181818]/90 text-ivory hover:text-gold border-white/10 hover:border-gold/50'
                 }`}
-                title={screenShare ? 'Parar Compartilhamento de Tela' : 'Compartilhar Minha Tela'}
+                title={screenShare ? 'Interromper Apresentação' : 'Partilhar Ecrã'}
               >
                 <MonitorUp className="w-4 h-4" />
               </button>
 
-              <button
-                onClick={() => {
-                  setShowNotes(!showNotes);
-                  setShowChat(false);
-                }}
-                className={`p-3 rounded-xs transition-all cursor-pointer border shadow-md active:scale-95 ${
-                  showNotes
-                    ? 'bg-gold text-black-matte border-gold font-bold shadow-gold/30'
-                    : 'bg-[#181818] text-ivory hover:bg-white/10 border-white/10 hover:border-gold/50'
-                }`}
-                title="Anotações & Ficha de Casting"
-              >
-                <FileText className="w-4 h-4" />
-              </button>
-
+              {/* Chat Lateral */}
               <button
                 onClick={() => {
                   setShowChat(!showChat);
-                  setShowNotes(false);
+                  setUnreadChatCount(0);
                 }}
-                className={`p-3 rounded-xs transition-all cursor-pointer border shadow-md relative active:scale-95 ${
+                className={`p-3 rounded-full transition-all cursor-pointer border shadow-md relative active:scale-95 ${
                   showChat
                     ? 'bg-gold text-black-matte border-gold font-bold shadow-gold/30'
-                    : 'bg-[#181818] text-ivory hover:bg-white/10 border-white/10 hover:border-gold/50'
+                    : 'bg-[#181818]/90 text-ivory hover:text-gold border-white/10 hover:border-gold/50'
                 }`}
-                title="Chat Interno da Reunião"
+                title="Abrir Chat da Reunião"
               >
                 <MessageSquare className="w-4 h-4" />
-                {inMeetingMessages.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-gold text-black-matte text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {inMeetingMessages.length}
+                {unreadChatCount > 0 && !showChat && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-gold text-black-matte text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadChatCount}
                   </span>
                 )}
               </button>
 
-              {/* Botão de Encerrar Chamada */}
+              {/* Encerrar Chamada */}
               <button
-                onClick={() => {
-                  setInCall(false);
-                  stopCamera();
-                  if (screenStreamRef.current) {
-                    screenStreamRef.current.getTracks().forEach((t) => t.stop());
-                    screenStreamRef.current = null;
-                  }
-                  setScreenShare(false);
-                }}
-                className="p-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xs transition-colors cursor-pointer border border-rose-500 shadow-lg active:scale-95"
-                title="Encerrar Chamada Segura"
+                onClick={handleEndCall}
+                disabled={isEnding}
+                className="p-3 bg-rose-600/85 hover:bg-rose-600 text-white rounded-full transition-all cursor-pointer border border-rose-500 shadow-lg shadow-rose-950/50 active:scale-95 ml-1"
+                title="Encerrar Chamada"
               >
                 <PhoneOff className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Botão de Tela Cheia */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={toggleFullscreen}
-                className="p-2.5 bg-[#141414] hover:bg-gold hover:text-black-matte border border-white/10 text-ivory/70 transition-all rounded-xs cursor-pointer active:scale-95"
-                title={isFullscreen ? 'Sair da Tela Cheia' : 'Modo Tela Cheia Imersivo'}
-              >
-                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
               </button>
             </div>
           </div>
         </div>
       ) : (
-        /* Tela de Chamada Encerrada / Reconectar */
-        <div className="w-full h-[400px] bg-black border border-white/10 flex flex-col items-center justify-center text-center p-6 space-y-5 rounded-sm">
-          <div className="w-16 h-16 bg-gold/10 border border-gold/40 text-gold flex items-center justify-center rounded-full shadow-xl">
-            <PhoneCall className="w-8 h-8" />
-          </div>
-
-          <div className="space-y-1">
-            <h4 className="font-serif-lumiardi text-2xl text-ivory font-light">
-              Reunião VIP Finalizada
-            </h4>
-            <p className="text-xs text-ivory/60 font-sans max-w-md leading-relaxed">
-              A gravação e a ata criptografada foram arquivadas em segurança no seu Lumiardi Drive.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button
-              variant="primary"
-              onClick={() => {
-                setInCall(true);
-                setCallSeconds(0);
-                setCamOn(true);
-                startCamera();
-              }}
-              className="text-xs uppercase font-bold py-2.5 px-6 cursor-pointer"
+        /* ─────────────────────────────────────────────────────────────
+            2. CENÁRIO B: LOBBY EXECUTIVO MINIMALISTA (SEM MOCKS)
+           ───────────────────────────────────────────────────────────── */
+        <div className="w-full h-full flex flex-col items-center justify-center p-6 sm:p-12 text-center relative bg-gradient-to-b from-[#090909] to-[#040404]">
+          {isModal && onClose && (
+            <button
+              onClick={onClose}
+              className="absolute top-6 right-6 p-2 text-ivory/50 hover:text-gold transition-colors cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-              Reconectar à Sala {roomId}
-            </Button>
+              <X className="w-5 h-5" />
+            </button>
+          )}
+
+          <div className="max-w-lg space-y-6">
+            <div className="w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mx-auto shadow-2xl">
+              <VideoIcon className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-[10px] uppercase font-mono tracking-widest text-gold">
+                <Sparkles className="w-3 h-3 text-gold" />
+                <span>Videoconferência Executiva VIP</span>
+              </div>
+              <h2 className="font-serif-lumiardi text-3xl sm:text-4xl font-light text-ivory">
+                {t('dash_page_meet_title') || 'Lumiardi Meet'}
+              </h2>
+              <p className="text-xs sm:text-sm text-ivory/60 font-sans leading-relaxed">
+                Ambiente de videoconferência privada criptografada E2E para alinhamentos contratuais, audições de casting e curadoria exclusiva.
+              </p>
+            </div>
+
+            {/* Ações Rápidas do Lobby */}
+            <div className="space-y-4 pt-4">
+              <button
+                onClick={handleCreateNewRoom}
+                disabled={isCreatingRoom}
+                className="w-full py-3.5 px-6 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs uppercase tracking-wider rounded-full shadow-xl shadow-gold/15 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                {isCreatingRoom ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-black-matte" />
+                    <span>Gerando Conexão Segura...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 text-black-matte" />
+                    <span>Iniciar Nova Reunião VIP</span>
+                  </>
+                )}
+              </button>
+
+              <div className="relative flex items-center justify-center my-4">
+                <div className="border-t border-white/10 w-full" />
+                <span className="bg-[#070707] px-3 text-[11px] text-ivory/40 uppercase font-mono tracking-wider">
+                  ou aceder por código
+                </span>
+              </div>
+
+              <form onSubmit={handleJoinExistingRoom} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ex: LM-9A4B2C-VIP"
+                  value={joinInputId}
+                  onChange={(e) => setJoinInputId(e.target.value)}
+                  className="flex-1 bg-[#121212] border border-white/15 focus:border-gold px-4 py-3 text-xs font-mono text-ivory outline-none rounded-full placeholder:text-ivory/30"
+                />
+                <button
+                  type="submit"
+                  disabled={!joinInputId.trim()}
+                  className="px-5 py-3 bg-[#1c1c1c] hover:bg-gold hover:text-black-matte text-gold border border-gold/30 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <span>Entrar</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
+
+  if (isModal && typeof document !== 'undefined') {
+    return createPortal(content, document.body);
+  }
+
+  return content;
 };

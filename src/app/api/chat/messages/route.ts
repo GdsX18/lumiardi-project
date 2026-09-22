@@ -14,15 +14,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId') || 'curation';
+    const since = searchParams.get('since') || undefined;
 
-    const rawMessages = await StorageService.listMessages(conversationId);
+    const rawMessages = await StorageService.listMessages(conversationId, since);
+
+    // Polling incremental: se o cliente enviou `since` e não há novas mensagens, retorna 304
+    if (since && rawMessages.length === 0) {
+      return new NextResponse(null, { status: 304 });
+    }
 
     // Identifica perfil e nome artístico real do usuário autenticado
     const userRecord = await StorageService.getUserById(session.id);
     const profile = userRecord?.profile as any;
     const myArtisticName = session.role === 'criadora'
       ? (profile?.qualitative?.artisticName || profile?.artistic_name || profile?.artisticName || userRecord?.user?.name || session.name)
-      : (session.role === 'agencia' ? (profile?.basicInfo?.corporateName || profile?.corporate_name || userRecord?.user?.name || session.name) : 'Mesa de Curadoria Lumiardi');
+      : (session.role === 'agencia'
+        ? (profile?.basicInfo?.corporateName || profile?.corporate_name || userRecord?.user?.name || session.name)
+        : 'Mesa de Curadoria Lumiardi');
 
     const messages = rawMessages.map((m) => {
       const isMe = m.senderId === session.id;
@@ -99,8 +107,9 @@ export async function POST(request: NextRequest) {
       senderRole = 'curadoria';
     }
 
-    if (!senderName) {
-      senderName = session.name || (session.role === 'admin' ? 'Mesa de Curadoria Lumiardi' : 'Membro Lumiardi');
+    // Rejeita nomes genéricos inválidos
+    if (!senderName || senderName === 'Lumiardi Member' || senderName.trim() === '') {
+      senderName = session.role === 'admin' ? 'Mesa de Curadoria Lumiardi' : (session.name || 'Usuário Lumiardi');
     }
 
     const message = await StorageService.sendMessage({

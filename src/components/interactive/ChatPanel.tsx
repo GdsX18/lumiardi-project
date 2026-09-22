@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import {
   Send,
   ShieldCheck,
@@ -16,12 +15,14 @@ import {
   ArrowLeft,
   RefreshCw,
   CheckCheck,
-  Smile,
   Copy,
   Check,
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthPortal } from '@/context/AuthPortalContext';
+import { VideoCallWidget } from './VideoCallWidget';
+
+// ─── Tipos ──────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
   id: string;
@@ -50,9 +51,44 @@ export interface Conversation {
   verified: boolean;
 }
 
+interface AttachedFile {
+  name: string;
+  url?: string;
+  type: 'image' | 'file';
+  fileKey?: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatTime(isoOrTime?: string): string {
+  if (!isoOrTime) return 'Agora';
+  try {
+    return new Date(isoOrTime).toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return isoOrTime;
+  }
+}
+
+function getInitials(name?: string): string {
+  if (!name) return 'LM';
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0].toUpperCase())
+    .join('');
+}
+
+// ─── Componente ──────────────────────────────────────────────────────────────
+
 export const ChatPanel: React.FC = () => {
   const { t } = useLanguage();
   const { currentUser, activeCreator } = useAuthPortal();
+
+  // Estado principal
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: 'curation',
@@ -65,23 +101,64 @@ export const ChatPanel: React.FC = () => {
       verified: true,
     },
   ]);
-
   const [activeConvId, setActiveConvId] = useState<string>('curation');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [attachedFile, setAttachedFile] = useState<{ name: string; url?: string; type: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [showMobileList, setShowMobileList] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [activeMeetRoom, setActiveMeetRoom] = useState<string | null>(null);
+  const [isStartingMeet, setIsStartingMeet] = useState<boolean>(false);
+
+  // Refs de controle
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const prevMessagesCountRef = useRef<number>(0);
   const isInitialLoadRef = useRef<boolean>(true);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const lastMessageTimestampRef = useRef<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId) || conversations[0];
 
-  // Carregar conversas da API
+  // ─── Normalização de mensagens da API ─────────────────────────────────────
+
+  const normalizeMessages = useCallback(
+    (raw: any[], currentId?: string, myName?: string): ChatMessage[] => {
+      return raw.map((m: any) => {
+        const isMe =
+          m.isMe !== undefined
+            ? Boolean(m.isMe)
+            : Boolean((currentId && m.senderId === currentId) || m.senderId === 'me');
+
+        const senderDisplayName = isMe
+          ? myName || 'Você'
+          : m.sender || m.senderName || 'Mesa de Curadoria Lumiardi';
+
+        return {
+          id: m.id || String(Math.random()),
+          senderId: m.senderId,
+          sender: senderDisplayName,
+          senderName: m.senderName || senderDisplayName,
+          senderRole: m.senderRole,
+          text: m.text || m.content || '',
+          time: m.time || formatTime(m.createdAt),
+          createdAt: m.createdAt,
+          isMe,
+          hasAttachment: !!m.hasAttachment || !!m.attachmentUrl,
+          attachmentName: m.attachmentName,
+          attachmentUrl: m.attachmentUrl,
+          attachmentType: m.attachmentType || 'file',
+        };
+      });
+    },
+    []
+  );
+
+  // ─── Carga inicial de conversas ───────────────────────────────────────────
+
   const fetchConversations = useCallback(async () => {
     try {
       const res = await fetch('/api/chat/conversations');
@@ -91,71 +168,116 @@ export const ChatPanel: React.FC = () => {
           setConversations(data.conversations);
         }
       }
-    } catch (err) {
-      console.error('Erro ao carregar conversas:', err);
+    } catch {
+      // silencioso
     }
   }, []);
 
-  // Carregar mensagens da conversa ativa com autoria e alinhamento reais
+  // ─── Carga inicial de mensagens (sem `since`) ─────────────────────────────
+
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`/api/chat/messages?conversationId=${encodeURIComponent(activeConvId)}`);
+      const res = await fetch(
+        `/api/chat/messages?conversationId=${encodeURIComponent(activeConvId)}`
+      );
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.messages)) {
           const currentId = currentUser?.id || data.currentUserId;
-          const myName = activeCreator?.qualitative?.artisticName || currentUser?.name || data.currentUserName || 'Você';
+          const myName =
+            activeCreator?.qualitative?.artisticName ||
+            currentUser?.name ||
+            data.currentUserName ||
+            'Você';
 
-          setMessages(
-            data.messages.map((m: any) => {
-              const isMe = m.isMe !== undefined
-                ? Boolean(m.isMe)
-                : Boolean((currentId && m.senderId === currentId) || m.senderId === 'me');
+          const normalized = normalizeMessages(data.messages, currentId, myName);
+          setMessages(normalized);
 
-              const senderDisplayName = isMe ? myName : (m.sender || m.senderName || 'Mesa de Curadoria Lumiardi');
-
-              return {
-                id: m.id || String(Math.random()),
-                senderId: m.senderId,
-                sender: senderDisplayName,
-                senderName: m.senderName || senderDisplayName,
-                senderRole: m.senderRole,
-                text: m.text || m.content || '',
-                time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Agora'),
-                isMe,
-                hasAttachment: !!m.hasAttachment || !!m.attachmentUrl,
-                attachmentName: m.attachmentName,
-                attachmentUrl: m.attachmentUrl,
-                attachmentType: m.attachmentType || 'file',
-              };
-            })
-          );
+          // Registra o timestamp da última mensagem para delta polling
+          if (normalized.length > 0) {
+            const last = normalized[normalized.length - 1];
+            lastMessageTimestampRef.current = last.createdAt || null;
+          }
         }
       }
-    } catch (err) {
-      console.error('Erro ao carregar mensagens:', err);
+    } catch {
+      // silencioso
     }
-  }, [activeConvId, currentUser?.id, currentUser?.name, activeCreator]);
+  }, [activeConvId, currentUser?.id, currentUser?.name, activeCreator, normalizeMessages]);
 
-  // Ao trocar de conversa ativa, reinicia sinalizador de scroll inicial
+  // ─── Polling incremental (delta) ──────────────────────────────────────────
+
+  const fetchDelta = useCallback(async () => {
+    const since = lastMessageTimestampRef.current;
+    if (!since) {
+      // Sem timestamp registrado: faz carga completa
+      await fetchMessages();
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/chat/messages?conversationId=${encodeURIComponent(activeConvId)}&since=${encodeURIComponent(since)}`
+      );
+
+      // 304 = nenhuma novidade
+      if (res.status === 304) return;
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          const currentId = currentUser?.id || data.currentUserId;
+          const myName =
+            activeCreator?.qualitative?.artisticName ||
+            currentUser?.name ||
+            data.currentUserName ||
+            'Você';
+
+          const newMsgs = normalizeMessages(data.messages, currentId, myName);
+
+          setMessages((prev) => {
+            // Evita duplicatas por id
+            const existingIds = new Set(prev.map((m) => m.id));
+            const fresh = newMsgs.filter((m) => !existingIds.has(m.id));
+            if (fresh.length === 0) return prev;
+            return [...prev, ...fresh];
+          });
+
+          const last = newMsgs[newMsgs.length - 1];
+          if (last.createdAt) {
+            lastMessageTimestampRef.current = last.createdAt;
+          }
+        }
+      }
+    } catch {
+      // silencioso
+    }
+  }, [activeConvId, currentUser?.id, currentUser?.name, activeCreator, fetchMessages, normalizeMessages]);
+
+  // ─── Reset ao trocar conversa ─────────────────────────────────────────────
+
   useEffect(() => {
     isInitialLoadRef.current = true;
     prevMessagesCountRef.current = 0;
+    lastMessageTimestampRef.current = null;
+    setMessages([]);
   }, [activeConvId]);
+
+  // ─── Lifecycle: carga + polling inteligente ───────────────────────────────
 
   useEffect(() => {
     fetchConversations();
     fetchMessages();
-    const interval = setInterval(fetchMessages, 4000);
+    const interval = setInterval(fetchDelta, 4000);
     return () => clearInterval(interval);
-  }, [fetchConversations, fetchMessages]);
+  }, [fetchConversations, fetchMessages, fetchDelta]);
 
-  // Scroll estritamente contido no contêiner interno — sem tocar no scroll da janela/viewport
+  // ─── Scroll estritamente contido no contêiner interno ────────────────────
+
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    // Primeiro carregamento da conversa: rola diretamente até o fim sem animação intrusiva
     if (isInitialLoadRef.current && messages.length > 0) {
       container.scrollTop = container.scrollHeight;
       isInitialLoadRef.current = false;
@@ -163,11 +285,9 @@ export const ChatPanel: React.FC = () => {
       return;
     }
 
-    // Só dispara se o número de mensagens REALMENTE aumentou (nova mensagem recebida ou enviada)
-    // NUNCA dispara em polling repetitivo de mensagens inalteradas
     if (messages.length > prevMessagesCountRef.current) {
-      // Trava de leitura (stick-to-bottom): só rola se o usuário já estiver perto do final
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+      const isNearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 120;
       if (isNearBottom) {
         container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
       }
@@ -176,62 +296,98 @@ export const ChatPanel: React.FC = () => {
     prevMessagesCountRef.current = messages.length;
   }, [messages]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ─── Auto-resize do textarea ──────────────────────────────────────────────
+
+  const autoResizeTextarea = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 128)}px`;
+  }, []);
+
+  // ─── Upload de arquivo via Presigned URL R2 ───────────────────────────────
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'chat');
-
-      const res = await fetch('/api/upload', {
+      // 1. Solicita Presigned URL ao backend
+      const presignRes = await fetch('/api/chat/upload', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, fileType: file.type }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setAttachedFile({
-          name: file.name,
-          url: data.url || data.file?.url,
-          type: file.type.startsWith('image/') ? 'image' : 'file',
-        });
-      } else {
-        setAttachedFile({
-          name: file.name,
-          type: file.type.startsWith('image/') ? 'image' : 'file',
-        });
+      if (presignRes.ok) {
+        const presignData = await presignRes.json();
+
+        if (presignData.fallback) {
+          // R2 não configurado: fallback para /api/upload
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('category', 'chat');
+          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            setAttachedFile({
+              name: file.name,
+              url: uploadData.url || uploadData.file?.url,
+              type: file.type.startsWith('image/') ? 'image' : 'file',
+            });
+          } else {
+            setAttachedFile({ name: file.name, type: file.type.startsWith('image/') ? 'image' : 'file' });
+          }
+        } else if (presignData.uploadUrl) {
+          // 2. PUT direto para o Cloudflare R2
+          await fetch(presignData.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file,
+          });
+
+          setAttachedFile({
+            name: file.name,
+            url: presignData.publicUrl || presignData.uploadUrl,
+            type: file.type.startsWith('image/') ? 'image' : 'file',
+            fileKey: presignData.fileKey,
+          });
+        }
       }
     } catch {
-      setAttachedFile({
-        name: file.name,
-        type: file.type.startsWith('image/') ? 'image' : 'file',
-      });
+      setAttachedFile({ name: file.name, type: file.type.startsWith('image/') ? 'image' : 'file' });
     } finally {
       setIsUploading(false);
-      e.target.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!inputVal.trim() && !attachedFile) || isUploading) return;
+  // ─── Envio de mensagem ────────────────────────────────────────────────────
+
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if ((!inputVal.trim() && !attachedFile) || isUploading || isSending) return;
 
     const currentText = inputVal.trim();
     const currentAttachment = attachedFile;
 
-    const myDisplayName = activeCreator?.qualitative?.artisticName || currentUser?.name || 'Você';
-    const tempId = String(Date.now());
+    const myDisplayName =
+      activeCreator?.qualitative?.artisticName || currentUser?.name || 'Você';
+    const tempId = `optimistic-${Date.now()}`;
+
     const optimisticMsg: ChatMessage = {
       id: tempId,
       senderId: currentUser?.id || 'me',
       sender: myDisplayName,
       senderName: myDisplayName,
-      senderRole: currentUser?.role === 'criadora' ? 'modelo' : (currentUser?.role || 'modelo'),
+      senderRole:
+        currentUser?.role === 'criadora'
+          ? 'modelo'
+          : currentUser?.role || 'modelo',
       text: currentText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString(),
       isMe: true,
       hasAttachment: !!currentAttachment,
       attachmentName: currentAttachment?.name,
@@ -242,8 +398,12 @@ export const ChatPanel: React.FC = () => {
     setMessages((prev) => [...prev, optimisticMsg]);
     setInputVal('');
     setAttachedFile(null);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    setIsSending(true);
 
-    // Scroll imediato no contêiner interno apenas (sem tocar na viewport da página)
+    // Scroll imediato no contêiner interno apenas
     setTimeout(() => {
       if (messagesContainerRef.current) {
         messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
@@ -265,12 +425,102 @@ export const ChatPanel: React.FC = () => {
       });
 
       if (res.ok) {
-        fetchMessages();
+        const data = await res.json();
+        // Substitui mensagem otimista pelo id real do servidor
+        if (data.message?.id) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === tempId
+                ? { ...m, id: data.message.id, createdAt: data.message.createdAt || m.createdAt }
+                : m
+            )
+          );
+          if (data.message.createdAt) {
+            lastMessageTimestampRef.current = data.message.createdAt;
+          }
+        }
       }
-    } catch (err) {
-      console.error('Erro ao enviar mensagem:', err);
+    } catch {
+      // silencioso — mensagem otimista permanece visível
+    } finally {
+      setIsSending(false);
     }
   };
+
+  // ─── Enter para enviar / Shift+Enter para nova linha ─────────────────────
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // ─── Reunião VIP ──────────────────────────────────────────────────────────
+
+  const handleStartVipMeet = async () => {
+    setIsStartingMeet(true);
+    try {
+      const res = await fetch('/api/meet/room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const roomId = data.roomId;
+        const inviteUrl = data.inviteUrl || `/dashboard/meet?room=${encodeURIComponent(roomId)}`;
+        const myDisplayName =
+          activeCreator?.qualitative?.artisticName || currentUser?.name || 'Você';
+        const meetMsgText = `Reunião VIP iniciada. Clique para aceder à sala executiva: ${roomId}`;
+
+        const optimisticMsg: ChatMessage = {
+          id: String(Date.now()),
+          senderId: currentUser?.id || 'me',
+          sender: myDisplayName,
+          senderName: myDisplayName,
+          senderRole:
+            currentUser?.role === 'criadora'
+              ? 'modelo'
+              : currentUser?.role || 'modelo',
+          text: meetMsgText,
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          createdAt: new Date().toISOString(),
+          isMe: true,
+          hasAttachment: true,
+          attachmentName: `Sala VIP ${roomId}`,
+          attachmentUrl: inviteUrl,
+          attachmentType: 'meet',
+        };
+
+        setMessages((prev) => [...prev, optimisticMsg]);
+
+        try {
+          await fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: activeConvId,
+              text: meetMsgText,
+              attachmentType: 'meet',
+              attachmentName: `Sala VIP ${roomId}`,
+              attachmentUrl: inviteUrl,
+            }),
+          });
+        } catch {
+          // silencioso
+        }
+
+        setActiveMeetRoom(roomId);
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar Reunião VIP:', err);
+    } finally {
+      setIsStartingMeet(false);
+    }
+  };
+
+  // ─── Copiar mensagem ──────────────────────────────────────────────────────
 
   const copyMessageText = (id: string, text: string) => {
     navigator.clipboard?.writeText(text);
@@ -278,36 +528,43 @@ export const ChatPanel: React.FC = () => {
     setTimeout(() => setCopiedMsgId(null), 2000);
   };
 
+  // ─── Filtro de busca ──────────────────────────────────────────────────────
+
   const filteredConversations = conversations.filter(
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.lastMessage.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const canSend = (inputVal.trim() !== '' || !!attachedFile) && !isUploading && !isSending;
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
-    <div className="w-full bg-[#0A0A0A] border border-white/[0.08] text-ivory shadow-2xl flex flex-col md:flex-row h-[calc(100vh-210px)] min-h-[640px] overflow-hidden rounded-sm relative backdrop-blur-xl">
-      {/* Coluna Lateral: Lista de Conversas */}
+    <div className="w-full bg-[#0A0A0A] border border-white/[0.08] text-ivory shadow-2xl flex flex-col md:flex-row h-[calc(100vh-210px)] min-h-[640px] overflow-hidden rounded-sm relative">
+
+      {/* ── Coluna Lateral: Lista de Conversas ── */}
       <div
-        className={`w-full md:w-84 lg:w-96 bg-[#080808] border-r border-white/[0.06] flex flex-col justify-between shrink-0 ${
+        className={`w-full md:w-80 lg:w-88 bg-[#080808] border-r border-white/[0.06] flex flex-col shrink-0 ${
           showMobileList ? 'flex absolute inset-0 z-30' : 'hidden md:flex'
         }`}
       >
         <div className="flex flex-col h-full overflow-hidden">
+
           {/* Header da Sidebar */}
           <div className="p-4 border-b border-white/[0.06] space-y-3 bg-[#0D0D0D]/60">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-xs bg-gold/10 border border-gold/30 text-gold flex items-center justify-center">
                   <Lock className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <span className="font-serif-lumiardi text-base font-medium text-ivory block leading-tight">
+                  <span className="font-serif-lumiardi text-sm font-medium text-ivory block leading-tight">
                     {t('chat_secure_channels') || 'Canais Seguros'}
                   </span>
                   <span className="text-[10px] font-sans text-ivory/40">Criptografia E2E</span>
                 </div>
               </div>
-
               {showMobileList && (
                 <button
                   onClick={() => setShowMobileList(false)}
@@ -318,12 +575,12 @@ export const ChatPanel: React.FC = () => {
               )}
             </div>
 
-            {/* Campo de Busca Fluido */}
+            {/* Campo de Busca */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-ivory/40 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-ivory/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
-                placeholder={t('chat_search_placeholder') || 'Pesquisar mensagens ou canais...'}
+                placeholder={t('chat_search_placeholder') || 'Pesquisar canais...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-[#121212] border border-white/[0.08] pl-9 pr-3 py-2 text-xs text-ivory outline-none rounded-xs placeholder:text-ivory/30 focus:border-gold/40 transition-colors"
@@ -331,8 +588,8 @@ export const ChatPanel: React.FC = () => {
             </div>
           </div>
 
-          {/* Lista de Contatos com Scroll Suave */}
-          <div className="flex-1 overflow-y-auto divide-y divide-white/[0.03] p-2 space-y-1">
+          {/* Lista de Canais */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
             {filteredConversations.map((conv) => {
               const isSelected = conv.id === activeConvId;
               return (
@@ -342,28 +599,32 @@ export const ChatPanel: React.FC = () => {
                     setActiveConvId(conv.id);
                     setShowMobileList(false);
                   }}
-                  className={`w-full p-3.5 text-left transition-all flex items-start gap-3 cursor-pointer rounded-xs ${
+                  className={`w-full px-3.5 py-3 text-left transition-all flex items-start gap-3 cursor-pointer rounded-xs ${
                     isSelected
-                      ? 'bg-gradient-to-r from-gold/15 via-gold/5 to-transparent border-l-2 border-gold text-ivory shadow-inner'
-                      : 'hover:bg-white/[0.03] text-ivory/70'
+                      ? 'bg-gold/10 border-l-2 border-gold text-ivory'
+                      : 'hover:bg-white/[0.03] text-ivory/70 border-l-2 border-transparent'
                   }`}
                 >
-                  <div className="relative shrink-0">
-                    <div className="w-11 h-11 bg-[#141414] border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-sm rounded-xs shadow-md">
+                  <div className="relative shrink-0 mt-0.5">
+                    <div className="w-10 h-10 bg-[#141414] border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs rounded-xs">
                       {conv.avatarText}
                     </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-black rounded-full" />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#080808] rounded-full" />
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-serif-lumiardi text-sm font-medium text-ivory truncate flex items-center gap-1.5">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-serif-lumiardi text-[13px] font-medium text-ivory truncate flex items-center gap-1.5">
                         {conv.name}
-                        {conv.verified && <ShieldCheck className="w-3.5 h-3.5 text-gold shrink-0" />}
+                        {conv.verified && (
+                          <ShieldCheck className="w-3 h-3 text-gold shrink-0 opacity-70" />
+                        )}
                       </span>
-                      <span className="text-[10px] text-ivory/40 font-sans">{conv.lastTime}</span>
+                      <span className="text-[10px] text-ivory/40 font-sans ml-1 shrink-0">
+                        {conv.lastTime}
+                      </span>
                     </div>
-                    <p className="text-[11px] text-ivory/60 font-sans truncate leading-relaxed">
+                    <p className="text-[11px] text-ivory/50 font-sans truncate">
                       {conv.lastMessage}
                     </p>
                   </div>
@@ -372,19 +633,23 @@ export const ChatPanel: React.FC = () => {
             })}
           </div>
 
-          {/* Rodapé da Sidebar */}
-          <div className="p-3 bg-[#060606] border-t border-white/[0.06] text-[10px] text-center text-ivory/40 font-sans flex items-center justify-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-gold/60" />
-            <span>{t('chat_e2e_shield') || 'Blindagem Criptográfica Lumiardi E2E'}</span>
+          {/* Rodapé sutil */}
+          <div className="px-4 py-2.5 border-t border-white/[0.05] flex items-center gap-1.5">
+            <ShieldCheck className="w-3 h-3 text-gold/50 shrink-0" />
+            <span className="text-[10px] text-ivory/35 font-sans">
+              Blindagem Criptográfica Lumiardi E2E
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Janela de Conversa Ativa */}
-      <div className="flex-1 flex flex-col justify-between bg-[#0B0B0B] h-full overflow-hidden">
-        {/* Header da Conversa Ativa */}
-        <div className="p-4 bg-[#0E0E0E]/90 border-b border-white/[0.06] flex items-center justify-between shrink-0 backdrop-blur-md">
+      {/* ── Janela de Conversa Ativa ── */}
+      <div className="flex-1 flex flex-col bg-[#0B0B0B] h-full overflow-hidden">
+
+        {/* Header da Conversa */}
+        <div className="px-4 py-3 bg-[#0E0E0E]/90 border-b border-white/[0.06] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
+            {/* Botão mobile voltar */}
             <button
               onClick={() => setShowMobileList(true)}
               className="md:hidden p-2 bg-[#161616] border border-white/10 text-gold rounded-xs hover:bg-white/10"
@@ -394,163 +659,224 @@ export const ChatPanel: React.FC = () => {
             </button>
 
             <div className="relative">
-              <div className="w-11 h-11 bg-gold/10 border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-sm rounded-xs shadow-md">
+              <div className="w-10 h-10 bg-gold/10 border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs rounded-xs">
                 {activeConv.avatarText}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-black rounded-full animate-pulse" />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#0E0E0E] rounded-full animate-pulse" />
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-serif-lumiardi text-base md:text-lg font-medium text-ivory">
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-serif-lumiardi text-sm md:text-base font-medium text-ivory leading-tight">
                   {activeConv.name}
                 </h3>
-                <ShieldCheck className="w-4 h-4 text-gold shrink-0" />
-                <span className="hidden sm:inline-block px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-sans rounded-xs uppercase tracking-wider">
-                  {t('chat_official_channel') || 'Canal Oficial'}
-                </span>
+                <ShieldCheck className="w-3.5 h-3.5 text-gold/70 shrink-0" />
               </div>
-              <span className="text-[11px] text-ivory/50 font-sans flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>{t('chat_priority_response') || 'Equipe Ativa · Resposta Prioritária'}</span>
+              <span className="text-[11px] text-ivory/45 font-sans flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Equipe ativa · Resposta prioritária
               </span>
             </div>
           </div>
 
+          {/* Ações do header */}
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchMessages}
-              title="Atualizar mensagens"
-              className="p-2.5 bg-[#141414] hover:bg-[#202020] border border-white/[0.08] text-ivory/70 hover:text-gold transition-colors rounded-xs cursor-pointer"
+              type="button"
+              onClick={handleStartVipMeet}
+              disabled={isStartingMeet}
+              className="px-3 py-2 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-1.5 rounded-xs shadow-sm shadow-gold/10 cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw className="w-4 h-4" />
+              {isStartingMeet ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Video className="w-3.5 h-3.5" />
+              )}
+              <span className="hidden sm:inline">
+                {isStartingMeet ? 'Iniciando...' : 'Reunião VIP'}
+              </span>
             </button>
-
-            <Link
-              href="/dashboard/meet"
-              className="px-4 py-2 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-1.5 rounded-xs shadow-md shadow-gold/10"
-            >
-              <Video className="w-3.5 h-3.5 fill-black-matte" />
-              <span className="hidden sm:inline">{t('chat_start_vip_meet') || 'Iniciar Reunião VIP'}</span>
-            </Link>
           </div>
         </div>
 
-        {/* Histórico de Mensagens com Design Limpo e Fluido */}
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
-          <div className="flex items-center justify-center my-2">
-            <div className="px-4 py-1.5 bg-[#121212] border border-white/[0.06] text-[10px] text-ivory/50 font-sans uppercase tracking-[0.2em] rounded-full flex items-center gap-2 shadow-sm">
-              <Lock className="w-3 h-3 text-gold/70" />
-              <span>{t('chat_aes_shield') || 'Sessão Protegida por Criptografia AES-256'}</span>
-            </div>
-          </div>
-
+        {/* ── Histórico de Mensagens ── */}
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-6 md:px-8 space-y-5">
           {messages.map((msg) => {
-            const initials = msg.sender
-              ? msg.sender
-                  .split(' ')
-                  .filter(Boolean)
-                  .map((n: string) => n[0])
-                  .slice(0, 2)
-                  .join('')
-                  .toUpperCase()
-              : 'LM';
+            const initials = getInitials(msg.sender);
 
             return (
               <div
                 key={msg.id}
-                className={`flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'} items-end gap-2.5 group`}
+                className={`flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'} items-end gap-2 group`}
               >
-                {/* Avatar da Curadoria / Terceiros (Aparece à esquerda para mensagens recebidas) */}
+                {/* Avatar da Curadoria / Parceiro (esquerda) */}
                 {!msg.isMe && (
                   <div
-                    className="w-8 h-8 rounded-full bg-[#141414] border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs shrink-0 shadow-md mb-0.5"
+                    className="w-7 h-7 rounded-full bg-[#141414] border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-[10px] shrink-0 mb-0.5"
                     title={msg.sender}
                   >
-                    {activeConv.avatarText || initials || 'LM'}
+                    {activeConv.avatarText || initials}
                   </div>
                 )}
 
                 {/* Balão de Mensagem */}
                 <div
-                  className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-xl md:max-w-2xl space-y-1`}
+                  className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[80%] sm:max-w-lg md:max-w-2xl space-y-1`}
                 >
+                  {/* Nome do remetente (apenas para mensagens recebidas) */}
+                  {!msg.isMe && (
+                    <span className="text-[10px] text-ivory/50 font-sans px-1">
+                      {msg.sender}
+                    </span>
+                  )}
+
                   <div
-                    className={`p-4 rounded-2xl text-xs font-sans leading-relaxed shadow-lg relative transition-all ${
+                    className={`px-4 py-3 text-xs font-sans leading-relaxed shadow-sm relative transition-all ${
                       msg.isMe
-                        ? 'bg-[#1C1914] border border-gold/40 text-[#F5F2EB] rounded-tr-xs shadow-gold/5'
-                        : 'bg-[#141414] border border-white/[0.08] text-ivory/90 rounded-tl-xs hover:border-gold/30'
+                        ? 'bg-[#1C1914] border border-[#C9A96B]/25 text-[#F5F2EB] rounded-2xl rounded-tr-xs'
+                        : 'bg-[#141414] border border-white/[0.07] text-ivory/90 rounded-2xl rounded-tl-xs hover:border-white/[0.12]'
                     }`}
                   >
-                    {/* Header da Bolha de Mensagem */}
-                    <div
-                      className={`flex items-center justify-between gap-6 mb-1.5 text-[10px] pb-1 border-b ${
-                        msg.isMe ? 'border-gold/15 text-gold/85' : 'border-white/[0.06] text-ivory/60'
-                      }`}
-                    >
-                      <span className="font-serif-lumiardi font-semibold flex items-center gap-1.5">
-                        {msg.sender}
-                        {!msg.isMe && <ShieldCheck className="w-3 h-3 text-gold shrink-0" />}
-                      </span>
-                      <div className="flex items-center gap-1.5 opacity-80">
-                        <span>{msg.time}</span>
-                        {msg.isMe && <CheckCheck className="w-3.5 h-3.5 text-gold" />}
-                      </div>
-                    </div>
-
-                    {/* Conteúdo Textual */}
-                    <p className={`whitespace-pre-wrap text-[13px] leading-relaxed ${msg.isMe ? 'text-[#F5F2EB]/95' : 'text-ivory/90'}`}>
-                      {msg.text}
-                    </p>
-
-                    {/* Bloco de Anexo Fluido */}
-                    {msg.hasAttachment && (
-                      <div
-                        className={`mt-3 p-3 rounded-xs flex items-center justify-between gap-3 border transition-all ${
-                          msg.isMe
-                            ? 'bg-black/30 border-gold/20 text-[#F5F2EB]'
-                            : 'bg-[#1C1C1C] border-white/[0.08] text-ivory'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          {msg.attachmentType === 'image' ? (
-                            <ImageIcon className="w-4 h-4 text-gold shrink-0" />
-                          ) : (
-                            <FileText className="w-4 h-4 text-gold shrink-0" />
-                          )}
-                          <span className="truncate text-xs font-medium">{msg.attachmentName || 'Anexo Lumiardi'}</span>
+                    {/* Caso A: Convite de Reunião VIP */}
+                    {msg.attachmentType === 'meet' || msg.text.includes('Reunião VIP') ? (
+                      <div className="p-3.5 bg-gradient-to-br from-[#1c1913] to-[#0f0e0c] border border-gold/35 rounded-sm space-y-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/35 flex items-center justify-center text-gold shrink-0">
+                            <Video className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-serif-lumiardi text-sm text-ivory font-medium block">
+                              Reunião VIP Lumiardi
+                            </span>
+                            <p className="text-[11px] text-ivory/55 font-sans">
+                              Sessão executiva criptografada ponta-a-ponta
+                            </p>
+                          </div>
                         </div>
 
-                        {msg.attachmentUrl && (
-                          <a
-                            href={msg.attachmentUrl}
-                            download={msg.attachmentName || 'anexo_lumiardi'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 hover:text-gold hover:bg-white/10 transition-all rounded-xs shrink-0"
-                            title="Download do Anexo"
+                        <div className="flex items-center justify-between pt-2 border-t border-gold/15 gap-2 flex-wrap">
+                          <span className="text-xs font-mono text-gold bg-gold/10 px-2 py-0.5 rounded-xs border border-gold/20">
+                            {msg.attachmentName || 'Sala VIP Ativa'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const match =
+                                msg.text.match(/LM-[A-Z0-9-]+/) ||
+                                msg.attachmentUrl?.match(/room=([^&]+)/);
+                              const roomToOpen = match
+                                ? decodeURIComponent(match[1] || match[0])
+                                : activeMeetRoom || 'LM-VIP';
+                              setActiveMeetRoom(roomToOpen);
+                            }}
+                            className="px-3 py-1.5 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs rounded-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                           >
-                            <Download className="w-4 h-4" />
-                          </a>
-                        )}
+                            <Video className="w-3 h-3" />
+                            Entrar
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        {/* Conteúdo Textual */}
+                        {msg.text && (
+                          <p
+                            className={`whitespace-pre-wrap text-[13px] leading-relaxed ${
+                              msg.isMe ? 'text-[#F5F2EB]/95' : 'text-ivory/90'
+                            }`}
+                          >
+                            {msg.text}
+                          </p>
+                        )}
+
+                        {/* Bloco de Anexo */}
+                        {msg.hasAttachment && msg.attachmentUrl && (
+                          <div
+                            className={`mt-2.5 rounded-xs border overflow-hidden ${
+                              msg.isMe
+                                ? 'border-[#C9A96B]/20 bg-black/25'
+                                : 'border-white/[0.07] bg-[#181818]'
+                            }`}
+                          >
+                            {/* Preview de imagem inline */}
+                            {msg.attachmentType === 'image' && (
+                              <a
+                                href={msg.attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={msg.attachmentUrl}
+                                  alt={msg.attachmentName || 'Imagem'}
+                                  className="w-full max-h-48 object-cover block"
+                                  loading="lazy"
+                                />
+                              </a>
+                            )}
+
+                            {/* Card de PDF / documento */}
+                            <div className="flex items-center justify-between px-3 py-2 gap-2">
+                              <div className="flex items-center gap-2 truncate">
+                                {msg.attachmentType === 'image' ? (
+                                  <ImageIcon className="w-3.5 h-3.5 text-gold/70 shrink-0" />
+                                ) : (
+                                  <FileText className="w-3.5 h-3.5 text-gold/70 shrink-0" />
+                                )}
+                                <span className="truncate text-[11px] font-medium text-ivory/75">
+                                  {msg.attachmentName || 'Anexo'}
+                                </span>
+                              </div>
+                              <a
+                                href={msg.attachmentUrl}
+                                download={msg.attachmentName || 'anexo_lumiardi'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 hover:text-gold transition-colors rounded-xs shrink-0 text-ivory/50"
+                                title="Download"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
 
-                    {/* Botão Flutuante de Copiar */}
+                    {/* Hora + lido — dentro do balão, discreto */}
+                    <div
+                      className={`flex items-center gap-1 mt-1.5 ${
+                        msg.isMe ? 'justify-end' : 'justify-start'
+                      }`}
+                    >
+                      <span className="text-[10px] text-ivory/35 font-sans">{msg.time}</span>
+                      {msg.isMe && (
+                        <CheckCheck className="w-3 h-3 text-gold/50" />
+                      )}
+                    </div>
+
+                    {/* Botão flutuante de copiar */}
                     <button
                       onClick={() => copyMessageText(msg.id, msg.text)}
                       title="Copiar mensagem"
-                      className={`absolute -top-2 ${msg.isMe ? '-left-6' : '-right-6'} opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-[#181818] border border-white/10 rounded-xs text-ivory/60 hover:text-gold shadow-md cursor-pointer`}
+                      className={`absolute -top-2 ${
+                        msg.isMe ? '-left-7' : '-right-7'
+                      } opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-[#181818] border border-white/10 rounded-xs text-ivory/50 hover:text-gold shadow-sm cursor-pointer`}
                     >
-                      {copiedMsgId === msg.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copiedMsgId === msg.id ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* Avatar do Autor (Aparece à direita para mensagens enviadas pelo próprio usuário) */}
+                {/* Avatar do usuário logado (direita) */}
                 {msg.isMe && (
                   <div
-                    className="w-8 h-8 rounded-full bg-gold/15 border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs shrink-0 shadow-md mb-0.5"
+                    className="w-7 h-7 rounded-full bg-gold/10 border border-[#C9A96B]/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-[10px] shrink-0 mb-0.5"
                     title={msg.sender}
                   >
                     {initials || 'VC'}
@@ -561,59 +887,95 @@ export const ChatPanel: React.FC = () => {
           })}
         </div>
 
-        {/* Prévia de Anexo Selecionado */}
+        {/* ── Prévia de Anexo Selecionado ── */}
         {attachedFile && (
-          <div className="px-5 py-2.5 bg-[#121212] border-t border-gold/30 flex items-center justify-between text-xs text-gold animate-fadeIn">
+          <div className="px-5 py-2 bg-[#111] border-t border-gold/20 flex items-center justify-between gap-3 text-xs text-gold/80">
             <span className="flex items-center gap-2 truncate">
-              <Paperclip className="w-4 h-4" />
-              <span>{t('chat_ready_attachment') || 'Anexo pronto para envio'}: <strong>{attachedFile.name}</strong></span>
+              {attachedFile.type === 'image' ? (
+                <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span className="truncate font-sans">{attachedFile.name}</span>
             </span>
             <button
               onClick={() => setAttachedFile(null)}
-              className="text-ivory/50 hover:text-rose-400 text-xs cursor-pointer p-1"
+              className="text-ivory/40 hover:text-rose-400 transition-colors cursor-pointer shrink-0"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Barra de Input Expansiva e Fluida */}
+        {/* ── Barra de Input ── */}
         <form
           onSubmit={handleSend}
-          className="p-4 md:p-5 bg-[#0E0E0E] border-t border-white/[0.08] flex items-center gap-3"
+          className="px-4 py-3 md:px-5 md:py-4 bg-[#0E0E0E] border-t border-white/[0.07] flex items-end gap-2.5"
         >
+          {/* Botão de anexo */}
           <label
-            className="p-3 bg-[#161616] hover:bg-gold hover:text-black-matte text-ivory/70 border border-white/[0.08] hover:border-gold transition-all rounded-xs cursor-pointer shrink-0 shadow-sm"
-            title="Anexar Foto ou Documento"
+            className={`p-2.5 bg-[#161616] border border-white/[0.08] text-ivory/60 rounded-xs transition-all shrink-0 mb-px ${
+              isUploading
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-gold/10 hover:text-gold hover:border-gold/30 cursor-pointer'
+            }`}
+            title="Anexar imagem ou PDF"
           >
-            <Paperclip className="w-4 h-4" />
+            {isUploading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Paperclip className="w-4 h-4" />
+            )}
             <input
+              ref={fileInputRef}
               type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
               disabled={isUploading}
               className="hidden"
-              onChange={handleFileUpload}
+              onChange={handleFileChange}
             />
           </label>
 
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder={t('chat_input_placeholder') || `Escreva uma mensagem segura para ${activeConv.name}...`}
+          {/* Textarea expansível */}
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            placeholder={`Escreva para ${activeConv.name}…`}
             value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            className="flex-1 bg-[#141414] border border-white/[0.08] focus:border-gold/60 focus:bg-[#181818] px-5 py-3 text-xs md:text-sm text-ivory outline-none rounded-xs transition-all placeholder:text-ivory/30 shadow-inner"
+            onChange={(e) => {
+              setInputVal(e.target.value);
+              autoResizeTextarea();
+            }}
+            onKeyDown={handleKeyDown}
+            className="flex-1 bg-[#141414] border border-white/[0.08] focus:border-gold/50 focus:bg-[#181818] px-4 py-2.5 text-sm text-ivory outline-none rounded-xs transition-all placeholder:text-ivory/30 shadow-inner resize-none max-h-32 overflow-y-auto leading-relaxed"
           />
 
+          {/* Botão Enviar */}
           <button
             type="submit"
-            disabled={(!inputVal.trim() && !attachedFile) || isUploading}
-            className="px-6 py-3 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 disabled:opacity-30 disabled:hover:brightness-100 text-black-matte font-bold text-xs uppercase tracking-wider rounded-xs transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-gold/20 shrink-0"
+            disabled={!canSend}
+            className={`px-5 py-2.5 bg-gradient-to-r from-gold to-gold-light text-black-matte font-bold text-xs uppercase tracking-wider rounded-xs transition-all flex items-center gap-2 shrink-0 shadow-md shadow-gold/15 ${
+              canSend
+                ? 'hover:brightness-110 cursor-pointer'
+                : 'opacity-30 pointer-events-none'
+            }`}
           >
-            <Send className="w-4 h-4" />
-            <span className="hidden sm:inline">{isUploading ? '...' : (t('chat_send') || 'Enviar')}</span>
+            <Send className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">
+              {isSending ? '...' : 'Enviar'}
+            </span>
           </button>
         </form>
       </div>
+
+      {/* ── Modal de Chamada VIP ── */}
+      {activeMeetRoom && (
+        <VideoCallWidget
+          roomId={activeMeetRoom}
+          isModal={true}
+          onClose={() => setActiveMeetRoom(null)}
+        />
+      )}
     </div>
   );
 };

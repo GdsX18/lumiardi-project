@@ -994,6 +994,14 @@ export async function initDatabase(): Promise<boolean> {
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_role VARCHAR(50);
 
+        -- Índice de performance para polling incremental por timestamp
+        CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at ASC);
+        CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at ASC);
+
+        -- Purga de mensagens de teste e conversas fantasmas
+        DELETE FROM messages WHERE text IN ('dw', 'oi', 'dwadaw', 'eu mandei pela conta modelo');
+        DELETE FROM messages WHERE sender_name IN ('Lumiardi Member') AND text = '';
+
         -- Migrações e higienização do Lumiardi Drive
         ALTER TABLE drive_files ADD COLUMN IF NOT EXISTS is_official BOOLEAN DEFAULT FALSE;
         DELETE FROM drive_files WHERE name IN (

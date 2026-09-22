@@ -6,15 +6,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 function MeetRedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const room = searchParams.get('room') || 'LM-904-VIP';
+  const room = searchParams.get('room');
 
   useEffect(() => {
-    router.replace(`/dashboard/meet?room=${encodeURIComponent(room)}`);
+    if (room) {
+      router.replace(`/dashboard/meet?room=${encodeURIComponent(room)}`);
+    } else {
+      router.replace('/dashboard/meet');
+    }
   }, [router, room]);
 
   return (
     <div className="min-h-screen bg-[#070707] text-gold flex items-center justify-center font-mono text-sm">
-      Redirecionando para a Sala VIP Lumiardi Meet...
+      Conectando ao Lumiardi Meet...
     </div>
   );
 }
