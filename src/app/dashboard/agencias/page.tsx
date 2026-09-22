@@ -14,11 +14,11 @@ export default function AgenciasPage() {
 
   return (
     <DashboardLayout
-      pageTitle={isCriadora ? t('dash_page_agencies_title_creator') : t('dash_page_agencies_title_agency')}
+      pageTitle={isCriadora ? t('dash_page_agencies_model_title') : t('dash_page_agency_panel_title')}
       pageSubtitle={
         isCriadora
-          ? t('dash_page_agencies_sub_creator')
-          : t('dash_page_agencies_sub_agency')
+          ? t('dash_page_agencies_model_sub')
+          : t('dash_page_agency_panel_sub')
       }
     >
       {isCriadora ? <AgencyDirectoryView /> : <TalentScoutView />}

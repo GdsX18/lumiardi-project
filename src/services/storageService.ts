@@ -1134,19 +1134,17 @@ export const StorageService = {
           : 'SELECT * FROM kanban_tasks ORDER BY created_at DESC',
         userId ? [userId] : []
       );
-      if (res.rows.length > 0) {
-        return res.rows.map((r) => ({
-          id: r.id,
-          title: r.title,
-          agency: r.agency_name,
-          priority: r.priority,
-          date: r.due_date,
-          column: r.column_status,
-          createdAt: r.created_at,
-        }));
-      }
+      return res.rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        agency: r.agency_name,
+        priority: r.priority,
+        date: r.due_date,
+        column: r.column_status,
+        createdAt: r.created_at,
+      }));
     } catch {
-      // Fallback
+      // Fallback para quando o banco estiver inacessível
     }
 
     const tasks = Array.from(fallbackStore.kanban_tasks.values());
@@ -1221,13 +1219,24 @@ export const StorageService = {
 
   async updateKanbanTask(id: string, updates: Partial<any>, userId?: string, isAdmin?: boolean) {
     await initDatabase();
+
+    // Mapeia campos camelCase do JS para snake_case das colunas PostgreSQL
+    const fieldMap: Record<string, string> = {
+      columnStatus: 'column_status',
+      agencyName: 'agency_name',
+      dueDate: 'due_date',
+      title: 'title',
+      priority: 'priority',
+    };
+
     try {
       const setClauses: string[] = [];
       const values: any[] = [];
       let i = 1;
       for (const [k, v] of Object.entries(updates)) {
         if (v !== undefined) {
-          setClauses.push(`${k} = $${i}`);
+          const col = fieldMap[k] || k; // traduz para snake_case se mapeado
+          setClauses.push(`${col} = $${i}`);
           values.push(v);
           i++;
         }
@@ -1235,20 +1244,32 @@ export const StorageService = {
       if (setClauses.length > 0) {
         if (isAdmin) {
           values.push(id);
-          await pool.query(`UPDATE kanban_tasks SET ${setClauses.join(', ')} WHERE id = $${i}`, values);
+          await pool.query(
+            `UPDATE kanban_tasks SET ${setClauses.join(', ')} WHERE id = $${i}`,
+            values
+          );
         } else if (userId) {
           values.push(id);
           values.push(userId);
-          await pool.query(`UPDATE kanban_tasks SET ${setClauses.join(', ')} WHERE id = $${i} AND user_id = $${i + 1}`, values);
+          await pool.query(
+            `UPDATE kanban_tasks SET ${setClauses.join(', ')} WHERE id = $${i} AND user_id = $${i + 1}`,
+            values
+          );
         }
       }
     } catch {
-      // Fallback
+      // Fallback store para quando o DB estiver indisponível
     }
-    const t = fallbackStore.kanban_tasks.get(id);
-    if (t && (isAdmin || t.user_id === userId || t.userId === userId)) {
-      Object.assign(t, updates);
-      fallbackStore.kanban_tasks.set(id, t);
+
+    // Atualiza também o fallback em memória
+    const task = fallbackStore.kanban_tasks.get(id);
+    if (task && (isAdmin || task.user_id === userId || task.userId === userId)) {
+      Object.assign(task, updates);
+      // Sincroniza snake_case no fallback para consistência
+      if (updates.columnStatus) (task as any).column_status = updates.columnStatus;
+      if (updates.agencyName) (task as any).agency_name = updates.agencyName;
+      if (updates.dueDate) (task as any).due_date = updates.dueDate;
+      fallbackStore.kanban_tasks.set(id, task);
     }
     return true;
   },

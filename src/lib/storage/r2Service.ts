@@ -133,10 +133,15 @@ export const R2StorageService = {
         })
       );
 
-      const publicDomain = process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
-      const url = publicDomain
-        ? `${publicDomain.replace(/\/$/, '')}/${params.key}`
-        : `/api/drive/signed-url/stream?key=${encodeURIComponent(params.key)}`;
+      const publicDomain = process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
+      let url = `/api/media/${params.key}`;
+      if (publicDomain && publicDomain.trim() !== '') {
+        const cleanDomain = publicDomain.trim().replace(/\/+$/, '');
+        const base = cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')
+          ? cleanDomain
+          : `https://${cleanDomain}`;
+        url = `${base}/${params.key.replace(/^\/+/, '')}`;
+      }
 
       return {
         success: true,
@@ -148,6 +153,19 @@ export const R2StorageService = {
       console.error('Erro R2StorageService.uploadBuffer:', err);
       return { success: false, key: params.key, url: '', error: errorMsg };
     }
+  },
+
+  /**
+   * Retorna a URL pública formatada com CDN ativa ou undefined se não configurado
+   */
+  getPublicUrl(fileKey: string): string | undefined {
+    const publicDomain = process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
+    if (!publicDomain || publicDomain.trim() === '') return undefined;
+    const cleanDomain = publicDomain.trim().replace(/\/+$/, '');
+    const base = cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')
+      ? cleanDomain
+      : `https://${cleanDomain}`;
+    return `${base}/${fileKey.replace(/^\/+/, '')}`;
   },
 
   /**
@@ -179,9 +197,7 @@ export const R2StorageService = {
           success: true,
           signedUrl,
           fileKey,
-          publicCdnUrl: process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN
-            ? `${process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN.replace(/\/$/, '')}/${fileKey}`
-            : undefined,
+          publicCdnUrl: this.getPublicUrl(fileKey),
           expiresAt,
         };
       } catch (err) {

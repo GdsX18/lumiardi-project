@@ -36,7 +36,23 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "cdn.lumiardi.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.lumiardi.com",
+      },
+      {
+        protocol: "https",
+        hostname: "lumiardi.com",
+      },
+      {
+        protocol: "https",
         hostname: "*.r2.cloudflarestorage.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.r2.dev",
       },
     ],
   },
@@ -76,9 +92,9 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https:",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
-              "img-src 'self' data: blob: https://images.unsplash.com https://assets.mixkit.co https://raw.githubusercontent.com https://cdn.jsdelivr.net https://*.githubusercontent.com https://api.qrserver.com https://media.lumiardi.com https://*.r2.cloudflarestorage.com https://*.cloudflarestorage.com",
-              "media-src 'self' data: blob: https://assets.mixkit.co https://commondatastorage.googleapis.com https://*.r2.cloudflarestorage.com https://*.cloudflarestorage.com",
-              "connect-src 'self' blob: data: wss: https: https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://raw.githubusercontent.com https://*.githubusercontent.com https://cdn.jsdelivr.net https://dl.polyhaven.org https://market-assets.fra1.cdn.digitaloceanspaces.com https://bill.ccbill.com https://api.asaas.com https://sandbox.asaas.com https://*.nowpayments.io https://api.sumsub.com https://*.r2.cloudflarestorage.com https://*.cloudflarestorage.com",
+              "img-src 'self' data: blob: https://images.unsplash.com https://assets.mixkit.co https://raw.githubusercontent.com https://cdn.jsdelivr.net https://*.githubusercontent.com https://api.qrserver.com https://media.lumiardi.com https://cdn.lumiardi.com https://*.lumiardi.com https://lumiardi.com https://*.r2.cloudflarestorage.com https://*.cloudflarestorage.com https://*.r2.dev",
+              "media-src 'self' data: blob: https://assets.mixkit.co https://commondatastorage.googleapis.com https://media.lumiardi.com https://cdn.lumiardi.com https://*.lumiardi.com https://*.r2.cloudflarestorage.com https://*.cloudflarestorage.com https://*.r2.dev",
+              "connect-src 'self' blob: data: wss: https: https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://raw.githubusercontent.com https://*.githubusercontent.com https://cdn.jsdelivr.net https://dl.polyhaven.org https://market-assets.fra1.cdn.digitaloceanspaces.com https://bill.ccbill.com https://api.asaas.com https://sandbox.asaas.com https://*.nowpayments.io https://api.sumsub.com https://*.r2.cloudflarestorage.com https://*.cloudflarestorage.com https://*.lumiardi.com https://*.r2.dev",
               "frame-ancestors 'self'",
               "base-uri 'self'",
               "form-action 'self' https://bill.ccbill.com",

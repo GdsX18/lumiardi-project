@@ -24,6 +24,7 @@ export const AgencyDirectoryView: React.FC = () => {
   const { t } = useLanguage();
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState<any | null>(null);
   const [proposalSent, setProposalSent] = useState<string | null>(null);
   const [customPitch, setCustomPitch] = useState('');
@@ -31,16 +32,17 @@ export const AgencyDirectoryView: React.FC = () => {
   const fetchAgencies = useCallback(async () => {
     try {
       setLoading(true);
+      setFetchError(false);
       const res = await fetch('/api/agencies');
       if (res.ok) {
         const data = await res.json();
         if (data.agencies) {
-          // Normaliza formato para exibição
+          // Normaliza formato para exibição — sem valores mockados
           const formatted = data.agencies.map((a: any) => ({
             id: a.id,
             name: a.basicInfo?.corporateName || a.name || 'Agência Cadastrada',
             image: a.image || '',
-            commission: a.qualitative?.commissionRate || a.commission || '20%',
+            commission: a.qualitative?.commissionRate || a.commission || null,
             location: a.basicInfo?.address
               ? `${a.basicInfo.address.city || 'São Paulo'}, ${a.basicInfo.address.state || 'SP'}`
               : 'Brasil',
@@ -53,9 +55,12 @@ export const AgencyDirectoryView: React.FC = () => {
           }));
           setAgencies(formatted);
         }
+      } else {
+        setFetchError(true);
       }
     } catch (err) {
       console.error('Erro ao listar agências:', err);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -92,25 +97,17 @@ export const AgencyDirectoryView: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Top Banner do Catálogo de Agências */}
-      <div className="p-6 md:p-8 bg-[#0F0F0F] border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-sm">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="gold">{t('agency_verified_network') || 'REDE VERIFICADA'}</Badge>
-            <span className="text-[10px] font-sans text-ivory/50 uppercase tracking-widest">
-              {t('agency_audited_compliance') || 'Apenas Agências Auditadas com Compliance Ativo'}
-            </span>
-          </div>
-          <h2 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory">
-            {t('agency_catalog_title') || 'Agências de Gestão Parceiras'}
-          </h2>
-          <p className="text-xs md:text-sm font-sans text-ivory/60 mt-1 max-w-2xl">
-            Explore agências parceiras, analise percentuais de comissão e envie seu portfólio diretamente para diretores de casting com um clique.
-          </p>
+      {/* Barra de Contexto do Catálogo */}
+      <div className="px-6 py-4 bg-[#0F0F0F] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Badge variant="gold">{t('agency_verified_network') || 'REDE VERIFICADA'}</Badge>
+          <span className="text-[11px] font-sans text-ivory/50 uppercase tracking-widest">
+            {t('agency_audited_compliance') || 'Apenas Agências Auditadas com Compliance Ativo'}
+          </span>
         </div>
 
-        <div className="p-3 bg-[#161616] border border-gold/30 text-xs font-sans text-gold flex items-center gap-2 rounded-sm">
-          <ShieldCheck className="w-4 h-4 text-gold shrink-0" />
+        <div className="p-2.5 bg-[#161616] border border-gold/30 text-xs font-sans text-gold flex items-center gap-2 rounded-sm shrink-0">
+          <ShieldCheck className="w-3.5 h-3.5 text-gold shrink-0" />
           <span>Contratos Blindados pela Plataforma Lumiardi</span>
         </div>
       </div>
@@ -134,6 +131,27 @@ export const AgencyDirectoryView: React.FC = () => {
           <RefreshCw className="w-4 h-4 animate-spin text-gold" />
           <span>Sincronizando agências ativas na rede...</span>
         </div>
+      ) : fetchError ? (
+        <div className="p-12 bg-[#0B0B0B] border border-dashed border-red-900/30 rounded-sm text-center space-y-3">
+          <div className="w-14 h-14 rounded-full bg-red-950/30 border border-red-800/30 flex items-center justify-center text-red-400 mx-auto">
+            <Building2 className="w-7 h-7" />
+          </div>
+          <div className="max-w-sm mx-auto space-y-1">
+            <h4 className="font-serif-lumiardi text-lg font-light text-ivory/80">
+              Falha na Sincronização
+            </h4>
+            <p className="text-xs text-ivory/40 font-sans leading-relaxed">
+              Não foi possível carregar o catálogo de agências. Verifique sua conexão e tente novamente.
+            </p>
+          </div>
+          <button
+            onClick={fetchAgencies}
+            className="mt-2 px-4 py-2 border border-white/10 text-xs font-sans text-ivory/60 hover:text-ivory hover:border-white/20 transition-colors rounded-xs flex items-center gap-1.5 mx-auto cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Tentar novamente
+          </button>
+        </div>
       ) : agencies.length === 0 ? (
         <div className="p-12 bg-[#0B0B0B] border border-dashed border-white/10 rounded-sm text-center space-y-4">
           <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mx-auto">
@@ -141,10 +159,10 @@ export const AgencyDirectoryView: React.FC = () => {
           </div>
           <div className="max-w-md mx-auto space-y-1.5">
             <h4 className="font-serif-lumiardi text-xl font-light text-ivory">
-              Nenhuma Agência Parceira Registrada no Momento
+              Nenhuma Agência Parceira Disponível no Momento
             </h4>
             <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-              As agências parceiras passam por auditoria e validação jurídica contínua pela Mesa de Curadoria. Assim que novas agências forem homologadas, elas aparecerão aqui automaticamente.
+              As agências parceiras estão em processo de curadoria e validação jurídica contínua. Assim que novas agências forem homologadas pela Mesa de Curadoria, elas aparecerão aqui automaticamente.
             </p>
           </div>
         </div>
@@ -164,10 +182,10 @@ export const AgencyDirectoryView: React.FC = () => {
 
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-sans text-ivory/40 block">
-                      Taxa Agência
+                      {t('agency_commission_rate') || 'Taxa Agência'}
                     </span>
-                    <span className="font-serif-lumiardi text-2xl text-gold font-medium">
-                      {agency.commission}
+                    <span className={`font-serif-lumiardi text-2xl font-medium ${agency.commission ? 'text-gold' : 'text-ivory/40'}`}>
+                      {agency.commission || 'Sob Consulta'}
                     </span>
                   </div>
                 </div>

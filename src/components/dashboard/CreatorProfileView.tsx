@@ -37,6 +37,25 @@ export interface CreatorProfileViewProps {
   initialCreator?: any;
 }
 
+function getMonogram(name: string): string {
+  const clean = (name || '').trim().replace(/^@/, '');
+  if (!clean) return 'LU';
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  }
+  return clean.substring(0, 2).toUpperCase();
+}
+
+function formatPhotoTitle(title?: string, index: number = 0): string {
+  if (!title || typeof title !== 'string') return `Ensaio Editorial ${index + 1}`;
+  const trimmed = title.trim();
+  if (/^[a-f0-9]{16,}$/i.test(trimmed)) {
+    return `Ensaio Editorial ${index + 1}`;
+  }
+  return trimmed;
+}
+
 export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialCreator }) => {
   const { activeCreator: contextCreator, isLoading, refreshData } = useAuthPortal();
   const activeCreator = contextCreator || initialCreator;
@@ -44,6 +63,15 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'book' | 'tech-sheet' | 'limits'>('book');
+
+  // Tratamento de falhas de carregamento de imagem (R2 / Network Resiliency)
+  const [avatarError, setAvatarError] = useState(false);
+  const [failedPhotoIds, setFailedPhotoIds] = useState<Set<string>>(new Set());
+
+  // Sincroniza reset de erro quando o perfil ativo muda
+  React.useEffect(() => {
+    setAvatarError(false);
+  }, [activeCreator]);
 
   // Estado do Modal de Edição
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -164,13 +192,14 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             {/* Foto Principal com Botão de Troca Rápida */}
             <div className="relative w-24 h-24 sm:w-28 sm:h-28 border-2 border-gold/60 p-1 bg-black shrink-0 rounded-sm group cursor-pointer" onClick={() => openEditModal('basic')}>
-              {Boolean(creator.avatarUrl && typeof creator.avatarUrl === 'string' && creator.avatarUrl.trim() !== '') ? (
+              {Boolean(!avatarError && creator.avatarUrl && typeof creator.avatarUrl === 'string' && creator.avatarUrl.trim() !== '') ? (
                 <div className="relative w-full h-full overflow-hidden">
                   {creator.avatarUrl.startsWith('data:') ? (
                     <img
                       src={creator.avatarUrl}
                       alt={creator.qualitative?.artisticName || 'Modelo'}
                       className="absolute inset-0 w-full h-full object-cover"
+                      onError={() => setAvatarError(true)}
                     />
                   ) : (
                     <Image
@@ -179,13 +208,18 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                       fill
                       className="object-cover"
                       unoptimized
+                      onError={() => setAvatarError(true)}
                     />
                   )}
                 </div>
               ) : (
-                <div className="w-full h-full bg-[#141414] border border-white/10 flex flex-col items-center justify-center text-gold font-serif-lumiardi font-bold text-2xl group-hover:border-gold transition-colors">
-                  <span>{((creator.qualitative?.artisticName || 'MO').trim() || 'MO').substring(0, 2).toUpperCase()}</span>
-                  <span className="text-[9px] font-sans font-normal text-gold/80 mt-0.5">+ Foto</span>
+                <div className="w-full h-full bg-gradient-to-br from-[#181818] via-[#121212] to-[#0A0A0A] border border-gold/40 flex flex-col items-center justify-center text-gold font-serif-lumiardi font-medium shadow-inner group-hover:border-gold transition-colors">
+                  <span className="text-2xl sm:text-3xl tracking-wider font-light">
+                    {getMonogram(creator.qualitative?.artisticName || 'Lumiardi')}
+                  </span>
+                  <span className="text-[8px] font-sans font-medium tracking-[0.2em] text-gold/70 uppercase mt-0.5">
+                    Oficial
+                  </span>
                 </div>
               )}
 
@@ -208,31 +242,35 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
             </div>
 
             <div>
-              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <Badge variant="bronze">{creator.qualitative.category}</Badge>
-                <span className="text-[10px] font-sans text-emerald-400 flex items-center gap-1 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Curadoria Verificada
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
+                <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider font-semibold font-sans bg-gold/15 text-gold border border-gold/30 rounded-xs">
+                  {creator.qualitative.category}
+                </span>
+
+                <span className="text-[9px] font-sans text-emerald-400 bg-emerald-950/30 border border-emerald-500/30 px-2 py-0.5 rounded-xs flex items-center gap-1 font-medium">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span>Curadoria Verificada</span>
                 </span>
 
                 {/* Badge de Representação por Agência */}
                 {creator.isRepresented ? (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-purple-500/40 bg-purple-950/40 text-purple-300 font-medium inline-flex items-center gap-1">
-                    <Building2 className="w-3 h-3" />
-                    <span>{creator.representedAgencyName || 'Em Agência'}</span>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-xs border border-purple-500/30 bg-purple-950/30 text-purple-300 font-medium inline-flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-purple-300 shrink-0" />
+                    <span className="truncate max-w-[140px] sm:max-w-none">{creator.representedAgencyName || 'Em Agência'}</span>
                   </span>
                 ) : (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/20 bg-white/5 text-ivory/70 inline-flex items-center gap-1">
-                    <UserCheck className="w-3 h-3 text-gold" />
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-xs border border-white/15 bg-white/5 text-ivory/70 inline-flex items-center gap-1">
+                    <UserCheck className="w-3 h-3 text-gold/80 shrink-0" />
                     <span>Independente</span>
                   </span>
                 )}
 
                 {/* Badge de Visibilidade e Recebimento de Ofertas no Scout */}
                 <span
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded border font-medium ${
+                  className={`text-[9px] font-mono px-2 py-0.5 rounded-xs border font-medium ${
                     creator.acceptsOffers !== false
-                      ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300'
-                      : 'border-amber-500/40 bg-amber-950/40 text-amber-300'
+                      ? 'border-emerald-500/30 bg-emerald-950/30 text-emerald-300'
+                      : 'border-amber-500/30 bg-amber-950/30 text-amber-300'
                   }`}
                 >
                   {creator.acceptsOffers !== false ? 'Scout: Aberta a Propostas' : 'Scout: Propostas Pausadas'}
@@ -254,19 +292,11 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
             </div>
           </div>
 
-          {/* Ações Rápidas do Perfil */}
+          {/* Ações Rápidas do Perfil (Unificadas e Limpas) */}
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => openEditModal('book')}
-              className="px-4 py-2.5 bg-[#161616] hover:bg-[#222222] text-ivory border border-gold/40 text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-sm rounded-sm hover:border-gold"
-            >
-              <Upload className="w-3.5 h-3.5 text-gold" />
-              <span>{t('book_manage_photos') || 'Gerenciar Fotos do Book'}</span>
-            </button>
-
-            <button
               onClick={() => openEditModal('basic')}
-              className="px-4 py-2.5 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/10 text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer rounded-sm hover:border-gold/40"
+              className="px-4 py-2.5 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/15 text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer rounded-sm hover:border-gold/40"
             >
               <Edit3 className="w-3.5 h-3.5 text-gold" />
               <span>{t('header_edit_profile') || 'Editar Perfil'}</span>
@@ -323,373 +353,423 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
         </div>
       </div>
 
-      {/* Conteúdo da Aba 1: Book & Showreel */}
-      {activeSubTab === 'book' && (
-        <div className="space-y-8 animate-fadeIn">
-          {/* Showreel / Vídeo de Prévia */}
-          <div className="p-6 bg-[#0B0B0B] border border-white/10 rounded-sm">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <Play className="w-4 h-4 text-gold" />
-                <h3 className="font-serif-lumiardi text-lg md:text-xl font-light text-ivory">
-                  Showreel de Apresentação Oficial
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => openEditModal('video')}
-                  className="px-3 py-1.5 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
-                >
-                  <Edit3 className="w-3 h-3" />
-                  <span>{creator.videoUrl ? 'Alterar Vídeo Showreel' : 'Cadastrar Vídeo Showreel'}</span>
-                </button>
-              </div>
-            </div>
-
-            {creator.videoUrl && creator.videoUrl.trim() !== '' ? (
-              <div className="relative w-full h-72 md:h-96 bg-black border border-bronze/30 overflow-hidden group rounded-sm">
-                {isVideoPlaying ? (
-                  <video
-                    src={creator.videoUrl}
-                    controls
-                    autoPlay
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <>
-                    <div className="relative w-full h-full bg-[#080808] flex items-center justify-center">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                    </div>
-
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                      <button
-                        onClick={() => setIsVideoPlaying(true)}
-                        className="w-16 h-16 rounded-full bg-gold/90 text-black-matte flex items-center justify-center hover:scale-110 transition-transform shadow-2xl cursor-pointer"
-                        aria-label="Assistir Showreel"
-                      >
-                        <Play className="w-7 h-7 fill-black-matte ml-1" />
-                      </button>
-                      <span className="text-xs font-sans uppercase tracking-widest text-ivory/80">
-                        Clique para reproduzir showreel cadastrado
-                      </span>
-                    </div>
-                  </>
-                )}
-
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs font-sans text-ivory/70">
-                  <span>Showreel Oficial · Perfil Verificado</span>
-                  <span>Áudio Estéreo Masterizado</span>
+      {/* Conteúdo das Abas Internas com Transições Fluidas */}
+      <AnimatePresence mode="wait">
+        {activeSubTab === 'book' && (
+          <motion.div
+            key="tab-book"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-8"
+          >
+            {/* Showreel / Vídeo de Prévia */}
+            <div className="p-6 bg-[#0B0B0B] border border-white/10 rounded-sm">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Play className="w-4 h-4 text-gold" />
+                  <h3 className="font-serif-lumiardi text-lg md:text-xl font-light text-ivory">
+                    Showreel de Apresentação Oficial
+                  </h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  {creator.videoUrl && creator.videoUrl.trim() !== '' && (
+                    <button
+                      onClick={() => openEditModal('video')}
+                      className="px-3 py-1.5 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      <span>Alterar Vídeo Showreel</span>
+                    </button>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="p-8 bg-[#080808] border border-dashed border-gold/30 rounded-sm text-center space-y-3">
-                <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mx-auto">
-                  <Play className="w-5 h-5 ml-0.5" />
-                </div>
-                <div className="max-w-md mx-auto space-y-1">
-                  <h4 className="font-serif-lumiardi text-lg font-light text-ivory">
-                    Nenhum Vídeo Showreel Cadastrado
-                  </h4>
-                  <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-                    Adicione um vídeo de apresentação ou link MP4 para aumentar o interesse de agências parceiras na contratação do seu casting.
-                  </p>
-                </div>
-                <button
-                  onClick={() => openEditModal('video')}
-                  className="px-4 py-2 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-sans uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 rounded-sm cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Cadastrar Vídeo Showreel</span>
-                </button>
-              </div>
-            )}
-          </div>
 
-          {/* Grid de Fotos do Book Profissional */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase tracking-[0.25em] text-bronze font-semibold font-sans">
-                  Galeria de Alta Resolução
-                </span>
-                <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                  Book Editorial Padronizado
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => openEditModal('book')}
-                  className="px-3.5 py-1.5 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Gerenciar Fotos do Book</span>
-                </button>
-                <span className="text-xs font-sans text-ivory/50">
-                  {bookPhotos.length > 0 ? `Exibindo ${bookPhotos.length} foto(s) oficial(is)` : 'Nenhuma foto cadastrada'}
-                </span>
-              </div>
-            </div>
+              {creator.videoUrl && creator.videoUrl.trim() !== '' ? (
+                <div className="relative w-full h-72 md:h-96 bg-black border border-bronze/30 overflow-hidden group rounded-sm">
+                  {isVideoPlaying ? (
+                    <video
+                      src={creator.videoUrl}
+                      controls
+                      autoPlay
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <div className="relative w-full h-full bg-[#080808] flex items-center justify-center">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                      </div>
 
-            {bookPhotos.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {bookPhotos.map((photo: any) => (
-                  <div
-                    key={photo.id}
-                    onClick={() => setSelectedPhoto(photo.url)}
-                    className="group relative h-80 bg-[#121212] border border-white/10 overflow-hidden cursor-pointer hover:border-gold/60 transition-all duration-300 shadow-lg rounded-sm"
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <button
+                          onClick={() => setIsVideoPlaying(true)}
+                          className="w-16 h-16 rounded-full bg-gold/90 text-black-matte flex items-center justify-center hover:scale-110 transition-transform shadow-2xl cursor-pointer"
+                          aria-label="Assistir Showreel"
+                        >
+                          <Play className="w-7 h-7 fill-black-matte ml-1" />
+                        </button>
+                        <span className="text-xs font-sans uppercase tracking-widest text-ivory/80">
+                          Clique para reproduzir showreel cadastrado
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs font-sans text-ivory/70">
+                    <span>Showreel Oficial · Perfil Verificado</span>
+                    <span>Áudio Estéreo Masterizado</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 bg-[#080808] border border-dashed border-gold/30 rounded-sm text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mx-auto">
+                    <Play className="w-5 h-5 ml-0.5" />
+                  </div>
+                  <div className="max-w-md mx-auto space-y-1">
+                    <h4 className="font-serif-lumiardi text-lg font-light text-ivory">
+                      Nenhum Vídeo Showreel Cadastrado
+                    </h4>
+                    <p className="text-xs text-ivory/50 font-sans leading-relaxed">
+                      Adicione um vídeo de apresentação ou link MP4 para aumentar o interesse de agências parceiras na contratação do seu casting.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openEditModal('video')}
+                    className="px-4 py-2 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-sans uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 rounded-sm cursor-pointer"
                   >
-                    {photo.url.startsWith('data:') ? (
-                      <img
-                        src={photo.url}
-                        alt={photo.title || 'Foto do Book'}
-                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <Image
-                        src={photo.url}
-                        alt={photo.title || 'Foto do Book'}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        unoptimized
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/20 opacity-80 group-hover:opacity-95 transition-opacity" />
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Cadastrar Vídeo Showreel</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
-                    <div className="absolute top-3 right-3 p-1.5 bg-black/60 backdrop-blur-md text-ivory/80 group-hover:text-gold transition-colors rounded-xs">
-                      <Maximize2 className="w-4 h-4" />
-                    </div>
+            {/* Grid de Fotos do Book Profissional */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.25em] text-bronze font-semibold font-sans">
+                    Galeria de Alta Resolução
+                  </span>
+                  <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
+                    Book Editorial Padronizado
+                  </h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => openEditModal('book')}
+                    className="px-3.5 py-1.5 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Gerenciar Fotos do Book</span>
+                  </button>
+                  <span className="text-xs font-sans text-ivory/50">
+                    {bookPhotos.length > 0 ? `Exibindo ${bookPhotos.length} foto(s) oficial(is)` : 'Nenhuma foto cadastrada'}
+                  </span>
+                </div>
+              </div>
 
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <span className="text-[9px] uppercase tracking-widest text-gold font-sans font-semibold block mb-1">
-                        {photo.tag || 'Ensaio Oficial'}
-                      </span>
-                      <h4 className="font-serif-lumiardi text-lg font-light text-ivory group-hover:text-gold transition-colors">
-                        {photo.title || 'Ensaio'}
-                      </h4>
+              {bookPhotos.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {bookPhotos.map((photo: any, idx: number) => {
+                    const isFailed = failedPhotoIds.has(photo.id);
+                    const displayTitle = formatPhotoTitle(photo.title, idx);
+
+                    return (
+                      <div
+                        key={photo.id}
+                        onClick={() => {
+                          if (!isFailed) setSelectedPhoto(photo.url);
+                        }}
+                        className="group relative h-80 bg-[#121212] border border-white/10 overflow-hidden cursor-pointer hover:border-gold/60 transition-all duration-300 shadow-lg rounded-sm"
+                      >
+                        {!isFailed ? (
+                          photo.url.startsWith('data:') ? (
+                            <img
+                              src={photo.url}
+                              alt={displayTitle}
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              onError={() => setFailedPhotoIds((prev) => new Set(prev).add(photo.id))}
+                            />
+                          ) : (
+                            <Image
+                              src={photo.url}
+                              alt={displayTitle}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-500"
+                              unoptimized
+                              onError={() => setFailedPhotoIds((prev) => new Set(prev).add(photo.id))}
+                            />
+                          )
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-[#161616] via-[#101010] to-[#080808] flex flex-col items-center justify-center p-6 text-center">
+                            <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mb-3">
+                              <Camera className="w-5 h-5" />
+                            </div>
+                            <span className="text-[9px] uppercase tracking-[0.25em] text-gold/80 font-mono font-medium block mb-1">
+                              Lumiardi Editorial · RAW
+                            </span>
+                            <span className="text-xs text-ivory/60 font-sans">
+                              Sincronizando arquivo do cofre
+                            </span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10 opacity-70 group-hover:opacity-90 transition-opacity pointer-events-none" />
+
+                        {!isFailed && (
+                          <div className="absolute top-3 right-3 p-1.5 bg-black/70 backdrop-blur-md text-ivory/80 group-hover:text-gold transition-colors rounded-xs border border-white/10">
+                            <Maximize2 className="w-4 h-4" />
+                          </div>
+                        )}
+
+                        <div className="absolute bottom-0 left-0 right-0 p-4 pt-10 bg-gradient-to-t from-black via-black/70 to-transparent">
+                          <span className="text-[9px] uppercase tracking-widest text-gold font-sans font-semibold block mb-1">
+                            {photo.tag || 'Ensaio Oficial'}
+                          </span>
+                          <h4 className="font-serif-lumiardi text-lg font-light text-ivory group-hover:text-gold transition-colors truncate">
+                            {displayTitle}
+                          </h4>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-10 bg-[#0B0B0B] border border-dashed border-gold/30 rounded-sm text-center space-y-4">
+                  <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold mx-auto">
+                    <Camera className="w-7 h-7" />
+                  </div>
+                  <div className="max-w-md mx-auto space-y-1.5">
+                    <h4 className="font-serif-lumiardi text-xl font-light text-ivory">
+                      Seu Book Editorial está aguardando suas fotos
+                    </h4>
+                    <p className="text-xs text-ivory/50 font-sans leading-relaxed">
+                      Adicione seus ensaios fotográficos profissionais em alta definição para compor seu portfólio oficial. Agências parceiras utilizam essas fotos para aprovar propostas de casting.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openEditModal('book')}
+                    className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-2 rounded-sm cursor-pointer shadow-md"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar Primeira Foto do Book</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Conteúdo da Aba 2: Ficha Técnica & Medidas */}
+        {activeSubTab === 'tech-sheet' && (
+          <motion.div
+            key="tab-tech-sheet"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            <div className="flex justify-end">
+              <button
+                onClick={() => openEditModal('measurements')}
+                className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Editar Medidas & Biometria</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Medidas Corporais */}
+              <div className="bg-[#0F0F0F] border border-white/10 p-6 space-y-4 rounded-sm">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                  <Sliders className="w-4 h-4 text-gold" />
+                  <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
+                    Medidas Corporais (Biometria)
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs font-sans">
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Altura</span>
+                    <span className="font-serif-lumiardi text-lg text-gold font-medium">
+                      {creator.qualitative.measurements.height} cm
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Peso</span>
+                    <span className="font-serif-lumiardi text-lg text-gold font-medium">
+                      {creator.qualitative.measurements.weight} kg
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Cintura</span>
+                    <span className="font-serif-lumiardi text-lg text-gold font-medium">
+                      {creator.qualitative.measurements.waist} cm
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Busto</span>
+                    <span className="font-serif-lumiardi text-lg text-gold font-medium">
+                      {creator.qualitative.measurements.bust} cm
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 col-span-2 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Quadril</span>
+                    <span className="font-serif-lumiardi text-lg text-gold font-medium">
+                      {creator.qualitative.measurements.hips} cm
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fisiognomia & Perfil Visual */}
+              <div className="bg-[#0F0F0F] border border-white/10 p-6 space-y-4 rounded-sm">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                  <Eye className="w-4 h-4 text-gold" />
+                  <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
+                    Fisiognomia & Idiomas
+                  </h4>
+                </div>
+
+                <div className="space-y-3 text-xs font-sans">
+                  <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
+                    <span className="text-ivory/50">Cor dos Olhos</span>
+                    <span className="text-ivory font-medium">{creator.qualitative.physiognomy.eyeColor}</span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
+                    <span className="text-ivory/50">Cor do Cabelo</span>
+                    <span className="text-ivory font-medium">{creator.qualitative.physiognomy.hairColor}</span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
+                    <span className="text-ivory/50">Tom de Pele</span>
+                    <span className="text-ivory font-medium">{creator.qualitative.physiognomy.skinTone}</span>
+                  </div>
+
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/50 block mb-1">Idiomas Fluentes</span>
+                    <div className="flex flex-wrap gap-1">
+                      {creator.qualitative.languages.map((lang: string) => (
+                        <span key={lang} className="px-2 py-0.5 bg-gold/15 text-gold text-[10px] font-medium border border-gold/30 rounded-xs">
+                          {lang}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-10 bg-[#0B0B0B] border border-dashed border-gold/30 rounded-sm text-center space-y-4">
-                <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold mx-auto">
-                  <Camera className="w-7 h-7" />
                 </div>
-                <div className="max-w-md mx-auto space-y-1.5">
-                  <h4 className="font-serif-lumiardi text-xl font-light text-ivory">
-                    Seu Book Editorial está aguardando suas fotos
+              </div>
+
+              {/* Métricas Comerciais & Plataformas */}
+              <div className="bg-[#0F0F0F] border border-white/10 p-6 space-y-4 rounded-sm">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                  <DollarSign className="w-4 h-4 text-gold" />
+                  <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
+                    Métricas & Presença
                   </h4>
-                  <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-                    Adicione seus ensaios fotográficos profissionais em alta definição para compor seu portfólio oficial. Agências parceiras utilizam essas fotos para aprovar propostas de casting.
-                  </p>
-                </div>
-                <button
-                  onClick={() => openEditModal('book')}
-                  className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-2 rounded-sm cursor-pointer shadow-md"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Adicionar Primeira Foto do Book</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Conteúdo da Aba 2: Ficha Técnica & Medidas */}
-      {activeSubTab === 'tech-sheet' && (
-        <div className="space-y-6 animate-fadeIn">
-          <div className="flex justify-end">
-            <button
-              onClick={() => openEditModal('measurements')}
-              className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Editar Medidas & Biometria</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Medidas Corporais */}
-            <div className="bg-[#0F0F0F] border border-white/10 p-6 space-y-4 rounded-sm">
-              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-                <Sliders className="w-4 h-4 text-gold" />
-                <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                  Medidas Corporais (Biometria)
-                </h4>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs font-sans">
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Altura</span>
-                  <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                    {creator.qualitative.measurements.height} cm
-                  </span>
                 </div>
 
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Peso</span>
-                  <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                    {creator.qualitative.measurements.weight} kg
-                  </span>
-                </div>
+                <div className="space-y-3 text-xs font-sans">
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Faturamento Mensal Estimado</span>
+                    <span className="font-serif-lumiardi text-lg text-emerald-400 font-medium">
+                      {creator.qualitative.monthlyRevenueEstimate}
+                    </span>
+                  </div>
 
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Cintura</span>
-                  <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                    {creator.qualitative.measurements.waist} cm
-                  </span>
-                </div>
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase">Taxa de Conversão</span>
+                    <span className="font-serif-lumiardi text-lg text-gold font-medium">
+                      {creator.qualitative.conversionRateEstimate}
+                    </span>
+                  </div>
 
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Busto</span>
-                  <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                    {creator.qualitative.measurements.bust} cm
-                  </span>
-                </div>
-
-                <div className="p-3 bg-[#151515] border border-white/5 col-span-2 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Quadril</span>
-                  <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                    {creator.qualitative.measurements.hips} cm
-                  </span>
+                  <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
+                    <span className="text-ivory/40 block text-[10px] uppercase mb-1">Plataformas Ativas</span>
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-ivory/80">
+                      <span className="text-pink-400 font-medium">IG: {creator.qualitative.platforms.instagram}</span>
+                      {creator.qualitative.platforms.onlyfans && (
+                        <span className="text-sky-400 font-medium">OF: @{creator.qualitative.platforms.onlyfans}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          </motion.div>
+        )}
 
-            {/* Fisiognomia & Perfil Visual */}
-            <div className="bg-[#0F0F0F] border border-white/10 p-6 space-y-4 rounded-sm">
-              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-                <Eye className="w-4 h-4 text-gold" />
-                <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                  Fisiognomia & Idiomas
-                </h4>
+        {/* Conteúdo da Aba 3: Diretrizes, Limites e Objetivos */}
+        {activeSubTab === 'limits' && (
+          <motion.div
+            key="tab-limits"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            <div className="flex justify-end">
+              <button
+                onClick={() => openEditModal('limits')}
+                className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Editar Diretrizes & Limites</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 bg-[#0F0F0F] border border-white/10 space-y-4 rounded-sm">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                  <ShieldCheck className="w-4 h-4 text-gold" />
+                  <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
+                    Limites Pessoais & Preservação de Imagem
+                  </h4>
+                </div>
+                <p className="text-xs text-ivory/70 font-sans leading-relaxed italic">
+                  &quot;{creator.qualitative.personalLimits}&quot;
+                </p>
+                <div className="pt-2">
+                  <span className="text-[10px] text-ivory/40 block uppercase">Posicionamento de Imagem</span>
+                  <p className="text-xs text-ivory/80 font-sans mt-0.5">
+                    {creator.qualitative.exposureOpinion}
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-3 text-xs font-sans">
-                <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
-                  <span className="text-ivory/50">Cor dos Olhos</span>
-                  <span className="text-ivory font-medium">{creator.qualitative.physiognomy.eyeColor}</span>
+              <div className="p-6 bg-[#0F0F0F] border border-white/10 space-y-4 rounded-sm">
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                  <Target className="w-4 h-4 text-gold" />
+                  <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
+                    Objetivo Principal com as Agências
+                  </h4>
                 </div>
-
-                <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
-                  <span className="text-ivory/50">Cor do Cabelo</span>
-                  <span className="text-ivory font-medium">{creator.qualitative.physiognomy.hairColor}</span>
-                </div>
-
-                <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
-                  <span className="text-ivory/50">Tom de Pele</span>
-                  <span className="text-ivory font-medium">{creator.qualitative.physiognomy.skinTone}</span>
-                </div>
-
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/50 block mb-1">Idiomas Fluentes</span>
-                  <div className="flex flex-wrap gap-1">
-                    {creator.qualitative.languages.map((lang: string) => (
-                      <span key={lang} className="px-2 py-0.5 bg-gold/15 text-gold text-[10px] font-medium border border-gold/30 rounded-xs">
-                        {lang}
+                <p className="text-xs text-ivory/70 font-sans leading-relaxed italic">
+                  &quot;{creator.qualitative.mainGoal}&quot;
+                </p>
+                <div className="pt-2">
+                  <span className="text-[10px] text-ivory/40 block uppercase">Disponibilidade de Casting</span>
+                  <div className="flex gap-2 mt-1">
+                    {creator.qualitative.availability.map((av: string) => (
+                      <span key={av} className="px-2.5 py-1 bg-gold/15 text-gold text-[10px] font-sans border border-gold/30 rounded-xs">
+                        {av}
                       </span>
                     ))}
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* Métricas Comerciais & Plataformas */}
-            <div className="bg-[#0F0F0F] border border-white/10 p-6 space-y-4 rounded-sm">
-              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-                <DollarSign className="w-4 h-4 text-gold" />
-                <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                  Métricas & Presença
-                </h4>
-              </div>
-
-              <div className="space-y-3 text-xs font-sans">
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Faturamento Mensal Estimado</span>
-                  <span className="font-serif-lumiardi text-lg text-emerald-400 font-medium">
-                    {creator.qualitative.monthlyRevenueEstimate}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Taxa de Conversão</span>
-                  <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                    {creator.qualitative.conversionRateEstimate}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                  <span className="text-ivory/40 block text-[10px] uppercase mb-1">Plataformas Ativas</span>
-                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-ivory/80">
-                    <span className="text-pink-400 font-medium">IG: {creator.qualitative.platforms.instagram}</span>
-                    {creator.qualitative.platforms.onlyfans && (
-                      <span className="text-sky-400 font-medium">OF: @{creator.qualitative.platforms.onlyfans}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Conteúdo da Aba 3: Diretrizes, Limites e Objetivos */}
-      {activeSubTab === 'limits' && (
-        <div className="space-y-6 animate-fadeIn">
-          <div className="flex justify-end">
-            <button
-              onClick={() => openEditModal('limits')}
-              className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Editar Diretrizes & Limites</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-[#0F0F0F] border border-white/10 space-y-4 rounded-sm">
-              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-                <ShieldCheck className="w-4 h-4 text-gold" />
-                <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                  Limites Pessoais & Preservação de Imagem
-                </h4>
-              </div>
-              <p className="text-xs text-ivory/70 font-sans leading-relaxed italic">
-                &quot;{creator.qualitative.personalLimits}&quot;
-              </p>
-              <div className="pt-2">
-                <span className="text-[10px] text-ivory/40 block uppercase">Posicionamento de Imagem</span>
-                <p className="text-xs text-ivory/80 font-sans mt-0.5">
-                  {creator.qualitative.exposureOpinion}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 bg-[#0F0F0F] border border-white/10 space-y-4 rounded-sm">
-              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-                <Target className="w-4 h-4 text-gold" />
-                <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                  Objetivo Principal com as Agências
-                </h4>
-              </div>
-              <p className="text-xs text-ivory/70 font-sans leading-relaxed italic">
-                &quot;{creator.qualitative.mainGoal}&quot;
-              </p>
-              <div className="pt-2">
-                <span className="text-[10px] text-ivory/40 block uppercase">Disponibilidade de Casting</span>
-                <div className="flex gap-2 mt-1">
-                  {creator.qualitative.availability.map((av: string) => (
-                    <span key={av} className="px-2.5 py-1 bg-gold/15 text-gold text-[10px] font-sans border border-gold/30 rounded-xs">
-                      {av}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Zoom de Foto */}
       <AnimatePresence>

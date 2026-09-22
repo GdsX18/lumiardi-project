@@ -183,12 +183,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       if (data.url) {
         if (target === 'avatar') {
           setAvatarUrl(data.url);
-        } else if (target === 'photo') {
           const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+          const isHexHash = /^[a-f0-9]{16,}$/i.test(cleanTitle.trim());
+          const fallbackTitle = isHexHash ? `Ensaio Editorial ${photos.length + 1}` : cleanTitle;
           const newEntry = {
             id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             url: data.url,
-            title: newPhotoTitle.trim() || cleanTitle || `Ensaio ${photos.length + 1}`,
+            title: newPhotoTitle.trim() || fallbackTitle || `Ensaio ${photos.length + 1}`,
             tag: newPhotoTag || 'Alta Resolução · RAW',
           };
           setPhotos((prev) => [...prev, newEntry]);
