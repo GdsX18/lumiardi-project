@@ -438,7 +438,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
           // Processa sinais recebidos (offer, answer, candidate)
           if (Array.isArray(pollData.signals)) {
             for (const sig of pollData.signals) {
-              if (sig.type === 'offer' && pc.connectionState !== 'closed') {
+              if (sig.type === 'offer') {
                 // Callee recebe a oferta
                 await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
 
@@ -458,7 +458,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 await pc.setLocalDescription(answer);
                 await sendSignal('answer', answer);
 
-              } else if (sig.type === 'answer' && pc.connectionState !== 'closed') {
+              } else if (sig.type === 'answer') {
                 // Caller consome a resposta com setRemoteDescription
                 if (pc.signalingState === 'have-local-offer') {
                   await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
@@ -476,7 +476,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                   }
                 }
 
-              } else if (sig.type === 'candidate' && pc.connectionState !== 'closed') {
+              } else if (sig.type === 'candidate') {
                 if (pc.remoteDescription && pc.remoteDescription.type) {
                   try {
                     await pc.addIceCandidate(new RTCIceCandidate(sig.data));
