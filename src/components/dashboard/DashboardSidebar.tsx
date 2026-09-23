@@ -92,14 +92,23 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           <div className="absolute top-0 right-0 w-24 h-24 bg-gold/5 rounded-full blur-xl pointer-events-none" />
 
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 bg-gold/10 border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs rounded-sm shrink-0">
+            <div
+              suppressHydrationWarning
+              className="w-9 h-9 bg-gold/10 border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs rounded-sm shrink-0"
+            >
               {initials}
             </div>
             <div className="overflow-hidden min-w-0">
-              <h3 className="font-serif-lumiardi text-sm font-medium text-ivory truncate">
+              <h3
+                suppressHydrationWarning
+                className="font-serif-lumiardi text-sm font-medium text-ivory truncate"
+              >
                 {displayName}
               </h3>
-              <span className="text-[10px] font-sans text-ivory/50 uppercase tracking-widest block truncate">
+              <span
+                suppressHydrationWarning
+                className="text-[10px] font-sans text-ivory/50 uppercase tracking-widest block truncate"
+              >
                 {isCriadora ? (t('login_role_creator') || 'Modelo / Criadora VIP') : (t('login_role_agency') || 'Agência Credenciada')}
               </span>
             </div>
@@ -107,7 +116,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
           <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-sans">
             <span className="text-bronze font-medium tracking-wider uppercase">{t('dash_status') || 'Status'}:</span>
-            <span className="text-emerald-400 flex items-center gap-1 font-medium">
+            <span
+              suppressHydrationWarning
+              className="text-emerald-400 flex items-center gap-1 font-medium"
+            >
               <ShieldCheck className="w-3 h-3" />
               {isApproved ? (t('header_verified') || 'Verificado') : (t('header_in_review') || 'Em Análise')}
             </span>

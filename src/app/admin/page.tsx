@@ -39,6 +39,7 @@ import {
   UserCheck,
   Shield,
   Lock,
+  Headphones,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -46,6 +47,7 @@ import { MediaLightboxModal, MediaItem } from '@/components/admin/MediaLightboxM
 import { CurationDossierExport } from '@/components/admin/CurationDossierExport';
 import { CurationTeamTab } from '@/components/admin/CurationTeamTab';
 import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
+import { AdminChatTab } from '@/components/admin/AdminChatTab';
 import { CurationRole } from '@/types';
 
 interface Application {
@@ -101,7 +103,7 @@ interface Metrics {
 }
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'team' | 'audit'>('criadora');
+  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'team' | 'audit' | 'chat'>('criadora');
   const [currentCurator, setCurrentCurator] = useState<{
     id: string;
     email: string;
@@ -184,6 +186,16 @@ export default function AdminDashboardPage() {
       setLoading(false);
     }
   }, [activeTab, statusFilter]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'chat' || tab === 'team' || tab === 'audit' || tab === 'criadora' || tab === 'agencia') {
+        setActiveTab(tab as any);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -529,6 +541,18 @@ export default function AdminDashboardPage() {
                 <History className="w-3.5 h-3.5" />
                 <span>Histórico de Auditoria</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
+                  activeTab === 'chat'
+                    ? 'bg-gold text-black-matte font-bold shadow-md shadow-gold/20'
+                    : 'bg-[#121212] text-ivory/70 hover:text-ivory border border-white/[0.08]'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Atendimento & Chat</span>
+              </button>
             </div>
 
             {/* Filtro de Status, Busca & Filtros Avançados (visível nas abas de triagem) */}
@@ -581,6 +605,10 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Renderização Condicional por Aba */}
+          {activeTab === 'chat' && (
+            <AdminChatTab currentCuratorName={currentCurator?.name} />
+          )}
+
           {activeTab === 'team' && (
             <CurationTeamTab currentCuratorRole={currentCurator?.curationRole || 'admin'} />
           )}

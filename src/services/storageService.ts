@@ -19,6 +19,10 @@ import {
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
 
+export function getDirectConversationId(id1: string, id2: string): string {
+  return ['conv', ...[id1, id2].sort()].join('_');
+}
+
 export const StorageService = {
   /**
    * Autenticação universal com PostgreSQL e hash bcrypt
@@ -175,7 +179,7 @@ export const StorageService = {
     const userFallback = fallbackStore.users.get(normEmail) as Record<string, unknown> | undefined;
     if (
       userFallback &&
-      (userFallback.role === 'ADMIN' || normEmail === 'curadoria@lumiardi.com' || normEmail === 'admin@lumiardi.com')
+      (userFallback.role === 'ADMIN' || normEmail === 'curadoria@lumiardi.com')
     ) {
       const match = await bcrypt.compare(cleanPass, (userFallback.password_hash as string) || '');
       if (match) {
@@ -185,7 +189,7 @@ export const StorageService = {
             email: String(userFallback.email),
             name: String(userFallback.full_name),
             role: 'admin',
-            curationRole: normEmail.includes('supervisor') ? 'supervisor' : normEmail.includes('senior') ? 'curador_senior' : normEmail.includes('junior') ? 'curador_junior' : 'admin',
+            curationRole: 'admin',
             curationStatus: 'APROVADO',
             createdAt: String(userFallback.created_at),
           },
@@ -1295,21 +1299,63 @@ export const StorageService = {
   // ══════════════════════════════════════════════════════════════════
   // CHAT & MESSAGES CRUD
   // ══════════════════════════════════════════════════════════════════
-  async listMessages(conversationId: string = 'curation', since?: string) {
+  async listMessages(
+    conversationId: string = 'curation',
+    since?: string,
+    requestUserId?: string,
+    requestUserRole?: string
+  ) {
     await initDatabase();
     try {
       let res;
+      let sinceParam: string | null = null;
       if (since) {
-        res = await pool.query(
-          'SELECT * FROM messages WHERE conversation_id = $1 AND created_at > $2 ORDER BY created_at ASC',
-          [conversationId, since]
-        );
-      } else {
-        res = await pool.query(
-          'SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC',
-          [conversationId]
-        );
+        const sinceMs = new Date(since).getTime();
+        sinceParam = !isNaN(sinceMs) ? new Date(sinceMs - 1000).toISOString() : since;
       }
+
+      if (conversationId === 'curation' && requestUserRole !== 'admin' && requestUserId) {
+        // Canal de Curadoria estritamente isolado por participante para privacidade
+        if (sinceParam) {
+          res = await pool.query(
+            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
+             FROM messages
+             WHERE conversation_id = $1
+               AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
+               AND created_at > $3
+             ORDER BY created_at ASC`,
+            [conversationId, requestUserId, sinceParam]
+          );
+        } else {
+          res = await pool.query(
+            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
+             FROM messages
+             WHERE conversation_id = $1
+               AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
+             ORDER BY created_at ASC`,
+            [conversationId, requestUserId]
+          );
+        }
+      } else {
+        if (sinceParam) {
+          res = await pool.query(
+            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
+             FROM messages
+             WHERE conversation_id = $1 AND created_at > $2
+             ORDER BY created_at ASC`,
+            [conversationId, sinceParam]
+          );
+        } else {
+          res = await pool.query(
+            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
+             FROM messages
+             WHERE conversation_id = $1
+             ORDER BY created_at ASC`,
+            [conversationId]
+          );
+        }
+      }
+
       if (res.rows.length > 0 || since) {
         return res.rows.map((m) => {
           let sName = m.sender_name;
@@ -1339,19 +1385,18 @@ export const StorageService = {
       // Fallback
     }
 
-    // Purga mensagens sujas do fallback store
-    const dirtyTexts = new Set(['dw', 'oi', 'dwadaw', 'eu mandei pela conta modelo']);
-    for (const [key, m] of fallbackStore.messages.entries()) {
-      if (dirtyTexts.has(String((m as any).text || ''))) {
-        fallbackStore.messages.delete(key);
-      }
-    }
-
-    const sinceDate = since ? new Date(since) : null;
+    const sinceDate = since ? new Date(new Date(since).getTime() - 1000) : null;
     const msgs = Array.from(fallbackStore.messages.values())
       .filter((m) => {
         if (m.conversation_id !== conversationId) return false;
-        if (sinceDate) {
+        if (conversationId === 'curation' && requestUserRole !== 'admin' && requestUserId) {
+          const isMine =
+            m.sender_id === requestUserId ||
+            m.receiver_id === requestUserId ||
+            (m.sender_role === 'curadoria' && !m.receiver_id);
+          if (!isMine) return false;
+        }
+        if (sinceDate && !isNaN(sinceDate.getTime())) {
           return new Date(String(m.created_at)) > sinceDate;
         }
         return true;
@@ -1403,6 +1448,15 @@ export const StorageService = {
     const id = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
     const now = new Date().toISOString();
 
+    // Se receiverId não foi fornecido e o canal for direto determinístico (conv_idA_idB), infere automaticamente
+    let targetReceiverId = data.receiverId;
+    if (!targetReceiverId && data.conversationId.startsWith('conv_')) {
+      const parts = data.conversationId.slice(5).split('_');
+      if (parts.length === 2) {
+        targetReceiverId = parts[0] === data.senderId ? parts[1] : parts[0];
+      }
+    }
+
     try {
       await pool.query(
         `INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at)
@@ -1412,7 +1466,7 @@ export const StorageService = {
           data.senderId,
           data.senderName || null,
           data.senderRole || null,
-          data.receiverId || null,
+          targetReceiverId || null,
           data.conversationId,
           data.text,
           data.attachmentUrl || null,
@@ -1429,7 +1483,7 @@ export const StorageService = {
       sender_id: data.senderId,
       sender_name: data.senderName,
       sender_role: data.senderRole,
-      receiver_id: data.receiverId,
+      receiver_id: targetReceiverId,
       conversation_id: data.conversationId,
       text: data.text,
       attachment_url: data.attachmentUrl,
@@ -1445,7 +1499,7 @@ export const StorageService = {
       senderId: data.senderId,
       senderName: data.senderName,
       senderRole: data.senderRole,
-      receiverId: data.receiverId,
+      receiverId: targetReceiverId,
       conversationId: data.conversationId,
       text: data.text,
       attachmentUrl: data.attachmentUrl,
@@ -1458,21 +1512,15 @@ export const StorageService = {
   // ══════════════════════════════════════════════════════════════════
   // CONVERSATIONS — Lista dinâmica condicionada a contratos ativos
   // ══════════════════════════════════════════════════════════════════
-
-  /**
-   * Retorna os canais ativos do usuário.
-   * - Sempre inclui "curation" (Mesa de Curadoria Lumiardi).
-   * - Inclui canais diretos Modelo ↔ Agência somente se houver contrato ativo
-   *   ou proposta aceita (scout_proposals com status = 'accepted').
-   */
   async listActiveConversations(userId: string, role: 'criadora' | 'agencia' | 'admin') {
     await initDatabase();
 
-    const curationMsgs = await this.listMessages('curation');
+    const curationMsgs = await this.listMessages('curation', undefined, userId, role);
     const lastCurationMsg = curationMsgs[curationMsgs.length - 1];
 
     const curationChannel = {
       id: 'curation',
+      partnerId: 'admin-curadoria-1',
       name: 'Mesa de Curadoria Lumiardi',
       avatarText: 'LM',
       subtitle: 'Suporte Oficial & Atendimento VIP',
@@ -1484,25 +1532,32 @@ export const StorageService = {
       verified: true,
     };
 
-    // Admin e contas sem vínculo: apenas canal de Curadoria
     if (role === 'admin') {
       return [curationChannel];
     }
 
-    const directChannels: typeof curationChannel[] = [];
+    const directChannels: Array<{
+      id: string;
+      partnerId: string;
+      name: string;
+      avatarText: string;
+      subtitle: string;
+      lastMessage: string;
+      lastTime: string;
+      unreadCount: number;
+      verified: boolean;
+    }> = [];
 
-    // Busca contratos ativos no PostgreSQL
+    // Busca contratos ativos no PostgreSQL com canal determinístico unificado
     try {
       let contractRows: Array<{
         agency_id: string; agency_name: string;
         model_id: string; model_name: string;
-        conversation_id: string;
       }> = [];
 
       if (role === 'criadora') {
         const res = await pool.query(
-          `SELECT amc.agency_id, amc.agency_name, amc.model_id, amc.model_name,
-                  CONCAT('agency-', amc.agency_id) AS conversation_id
+          `SELECT amc.agency_id, amc.agency_name, amc.model_id, amc.model_name
            FROM agency_model_contracts amc
            WHERE amc.model_id = $1 AND amc.status = 'active'`,
           [userId]
@@ -1510,8 +1565,7 @@ export const StorageService = {
         contractRows = res.rows;
       } else if (role === 'agencia') {
         const res = await pool.query(
-          `SELECT amc.agency_id, amc.agency_name, amc.model_id, amc.model_name,
-                  CONCAT('agency-', amc.agency_id, '-model-', amc.model_id) AS conversation_id
+          `SELECT amc.agency_id, amc.agency_name, amc.model_id, amc.model_name
            FROM agency_model_contracts amc
            WHERE amc.agency_id = $1 AND amc.status = 'active'`,
           [userId]
@@ -1519,23 +1573,50 @@ export const StorageService = {
         contractRows = res.rows;
       }
 
+      // Mapeia canais determinísticos com getDirectConversationId
+      const convMap = new Map<string, { partnerId: string; partnerName: string; subtitle: string }>();
       for (const row of contractRows) {
+        const convId = getDirectConversationId(row.agency_id, row.model_id);
+        const partnerId = role === 'criadora' ? row.agency_id : row.model_id;
         const partnerName = role === 'criadora' ? row.agency_name : row.model_name;
-        const initials = partnerName
+        convMap.set(convId, {
+          partnerId,
+          partnerName,
+          subtitle: role === 'criadora' ? 'Agência Parceira Oficial' : 'Modelo Representada',
+        });
+      }
+
+      // Busca as mensagens mais recentes de todos os canais de uma só vez (elimina N+1 queries)
+      const convIds = Array.from(convMap.keys());
+      const latestMsgsByConv = new Map<string, { text: string; createdAt: string }>();
+      if (convIds.length > 0) {
+        const msgRes = await pool.query(
+          `SELECT DISTINCT ON (conversation_id) conversation_id, text, created_at
+           FROM messages
+           WHERE conversation_id = ANY($1)
+           ORDER BY conversation_id, created_at DESC`,
+          [convIds]
+        );
+        for (const m of msgRes.rows) {
+          latestMsgsByConv.set(m.conversation_id, { text: m.text, createdAt: m.created_at });
+        }
+      }
+
+      for (const [convId, meta] of convMap.entries()) {
+        const initials = meta.partnerName
           .split(' ')
           .filter(Boolean)
           .slice(0, 2)
           .map((n: string) => n[0].toUpperCase())
           .join('');
 
-        const convMsgs = await this.listMessages(row.conversation_id);
-        const lastMsg = convMsgs[convMsgs.length - 1];
-
+        const lastMsg = latestMsgsByConv.get(convId);
         directChannels.push({
-          id: row.conversation_id,
-          name: partnerName,
+          id: convId,
+          partnerId: meta.partnerId,
+          name: meta.partnerName,
           avatarText: initials || 'AG',
-          subtitle: role === 'criadora' ? 'Agência Parceira Oficial' : 'Modelo Representada',
+          subtitle: meta.subtitle,
           lastMessage: lastMsg?.text || 'Canal criptografado ativo.',
           lastTime: lastMsg?.createdAt
             ? new Date(lastMsg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -1561,10 +1642,9 @@ export const StorageService = {
 
       if (!isRelevant) continue;
 
+      const partnerId = String(role === 'criadora' ? c.agency_id : c.model_id);
       const partnerName = String(role === 'criadora' ? c.agency_name : c.model_name);
-      const convId = role === 'criadora'
-        ? `agency-${String(c.agency_id)}`
-        : `agency-${String(c.agency_id)}-model-${String(c.model_id)}`;
+      const convId = getDirectConversationId(String(c.agency_id), String(c.model_id));
 
       const initials = partnerName
         .split(' ')
@@ -1573,11 +1653,12 @@ export const StorageService = {
         .map((n: string) => n[0].toUpperCase())
         .join('');
 
-      const convMsgs = await this.listMessages(convId);
+      const convMsgs = await this.listMessages(convId, undefined, userId, role);
       const lastMsg = convMsgs[convMsgs.length - 1];
 
       directChannels.push({
         id: convId,
+        partnerId,
         name: partnerName,
         avatarText: initials || 'AG',
         subtitle: role === 'criadora' ? 'Agência Parceira Oficial' : 'Modelo Representada',
@@ -2373,7 +2454,7 @@ export const StorageService = {
       await this.sendMessage({
         senderId: data.agencyId,
         receiverId: data.modelId,
-        conversationId: `conv-${data.agencyId}-${data.modelId}`,
+        conversationId: getDirectConversationId(data.agencyId, data.modelId),
         text: `[PROPOSTA DE SCOUTING]: Olá ${data.modelName}, a agência ${data.agencyName} enviou uma proposta formal de agenciamento (Comissão proposta: ${proposal.proposedCommission}). Mensagem: "${data.message}"`,
       });
     } catch (err) {
@@ -2429,7 +2510,11 @@ export const StorageService = {
   async listAdminUsers(): Promise<AdminUser[]> {
     await initDatabase();
     try {
-      const res = await pool.query('SELECT * FROM admin_users ORDER BY created_at ASC');
+      const res = await pool.query(
+        `SELECT * FROM admin_users 
+         WHERE email NOT IN ('admin@lumiardi.com', 'curador.senior@lumiardi.com', 'curador.junior@lumiardi.com', 'supervisor@lumiardi.com')
+         ORDER BY created_at ASC`
+      );
       if (res.rows.length > 0) {
         return res.rows.map((au) => ({
           id: au.id,
@@ -2448,7 +2533,10 @@ export const StorageService = {
       // Fallback
     }
 
-    const list = Array.from(fallbackStore.admin_users.values()) as unknown as AdminUser[];
+    const fakeEmails = new Set(['admin@lumiardi.com', 'curador.senior@lumiardi.com', 'curador.junior@lumiardi.com', 'supervisor@lumiardi.com']);
+    const list = (Array.from(fallbackStore.admin_users.values()) as unknown as AdminUser[]).filter(
+      (au: any) => !fakeEmails.has(String(au.email).toLowerCase())
+    );
     return list.map((au: any) => ({
       id: au.id,
       email: au.email,

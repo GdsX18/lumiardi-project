@@ -247,14 +247,23 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             }}
             className="flex items-center gap-2.5 bg-[#121212] border border-white/10 hover:border-gold/40 p-1.5 sm:px-3 sm:py-1.5 transition-colors cursor-pointer"
           >
-            <div className="w-7 h-7 bg-gold/15 border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs">
+            <div
+              suppressHydrationWarning
+              className="w-7 h-7 bg-gold/15 border border-gold/40 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs"
+            >
               {initials}
             </div>
             <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-serif-lumiardi font-medium text-ivory leading-none">
+              <span
+                suppressHydrationWarning
+                className="text-xs font-serif-lumiardi font-medium text-ivory leading-none"
+              >
                 {displayName}
               </span>
-              <span className="text-[9px] font-sans uppercase tracking-widest text-emerald-400 mt-0.5">
+              <span
+                suppressHydrationWarning
+                className="text-[9px] font-sans uppercase tracking-widest text-emerald-400 mt-0.5"
+              >
                 {isApproved ? (t('header_verified') || 'Verificado') : (t('header_in_review') || 'Em Análise')}
               </span>
             </div>

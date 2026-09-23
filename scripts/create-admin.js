@@ -5,7 +5,7 @@
  *   node scripts/create-admin.js <email> <senha> [nome_completo] [cargo_rbac]
  * 
  * Exemplo:
- *   node scripts/create-admin.js "admin@lumiardi.com" "MinhaSenhaForte2026!" "Administrador Executivo" "admin"
+ *   node scripts/create-admin.js "curadoria@lumiardi.com" "MinhaSenhaForte2026!" "Mesa de Curadoria Lumiardi" "admin"
  */
 
 const { Pool } = require('pg');
@@ -40,7 +40,7 @@ Uso:
   node scripts/create-admin.js <email> <senha> [nome_completo] [cargo_rbac]
 
 Exemplos:
-  node scripts/create-admin.js "admin@lumiardi.com" "MinhaSenhaForte2026!"
+  node scripts/create-admin.js "curadoria@lumiardi.com" "MinhaSenhaForte2026!"
   node scripts/create-admin.js "gestor@lumiardi.com" "SenhaSegura123!" "Gestor Geral" "admin"
   node scripts/create-admin.js "curador@lumiardi.com" "SenhaSegura123!" "Curador Sênior" "curador_senior"
 
@@ -53,9 +53,9 @@ Cargos RBAC válidos:
   process.exit(0);
 }
 
-const email = process.argv[2] || 'admin@lumiardi.com';
+const email = process.argv[2] || 'curadoria@lumiardi.com';
 const password = process.argv[3] || 'lumiardi2026';
-const fullName = process.argv[4] || 'Administrador Lumiardi';
+const fullName = process.argv[4] || 'Mesa de Curadoria Lumiardi';
 const rbacRole = process.argv[5] || 'admin'; // 'admin', 'supervisor', 'curador_senior', 'curador_junior'
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/lumiardi_db';

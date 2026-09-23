@@ -36,35 +36,9 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [role, setRole] = useState<UserRole>('criadora');
   const [curationStatus, setCurationStatus] = useState<CurationStatus>('APROVADO');
   
-  const [currentUser, setCurrentUser] = useState<SessionUser | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(CACHE_USER_KEY);
-        if (raw) return JSON.parse(raw);
-      } catch {}
-    }
-    return null;
-  });
-
-  const [activeCreator, setActiveCreator] = useState<CompleteCreatorProfile | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(CACHE_CREATOR_KEY);
-        if (raw) return JSON.parse(raw);
-      } catch {}
-    }
-    return null;
-  });
-
-  const [activeAgency, setActiveAgency] = useState<CompleteAgencyProfile | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(CACHE_AGENCY_KEY);
-        if (raw) return JSON.parse(raw);
-      } catch {}
-    }
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [activeCreator, setActiveCreator] = useState<CompleteCreatorProfile | null>(null);
+  const [activeAgency, setActiveAgency] = useState<CompleteAgencyProfile | null>(null);
 
   const [allCreators, setAllCreators] = useState<CompleteCreatorProfile[]>([]);
   const [allAgencies, setAllAgencies] = useState<CompleteAgencyProfile[]>([]);
@@ -155,6 +129,22 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     let isMounted = true;
+
+    // Restauração imediata do cache local pós-hidratação (SSR-safe)
+    try {
+      const rawUser = localStorage.getItem(CACHE_USER_KEY);
+      if (rawUser && isMounted) {
+        const parsed = JSON.parse(rawUser);
+        setCurrentUser(parsed);
+        if (parsed.role) setRole(parsed.role);
+        if (parsed.curationStatus) setCurationStatus(parsed.curationStatus);
+      }
+      const rawCreator = localStorage.getItem(CACHE_CREATOR_KEY);
+      if (rawCreator && isMounted) setActiveCreator(JSON.parse(rawCreator));
+      const rawAgency = localStorage.getItem(CACHE_AGENCY_KEY);
+      if (rawAgency && isMounted) setActiveAgency(JSON.parse(rawAgency));
+    } catch {}
+
     const loadInitialSession = async () => {
       try {
         // Prioridade 1: /api/user/me

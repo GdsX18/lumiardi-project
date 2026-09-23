@@ -340,7 +340,7 @@ export const CurationTeamTab: React.FC<CurationTeamTabProps> = ({ currentCurator
                         </div>
                         <div>
                           <span>{member.name}</span>
-                          {member.email === 'admin@lumiardi.com' && (
+                          {member.email === 'curadoria@lumiardi.com' && (
                             <span className="block text-[9px] text-gold font-mono uppercase">Master Root</span>
                           )}
                         </div>
@@ -368,12 +368,12 @@ export const CurationTeamTab: React.FC<CurationTeamTabProps> = ({ currentCurator
                         <button
                           type="button"
                           onClick={() => handleToggleActive(member)}
-                          disabled={!isAdmin || member.email === 'admin@lumiardi.com'}
+                          disabled={!isAdmin || member.email === 'curadoria@lumiardi.com'}
                           className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-xs transition-colors ${
                             member.isActive
                               ? 'text-emerald-400 bg-emerald-950/40 border border-emerald-500/30'
                               : 'text-rose-400 bg-rose-950/40 border border-rose-500/30'
-                          } ${isAdmin && member.email !== 'admin@lumiardi.com' ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                          } ${isAdmin && member.email !== 'curadoria@lumiardi.com' ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
                         >
                           {member.isActive ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                           <span>{member.isActive ? 'Ativo' : 'Inativo'}</span>

@@ -42,6 +42,9 @@ export const fallbackStore = {
 (async () => {
   const hashPassword = await bcrypt.hash('lumiardi2026', 10);
 
+  // ─── Contas Essenciais para Produção ─────────────────────────────────────────
+  // Apenas 3 contas são mantidas no seed: Admin Master, Modelo de Teste, Agência de Teste.
+  // Todos os auditores e candidatos fictícios foram removidos para ambiente limpo.
   const defaultUsers = [
     {
       id: 'admin-curadoria-1',
@@ -50,15 +53,6 @@ export const fallbackStore = {
       role: 'ADMIN',
       curation_status: 'APROVADO',
       full_name: 'Mesa de Curadoria Lumiardi',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'user-admin-model',
-      email: 'admin@lumiardi.com',
-      password_hash: hashPassword,
-      role: 'ADMIN',
-      curation_status: 'APROVADO',
-      full_name: 'Administrador Lumiardi',
       created_at: new Date().toISOString(),
     },
     {
@@ -79,73 +73,13 @@ export const fallbackStore = {
       full_name: 'Sua Agência Corporativa',
       created_at: new Date().toISOString(),
     },
-    {
-      id: 'user-test-candidata',
-      email: 'candidata.teste@lumiardi.com',
-      password_hash: hashPassword,
-      role: 'MODELO',
-      curation_status: 'EM_CURATORIA',
-      full_name: 'Isabella Montenegro (Candidata Teste)',
-      phone: '+55 (11) 98765-4321',
-      document_type: 'Passaporte Internacional / RG',
-      document_name: 'passaporte_isabella_2257.pdf',
-      created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-    },
-    {
-      id: 'user-model-valentina',
-      email: 'valentina.rossi@lumiardi.com',
-      password_hash: hashPassword,
-      role: 'MODELO',
-      curation_status: 'EM_CURATORIA',
-      full_name: 'Valentina Rossi',
-      phone: '+55 (21) 99876-1234',
-      document_type: 'Passaporte Internacional',
-      document_name: 'passaporte_valentina_rossi.pdf',
-      created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    },
-    {
-      id: 'user-model-recusada',
-      email: 'candidatura.pendente42@gmail.com',
-      password_hash: hashPassword,
-      role: 'MODELO',
-      curation_status: 'REJEITADO',
-      full_name: 'Juliana Paes Silveira',
-      phone: '+55 (41) 98412-3344',
-      document_type: 'RG / CNH',
-      document_name: 'cnh_digital_rasurada.pdf',
-      rejection_reason: 'Documento de identificação com rasura e divergência cadastral. Reenvio solicitado.',
-      created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-    },
-    {
-      id: 'user-agency-elite',
-      email: 'contato@elitemanagement.com.br',
-      password_hash: hashPassword,
-      role: 'AGENCIA',
-      curation_status: 'EM_CURATORIA',
-      full_name: 'Elite Talent Management Ltda',
-      phone: '+55 (11) 3214-5500',
-      document_type: 'Contrato Social & CNPJ Consolidado',
-      document_name: 'contrato_social_elite_2026.pdf',
-      created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-    },
-    {
-      id: 'user-agency-recusada',
-      email: 'casting@agenciaglobalfake.net',
-      password_hash: hashPassword,
-      role: 'AGENCIA',
-      curation_status: 'REJEITADO',
-      full_name: 'Global Casting Group ME',
-      phone: '+55 (31) 97112-9900',
-      document_type: 'Comprovante CNPJ',
-      document_name: 'cnpj_inativo_consulta.pdf',
-      rejection_reason: 'CNPJ inativo perante a Receita Federal e ausência de comprovação de registro profissional no sindicato.',
-      created_at: new Date(Date.now() - 3600000 * 72).toISOString(),
-    },
   ];
 
   defaultUsers.forEach((u) => fallbackStore.users.set(u.email.toLowerCase(), u));
 
-  // Equipe de Curadoria (RBAC) em Memória
+  // ─── Equipe de Curadoria (RBAC) em Memória ───────────────────────────────────
+  // Apenas o Admin Master é mantido. Auditores fictícios removidos.
+  // Novos membros da equipe serão cadastrados via "Equipe & Cargos (RBAC)" no painel admin.
   const defaultAdminUsers = [
     {
       id: 'cur-admin-1',
@@ -153,42 +87,6 @@ export const fallbackStore = {
       password_hash: hashPassword,
       full_name: 'Mesa de Curadoria (Diretoria)',
       role: 'admin',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'cur-admin-2',
-      email: 'admin@lumiardi.com',
-      password_hash: hashPassword,
-      full_name: 'Administrador Executivo',
-      role: 'admin',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'cur-sup-1',
-      email: 'supervisor@lumiardi.com',
-      password_hash: hashPassword,
-      full_name: 'Clara Bittencourt (Supervisora)',
-      role: 'supervisor',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'cur-snr-1',
-      email: 'curador.senior@lumiardi.com',
-      password_hash: hashPassword,
-      full_name: 'Rodrigo Medeiros (Curador Sênior)',
-      role: 'curador_senior',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'cur-jnr-1',
-      email: 'curador.junior@lumiardi.com',
-      password_hash: hashPassword,
-      full_name: 'Camila Duarte (Curadora Júnior)',
-      role: 'curador_junior',
       status: 'active',
       created_at: new Date().toISOString(),
     },
@@ -229,24 +127,6 @@ export const fallbackStore = {
     represented_agency_id: 'user-agency-1',
   });
 
-  fallbackStore.profiles.set('user-test-candidata', {
-    user_id: 'user-test-candidata',
-    artistic_name: 'Isabella M.',
-    category: 'Alta Moda & Criadora VIP',
-    instagram: '@isabella.montenegro',
-    gender: 'Feminino',
-    document_number: 'MG-19.824.552',
-    birth_date: '14/05/2001',
-    monthly_revenue_estimate: 'Sob Consulta',
-    measurements: { height: '178', weight: '56', waist: '61', bust: '89', hips: '91' },
-    physiognomy: { eyeColor: 'Verdes', hairColor: 'Castanho Claro', skinTone: 'Clara', languages: ['Português', 'Inglês', 'Italiano'] },
-    address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    photos: [],
-    video_url: '',
-    bio: '',
-    accepts_offers: true,
-    is_represented: false,
-  });
 
   fallbackStore.profiles.set('user-agency-1', {
     user_id: 'user-agency-1',
@@ -258,71 +138,6 @@ export const fallbackStore = {
     address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
     specialties: ['Alta Moda', 'Editorial', 'Campanhas Digitais'],
     commission_rate: '20%',
-  });
-
-  fallbackStore.profiles.set('user-model-valentina', {
-    user_id: 'user-model-valentina',
-    artistic_name: 'Valentina Rossi',
-    category: 'Criadora de conteúdo +18 & Modelo VIP',
-    instagram: '@valentina.rossi',
-    gender: 'Feminino Cisgênero',
-    document_number: 'RG 28.914.331-X',
-    birth_date: '22/08/1999',
-    monthly_revenue_estimate: 'R$ 45.000 /mês',
-    measurements: { height: '176', weight: '54', waist: '59', bust: '87', hips: '89' },
-    physiognomy: { eyeColor: 'Azuis', hairColor: 'Loiro Natural', skinTone: 'Clara', languages: ['Português', 'Inglês', 'Francês'] },
-    address: { country: 'Brasil', state: 'RJ', city: 'Rio de Janeiro' },
-    photos: [
-      { id: 'v1', url: '/images/creator_elena.jpg', title: 'Editorial Vogue Test', tag: 'Alta Resolução' },
-      { id: 'v2', url: '/images/creator_sophia.jpg', title: 'Studio Glamour', tag: 'Book Oficial' },
-    ],
-    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    bio: 'Modelo internacional com passagem por Milão e Paris, transição para ecossistema exclusivo Lumiardi.',
-    accepts_offers: true,
-    is_represented: false,
-  });
-
-  fallbackStore.profiles.set('user-model-recusada', {
-    user_id: 'user-model-recusada',
-    artistic_name: 'Juliana Paes Silveira',
-    category: 'Criadora de conteúdo +18',
-    instagram: '@julianapsilveira',
-    gender: 'Feminino',
-    document_number: 'PR-14.882.109',
-    birth_date: '10/02/2003',
-    monthly_revenue_estimate: 'Sob Consulta',
-    measurements: { height: '168', weight: '58', waist: '65', bust: '90', hips: '95' },
-    physiognomy: { eyeColor: 'Castanhos', hairColor: 'Castanho Escuro', skinTone: 'Morena', languages: ['Português'] },
-    address: { country: 'Brasil', state: 'PR', city: 'Curitiba' },
-    photos: [],
-    video_url: '',
-    bio: 'Criadora independente em busca de agenciamento.',
-    accepts_offers: true,
-    is_represented: false,
-  });
-
-  fallbackStore.profiles.set('user-agency-elite', {
-    user_id: 'user-agency-elite',
-    corporate_name: 'Elite Talent Management Ltda',
-    responsible_name: 'Marcelo Albuquerque (Diretor de Operações)',
-    category: 'Agência de Casting & Modelos',
-    cnpj: '48.912.441/0001-32',
-    instagram: '@elitetalent.mgmt',
-    address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    specialties: ['Campanhas Internacionais', 'Alta Moda', 'Gestão de Direitos de Imagem'],
-    commission_rate: '20%',
-  });
-
-  fallbackStore.profiles.set('user-agency-recusada', {
-    user_id: 'user-agency-recusada',
-    corporate_name: 'Global Casting Group ME',
-    responsible_name: 'André V. Santana',
-    category: 'Agência de Casting & Modelos',
-    cnpj: '99.888.777/0001-00',
-    instagram: '@globalcastingfake',
-    address: { country: 'Brasil', state: 'MG', city: 'Belo Horizonte' },
-    specialties: ['Comerciais'],
-    commission_rate: '25%',
   });
 
   // Contrato Inicial Modelo ↔ Agência
@@ -341,8 +156,8 @@ export const fallbackStore = {
   // Drive Compartilhado Inicial 100% Limpo (Sem arquivos mockados)
   // Toda nova parceria inicia vazia para upload real
 
-
-  // Logs Iniciais de Auditoria da Curadoria
+  // ─── Logs Iniciais de Auditoria da Curadoria ─────────────────────────────────
+  // Mantidos apenas os logs de aprovação das contas de teste essenciais.
   const defaultAuditLogs = [
     {
       id: 'log-seed-1',
@@ -372,22 +187,9 @@ export const fallbackStore = {
       ip_address: '127.0.0.1',
       created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     },
-    {
-      id: 'log-seed-3',
-      user_id: 'cur-sup-1',
-      user_name: 'Clara Bittencourt (Supervisora)',
-      user_email: 'supervisor@lumiardi.com',
-      user_role: 'supervisor',
-      action_type: 'ADICIONOU_NOTA',
-      target_id: 'user-test-candidata',
-      target_name: 'Isabella Montenegro',
-      target_type: 'MODELO',
-      details: { note: 'Aguardando envio do comprovante de residência atualizado para aprovação final' },
-      ip_address: '127.0.0.1',
-      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    },
   ];
   defaultAuditLogs.forEach((log) => fallbackStore.curation_audit_logs.set(log.id, log));
+
 
   // Kanban Tasks Iniciais
   const defaultTasks = [
@@ -427,13 +229,13 @@ export const fallbackStore = {
   // Mensagens Iniciais
   const defaultMessages = [
     {
-      id: 'msg-1',
+      id: 'msg-welcome-official',
       sender_id: 'admin-curadoria-1',
       sender_name: 'Mesa de Curadoria Lumiardi',
       sender_role: 'curadoria',
-      receiver_id: 'user-model-1',
+      receiver_id: null,
       conversation_id: 'curation',
-      text: 'Bem-vinda à plataforma Lumiardi! Seu acesso exclusivo está liberado e protegido por criptografia de ponta a ponta. Você pode utilizar este canal para tirar dúvidas com nossa equipe ou receber propostas de agências parceiras.',
+      text: 'Bem-vinda à plataforma Lumiardi! Seu acesso exclusivo está liberado e protegido por criptografia de ponta a ponta. Você pode utilizar este canal para tirar dúvidas com nossa equipe ou receber orientações da nossa curadoria.',
       attachment_url: null,
       attachment_name: null,
       attachment_type: null,
@@ -518,62 +320,9 @@ export const fallbackStore = {
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
     },
-    {
-      id: 'sub-test-candidata',
-      user_id: 'user-test-candidata',
-      gateway: 'pix',
-      gateway_subscription_id: 'pix_sub_isabella',
-      plan_id: 'glow',
-      plan_category: 'criadoras',
-      status: 'active',
-      billing_interval: 'monthly',
-      amount: 19.90,
-      currency: 'BRL',
-      current_period_start: now.toISOString(),
-      current_period_end: nextMonth.toISOString(),
-      cancel_at_period_end: false,
-      metadata: { billingReason: 'Taxa de Qualificação e Book Digital' },
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    },
-    {
-      id: 'sub-model-valentina',
-      user_id: 'user-model-valentina',
-      gateway: 'asaas',
-      gateway_subscription_id: 'asaas_sub_valentina',
-      plan_id: 'radiance',
-      plan_category: 'criadoras',
-      status: 'active',
-      billing_interval: 'yearly',
-      amount: 140.28,
-      currency: 'EUR',
-      current_period_start: now.toISOString(),
-      current_period_end: nextMonth.toISOString(),
-      cancel_at_period_end: false,
-      metadata: { lastCard4: '8812', billingDescriptor: 'LMI*RADIANCE' },
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    },
-    {
-      id: 'sub-agency-elite',
-      user_id: 'user-agency-elite',
-      gateway: 'asaas',
-      gateway_subscription_id: 'asaas_sub_elite',
-      plan_id: 'select',
-      plan_category: 'agencias',
-      status: 'active',
-      billing_interval: 'yearly',
-      amount: 2797.20,
-      currency: 'BRL',
-      current_period_start: now.toISOString(),
-      current_period_end: nextMonth.toISOString(),
-      cancel_at_period_end: false,
-      metadata: { lastCard4: '3301', billingDescriptor: 'LMI*AGENCY' },
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    },
   ];
   defaultSubscriptions.forEach((s) => fallbackStore.subscriptions.set(s.user_id, s));
+
 
   // Faturas Iniciais (Seed)
   const defaultInvoices = [
@@ -1070,38 +819,65 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_payouts_creator_id ON payouts(creator_id);
         CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
         CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);
       `);
 
       const hashPassword = await bcrypt.hash('lumiardi2026', 10);
 
+      // ─── Purga de Contas Fictícias (idempotente) ──────────────────────────────
+      // Remove todos os registros de contas fictícias que possam existir de seeds anteriores.
+      // As FKs com ON DELETE CASCADE eliminam automaticamente profiles, subscriptions, etc.
+      await client.query(`
+        DELETE FROM admin_users WHERE email IN (
+          'admin@lumiardi.com',
+          'supervisor@lumiardi.com',
+          'curador.senior@lumiardi.com',
+          'curador.junior@lumiardi.com'
+        );
+        DELETE FROM users WHERE email IN (
+          'admin@lumiardi.com',
+          'candidata.teste@lumiardi.com',
+          'valentina.rossi@lumiardi.com',
+          'candidatura.pendente42@gmail.com',
+          'contato@elitemanagement.com.br',
+          'casting@agenciaglobalfake.net',
+          'supervisor@lumiardi.com',
+          'curador.senior@lumiardi.com',
+          'curador.junior@lumiardi.com'
+        );
+        DELETE FROM messages WHERE sender_name IN ('Lumiardi Member') AND text = '';
+      `);
+
+      // ─── Seed de Contas Essenciais (idempotente via ON CONFLICT) ─────────────
       await client.query(`
         INSERT INTO users (id, email, password_hash, role, curation_status, full_name, document_name)
-        VALUES 
+        VALUES
           ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL),
-          ('user-admin-model', 'admin@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Administrador Lumiardi', NULL),
-          ('user-model-1', 'modelo@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Criadora Lumiardi', NULL),
-          ('user-agency-1', 'agencia@lumiardi.com', $1, 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa', NULL),
-          ('user-test-candidata', 'candidata.teste@lumiardi.com', $1, 'MODELO', 'EM_CURATORIA', 'Isabella Montenegro (Candidata Teste)', 'passaporte_isabella_2257.pdf')
+          ('user-model-1', 'modelo@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Sua Conta Modelo', NULL),
+          ('user-agency-1', 'agencia@lumiardi.com', $1, 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa', NULL)
         ON CONFLICT (email) DO NOTHING;
       `, [hashPassword]);
 
       await client.query(`
         INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
         VALUES
-          ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria (Diretoria)', 'admin', 'active'),
-          ('cur-admin-2', 'admin@lumiardi.com', $1, 'Administrador Executivo', 'admin', 'active'),
-          ('cur-sup-1', 'supervisor@lumiardi.com', $1, 'Clara Bittencourt (Supervisora)', 'supervisor', 'active'),
-          ('cur-snr-1', 'curador.senior@lumiardi.com', $1, 'Rodrigo Medeiros (Curador Sênior)', 'curador_senior', 'active'),
-          ('cur-jnr-1', 'curador.junior@lumiardi.com', $1, 'Camila Duarte (Curadora Júnior)', 'curador_junior', 'active')
+          ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria (Diretoria)', 'admin', 'active')
         ON CONFLICT (email) DO NOTHING;
       `, [hashPassword]);
 
       await client.query(`
         INSERT INTO profiles (user_id, artistic_name, category, instagram, accepts_offers, is_represented, represented_agency_name, represented_agency_id, created_at)
-        VALUES 
-          ('user-model-1', 'Sua Conta Modelo', 'Modelo & Criadora VIP', '@suaconta', true, true, 'Sua Agência Corporativa', 'user-agency-1', NOW()),
-          ('user-test-candidata', 'Isabella M.', 'Alta Moda & Criadora VIP', '@isabella.montenegro', true, false, NULL, NULL, NOW())
+        VALUES
+          ('user-model-1', 'Sua Conta Modelo', 'Modelo & Criadora VIP', '@suaconta', true, true, 'Sua Agência Corporativa', 'user-agency-1', NOW())
         ON CONFLICT (user_id) DO NOTHING;
+      `);
+
+      await client.query(`
+        INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, is_read, created_at)
+        VALUES
+          ('msg-welcome-official', 'admin-curadoria-1', 'Mesa de Curadoria Lumiardi', 'curadoria', NULL, 'curation', 'Bem-vinda à plataforma Lumiardi! Seu acesso exclusivo está liberado e protegido por criptografia de ponta a ponta. Você pode utilizar este canal para tirar dúvidas com nossa equipe ou receber orientações da nossa curadoria.', TRUE, NOW())
+        ON CONFLICT (id) DO NOTHING;
       `);
 
       isInitialized = true;

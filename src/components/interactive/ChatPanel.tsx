@@ -42,6 +42,7 @@ export interface ChatMessage {
 
 export interface Conversation {
   id: string;
+  partnerId?: string;
   name: string;
   avatarText: string;
   subtitle: string;
@@ -268,7 +269,7 @@ export const ChatPanel: React.FC = () => {
   useEffect(() => {
     fetchConversations();
     fetchMessages();
-    const interval = setInterval(fetchDelta, 4000);
+    const interval = setInterval(fetchDelta, 2500);
     return () => clearInterval(interval);
   }, [fetchConversations, fetchMessages, fetchDelta]);
 
@@ -416,6 +417,7 @@ export const ChatPanel: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: activeConvId,
+          receiverId: activeConv?.partnerId,
           text: currentText,
           hasAttachment: !!currentAttachment,
           attachmentName: currentAttachment?.name,
@@ -439,6 +441,18 @@ export const ChatPanel: React.FC = () => {
             lastMessageTimestampRef.current = data.message.createdAt;
           }
         }
+        // Atualiza imediatamente a prévia da conversa na barra lateral
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeConvId
+              ? {
+                  ...c,
+                  lastMessage: currentText,
+                  lastTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                }
+              : c
+          )
+        );
       }
     } catch {
       // silencioso — mensagem otimista permanece visível

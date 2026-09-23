@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const conversationId = searchParams.get('conversationId') || 'curation';
     const since = searchParams.get('since') || undefined;
 
-    const rawMessages = await StorageService.listMessages(conversationId, since);
+    const rawMessages = await StorageService.listMessages(conversationId, since, session.id, session.role);
 
     // Polling incremental: se o cliente enviou `since` e não há novas mensagens, retorna 304
     if (since && rawMessages.length === 0) {
@@ -103,7 +103,9 @@ export async function POST(request: NextRequest) {
       senderName = corporateName || userRecord?.user?.name || session.name;
       senderRole = 'agencia';
     } else if (session.role === 'admin') {
-      senderName = 'Mesa de Curadoria Lumiardi';
+      // Identifica o auditor pelo primeiro nome da sessão (ex: "Mesa de Curadoria — Auditor Bernardo")
+      const auditorFirstName = session.name?.split(' ')[0] || session.name || 'Curadoria';
+      senderName = `Mesa de Curadoria — Auditor ${auditorFirstName}`;
       senderRole = 'curadoria';
     }
 

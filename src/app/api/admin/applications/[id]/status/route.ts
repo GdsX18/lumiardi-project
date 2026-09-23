@@ -115,6 +115,33 @@ export async function POST(
       console.warn('[Curation Email] Erro ao buscar usuário para e-mail:', e);
     }
 
+    // ─── Mensagem de Boas-Vindas (Onboarding) ────────────────────────────────
+    // Disparada uma única vez quando a conta é aprovada.
+    // Verificação de idempotência: checa se já existe uma mensagem de boas-vindas
+    // para este utilizador no canal 'curation', evitando duplicação em re-aprovações.
+    if (status === 'APROVADO') {
+      try {
+        const existingMessages = await StorageService.listMessages('curation');
+        const alreadySentWelcome = existingMessages.some(
+          (m) => m.receiverId === id && m.senderRole === 'curadoria' && m.text.includes('canal oficial da Curadoria Lumiardi')
+        );
+
+        if (!alreadySentWelcome) {
+          const auditorFirstName = session.name?.split(' ')[0] || 'Curadoria';
+          await StorageService.sendMessage({
+            senderId: session.id,
+            senderName: `Mesa de Curadoria — Auditor ${auditorFirstName}`,
+            senderRole: 'curadoria',
+            receiverId: id,
+            conversationId: 'curation',
+            text: 'Bem-vinda ao canal oficial da Curadoria Lumiardi. Este é o seu espaço criptografado e prioritário para suporte, dúvidas contratuais e alinhamentos de casting.',
+          });
+        }
+      } catch (msgErr) {
+        console.warn('[Curation Welcome] Erro ao enviar mensagem de boas-vindas:', msgErr);
+      }
+    }
+
     return NextResponse.json({
       success,
       status,
