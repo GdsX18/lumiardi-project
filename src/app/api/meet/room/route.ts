@@ -2,42 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
-
-export interface EphemeralRoom {
-  roomId: string;
-  passcode: string;
-  hostId: string;
-  hostName: string;
-  createdAt: number;
-  participants: Map<string, { id: string; name: string; joinedAt: number }>;
-  provider: 'daily.co' | 'webrtc_native';
-  dailyRoomUrl?: string | null;
-  dailyToken?: string | null;
-}
-
-// Armazenamento em memória estritamente efémero com auto-destruição
-declare global {
-  // eslint-disable-next-line no-var
-  var __lumiardi_ephemeral_rooms: Map<string, EphemeralRoom> | undefined;
-}
-
-const roomsStore = globalThis.__lumiardi_ephemeral_rooms || new Map<string, EphemeralRoom>();
-globalThis.__lumiardi_ephemeral_rooms = roomsStore;
-
-// Purga preventiva de salas antigas (> 2 horas)
-function purgeExpiredRooms() {
-  const now = Date.now();
-  for (const [id, room] of roomsStore.entries()) {
-    if (now - room.createdAt > 2 * 60 * 60 * 1000) {
-      roomsStore.delete(id);
-    }
-  }
-}
+import { MeetService } from '@/services/meetService';
 
 export async function POST(request: NextRequest) {
   try {
-    purgeExpiredRooms();
-
     const rawBody = await request.json().catch(() => ({}));
     const action = rawBody.action || 'create';
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -45,28 +13,37 @@ export async function POST(request: NextRequest) {
 
     const participantId = session?.id || rawBody.participantId || `guest-${crypto.randomBytes(3).toString('hex')}`;
     const participantName = session?.name || rawBody.participantName || 'Membro VIP Lumiardi';
+    const userRole: 'agency' | 'model' | 'admin' | 'guest' =
+      session?.role === 'agencia'
+        ? 'agency'
+        : session?.role === 'criadora'
+        ? 'model'
+        : session?.role === 'admin'
+        ? 'admin'
+        : 'guest';
 
-    // 1. AÇÃO: Encerrar ou Sair de uma Sala Efémera
+    // 1. AÇÃO: Encerrar ou Sair de uma Sala
     if (action === 'leave' || action === 'end') {
       const targetRoomId = sanitizeInput(rawBody.roomId || '');
-      if (targetRoomId && roomsStore.has(targetRoomId)) {
-        const room = roomsStore.get(targetRoomId)!;
-        room.participants.delete(participantId);
-
-        // Se foi encerramento forçado ou não sobrou ninguém na sala, destrói a sala imediatamente
-        if (action === 'end' || room.participants.size === 0) {
-          roomsStore.delete(targetRoomId);
-          return NextResponse.json({ success: true, destroyed: true, roomId: targetRoomId });
-        }
-        return NextResponse.json({ success: true, remainingParticipants: room.participants.size });
+      if (targetRoomId) {
+        const result = await MeetService.leaveRoom({
+          roomId: targetRoomId,
+          participantId,
+        });
+        return NextResponse.json({
+          success: true,
+          destroyed: result.destroyed,
+          remainingParticipants: result.remainingParticipants,
+          roomId: targetRoomId,
+        });
       }
       return NextResponse.json({ success: true, destroyed: true });
     }
 
-    // 2. AÇÃO: Obter Status / Ingressar em Sala Existente
+    // 2. AÇÃO: Obter Status de Sala Existente
     if (action === 'status') {
       const targetRoomId = sanitizeInput(rawBody.roomId || '');
-      const room = roomsStore.get(targetRoomId);
+      const room = await MeetService.getRoom(targetRoomId);
       if (!room) {
         return NextResponse.json({ exists: false, error: 'Sala inexistente ou já finalizada.' });
       }
@@ -74,7 +51,6 @@ export async function POST(request: NextRequest) {
         exists: true,
         roomId: room.roomId,
         hostName: room.hostName,
-        participantCount: room.participants.size,
         provider: room.provider,
         dailyRoomUrl: room.dailyRoomUrl,
       });
@@ -129,31 +105,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Registra a sala efémera na memória
-    const newRoom: EphemeralRoom = {
+    // Registra a sala no banco de dados compartilhado
+    const roomRecord = await MeetService.createOrGetRoom({
       roomId,
-      passcode,
       hostId: participantId,
       hostName: participantName,
-      createdAt: Date.now(),
-      participants: new Map([[participantId, { id: participantId, name: participantName, joinedAt: Date.now() }]]),
+      passcode,
       provider,
       dailyRoomUrl,
       dailyToken,
-    };
+    });
 
-    roomsStore.set(roomId, newRoom);
+    // Registra a presença do host como participante
+    await MeetService.joinRoom({
+      roomId,
+      participantId,
+      participantName,
+      userRole,
+    });
 
     return NextResponse.json({
       success: true,
-      roomId,
+      roomId: roomRecord.roomId,
       passcode,
       inviteUrl,
-      dailyRoomUrl,
-      dailyToken,
-      provider,
+      dailyRoomUrl: roomRecord.dailyRoomUrl,
+      dailyToken: roomRecord.dailyToken,
+      provider: roomRecord.provider,
       hostName: participantName,
-      createdAt: new Date().toISOString(),
+      createdAt: roomRecord.createdAt,
       encryption: 'AES-256-GCM / WebRTC DTLS-SRTP',
     });
   } catch (err: unknown) {

@@ -51,6 +51,17 @@ const CallTimer = memo(({ active }: { active: boolean }) => {
 });
 CallTimer.displayName = 'CallTimer';
 
+// Configuração Obrigatória de STUN Servers (Travessia de NAT/Firewall)
+const peerConnectionConfig: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+  ],
+};
+
 export interface VideoCallWidgetProps {
   roomId?: string;
   autoStart?: boolean;
@@ -94,6 +105,13 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   const [remoteParticipant, setRemoteParticipant] = useState<{ id: string; name: string } | null>(null);
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
   const [dailyUrl, setDailyUrl] = useState<string | null>(null);
+  const [iceConnectionState, setIceConnectionState] = useState<RTCIceConnectionState>('new');
+  const [isPeerConnected, setIsPeerConnected] = useState<boolean>(false);
+
+  // Refs de Negociação WebRTC
+  const roleRef = useRef<'caller' | 'callee' | null>(null);
+  const hasCreatedOfferRef = useRef<boolean>(false);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   // Chat interno durante a chamada
   const [inMeetingMessages, setInMeetingMessages] = useState<
@@ -174,8 +192,36 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       signalingPollRef.current = null;
     }
 
+    roleRef.current = null;
+    hasCreatedOfferRef.current = false;
+    pendingCandidatesRef.current = [];
     setHasRemoteStream(false);
+    setIsPeerConnected(false);
+    setIceConnectionState('new');
   }, []);
+
+  // Sincronização e Reprodução Segura de Mídia Remota
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStreamRef.current) {
+      if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      }
+      remoteVideoRef.current.muted = false;
+      remoteVideoRef.current.volume = 1.0;
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  }, [hasRemoteStream, isPeerConnected, swappedViews]);
+
+  // Sincronização do Feed Local
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      if (localVideoRef.current.srcObject !== localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      localVideoRef.current.muted = true;
+      localVideoRef.current.play().catch(() => {});
+    }
+  }, [camOn, swappedViews, inCall]);
 
   // Auto-ocultação inteligente da barra de controles por inatividade do rato
   const triggerUserActivity = useCallback(() => {
@@ -233,57 +279,86 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
     }
   }, []);
 
-  // WebRTC PeerConnection & Sinalização Leve
+  // WebRTC PeerConnection & Sinalização Multi-Nó
   const initWebRTC = useCallback(
-    async (roomId: string) => {
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      });
+    async (roomId: string, currentLocalStream: MediaStream) => {
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      roleRef.current = null;
+      hasCreatedOfferRef.current = false;
+      pendingCandidatesRef.current = [];
+
+      const pc = new RTCPeerConnection(peerConnectionConfig);
       peerConnectionRef.current = pc;
 
-      // Receptor de Stream Remoto
+      // 1. Assegura que faixas locais capturadas sejam adicionadas antes de qualquer oferta
+      currentLocalStream.getTracks().forEach((track) => {
+        pc.addTrack(track, currentLocalStream);
+      });
+
+      // Helper seguro para envio de sinais WebRTC
+      const sendSignal = async (type: 'offer' | 'answer' | 'candidate', data: unknown) => {
+        try {
+          await fetch('/api/meet/signal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'signal',
+              roomId,
+              participantId: participantIdRef.current,
+              type,
+              data,
+            }),
+          });
+        } catch {
+          // Silencioso em caso de oscilações breves
+        }
+      };
+
+      // 2. Receptor de Stream Remoto (ontrack) com áudio e volume ativos
       pc.ontrack = (event) => {
         if (event.streams && event.streams[0]) {
-          remoteStreamRef.current = event.streams[0];
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = event.streams[0];
-          }
+          const stream = event.streams[0];
+          remoteStreamRef.current = stream;
           setHasRemoteStream(true);
-        }
-      };
-
-      // Envio de ICE Candidates ao outro participante
-      pc.onicecandidate = async (event) => {
-        if (event.candidate) {
-          try {
-            await fetch('/api/meet/signal', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'signal',
-                roomId,
-                participantId: participantIdRef.current,
-                type: 'candidate',
-                data: event.candidate,
-              }),
-            });
-          } catch {
-            // Silencioso para não poluir console
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = stream;
+            remoteVideoRef.current.muted = false;
+            remoteVideoRef.current.volume = 1.0;
+            remoteVideoRef.current.play().catch(() => {});
           }
         }
       };
 
-      // Adiciona faixas locais se o stream já estiver ativo
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
-      }
+      // 3. Envio de ICE Candidates ao outro participante
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal('candidate', event.candidate.toJSON ? event.candidate.toJSON() : event.candidate);
+        }
+      };
 
-      // Registro na sala de sinalização
+      // 4. Monitoramento da Conexão ICE e Transição de Estado
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        setIceConnectionState(state);
+        if (state === 'connected' || state === 'completed') {
+          setIsPeerConnected(true);
+        } else if (state === 'disconnected' || state === 'failed') {
+          setIsPeerConnected(false);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'connected') {
+          setIsPeerConnected(true);
+        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          setIsPeerConnected(false);
+        }
+      };
+
+      // 5. Registro na sala de sinalização
       try {
         const joinRes = await fetch('/api/meet/signal', {
           method: 'POST',
@@ -298,30 +373,34 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
         if (joinRes.ok) {
           const joinData = await joinRes.json();
-          // Se for o primeiro participante (caller), gera oferta WebRTC
-          if (joinData.role === 'caller') {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            await fetch('/api/meet/signal', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'signal',
-                roomId,
-                participantId: participantIdRef.current,
-                type: 'offer',
-                data: offer,
-              }),
-            });
+          roleRef.current = joinData.role;
+
+          // Se já houver outro participante presente e este for caller, gera oferta imediatamente
+          if (Array.isArray(joinData.participants)) {
+            const other = joinData.participants.find(
+              (p: { id: string; name: string }) => p.id !== participantIdRef.current
+            );
+            if (other) {
+              setRemoteParticipant({ id: other.id, name: other.name });
+              if (joinData.role === 'caller' && !hasCreatedOfferRef.current && pc.signalingState === 'stable') {
+                hasCreatedOfferRef.current = true;
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await sendSignal('offer', offer);
+              }
+            }
           }
         }
-      } catch {
-        // Fallback gracioso
+      } catch (joinErr) {
+        console.warn('Erro ao ingressar na sala:', joinErr);
       }
 
-      // Polling leve de sinalização (intervalo seguro sem vazamento)
+      // 6. Polling estrito a cada 1 segundo (1000ms)
       if (signalingPollRef.current) clearInterval(signalingPollRef.current);
-      signalingPollRef.current = setInterval(async () => {
+
+      const runPoll = async () => {
+        if (peerConnectionRef.current !== pc || pc.connectionState === 'closed') return;
+
         try {
           const pollRes = await fetch('/api/meet/signal', {
             method: 'POST',
@@ -336,53 +415,87 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
           if (!pollRes.ok) return;
           const pollData = await pollRes.json();
 
-          // Atualiza interlocutor se presente
+          // Sincroniza participantes ativos
           if (Array.isArray(pollData.participants)) {
             const other = pollData.participants.find(
               (p: { id: string; name: string }) => p.id !== participantIdRef.current
             );
             if (other) {
               setRemoteParticipant({ id: other.id, name: other.name });
+
+              // Se sou Caller, Callee acabou de entrar e oferta ainda não foi criada:
+              if (roleRef.current === 'caller' && !hasCreatedOfferRef.current && pc.signalingState === 'stable') {
+                hasCreatedOfferRef.current = true;
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await sendSignal('offer', offer);
+              }
             } else {
               setRemoteParticipant(null);
             }
           }
 
-          // Processa ofertas, respostas e ICE candidates recebidos
+          // Processa sinais recebidos (offer, answer, candidate)
           if (Array.isArray(pollData.signals)) {
             for (const sig of pollData.signals) {
-              if (sig.type === 'offer' && pc.signalingState !== 'closed') {
+              if (sig.type === 'offer' && pc.connectionState !== 'closed') {
+                // Callee recebe a oferta
                 await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+
+                // Aplica candidatos ICE que estavam em buffer antes da oferta
+                while (pendingCandidatesRef.current.length > 0) {
+                  const cand = pendingCandidatesRef.current.shift();
+                  if (cand) {
+                    try {
+                      await pc.addIceCandidate(new RTCIceCandidate(cand));
+                    } catch (candErr) {
+                      console.warn('Erro ao adicionar ICE candidate do buffer:', candErr);
+                    }
+                  }
+                }
+
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                await fetch('/api/meet/signal', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    action: 'signal',
-                    roomId,
-                    participantId: participantIdRef.current,
-                    type: 'answer',
-                    data: answer,
-                  }),
-                });
-              } else if (sig.type === 'answer' && pc.signalingState !== 'closed') {
+                await sendSignal('answer', answer);
+
+              } else if (sig.type === 'answer' && pc.connectionState !== 'closed') {
+                // Caller consome a resposta com setRemoteDescription
                 if (pc.signalingState === 'have-local-offer') {
                   await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+
+                  // Aplica candidatos ICE que estavam em buffer antes da resposta
+                  while (pendingCandidatesRef.current.length > 0) {
+                    const cand = pendingCandidatesRef.current.shift();
+                    if (cand) {
+                      try {
+                        await pc.addIceCandidate(new RTCIceCandidate(cand));
+                      } catch (candErr) {
+                        console.warn('Erro ao adicionar ICE candidate do buffer:', candErr);
+                      }
+                    }
+                  }
                 }
-              } else if (sig.type === 'candidate' && pc.signalingState !== 'closed') {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(sig.data));
-                } catch {
-                  // Silencioso
+
+              } else if (sig.type === 'candidate' && pc.connectionState !== 'closed') {
+                if (pc.remoteDescription && pc.remoteDescription.type) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(sig.data));
+                  } catch (e) {
+                    console.warn('Erro ao aplicar ICE Candidate:', e);
+                  }
+                } else {
+                  // Bufferiza se remoteDescription ainda não foi configurada
+                  pendingCandidatesRef.current.push(sig.data);
                 }
               }
             }
           }
         } catch {
-          // Erro de rede temporário ignorado
+          // Ignora falha de polling momentânea
         }
-      }, 1500);
+      };
+
+      signalingPollRef.current = setInterval(runPoll, 1000);
     },
     []
   );
@@ -395,7 +508,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       (async () => {
         const stream = await startCamera();
         if (mounted && stream) {
-          await initWebRTC(activeRoomId);
+          await initWebRTC(activeRoomId, stream);
         }
       })();
     }
@@ -413,7 +526,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       const res = await fetch('/api/meet/room', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create' }),
+        body: JSON.stringify({ action: 'create', participantId: participantIdRef.current }),
       });
 
       if (res.ok) {
@@ -585,6 +698,9 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
     }
   };
 
+  // Estado Unificado de Conexão e Presença Remota
+  const isCallConnected = Boolean(isPeerConnected || iceConnectionState === 'connected' || hasRemoteStream);
+
   // JSX do Widget
   const content = (
     <div
@@ -696,8 +812,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               <div className="relative w-full h-full bg-black flex items-center justify-center">
                 <video
                   ref={screenVideoRef}
-                  autoPlay
-                  playsInline
+                  autoPlay={true}
+                  playsInline={true}
                   className="w-full h-full object-contain bg-black"
                 />
                 <div className="absolute top-20 left-6 bg-black/80 backdrop-blur-md px-3 py-1.5 text-xs text-gold border border-gold/40 flex items-center gap-2 rounded-full shadow-lg">
@@ -705,71 +821,89 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                   <span className="text-[10px] uppercase font-mono tracking-wider">Apresentando Ecrã</span>
                 </div>
               </div>
-            ) : hasRemoteStream && !swappedViews ? (
-              /* Interlocutor Remoto em Destaque */
-              <div className="relative w-full h-full">
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-20 left-6 bg-black/75 backdrop-blur-md px-3.5 py-1.5 text-xs text-ivory border border-white/10 rounded-full flex items-center gap-2 shadow-lg">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="font-serif-lumiardi font-medium text-gold">
-                    {remoteParticipant?.name || propCounterparty || 'Interlocutor VIP'}
-                  </span>
-                  <span className="text-[10px] text-ivory/50 font-mono">· HD E2E</span>
-                </div>
-              </div>
-            ) : swappedViews && localStreamRef.current ? (
-              /* Feed Local em Destaque (Quando o usuário alternou no PiP) */
-              <div className="relative w-full h-full">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                  style={{ transform: 'scaleX(-1)' }}
-                />
-              </div>
             ) : (
-              /* LOUNGE DE ESPERA LUXO (Aguardando Convidado Conectar) */
-              <div className="relative w-full h-full bg-gradient-to-b from-[#090909] via-[#050505] to-black flex flex-col items-center justify-center text-center p-6 space-y-5">
-                <div className="w-20 h-20 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold relative shadow-2xl">
-                  <span className="w-full h-full absolute rounded-full border border-gold/20 animate-ping opacity-60" />
-                  <Shield className="w-8 h-8 text-gold" />
-                </div>
-
-                <div className="max-w-md space-y-2 z-10">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-[10px] uppercase font-mono tracking-widest text-gold">
-                    <Lock className="w-3 h-3 text-gold" />
-                    <span>Criptografia Ponta-a-Ponta Ativa</span>
+              <>
+                {/* 1. VÍDEO DO INTERLOCUTOR REMOTO (Montado de forma permanente no DOM para reter mídia/áudio) */}
+                <div
+                  className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
+                    isCallConnected && !swappedViews ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+                >
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay={true}
+                    playsInline={true}
+                    muted={false}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-20 left-6 bg-black/75 backdrop-blur-md px-3.5 py-1.5 text-xs text-ivory border border-white/10 rounded-full flex items-center gap-2 shadow-lg">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="font-serif-lumiardi font-medium text-gold">
+                      {remoteParticipant?.name || propCounterparty || 'Interlocutor VIP'}
+                    </span>
+                    <span className="text-[10px] text-ivory/50 font-mono">· HD E2E</span>
                   </div>
-                  <h3 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-ivory">
-                    Aguardando Interlocutor...
-                  </h3>
-                  <p className="text-xs text-ivory/60 font-sans leading-relaxed">
-                    Sua conexão executiva está segura. Envie o link de acesso para o participante entrar diretamente na sala.
-                  </p>
                 </div>
 
-                <div className="flex items-center gap-3 pt-2 z-10">
-                  <button
-                    onClick={handleCopyLink}
-                    className="px-5 py-2.5 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs uppercase tracking-wider rounded-full shadow-lg shadow-gold/15 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    {copiedLink ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedLink ? 'Link Copiado!' : 'Copiar Convite'}</span>
-                  </button>
+                {/* 2. VÍDEO LOCAL NO PALCO PRINCIPAL (Quando o usuário inverteu a visão) */}
+                <div
+                  className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
+                    isCallConnected && swappedViews ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+                >
+                  {camOn ? (
+                    <video
+                      ref={swappedViews ? localVideoRef : undefined}
+                      autoPlay={true}
+                      playsInline={true}
+                      muted={true}
+                      className="w-full h-full object-cover"
+                      style={{ transform: 'scaleX(-1)' }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-[#101010] text-ivory/50">
+                      <VideoOff className="w-8 h-8 text-rose-400 mb-2" />
+                      <span className="text-xs">Sua câmera está desligada</span>
+                    </div>
+                  )}
                 </div>
-              </div>
+
+                {/* 3. LOUNGE DE ESPERA LUXO (Ocultado imediatamente assim que conectado) */}
+                {!isCallConnected && (
+                  <div className="relative w-full h-full bg-gradient-to-b from-[#090909] via-[#050505] to-black flex flex-col items-center justify-center text-center p-6 space-y-5 z-10">
+                    <div className="w-20 h-20 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold relative shadow-2xl">
+                      <span className="w-full h-full absolute rounded-full border border-gold/20 animate-ping opacity-60" />
+                      <Shield className="w-8 h-8 text-gold" />
+                    </div>
+
+                    <div className="max-w-md space-y-2 z-10">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-[10px] uppercase font-mono tracking-widest text-gold">
+                        <Lock className="w-3 h-3 text-gold" />
+                        <span>Criptografia Ponta-a-Ponta Ativa</span>
+                      </div>
+                      <h3 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-ivory">
+                        Aguardando Interlocutor...
+                      </h3>
+                      <p className="text-xs text-ivory/60 font-sans leading-relaxed">
+                        Sua conexão executiva está segura. Envie o link de acesso para o participante entrar diretamente na sala.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2 z-10">
+                      <button
+                        onClick={handleCopyLink}
+                        className="px-5 py-2.5 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs uppercase tracking-wider rounded-full shadow-lg shadow-gold/15 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        {copiedLink ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
+                        <span>{copiedLink ? 'Link Copiado!' : 'Copiar Convite'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* ─────────────────────────────────────────────────────────────
-                PICTURE-IN-PICTURE (FEED DO PRÓPRIO USUÁRIO)
-               ───────────────────────────────────────────────────────────── */}
+            {/* 4. PICTURE-IN-PICTURE (FEED LOCAL OU MINIATURA DO OUTRO PARTICIPANTE) */}
             <div
               onClick={() => setSwappedViews(!swappedViews)}
               className={`absolute bottom-24 right-5 sm:bottom-28 sm:right-8 w-36 sm:w-52 aspect-video bg-neutral-950/85 border border-gold/40 rounded-sm shadow-2xl backdrop-blur-md overflow-hidden cursor-pointer z-20 group transition-all duration-300 hover:scale-105 hover:border-gold ${
@@ -777,25 +911,34 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               }`}
               title="Clique para alternar visão do palco"
             >
-              {camOn ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                  style={{ transform: 'scaleX(-1)' }}
-                />
+              {!swappedViews ? (
+                camOn ? (
+                  <video
+                    ref={!swappedViews ? localVideoRef : undefined}
+                    autoPlay={true}
+                    playsInline={true}
+                    muted={true}
+                    className="w-full h-full object-cover"
+                    style={{ transform: 'scaleX(-1)' }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#101010] text-ivory/50">
+                    <VideoOff className="w-5 h-5 text-rose-400 mb-1" />
+                    <span className="text-[9px]">Câmera Desligada</span>
+                  </div>
+                )
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#101010] text-ivory/50">
-                  <VideoOff className="w-5 h-5 text-rose-400 mb-1" />
-                  <span className="text-[9px]">Câmera Desligada</span>
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#101010] text-ivory/70 p-2 text-center">
+                  <span className="text-[10px] text-gold font-medium truncate max-w-full">
+                    {remoteParticipant?.name || 'Interlocutor VIP'}
+                  </span>
+                  <span className="text-[8px] text-ivory/40">Palco Invertido</span>
                 </div>
               )}
 
               <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between pointer-events-none text-[9px] font-mono">
                 <span className="bg-black/80 px-1.5 py-0.5 rounded-xs text-gold border border-white/10">
-                  Você
+                  {swappedViews ? 'Palco Invertido' : 'Você'}
                 </span>
                 <span className="p-1 bg-black/80 rounded-full border border-white/10">
                   {micOn ? (

@@ -36,6 +36,9 @@ export const fallbackStore = {
   payouts: new Map<string, Record<string, unknown>>(),
   application_notes: new Map<string, Record<string, unknown>[]>(),
   notifications: new Map<string, Record<string, unknown>>(),
+  meet_rooms: new Map<string, Record<string, unknown>>(),
+  meet_participants: new Map<string, Record<string, unknown>>(),
+  meet_signals: new Map<string, Record<string, unknown>>(),
 };
 
 // Inicialização imediata síncrona/assíncrona do fallback
@@ -827,6 +830,45 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);
+
+        -- 17. Tabelas Lumiardi Meet (WebRTC & Sinalização Multi-Nó Persistente)
+        CREATE TABLE IF NOT EXISTS meet_rooms (
+          id VARCHAR(100) PRIMARY KEY,
+          passcode VARCHAR(50),
+          host_id VARCHAR(100) NOT NULL,
+          host_name VARCHAR(255) NOT NULL,
+          provider VARCHAR(50) DEFAULT 'webrtc_native',
+          daily_room_url TEXT,
+          daily_token TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS meet_participants (
+          room_id VARCHAR(100) NOT NULL,
+          participant_id VARCHAR(100) NOT NULL,
+          participant_name VARCHAR(255) NOT NULL,
+          role VARCHAR(50) NOT NULL DEFAULT 'caller',
+          user_role VARCHAR(50) NOT NULL DEFAULT 'model',
+          joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          PRIMARY KEY (room_id, participant_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_meet_part_room ON meet_participants(room_id);
+        CREATE INDEX IF NOT EXISTS idx_meet_part_last_seen ON meet_participants(last_seen_at DESC);
+
+        CREATE TABLE IF NOT EXISTS meet_signals (
+          id VARCHAR(100) PRIMARY KEY,
+          room_id VARCHAR(100) NOT NULL,
+          sender_id VARCHAR(100) NOT NULL,
+          target_id VARCHAR(100),
+          type VARCHAR(50) NOT NULL,
+          data JSONB NOT NULL,
+          consumed BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_meet_signals_room_target ON meet_signals(room_id, target_id, consumed);
+        CREATE INDEX IF NOT EXISTS idx_meet_signals_created ON meet_signals(created_at ASC);
       `);
 
       const hashPassword = await bcrypt.hash('lumiardi2026', 10);
