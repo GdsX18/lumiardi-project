@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        myRole: pollResult.myRole,
         signals: pollResult.signals,
         participants: pollResult.participants,
       });

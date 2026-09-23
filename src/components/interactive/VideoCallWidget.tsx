@@ -104,6 +104,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   // Interlocutor e WebRTC
   const [remoteParticipant, setRemoteParticipant] = useState<{ id: string; name: string } | null>(null);
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [dailyUrl, setDailyUrl] = useState<string | null>(null);
   const [iceConnectionState, setIceConnectionState] = useState<RTCIceConnectionState>('new');
   const [isPeerConnected, setIsPeerConnected] = useState<boolean>(false);
@@ -111,6 +113,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   // Refs de Negociação WebRTC
   const roleRef = useRef<'caller' | 'callee' | null>(null);
   const hasCreatedOfferRef = useRef<boolean>(false);
+  const lastOfferTimeRef = useRef<number>(0);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   // Chat interno durante a chamada
@@ -157,6 +160,29 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
+  // Notificação de saída instantânea ao fechar ou atualizar aba
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (activeRoomId && participantIdRef.current) {
+        const payload = JSON.stringify({
+          action: 'leave',
+          roomId: activeRoomId,
+          participantId: participantIdRef.current,
+        });
+        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+          navigator.sendBeacon('/api/meet/signal', payload);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [activeRoomId]);
+
   // Limpeza Completa de Recursos de Mídia (Zero Memory Leaks)
   const stopAllMediaTracks = useCallback(() => {
     if (localStreamRef.current) {
@@ -194,34 +220,50 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
     roleRef.current = null;
     hasCreatedOfferRef.current = false;
+    lastOfferTimeRef.current = 0;
     pendingCandidatesRef.current = [];
+    setLocalStream(null);
+    setRemoteStream(null);
     setHasRemoteStream(false);
     setIsPeerConnected(false);
     setIceConnectionState('new');
   }, []);
 
-  // Sincronização e Reprodução Segura de Mídia Remota
+  // Sincronização e Reprodução Segura de Mídia Remota com Volume 1.0 e Muted False
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStreamRef.current) {
-      if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+    if (remoteVideoRef.current && remoteStream) {
+      if (remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
       }
       remoteVideoRef.current.muted = false;
       remoteVideoRef.current.volume = 1.0;
-      remoteVideoRef.current.play().catch(() => {});
+      remoteVideoRef.current.play().catch(() => {
+        // Política de autoplay: desbloqueia ao primeiro clique na página se bloqueado
+        const unlockAudio = () => {
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.muted = false;
+            remoteVideoRef.current.volume = 1.0;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+          window.removeEventListener('click', unlockAudio);
+          window.removeEventListener('touchstart', unlockAudio);
+        };
+        window.addEventListener('click', unlockAudio, { once: true });
+        window.addEventListener('touchstart', unlockAudio, { once: true });
+      });
     }
-  }, [hasRemoteStream, isPeerConnected, swappedViews]);
+  }, [remoteStream, hasRemoteStream, isPeerConnected, swappedViews]);
 
-  // Sincronização do Feed Local
+  // Sincronização do Feed Local com Muted Obrigatório para Eliminar Microfonia
   useEffect(() => {
-    if (localVideoRef.current && localStreamRef.current) {
-      if (localVideoRef.current.srcObject !== localStreamRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
+    if (localVideoRef.current && localStream) {
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
       }
       localVideoRef.current.muted = true;
       localVideoRef.current.play().catch(() => {});
     }
-  }, [camOn, swappedViews, inCall]);
+  }, [localStream, camOn, swappedViews, inCall]);
 
   // Auto-ocultação inteligente da barra de controles por inatividade do rato
   const triggerUserActivity = useCallback(() => {
@@ -230,53 +272,110 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       clearTimeout(hideControlsTimeoutRef.current);
     }
     hideControlsTimeoutRef.current = setTimeout(() => {
-      // Não oculta se o chat da reunião estiver aberto
       if (!showChat) {
         setControlsVisible(false);
       }
     }, 3500);
   }, [showChat]);
 
-  // Inicialização e Captura Segura de Mídia Local
-  const startCamera = useCallback(async () => {
-    try {
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        setPermissionError('Navegador não suporta captura de áudio/vídeo WebRTC.');
-        return null;
-      }
+  // Inicialização e Captura Segura Multi-Tier de Mídia Local (Resiliente: Nunca retorna null)
+  const startCamera = useCallback(async (): Promise<MediaStream> => {
+    setPermissionError(null);
 
-      setPermissionError(null);
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      const emptyStream = new MediaStream();
+      localStreamRef.current = emptyStream;
+      setLocalStream(emptyStream);
+      setCamOn(false);
+      setMicOn(false);
+      return emptyStream;
+    }
+
+    // 1. Tentativa HD 720p + Áudio E2E
+    try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-
       localStreamRef.current = stream;
+      setLocalStream(stream);
+      setCamOn(true);
+      setMicOn(true);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.play().catch(() => {});
       }
-
-      // Adiciona faixas ao RTCPeerConnection se já existir
-      if (peerConnectionRef.current) {
-        stream.getTracks().forEach((track) => {
-          peerConnectionRef.current?.addTrack(track, stream);
-        });
-      }
-
       return stream;
-    } catch (err: unknown) {
-      const e = err as { name?: string };
-      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-        setPermissionError(
-          'Permissão de câmera ou microfone foi bloqueada. Desbloqueie o acesso no ícone de configurações/cadeado na barra do navegador e clique em Tentar Novamente.'
-        );
-      } else if (e.name === 'NotFoundError') {
-        setPermissionError('Nenhuma câmera ou microfone detectado neste dispositivo.');
-      } else {
-        setPermissionError('Não foi possível inicializar dispositivo de mídia.');
-      }
-      return null;
+    } catch {
+      // Avança para tentativa sem restrição de resolução
     }
+
+    // 2. Tentativa Vídeo Genérico + Áudio
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setCamOn(true);
+      setMicOn(true);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.play().catch(() => {});
+      }
+      return stream;
+    } catch {
+      // Avança para tentativa apenas de áudio
+    }
+
+    // 3. Tentativa Apenas Áudio (quando dispositivo não possui câmera)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: true,
+      });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setCamOn(false);
+      setMicOn(true);
+      return stream;
+    } catch {
+      // Avança para tentativa apenas de vídeo
+    }
+
+    // 4. Tentativa Apenas Vídeo (quando microfone não está disponível)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setCamOn(true);
+      setMicOn(false);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.play().catch(() => {});
+      }
+      return stream;
+    } catch {
+      // Permissões negadas ou periféricos ausentes
+    }
+
+    // 5. Fallback E2E: Stream vazio resiliente (permite receber o vídeo/áudio do interlocutor)
+    const emptyStream = new MediaStream();
+    localStreamRef.current = emptyStream;
+    setLocalStream(emptyStream);
+    setCamOn(false);
+    setMicOn(false);
+    setPermissionError(
+      'Câmera ou microfone não detectados ou não permitidos. Você ainda poderá ver e ouvir o interlocutor.'
+    );
+    return emptyStream;
   }, []);
 
   // WebRTC PeerConnection & Sinalização Multi-Nó
@@ -288,19 +387,40 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       }
       roleRef.current = null;
       hasCreatedOfferRef.current = false;
+      lastOfferTimeRef.current = 0;
       pendingCandidatesRef.current = [];
 
       const pc = new RTCPeerConnection(peerConnectionConfig);
       peerConnectionRef.current = pc;
 
       // 1. Assegura que faixas locais capturadas sejam adicionadas antes de qualquer oferta
-      currentLocalStream.getTracks().forEach((track) => {
-        pc.addTrack(track, currentLocalStream);
-      });
+      const audioTracks = currentLocalStream.getAudioTracks();
+      const videoTracks = currentLocalStream.getVideoTracks();
 
-      // Helper seguro para envio de sinais WebRTC
-      const sendSignal = async (type: 'offer' | 'answer' | 'candidate', data: unknown) => {
+      if (audioTracks.length > 0) {
+        audioTracks.forEach((track) => pc.addTrack(track, currentLocalStream));
+      } else {
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      }
+
+      if (videoTracks.length > 0) {
+        videoTracks.forEach((track) => pc.addTrack(track, currentLocalStream));
+      } else {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+      }
+
+      // Helper seguro para envio de sinais WebRTC com serialização explícita
+      const sendSignal = async (type: 'offer' | 'answer' | 'candidate', rawData: unknown) => {
         try {
+          let data = rawData;
+          if (rawData && typeof rawData === 'object') {
+            if ('type' in rawData && 'sdp' in rawData) {
+              data = { type: (rawData as { type: string }).type, sdp: (rawData as { sdp: string }).sdp };
+            } else if (typeof (rawData as { toJSON?: () => unknown }).toJSON === 'function') {
+              data = (rawData as { toJSON: () => unknown }).toJSON();
+            }
+          }
+
           await fetch('/api/meet/signal', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -322,7 +442,9 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
         if (event.streams && event.streams[0]) {
           const stream = event.streams[0];
           remoteStreamRef.current = stream;
+          setRemoteStream(stream);
           setHasRemoteStream(true);
+          setIsPeerConnected(true);
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream;
             remoteVideoRef.current.muted = false;
@@ -335,7 +457,12 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       // 3. Envio de ICE Candidates ao outro participante
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          sendSignal('candidate', event.candidate.toJSON ? event.candidate.toJSON() : event.candidate);
+          sendSignal('candidate', {
+            candidate: event.candidate.candidate,
+            sdpMid: event.candidate.sdpMid,
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+            usernameFragment: event.candidate.usernameFragment,
+          });
         }
       };
 
@@ -384,9 +511,10 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               setRemoteParticipant({ id: other.id, name: other.name });
               if (joinData.role === 'caller' && !hasCreatedOfferRef.current && pc.signalingState === 'stable') {
                 hasCreatedOfferRef.current = true;
+                lastOfferTimeRef.current = Date.now();
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
-                await sendSignal('offer', offer);
+                await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
               }
             }
           }
@@ -415,6 +543,11 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
           if (!pollRes.ok) return;
           const pollData = await pollRes.json();
 
+          // Sincroniza papel atualizado
+          if (pollData.myRole) {
+            roleRef.current = pollData.myRole;
+          }
+
           // Sincroniza participantes ativos
           if (Array.isArray(pollData.participants)) {
             const other = pollData.participants.find(
@@ -423,12 +556,20 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
             if (other) {
               setRemoteParticipant({ id: other.id, name: other.name });
 
-              // Se sou Caller, Callee acabou de entrar e oferta ainda não foi criada:
-              if (roleRef.current === 'caller' && !hasCreatedOfferRef.current && pc.signalingState === 'stable') {
-                hasCreatedOfferRef.current = true;
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                await sendSignal('offer', offer);
+              // Se sou Caller, interlocutor está presente e a chamada ainda não conectou:
+              const isCaller = roleRef.current === 'caller';
+              if (isCaller && !isPeerConnected && !hasRemoteStream) {
+                const now = Date.now();
+                if (
+                  pc.signalingState === 'stable' &&
+                  (!hasCreatedOfferRef.current || now - lastOfferTimeRef.current > 3500)
+                ) {
+                  hasCreatedOfferRef.current = true;
+                  lastOfferTimeRef.current = now;
+                  const offer = await pc.createOffer({ iceRestart: true });
+                  await pc.setLocalDescription(offer);
+                  await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
+                }
               }
             } else {
               setRemoteParticipant(null);
@@ -439,29 +580,33 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
           if (Array.isArray(pollData.signals)) {
             for (const sig of pollData.signals) {
               if (sig.type === 'offer') {
-                // Callee recebe a oferta
-                await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+                const offerData = typeof sig.data === 'string' ? JSON.parse(sig.data) : sig.data;
+                if (offerData && offerData.sdp) {
+                  // Callee recebe a oferta
+                  await pc.setRemoteDescription(new RTCSessionDescription(offerData));
 
-                // Aplica candidatos ICE que estavam em buffer antes da oferta
-                while (pendingCandidatesRef.current.length > 0) {
-                  const cand = pendingCandidatesRef.current.shift();
-                  if (cand) {
-                    try {
-                      await pc.addIceCandidate(new RTCIceCandidate(cand));
-                    } catch (candErr) {
-                      console.warn('Erro ao adicionar ICE candidate do buffer:', candErr);
+                  // Aplica candidatos ICE que estavam em buffer antes da oferta
+                  while (pendingCandidatesRef.current.length > 0) {
+                    const cand = pendingCandidatesRef.current.shift();
+                    if (cand) {
+                      try {
+                        await pc.addIceCandidate(new RTCIceCandidate(cand));
+                      } catch (candErr) {
+                        console.warn('Erro ao adicionar ICE candidate do buffer:', candErr);
+                      }
                     }
                   }
+
+                  const answer = await pc.createAnswer();
+                  await pc.setLocalDescription(answer);
+                  await sendSignal('answer', { type: answer.type, sdp: answer.sdp });
                 }
 
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                await sendSignal('answer', answer);
-
               } else if (sig.type === 'answer') {
-                // Caller consome a resposta com setRemoteDescription
-                if (pc.signalingState === 'have-local-offer') {
-                  await pc.setRemoteDescription(new RTCSessionDescription(sig.data));
+                const answerData = typeof sig.data === 'string' ? JSON.parse(sig.data) : sig.data;
+                if (answerData && answerData.sdp && pc.signalingState === 'have-local-offer') {
+                  // Caller consome a resposta com setRemoteDescription
+                  await pc.setRemoteDescription(new RTCSessionDescription(answerData));
 
                   // Aplica candidatos ICE que estavam em buffer antes da resposta
                   while (pendingCandidatesRef.current.length > 0) {
@@ -477,15 +622,18 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 }
 
               } else if (sig.type === 'candidate') {
-                if (pc.remoteDescription && pc.remoteDescription.type) {
-                  try {
-                    await pc.addIceCandidate(new RTCIceCandidate(sig.data));
-                  } catch (e) {
-                    console.warn('Erro ao aplicar ICE Candidate:', e);
+                const candData = typeof sig.data === 'string' ? JSON.parse(sig.data) : sig.data;
+                if (candData && (candData.candidate !== undefined)) {
+                  if (pc.remoteDescription && pc.remoteDescription.type) {
+                    try {
+                      await pc.addIceCandidate(new RTCIceCandidate(candData));
+                    } catch (e) {
+                      console.warn('Erro ao aplicar ICE Candidate:', e);
+                    }
+                  } else {
+                    // Bufferiza se remoteDescription ainda não foi configurada
+                    pendingCandidatesRef.current.push(candData);
                   }
-                } else {
-                  // Bufferiza se remoteDescription ainda não foi configurada
-                  pendingCandidatesRef.current.push(sig.data);
                 }
               }
             }
@@ -497,7 +645,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
       signalingPollRef.current = setInterval(runPoll, 1000);
     },
-    []
+    [isPeerConnected, hasRemoteStream]
   );
 
   // Inicialização quando a chamada é ativada
@@ -830,7 +978,15 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                   }`}
                 >
                   <video
-                    ref={remoteVideoRef}
+                    ref={(el) => {
+                      remoteVideoRef.current = el;
+                      if (el && remoteStream && el.srcObject !== remoteStream) {
+                        el.srcObject = remoteStream;
+                        el.muted = false;
+                        el.volume = 1.0;
+                        el.play().catch(() => {});
+                      }
+                    }}
                     autoPlay={true}
                     playsInline={true}
                     muted={false}
@@ -853,7 +1009,16 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 >
                   {camOn ? (
                     <video
-                      ref={swappedViews ? localVideoRef : undefined}
+                      ref={(el) => {
+                        if (swappedViews) {
+                          localVideoRef.current = el;
+                          if (el && localStream && el.srcObject !== localStream) {
+                            el.srcObject = localStream;
+                            el.muted = true;
+                            el.play().catch(() => {});
+                          }
+                        }
+                      }}
                       autoPlay={true}
                       playsInline={true}
                       muted={true}
@@ -914,7 +1079,16 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               {!swappedViews ? (
                 camOn ? (
                   <video
-                    ref={!swappedViews ? localVideoRef : undefined}
+                    ref={(el) => {
+                      if (!swappedViews) {
+                        localVideoRef.current = el;
+                        if (el && localStream && el.srcObject !== localStream) {
+                          el.srcObject = localStream;
+                          el.muted = true;
+                          el.play().catch(() => {});
+                        }
+                      }
+                    }}
                     autoPlay={true}
                     playsInline={true}
                     muted={true}

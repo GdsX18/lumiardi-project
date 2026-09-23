@@ -148,43 +148,26 @@ export const MeetService = {
     userRole?: 'agency' | 'model' | 'admin' | 'guest';
   }): Promise<{ success: boolean; role: 'caller' | 'callee'; participants: MeetParticipantRecord[] }> {
     await initDatabase();
-    const userRole = params.userRole || 'model';
+    const userRole = params.userRole || 'guest';
 
     try {
-      // 1. Busca participantes ativos nos últimos 45 segundos que não sejam este participante
-      const othersRes = await pool.query(
-        `SELECT * FROM meet_participants 
-         WHERE room_id = $1 
-           AND participant_id != $2 
-           AND last_seen_at >= NOW() - INTERVAL '45 seconds'`,
+      // 1. Purga apenas registros inativos (> 45 segundos) ou o próprio participante (re-join)
+      await pool.query(
+        `DELETE FROM meet_participants 
+         WHERE room_id = $1 AND (last_seen_at < NOW() - INTERVAL '45 seconds' OR participant_id = $2)`,
         [params.roomId, params.participantId]
       );
 
-      // 2. Verifica se o participante já tinha um papel previamente registrado nesta sala
-      const meRes = await pool.query(
-        'SELECT * FROM meet_participants WHERE room_id = $1 AND participant_id = $2',
-        [params.roomId, params.participantId]
-      );
-
-      let role: 'caller' | 'callee' = 'caller';
-      if (othersRes.rows.length >= 1) {
-        // Já existe um interlocutor ativo na sala -> este participante é o callee
-        role = 'callee';
-      } else if (meRes.rows.length > 0) {
-        // Se este participante já estava e ninguém mais está ativo, mantém o papel prévio
-        role = (meRes.rows[0].role as 'caller' | 'callee') || 'caller';
-      }
-
-      // 3. Upsert do participante com timestamp atualizado
+      // 2. Insere ou atualiza o participante atual
       await pool.query(
         `INSERT INTO meet_participants (room_id, participant_id, participant_name, role, user_role, joined_at, last_seen_at)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+         VALUES ($1, $2, $3, 'caller', $4, NOW(), NOW())
          ON CONFLICT (room_id, participant_id) 
-         DO UPDATE SET participant_name = $3, role = $4, user_role = $5, last_seen_at = NOW()`,
-        [params.roomId, params.participantId, params.participantName, role, userRole]
+         DO UPDATE SET participant_name = $3, user_role = $4, last_seen_at = NOW()`,
+        [params.roomId, params.participantId, params.participantName, userRole]
       );
 
-      // 4. Retorna a lista de todos os participantes ativos
+      // 3. Busca todos os participantes ativos ordenados estritamente por ordem de entrada (joined_at)
       const allActiveRes = await pool.query(
         `SELECT * FROM meet_participants 
          WHERE room_id = $1 AND last_seen_at >= NOW() - INTERVAL '45 seconds'
@@ -192,55 +175,84 @@ export const MeetService = {
         [params.roomId]
       );
 
-      const participants: MeetParticipantRecord[] = allActiveRes.rows.map((row) => ({
-        id: row.participant_id,
-        name: row.participant_name,
-        role: row.role as 'caller' | 'callee',
-        userRole: row.user_role as 'agency' | 'model' | 'admin' | 'guest',
-        joinedAt: row.joined_at?.toISOString() || new Date().toISOString(),
-        lastSeenAt: row.last_seen_at?.toISOString() || new Date().toISOString(),
-      }));
+      // O primeiro participante cronologicamente é SEMPRE o caller, o segundo é SEMPRE o callee
+      let myAssignedRole: 'caller' | 'callee' = 'caller';
+      const participants: MeetParticipantRecord[] = [];
 
-      return { success: true, role, participants };
+      for (let i = 0; i < allActiveRes.rows.length; i++) {
+        const row = allActiveRes.rows[i];
+        const assignedRole: 'caller' | 'callee' = i === 0 ? 'caller' : 'callee';
+
+        if (row.role !== assignedRole) {
+          await pool.query(
+            'UPDATE meet_participants SET role = $1 WHERE room_id = $2 AND participant_id = $3',
+            [assignedRole, params.roomId, row.participant_id]
+          );
+        }
+
+        if (row.participant_id === params.participantId) {
+          myAssignedRole = assignedRole;
+        }
+
+        participants.push({
+          id: row.participant_id,
+          name: row.participant_name,
+          role: assignedRole,
+          userRole: row.user_role as 'agency' | 'model' | 'admin' | 'guest',
+          joinedAt: row.joined_at?.toISOString() || new Date().toISOString(),
+          lastSeenAt: row.last_seen_at?.toISOString() || new Date().toISOString(),
+        });
+      }
+
+      return { success: true, role: myAssignedRole, participants };
     } catch {
-      // Fallback em memória
+      // Fallback em memória resiliente
       const now = Date.now();
       const prefix = `${params.roomId}:`;
-      const activeOthers: MeetParticipantRecord[] = [];
-      let previousMe: MeetParticipantRecord | null = null;
+      const activeList: (MeetParticipantRecord & { lastSeenMs: number; joinedMs: number })[] = [];
 
       for (const [key, val] of fallbackStore.meet_participants.entries()) {
         if (key.startsWith(prefix)) {
-          const part = val as unknown as MeetParticipantRecord & { lastSeenMs: number };
-          if (part.id === params.participantId) {
-            previousMe = part;
-          } else if (now - (part.lastSeenMs || 0) < 45000) {
-            activeOthers.push(part);
+          const part = val as unknown as MeetParticipantRecord & { lastSeenMs: number; joinedMs: number };
+          if (part.id === params.participantId || now - (part.lastSeenMs || 0) >= 45000) {
+            fallbackStore.meet_participants.delete(key);
+          } else {
+            activeList.push(part);
           }
         }
-      }
-
-      let role: 'caller' | 'callee' = 'caller';
-      if (activeOthers.length >= 1) {
-        role = 'callee';
-      } else if (previousMe) {
-        role = previousMe.role;
       }
 
       const myRecord = {
         id: params.participantId,
         name: params.participantName,
-        role,
+        role: (activeList.length === 0 ? 'caller' : 'callee') as 'caller' | 'callee',
         userRole,
         joinedAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
         lastSeenMs: now,
+        joinedMs: now,
       };
 
-      fallbackStore.meet_participants.set(`${params.roomId}:${params.participantId}`, myRecord as unknown as Record<string, unknown>);
+      activeList.push(myRecord);
+      activeList.sort((a, b) => a.joinedMs - b.joinedMs);
 
-      const allActive: MeetParticipantRecord[] = [myRecord, ...activeOthers];
-      return { success: true, role, participants: allActive };
+      let myRole: 'caller' | 'callee' = 'caller';
+      const participants: MeetParticipantRecord[] = activeList.map((p, idx) => {
+        const role = (idx === 0 ? 'caller' : 'callee') as 'caller' | 'callee';
+        p.role = role;
+        if (p.id === params.participantId) myRole = role;
+        fallbackStore.meet_participants.set(`${params.roomId}:${p.id}`, p as unknown as Record<string, unknown>);
+        return {
+          id: p.id,
+          name: p.name,
+          role,
+          userRole: p.userRole,
+          joinedAt: p.joinedAt,
+          lastSeenAt: p.lastSeenAt,
+        };
+      });
+
+      return { success: true, role: myRole, participants };
     }
   },
 
@@ -288,17 +300,25 @@ export const MeetService = {
   async pollSignals(params: {
     roomId: string;
     participantId: string;
-  }): Promise<{ success: boolean; signals: MeetSignalRecord[]; participants: MeetParticipantRecord[] }> {
+  }): Promise<{ success: boolean; myRole: 'caller' | 'callee'; signals: MeetSignalRecord[]; participants: MeetParticipantRecord[] }> {
     await initDatabase();
 
     try {
       // 1. Atualiza presença do participante atual
-      await pool.query(
+      const updateRes = await pool.query(
         `UPDATE meet_participants 
          SET last_seen_at = NOW() 
          WHERE room_id = $1 AND participant_id = $2`,
         [params.roomId, params.participantId]
       );
+      if (updateRes.rowCount === 0) {
+        await pool.query(
+          `INSERT INTO meet_participants (room_id, participant_id, participant_name, role, user_role, joined_at, last_seen_at)
+           VALUES ($1, $2, 'Membro VIP Lumiardi', 'callee', 'guest', NOW(), NOW())
+           ON CONFLICT (room_id, participant_id) DO UPDATE SET last_seen_at = NOW()`,
+          [params.roomId, params.participantId]
+        );
+      }
 
       // 2. Busca sinais pendentes destinados a este participante (ou broadcast na sala)
       const signalsRes = await pool.query(
@@ -327,10 +347,26 @@ export const MeetService = {
       // 5. Retorna lista de participantes atualmente conectados
       const activeRes = await pool.query(
         `SELECT * FROM meet_participants 
-         WHERE room_id = $1 AND last_seen_at >= NOW() - INTERVAL '40 seconds'
+         WHERE room_id = $1 AND last_seen_at >= NOW() - INTERVAL '45 seconds'
          ORDER BY joined_at ASC`,
         [params.roomId]
       );
+
+      let myRole: 'caller' | 'callee' = 'caller';
+      const participants: MeetParticipantRecord[] = activeRes.rows.map((r, idx) => {
+        const assignedRole: 'caller' | 'callee' = idx === 0 ? 'caller' : 'callee';
+        if (r.participant_id === params.participantId) {
+          myRole = assignedRole;
+        }
+        return {
+          id: r.participant_id,
+          name: r.participant_name,
+          role: assignedRole,
+          userRole: r.user_role as 'agency' | 'model' | 'admin' | 'guest',
+          joinedAt: r.joined_at?.toISOString() || new Date().toISOString(),
+          lastSeenAt: r.last_seen_at?.toISOString() || new Date().toISOString(),
+        };
+      });
 
       const signals: MeetSignalRecord[] = signalsRes.rows.map((r) => ({
         id: r.id,
@@ -342,16 +378,7 @@ export const MeetService = {
         timestamp: new Date(r.created_at).getTime(),
       }));
 
-      const participants: MeetParticipantRecord[] = activeRes.rows.map((r) => ({
-        id: r.participant_id,
-        name: r.participant_name,
-        role: r.role as 'caller' | 'callee',
-        userRole: r.user_role as 'agency' | 'model' | 'admin' | 'guest',
-        joinedAt: r.joined_at?.toISOString() || new Date().toISOString(),
-        lastSeenAt: r.last_seen_at?.toISOString() || new Date().toISOString(),
-      }));
-
-      return { success: true, signals, participants };
+      return { success: true, myRole, signals, participants };
     } catch {
       // Fallback em memória
       const now = Date.now();
@@ -391,8 +418,8 @@ export const MeetService = {
       const prefix = `${params.roomId}:`;
       for (const [key, val] of fallbackStore.meet_participants.entries()) {
         if (key.startsWith(prefix)) {
-          const p = val as unknown as MeetParticipantRecord & { lastSeenMs: number };
-          if (now - (p.lastSeenMs || 0) < 40000) {
+          const p = val as unknown as MeetParticipantRecord & { lastSeenMs: number; joinedMs?: number };
+          if (now - (p.lastSeenMs || 0) < 45000) {
             activeParticipants.push(p);
           } else {
             fallbackStore.meet_participants.delete(key);
@@ -400,7 +427,15 @@ export const MeetService = {
         }
       }
 
-      return { success: true, signals: pendingSignals, participants: activeParticipants };
+      activeParticipants.sort((a, b) => ((a as any).joinedMs || 0) - ((b as any).joinedMs || 0));
+      let fallbackMyRole: 'caller' | 'callee' = 'caller';
+      activeParticipants.forEach((p, idx) => {
+        const assignedRole: 'caller' | 'callee' = idx === 0 ? 'caller' : 'callee';
+        p.role = assignedRole;
+        if (p.id === params.participantId) fallbackMyRole = assignedRole;
+      });
+
+      return { success: true, myRole: fallbackMyRole, signals: pendingSignals, participants: activeParticipants };
     }
   },
 
