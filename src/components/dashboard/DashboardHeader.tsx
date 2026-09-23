@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
-  Lock,
   ChevronDown,
   LogOut,
   ExternalLink,
@@ -140,13 +139,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             {isCriadora ? (t('portal_model') || 'PORTAL MODELO') : (t('portal_agency') || 'PORTAL AGÊNCIA')}
           </span>
         </Link>
-
-        {/* Badge Criptografia Blindada */}
-        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 bg-[#111111] border border-white/[0.08] text-[10px] font-sans text-ivory/70">
-          <Lock className="w-3 h-3 text-gold" />
-          <span>{t('header_encrypted_session') || 'Sessão Criptografada'}</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1" />
-        </div>
       </div>
 
       {/* Lado Direito: Notificações + Idioma + Usuário */}

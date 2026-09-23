@@ -660,6 +660,27 @@ export const StorageService = {
     return this.updateApplicationStatus(userId, status === 'APROVADO' ? 'APROVADO' : 'REJEITADO');
   },
 
+  async updateUserLastSeen(userId: string): Promise<void> {
+    if (!userId) return;
+    try {
+      await pool.query(
+        'UPDATE users SET last_seen_at = NOW() WHERE id = $1',
+        [userId]
+      );
+    } catch {
+      // Fallback tolerante se banco inacessível
+    }
+
+    // Atualiza também no fallbackStore
+    for (const u of fallbackStore.users.values()) {
+      const user = u as Record<string, any>;
+      if (user.id === userId) {
+        user.last_seen_at = new Date().toISOString();
+        break;
+      }
+    }
+  },
+
   async getUserById(userId: string) {
     await initDatabase();
 
@@ -1510,10 +1531,40 @@ export const StorageService = {
   },
 
   // ══════════════════════════════════════════════════════════════════
-  // CONVERSATIONS — Lista dinâmica condicionada a contratos ativos
+  // CONVERSATIONS — Lista dinâmica condicionada a contratos ativos e presença real
   // ══════════════════════════════════════════════════════════════════
   async listActiveConversations(userId: string, role: 'criadora' | 'agencia' | 'admin') {
     await initDatabase();
+
+    const checkFallbackUserOnline = (targetId: string, windowMin: number = 3): boolean => {
+      for (const u of fallbackStore.users.values()) {
+        const user = u as Record<string, any>;
+        if (user.id === targetId && user.last_seen_at) {
+          const diff = Date.now() - new Date(user.last_seen_at).getTime();
+          return diff <= windowMin * 60 * 1000;
+        }
+      }
+      return false;
+    };
+
+    // 1. Presença Real da Curadoria (Mesa Oficial)
+    let isCurationOnline = false;
+    try {
+      const curRes = await pool.query(
+        `SELECT id FROM users
+         WHERE (role = 'admin' OR role = 'ADMIN' OR id = 'admin-curadoria-1')
+           AND last_seen_at IS NOT NULL
+           AND last_seen_at > NOW() - INTERVAL '5 minutes'
+         LIMIT 1`
+      );
+      if (curRes.rows.length > 0) {
+        isCurationOnline = true;
+      } else {
+        isCurationOnline = checkFallbackUserOnline('admin-curadoria-1', 5);
+      }
+    } catch {
+      isCurationOnline = checkFallbackUserOnline('admin-curadoria-1', 5);
+    }
 
     const curationMsgs = await this.listMessages('curation', undefined, userId, role);
     const lastCurationMsg = curationMsgs[curationMsgs.length - 1];
@@ -1530,6 +1581,7 @@ export const StorageService = {
         : 'Hoje',
       unreadCount: 0,
       verified: true,
+      isOnline: isCurationOnline,
     };
 
     if (role === 'admin') {
@@ -1546,6 +1598,7 @@ export const StorageService = {
       lastTime: string;
       unreadCount: number;
       verified: boolean;
+      isOnline: boolean;
     }> = [];
 
     // Busca contratos ativos no PostgreSQL com canal determinístico unificado
@@ -1586,6 +1639,25 @@ export const StorageService = {
         });
       }
 
+      // Consulta de presença real dos parceiros (ativos nos últimos 3 minutos)
+      const partnerIds = Array.from(new Set(Array.from(convMap.values()).map((m) => m.partnerId)));
+      const onlineStatusMap = new Map<string, boolean>();
+      if (partnerIds.length > 0) {
+        try {
+          const presRes = await pool.query(
+            `SELECT id, (last_seen_at IS NOT NULL AND last_seen_at > NOW() - INTERVAL '3 minutes') AS is_online
+             FROM users
+             WHERE id = ANY($1)`,
+            [partnerIds]
+          );
+          for (const row of presRes.rows) {
+            onlineStatusMap.set(row.id, Boolean(row.is_online));
+          }
+        } catch {
+          // Fallback presença
+        }
+      }
+
       // Busca as mensagens mais recentes de todos os canais de uma só vez (elimina N+1 queries)
       const convIds = Array.from(convMap.keys());
       const latestMsgsByConv = new Map<string, { text: string; createdAt: string }>();
@@ -1611,6 +1683,10 @@ export const StorageService = {
           .join('');
 
         const lastMsg = latestMsgsByConv.get(convId);
+        const isOnline = onlineStatusMap.has(meta.partnerId)
+          ? Boolean(onlineStatusMap.get(meta.partnerId))
+          : checkFallbackUserOnline(meta.partnerId, 3);
+
         directChannels.push({
           id: convId,
           partnerId: meta.partnerId,
@@ -1623,6 +1699,7 @@ export const StorageService = {
             : 'Hoje',
           unreadCount: 0,
           verified: true,
+          isOnline,
         });
       }
 
@@ -1655,6 +1732,7 @@ export const StorageService = {
 
       const convMsgs = await this.listMessages(convId, undefined, userId, role);
       const lastMsg = convMsgs[convMsgs.length - 1];
+      const isOnline = checkFallbackUserOnline(partnerId, 3);
 
       directChannels.push({
         id: convId,
@@ -1668,6 +1746,7 @@ export const StorageService = {
           : 'Hoje',
         unreadCount: 0,
         verified: true,
+        isOnline,
       });
     }
 

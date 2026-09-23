@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
+    // Registra batimento cardíaco da presença do usuário
+    await StorageService.updateUserLastSeen(session.id);
+
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId') || 'curation';
     const since = searchParams.get('since') || undefined;
@@ -75,6 +78,9 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
+
+    // Registra batimento cardíaco da presença do usuário
+    await StorageService.updateUserLastSeen(session.id);
 
     const body = await request.json();
     const text = sanitizeInput(body.text || '');

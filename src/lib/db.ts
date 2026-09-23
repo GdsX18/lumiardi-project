@@ -54,6 +54,7 @@ export const fallbackStore = {
       curation_status: 'APROVADO',
       full_name: 'Mesa de Curadoria Lumiardi',
       created_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
     },
     {
       id: 'user-model-1',
@@ -63,6 +64,7 @@ export const fallbackStore = {
       curation_status: 'APROVADO',
       full_name: 'Sua Conta Modelo',
       created_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
     },
     {
       id: 'user-agency-1',
@@ -72,6 +74,7 @@ export const fallbackStore = {
       curation_status: 'APROVADO',
       full_name: 'Sua Agência Corporativa',
       created_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
     },
   ];
 
@@ -481,8 +484,11 @@ export async function initDatabase(): Promise<boolean> {
           document_url VARCHAR(255),
           rejection_reason TEXT,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users(last_seen_at);
       `);
 
       // 2. Tabela PROFILES

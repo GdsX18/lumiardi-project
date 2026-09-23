@@ -50,6 +50,7 @@ export interface Conversation {
   lastTime: string;
   unreadCount?: number;
   verified: boolean;
+  isOnline?: boolean;
 }
 
 interface AttachedFile {
@@ -100,6 +101,7 @@ export const ChatPanel: React.FC = () => {
       lastTime: 'Agora',
       unreadCount: 0,
       verified: true,
+      isOnline: true,
     },
   ]);
   const [activeConvId, setActiveConvId] = useState<string>('curation');
@@ -264,14 +266,35 @@ export const ChatPanel: React.FC = () => {
     setMessages([]);
   }, [activeConvId]);
 
-  // ─── Lifecycle: carga + polling inteligente ───────────────────────────────
+  // ─── Lifecycle: carga + polling inteligente + presença real ───────────────
 
   useEffect(() => {
     fetchConversations();
     fetchMessages();
-    const interval = setInterval(fetchDelta, 2500);
-    return () => clearInterval(interval);
+    const msgInterval = setInterval(fetchDelta, 2500);
+    // Atualiza canais e status de presença real a cada 10 segundos
+    const convInterval = setInterval(fetchConversations, 10000);
+    return () => {
+      clearInterval(msgInterval);
+      clearInterval(convInterval);
+    };
   }, [fetchConversations, fetchMessages, fetchDelta]);
+
+  // Batimento cardíaco ativo de presença enquanto na tela
+  useEffect(() => {
+    const sendHeartbeat = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetch('/api/user/heartbeat', { method: 'POST' }).catch(() => {});
+      }
+    };
+    sendHeartbeat();
+    const heartbeatInterval = setInterval(sendHeartbeat, 60000);
+    document.addEventListener('visibilitychange', sendHeartbeat);
+    return () => {
+      clearInterval(heartbeatInterval);
+      document.removeEventListener('visibilitychange', sendHeartbeat);
+    };
+  }, []);
 
   // ─── Scroll estritamente contido no contêiner interno ────────────────────
 
@@ -623,7 +646,12 @@ export const ChatPanel: React.FC = () => {
                     <div className="w-10 h-10 bg-[#141414] border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs rounded-xs">
                       {conv.avatarText}
                     </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#080808] rounded-full" />
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080808] transition-colors duration-300 ${
+                        conv.isOnline ? 'bg-emerald-500' : 'bg-white/80'
+                      }`}
+                      title={conv.isOnline ? 'Online' : 'Offline'}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -676,7 +704,12 @@ export const ChatPanel: React.FC = () => {
               <div className="w-10 h-10 bg-gold/10 border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-xs rounded-xs">
                 {activeConv.avatarText}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#0E0E0E] rounded-full animate-pulse" />
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0E0E0E] transition-colors duration-300 ${
+                  activeConv.isOnline ? 'bg-emerald-500' : 'bg-white/80'
+                }`}
+                title={activeConv.isOnline ? 'Online' : 'Offline'}
+              />
             </div>
 
             <div>
@@ -686,9 +719,17 @@ export const ChatPanel: React.FC = () => {
                 </h3>
                 <ShieldCheck className="w-3.5 h-3.5 text-gold/70 shrink-0" />
               </div>
-              <span className="text-[11px] text-ivory/45 font-sans flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Equipe ativa · Resposta prioritária
+              <span className="text-[11px] text-ivory/50 font-sans flex items-center gap-1.5">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                    activeConv.isOnline ? 'bg-emerald-500' : 'bg-white/40'
+                  }`}
+                />
+                <span>
+                  {activeConv.isOnline
+                    ? (activeConv.id === 'curation' ? 'Equipe ativa · Resposta prioritária' : 'Online agora · Resposta ativa')
+                    : 'Offline · Mensagem segura arquivada'}
+                </span>
               </span>
             </div>
           </div>

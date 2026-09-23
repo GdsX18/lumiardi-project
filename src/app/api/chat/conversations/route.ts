@@ -11,6 +11,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
+    // Atualiza batimento cardíaco da sessão do usuário
+    await StorageService.updateUserLastSeen(session.id);
+
     // Canais dinâmicos: Curadoria sempre presente + canais diretos condicionados a contratos ativos
     const conversations = await StorageService.listActiveConversations(session.id, session.role);
 
