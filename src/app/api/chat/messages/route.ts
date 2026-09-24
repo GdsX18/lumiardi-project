@@ -3,6 +3,9 @@ import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 
+// Cache em memória de nomes de exibição por usuário (TTL: 5 minutos) para eliminar queries redundantes no polling
+const displayNameCache = new Map<string, { name: string; expiresAt: number }>();
+
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -12,28 +15,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
-    // Registra batimento cardíaco da presença do usuário
-    await StorageService.updateUserLastSeen(session.id);
-
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId') || 'curation';
     const since = searchParams.get('since') || undefined;
 
     const rawMessages = await StorageService.listMessages(conversationId, since, session.id, session.role);
 
-    // Polling incremental: se o cliente enviou `since` e não há novas mensagens, retorna 304
+    // Polling incremental ultra-rápido: se o cliente enviou `since` e não há novas mensagens, retorna 304 instantâneo
     if (since && rawMessages.length === 0) {
-      return new NextResponse(null, { status: 304 });
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          'Cache-Control': 'private, no-cache, no-transform',
+        },
+      });
     }
 
-    // Identifica perfil e nome artístico real do usuário autenticado
-    const userRecord = await StorageService.getUserById(session.id);
-    const profile = userRecord?.profile as any;
-    const myArtisticName = session.role === 'criadora'
-      ? (profile?.qualitative?.artisticName || profile?.artistic_name || profile?.artisticName || userRecord?.user?.name || session.name)
-      : (session.role === 'agencia'
-        ? (profile?.basicInfo?.corporateName || profile?.corporate_name || userRecord?.user?.name || session.name)
-        : 'Mesa de Curadoria Lumiardi');
+    // Identifica perfil e nome artístico com cache em memória (zero overhead no banco durante o polling)
+    let myArtisticName = session.name;
+    const cached = displayNameCache.get(session.id);
+    if (cached && cached.expiresAt > Date.now()) {
+      myArtisticName = cached.name;
+    } else {
+      try {
+        const userRecord = await StorageService.getUserById(session.id);
+        const profile = userRecord?.profile as any;
+        if (session.role === 'criadora') {
+          myArtisticName =
+            profile?.qualitative?.artisticName ||
+            profile?.artistic_name ||
+            profile?.artisticName ||
+            userRecord?.user?.name ||
+            session.name;
+        } else if (session.role === 'agencia') {
+          myArtisticName =
+            profile?.basicInfo?.corporateName ||
+            profile?.corporate_name ||
+            userRecord?.user?.name ||
+            session.name;
+        } else {
+          myArtisticName = 'Mesa de Curadoria Lumiardi';
+        }
+        displayNameCache.set(session.id, { name: myArtisticName, expiresAt: Date.now() + 5 * 60 * 1000 });
+      } catch {
+        myArtisticName = session.name || 'Você';
+      }
+    }
 
     const messages = rawMessages.map((m) => {
       const isMe = m.senderId === session.id;
@@ -57,13 +84,21 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
-      success: true,
-      currentUserId: session.id,
-      currentUserName: myArtisticName,
-      currentUserRole: session.role,
-      messages,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        conversationId,
+        currentUserId: session.id,
+        currentUserName: myArtisticName,
+        currentUserRole: session.role,
+        messages,
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, no-cache, no-transform',
+        },
+      }
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro ao listar mensagens';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -79,7 +114,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
-    // Registra batimento cardíaco da presença do usuário
+    // Registra batimento cardíaco da presença do usuário no envio
     await StorageService.updateUserLastSeen(session.id);
 
     const body = await request.json();
@@ -93,26 +128,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mensagem ou anexo é obrigatório.' }, { status: 400 });
     }
 
-    // Autoria real: extração direta da sessão ativa e do perfil cadastrado
-    const userRecord = await StorageService.getUserById(session.id);
-    const profile = userRecord?.profile as any;
-
+    // Autoria real: extração direta da sessão ativa ou cache
     let senderName = session.name;
     let senderRole = session.role === 'criadora' ? 'modelo' : session.role === 'agencia' ? 'agencia' : 'curadoria';
 
-    if (session.role === 'criadora') {
-      const artisticName = profile?.qualitative?.artisticName || profile?.artistic_name || profile?.artisticName;
-      senderName = artisticName || userRecord?.user?.name || session.name;
-      senderRole = 'modelo';
-    } else if (session.role === 'agencia') {
-      const corporateName = profile?.basicInfo?.corporateName || profile?.corporate_name || profile?.corporateName;
-      senderName = corporateName || userRecord?.user?.name || session.name;
-      senderRole = 'agencia';
-    } else if (session.role === 'admin') {
-      // Identifica o auditor pelo primeiro nome da sessão (ex: "Mesa de Curadoria — Auditor Bernardo")
-      const auditorFirstName = session.name?.split(' ')[0] || session.name || 'Curadoria';
-      senderName = `Mesa de Curadoria — Auditor ${auditorFirstName}`;
-      senderRole = 'curadoria';
+    const cached = displayNameCache.get(session.id);
+    if (cached && cached.expiresAt > Date.now()) {
+      senderName = cached.name;
+    } else {
+      try {
+        const userRecord = await StorageService.getUserById(session.id);
+        const profile = userRecord?.profile as any;
+        if (session.role === 'criadora') {
+          senderName = profile?.qualitative?.artisticName || profile?.artistic_name || profile?.artisticName || userRecord?.user?.name || session.name;
+        } else if (session.role === 'agencia') {
+          senderName = profile?.basicInfo?.corporateName || profile?.corporate_name || userRecord?.user?.name || session.name;
+        } else if (session.role === 'admin') {
+          const auditorFirstName = session.name?.split(' ')[0] || session.name || 'Curadoria';
+          senderName = `Mesa de Curadoria — Auditor ${auditorFirstName}`;
+        }
+        displayNameCache.set(session.id, { name: senderName, expiresAt: Date.now() + 5 * 60 * 1000 });
+      } catch {}
     }
 
     // Rejeita nomes genéricos inválidos
