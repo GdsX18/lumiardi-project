@@ -27,6 +27,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuthPortal } from '@/context/AuthPortalContext';
 
 import {
   Room as LiveKitRoom,
@@ -100,6 +101,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   counterpartyName: propCounterparty,
 }) => {
   const { t } = useLanguage();
+  const { currentUser, activeCreator, activeAgency } = useAuthPortal();
   const searchParams = useSearchParams();
 
   // Se veio via URL ou via Prop (sem mocks fictícios por padrão)
@@ -133,6 +135,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   const [isPeerConnected, setIsPeerConnected] = useState<boolean>(false);
 
   // Refs de Negociação WebRTC & LiveKit
+  const isPeerConnectedRef = useRef<boolean>(false);
+  const hasRemoteStreamRef = useRef<boolean>(false);
   const livekitRoomRef = useRef<LiveKitRoom | null>(null);
   const roleRef = useRef<'caller' | 'callee' | null>(null);
   const hasCreatedOfferRef = useRef<boolean>(false);
@@ -587,7 +591,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               const isCaller = participantIdRef.current < other.id;
               roleRef.current = isCaller ? 'caller' : 'callee';
 
-              if (isCaller && !isPeerConnected && !hasRemoteStream) {
+              if (isCaller && !isPeerConnectedRef.current && !hasRemoteStreamRef.current) {
                 if (pc.signalingState === 'stable' && !hasCreatedOfferRef.current) {
                   hasCreatedOfferRef.current = true;
                   lastOfferTimeRef.current = Date.now();
@@ -670,20 +674,26 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
       signalingPollRef.current = setInterval(runPoll, 1000);
     },
-    [isPeerConnected, hasRemoteStream]
+    []
   );
 
   // Conexão Headless via LiveKit Cloud
   const initLiveKit = useCallback(
     async (roomId: string): Promise<boolean> => {
       try {
+        const myDisplayName =
+          activeCreator?.qualitative?.artisticName ||
+          activeAgency?.basicInfo?.responsibleName ||
+          currentUser?.name ||
+          'Membro VIP Lumiardi';
+
         const tokenRes = await fetch('/api/meet/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             roomId,
             participantId: participantIdRef.current,
-            participantName: propCounterparty || 'Membro VIP Lumiardi',
+            participantName: myDisplayName,
           }),
         });
 
@@ -705,29 +715,43 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
         });
         livekitRoomRef.current = room;
 
+        // 1. Participante entra na sala
+        room.on(RoomEvent.ParticipantConnected, (participant: LiveKitRemoteParticipant) => {
+          setRemoteParticipant({ id: participant.identity, name: participant.name || participant.identity });
+          setIsPeerConnected(true);
+          isPeerConnectedRef.current = true;
+        });
+
+        // 2. Participante sai da sala
+        room.on(RoomEvent.ParticipantDisconnected, () => {
+          if (room.remoteParticipants.size === 0) {
+            setRemoteParticipant(null);
+            setHasRemoteStream(false);
+            hasRemoteStreamRef.current = false;
+            setIsPeerConnected(false);
+            isPeerConnectedRef.current = false;
+          }
+        });
+
+        // 3. Faixa de mídia recebida do interlocutor
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication, participant: LiveKitRemoteParticipant) => {
-          if (track.kind === Track.Kind.Video && remoteVideoRef.current) {
-            track.attach(remoteVideoRef.current);
+          if (track.kind === Track.Kind.Video) {
+            if (remoteVideoRef.current) {
+              track.attach(remoteVideoRef.current);
+              remoteVideoRef.current.play().catch(() => {});
+            }
             setHasRemoteStream(true);
-            setIsPeerConnected(true);
-          } else if (track.kind === Track.Kind.Audio && remoteVideoRef.current) {
-            track.attach(remoteVideoRef.current);
+            hasRemoteStreamRef.current = true;
+          } else if (track.kind === Track.Kind.Audio) {
+            track.attach();
           }
           setRemoteParticipant({ id: participant.identity, name: participant.name || participant.identity });
+          setIsPeerConnected(true);
+          isPeerConnectedRef.current = true;
         });
 
         room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
           track.detach();
-        });
-
-        room.on(RoomEvent.ParticipantConnected, (participant: LiveKitRemoteParticipant) => {
-          setRemoteParticipant({ id: participant.identity, name: participant.name || participant.identity });
-        });
-
-        room.on(RoomEvent.ParticipantDisconnected, () => {
-          setRemoteParticipant(null);
-          setHasRemoteStream(false);
-          setIsPeerConnected(false);
         });
 
         room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: LiveKitRemoteParticipant) => {
@@ -751,12 +775,34 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
         await room.connect(data.serverUrl, data.token);
 
+        // 4. Se o outro participante já estiver na sala ao ingressar
+        if (room.remoteParticipants.size > 0) {
+          const firstRemote = Array.from(room.remoteParticipants.values())[0];
+          setRemoteParticipant({ id: firstRemote.identity, name: firstRemote.name || firstRemote.identity });
+          setIsPeerConnected(true);
+          isPeerConnectedRef.current = true;
+
+          firstRemote.trackPublications.forEach((pub) => {
+            if (pub.track) {
+              if (pub.track.kind === Track.Kind.Video && remoteVideoRef.current) {
+                pub.track.attach(remoteVideoRef.current);
+                remoteVideoRef.current.play().catch(() => {});
+                setHasRemoteStream(true);
+                hasRemoteStreamRef.current = true;
+              } else if (pub.track.kind === Track.Kind.Audio) {
+                pub.track.attach();
+              }
+            }
+          });
+        }
+
         try {
           await room.localParticipant.enableCameraAndMicrophone();
           const videoPub = Array.from(room.localParticipant.videoTrackPublications.values())[0];
           if (videoPub?.track && localVideoRef.current) {
             videoPub.track.attach(localVideoRef.current);
             localVideoRef.current.muted = true;
+            localVideoRef.current.play().catch(() => {});
           }
           setCamOn(true);
           setMicOn(true);
@@ -765,14 +811,13 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
         }
 
         setProviderName('livekit');
-        setIsPeerConnected(true);
         return true;
       } catch (err) {
         console.warn('LiveKit init falhou, recorrendo a WebRTC:', err);
         return false;
       }
     },
-    [propCounterparty]
+    [activeCreator, activeAgency, currentUser]
   );
 
   // Inicialização quando a chamada é ativada
@@ -798,6 +843,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
           }
         } catch {}
 
+        if (!mounted) return;
+
         // 2. Conecta primariamente via LiveKit Cloud Headless
         const livekitOk = await initLiveKit(activeRoomId);
         if (!livekitOk && mounted) {
@@ -814,7 +861,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       mounted = false;
       stopAllMediaTracks();
     };
-  }, [inCall, activeRoomId, startCamera, initWebRTC, initLiveKit, stopAllMediaTracks]);
+  }, [inCall, activeRoomId]);
 
   // Criação Dinâmica e Instantânea de Nova Sala Efémera
   const handleCreateNewRoom = async () => {
