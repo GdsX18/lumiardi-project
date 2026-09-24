@@ -134,8 +134,6 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       const allMsgs: ChatMessage[] = (data.messages || []).filter(
         (m: ChatMessage) =>
           m.senderId === userId ||
-          m.senderId === 'admin-curadoria-1' ||
-          (m.senderRole === 'curadoria') ||
           (m as any).receiverId === userId
       );
 

@@ -66,12 +66,16 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const inviteUrl = `${appUrl}/dashboard/meet?room=${encodeURIComponent(roomId)}`;
 
+    const livekitKey = process.env.LIVEKIT_API_KEY;
+    const livekitSecret = process.env.LIVEKIT_API_SECRET;
     const dailyApiKey = process.env.DAILY_API_KEY;
     let dailyRoomUrl: string | null = null;
     let dailyToken: string | null = null;
-    let provider: 'daily.co' | 'webrtc_native' = 'webrtc_native';
+    let provider: 'livekit' | 'daily.co' | 'webrtc_native' = 'webrtc_native';
 
-    if (dailyApiKey) {
+    if (livekitKey && livekitSecret) {
+      provider = 'livekit';
+    } else if (dailyApiKey) {
       try {
         const cleanDailyRoomName = `lumiardi-${Date.now().toString(36)}-${crypto.randomBytes(2).toString('hex')}`;
         const dailyRes = await fetch('https://api.daily.co/v1/rooms', {

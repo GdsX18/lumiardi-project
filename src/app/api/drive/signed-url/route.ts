@@ -9,11 +9,16 @@ export async function POST(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const userId = session?.id || rawBody.userId || 'user-model-1';
+    if (!session?.id) {
+      return NextResponse.json({ error: 'Sessão expirada ou não autenticada.' }, { status: 401 });
+    }
+
+    const userId = session.id;
     const fileName = sanitizeInput(rawBody.fileName || 'arquivo_lumiardi.jpg');
     const fileType = sanitizeInput(rawBody.fileType || 'image/jpeg');
     const category = (rawBody.category || 'raw-photos') as 'raw-photos' | 'videos' | 'contracts' | 'briefings';
     const operation = (rawBody.operation || 'upload') as 'upload' | 'download';
+    const fileKey = rawBody.fileKey ? sanitizeInput(String(rawBody.fileKey)) : undefined;
 
     const presigned = await R2StorageService.createPresignedUrl({
       fileName,
@@ -21,6 +26,7 @@ export async function POST(request: NextRequest) {
       category,
       userId,
       operation,
+      fileKey,
       expiresInSeconds: 300,
     });
 

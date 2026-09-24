@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Send,
   ShieldCheck,
@@ -86,9 +87,21 @@ function getInitials(name?: string): string {
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
-export const ChatPanel: React.FC = () => {
+const ChatPanelInner: React.FC = () => {
   const { t } = useLanguage();
   const { currentUser, activeCreator } = useAuthPortal();
+  const searchParams = useSearchParams();
+
+  // Recupera canal da URL ou sessionStorage (elimina reset involuntário ao trocar de aba)
+  const queryConv = searchParams?.get('conversationId') || searchParams?.get('c');
+  const [activeConvId, setActiveConvId] = useState<string>(() => {
+    if (queryConv) return queryConv;
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('lumiardi_active_chat');
+      if (saved) return saved;
+    }
+    return 'curation';
+  });
 
   // Estado principal
   const [conversations, setConversations] = useState<Conversation[]>([
@@ -104,7 +117,6 @@ export const ChatPanel: React.FC = () => {
       isOnline: true,
     },
   ]);
-  const [activeConvId, setActiveConvId] = useState<string>('curation');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputVal, setInputVal] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -194,7 +206,14 @@ export const ChatPanel: React.FC = () => {
             'Você';
 
           const normalized = normalizeMessages(data.messages, currentId, myName);
-          setMessages(normalized);
+          setMessages((prev) => {
+            // Preserva mensagens otimistas locais ainda pendentes de confirmação
+            const pendingOptimistic = prev.filter((m) => m.id.startsWith('optimistic-'));
+            const stillPending = pendingOptimistic.filter(
+              (opt) => !normalized.some((s) => s.isMe && s.text === opt.text)
+            );
+            return [...normalized, ...stillPending];
+          });
 
           // Registra o timestamp da última mensagem para delta polling
           if (normalized.length > 0) {
@@ -239,11 +258,30 @@ export const ChatPanel: React.FC = () => {
           const newMsgs = normalizeMessages(data.messages, currentId, myName);
 
           setMessages((prev) => {
-            // Evita duplicatas por id
             const existingIds = new Set(prev.map((m) => m.id));
-            const fresh = newMsgs.filter((m) => !existingIds.has(m.id));
-            if (fresh.length === 0) return prev;
-            return [...prev, ...fresh];
+            let updatedPrev = [...prev];
+            const fresh: ChatMessage[] = [];
+
+            for (const nm of newMsgs) {
+              if (existingIds.has(nm.id)) continue;
+
+              // Reconcilia mensagem otimista com o registro real retornado pelo servidor
+              if (nm.isMe) {
+                const optIndex = updatedPrev.findIndex(
+                  (m) => m.id.startsWith('optimistic-') && m.text === nm.text
+                );
+                if (optIndex !== -1) {
+                  updatedPrev[optIndex] = nm;
+                  existingIds.add(nm.id);
+                  continue;
+                }
+              }
+
+              fresh.push(nm);
+              existingIds.add(nm.id);
+            }
+
+            return [...updatedPrev, ...fresh];
           });
 
           const last = newMsgs[newMsgs.length - 1];
@@ -264,6 +302,9 @@ export const ChatPanel: React.FC = () => {
     prevMessagesCountRef.current = 0;
     lastMessageTimestampRef.current = null;
     setMessages([]);
+    if (typeof window !== 'undefined' && activeConvId) {
+      sessionStorage.setItem('lumiardi_active_chat', activeConvId);
+    }
   }, [activeConvId]);
 
   // ─── Lifecycle: carga + polling inteligente + presença real ───────────────
@@ -453,15 +494,21 @@ export const ChatPanel: React.FC = () => {
         const data = await res.json();
         // Substitui mensagem otimista pelo id real do servidor
         if (data.message?.id) {
-          setMessages((prev) =>
-            prev.map((m) =>
+          const serverId = data.message.id;
+          const serverCreatedAt = data.message.createdAt;
+          setMessages((prev) => {
+            const alreadyExists = prev.some((m) => m.id === serverId);
+            if (alreadyExists) {
+              return prev.filter((m) => m.id !== tempId);
+            }
+            return prev.map((m) =>
               m.id === tempId
-                ? { ...m, id: data.message.id, createdAt: data.message.createdAt || m.createdAt }
+                ? { ...m, id: serverId, createdAt: serverCreatedAt || m.createdAt }
                 : m
-            )
-          );
-          if (data.message.createdAt) {
-            lastMessageTimestampRef.current = data.message.createdAt;
+            );
+          });
+          if (serverCreatedAt) {
+            lastMessageTimestampRef.current = serverCreatedAt;
           }
         }
         // Atualiza imediatamente a prévia da conversa na barra lateral
@@ -1032,5 +1079,19 @@ export const ChatPanel: React.FC = () => {
         />
       )}
     </div>
+  );
+};
+
+export const ChatPanel: React.FC = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full h-full min-h-[400px] flex items-center justify-center text-white/40">
+          Carregando canal seguro...
+        </div>
+      }
+    >
+      <ChatPanelInner />
+    </Suspense>
   );
 };

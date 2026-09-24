@@ -7,11 +7,14 @@ declare global {
   var __pgPool: Pool | undefined;
 }
 
+const isSupabase = connectionString.includes('supabase.com') || connectionString.includes('pooler.supabase.com');
+
 export const pool = globalThis.__pgPool || new Pool({
   connectionString,
+  ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 3000,
+  connectionTimeoutMillis: 10000,
 });
 
 if (process.env.NODE_ENV !== 'production') {
@@ -933,7 +936,8 @@ export async function initDatabase(): Promise<boolean> {
     } finally {
       client.release();
     }
-  } catch {
+  } catch (err) {
+    console.error('[DB] Erro ao conectar/inicializar banco de dados PostgreSQL:', err);
     return false;
   }
 }

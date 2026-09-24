@@ -1377,7 +1377,7 @@ export const StorageService = {
         }
       }
 
-      if (res.rows.length > 0 || since) {
+      if (res && res.rows) {
         return res.rows.map((m) => {
           let sName = m.sender_name;
           let sRole = m.sender_role;
@@ -1397,13 +1397,13 @@ export const StorageService = {
             attachmentUrl: m.attachment_url,
             attachmentName: m.attachment_name,
             attachmentType: m.attachment_type,
-            createdAt: m.created_at,
+            createdAt: m.created_at ? new Date(m.created_at).toISOString() : new Date().toISOString(),
             isRead: m.is_read,
           };
         });
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.warn('[Chat] PostgreSQL query falhou em listMessages, usando fallback:', err);
     }
 
     const sinceDate = since ? new Date(new Date(since).getTime() - 1000) : null;
@@ -1479,9 +1479,10 @@ export const StorageService = {
     }
 
     try {
-      await pool.query(
+      const dbRes = await pool.query(
         `INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, NOW())`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, NOW())
+         RETURNING id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at`,
         [
           id,
           data.senderId,
@@ -1495,8 +1496,46 @@ export const StorageService = {
           data.attachmentType || null,
         ]
       );
-    } catch {
-      // Fallback
+
+      if (dbRes.rows.length > 0) {
+        const row = dbRes.rows[0];
+        const serverCreatedAt = row.created_at ? new Date(row.created_at).toISOString() : now;
+
+        const savedMsg = {
+          id: row.id,
+          senderId: row.sender_id,
+          senderName: row.sender_name || data.senderName,
+          senderRole: row.sender_role || data.senderRole,
+          receiverId: row.receiver_id,
+          conversationId: row.conversation_id,
+          text: row.text,
+          attachmentUrl: row.attachment_url,
+          attachmentName: row.attachment_name,
+          attachmentType: row.attachment_type,
+          createdAt: serverCreatedAt,
+          isRead: false,
+        };
+
+        // Mantém fallback sincronizado
+        fallbackStore.messages.set(row.id, {
+          id: row.id,
+          sender_id: row.sender_id,
+          sender_name: row.sender_name,
+          sender_role: row.sender_role,
+          receiver_id: row.receiver_id,
+          conversation_id: row.conversation_id,
+          text: row.text,
+          attachment_url: row.attachment_url,
+          attachment_name: row.attachment_name,
+          attachment_type: row.attachment_type,
+          is_read: false,
+          created_at: serverCreatedAt,
+        });
+
+        return savedMsg;
+      }
+    } catch (dbErr) {
+      console.warn('[Chat] Erro ao gravar mensagem no PostgreSQL, usando fallback:', dbErr);
     }
 
     const msgObj = {
@@ -1625,6 +1664,19 @@ export const StorageService = {
         );
         contractRows = res.rows;
       }
+
+      // 2. Inclui canais de Propostas de Scouting existentes (mesmo antes da assinatura do contrato)
+      try {
+        const scoutQuery = role === 'criadora'
+          ? `SELECT agency_id, agency_name, model_id, model_name FROM scout_proposals WHERE model_id = $1`
+          : `SELECT agency_id, agency_name, model_id, model_name FROM scout_proposals WHERE agency_id = $1`;
+        const scoutRes = await pool.query(scoutQuery, [userId]);
+        for (const sr of scoutRes.rows) {
+          if (!contractRows.some((cr) => cr.agency_id === sr.agency_id && cr.model_id === sr.model_id)) {
+            contractRows.push(sr);
+          }
+        }
+      } catch {}
 
       // Mapeia canais determinísticos com getDirectConversationId
       const convMap = new Map<string, { partnerId: string; partnerName: string; subtitle: string }>();

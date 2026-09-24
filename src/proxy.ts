@@ -44,12 +44,13 @@ export function proxy(request: NextRequest) {
 
   // 2. Proteção de Rotas Administrativas (/admin/...)
   if (pathname.startsWith('/admin')) {
+    const isCuratorOrAdmin = session && (session.role === 'admin' || Boolean(session.curationRole));
     if (pathname === '/admin/login') {
-      if (session && session.role === 'admin') {
+      if (isCuratorOrAdmin) {
         return NextResponse.redirect(new URL('/admin', request.url));
       }
     } else {
-      if (!session || session.role !== 'admin') {
+      if (!isCuratorOrAdmin) {
         return NextResponse.redirect(new URL('/admin/login', request.url));
       }
     }

@@ -28,6 +28,14 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
+import {
+  Room as LiveKitRoom,
+  RoomEvent,
+  Track,
+  RemoteTrack,
+  RemoteParticipant as LiveKitRemoteParticipant,
+} from 'livekit-client';
+
 // Subcomponente de contagem isolado para eliminar re-renderizações cíclicas no vídeo
 const CallTimer = memo(({ active }: { active: boolean }) => {
   const [seconds, setSeconds] = useState(0);
@@ -51,14 +59,27 @@ const CallTimer = memo(({ active }: { active: boolean }) => {
 });
 CallTimer.displayName = 'CallTimer';
 
-// Configuração Obrigatória de STUN Servers (Travessia de NAT/Firewall)
+// Configuração de STUN + TURN Servers (Travessia de NAT Restrito / CGNAT)
 const peerConnectionConfig: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
 };
 
@@ -107,10 +128,12 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [dailyUrl, setDailyUrl] = useState<string | null>(null);
+  const [providerName, setProviderName] = useState<'livekit' | 'webrtc_native' | 'daily.co'>('livekit');
   const [iceConnectionState, setIceConnectionState] = useState<RTCIceConnectionState>('new');
   const [isPeerConnected, setIsPeerConnected] = useState<boolean>(false);
 
-  // Refs de Negociação WebRTC
+  // Refs de Negociação WebRTC & LiveKit
+  const livekitRoomRef = useRef<LiveKitRoom | null>(null);
   const roleRef = useRef<'caller' | 'callee' | null>(null);
   const hasCreatedOfferRef = useRef<boolean>(false);
   const lastOfferTimeRef = useRef<number>(0);
@@ -185,6 +208,10 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
   // Limpeza Completa de Recursos de Mídia (Zero Memory Leaks)
   const stopAllMediaTracks = useCallback(() => {
+    if (livekitRoomRef.current) {
+      livekitRoomRef.current.disconnect().catch(() => {});
+      livekitRoomRef.current = null;
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
         track.stop();
@@ -556,17 +583,15 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
             if (other) {
               setRemoteParticipant({ id: other.id, name: other.name });
 
-              // Se sou Caller, interlocutor está presente e a chamada ainda não conectou:
-              const isCaller = roleRef.current === 'caller';
+              // Papel determinístico baseado na ordenação alfabética dos IDs dos participantes
+              const isCaller = participantIdRef.current < other.id;
+              roleRef.current = isCaller ? 'caller' : 'callee';
+
               if (isCaller && !isPeerConnected && !hasRemoteStream) {
-                const now = Date.now();
-                if (
-                  pc.signalingState === 'stable' &&
-                  (!hasCreatedOfferRef.current || now - lastOfferTimeRef.current > 3500)
-                ) {
+                if (pc.signalingState === 'stable' && !hasCreatedOfferRef.current) {
                   hasCreatedOfferRef.current = true;
-                  lastOfferTimeRef.current = now;
-                  const offer = await pc.createOffer({ iceRestart: true });
+                  lastOfferTimeRef.current = Date.now();
+                  const offer = await pc.createOffer();
                   await pc.setLocalDescription(offer);
                   await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
                 }
@@ -648,15 +673,139 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
     [isPeerConnected, hasRemoteStream]
   );
 
+  // Conexão Headless via LiveKit Cloud
+  const initLiveKit = useCallback(
+    async (roomId: string): Promise<boolean> => {
+      try {
+        const tokenRes = await fetch('/api/meet/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId,
+            participantId: participantIdRef.current,
+            participantName: propCounterparty || 'Membro VIP Lumiardi',
+          }),
+        });
+
+        if (!tokenRes.ok) return false;
+        const data = await tokenRes.json();
+
+        if (!data.success || !data.token || !data.serverUrl) {
+          return false;
+        }
+
+        if (livekitRoomRef.current) {
+          await livekitRoomRef.current.disconnect();
+          livekitRoomRef.current = null;
+        }
+
+        const room = new LiveKitRoom({
+          adaptiveStream: true,
+          dynacast: true,
+        });
+        livekitRoomRef.current = room;
+
+        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication, participant: LiveKitRemoteParticipant) => {
+          if (track.kind === Track.Kind.Video && remoteVideoRef.current) {
+            track.attach(remoteVideoRef.current);
+            setHasRemoteStream(true);
+            setIsPeerConnected(true);
+          } else if (track.kind === Track.Kind.Audio && remoteVideoRef.current) {
+            track.attach(remoteVideoRef.current);
+          }
+          setRemoteParticipant({ id: participant.identity, name: participant.name || participant.identity });
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+          track.detach();
+        });
+
+        room.on(RoomEvent.ParticipantConnected, (participant: LiveKitRemoteParticipant) => {
+          setRemoteParticipant({ id: participant.identity, name: participant.name || participant.identity });
+        });
+
+        room.on(RoomEvent.ParticipantDisconnected, () => {
+          setRemoteParticipant(null);
+          setHasRemoteStream(false);
+          setIsPeerConnected(false);
+        });
+
+        room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: LiveKitRemoteParticipant) => {
+          try {
+            const str = new TextDecoder().decode(payload);
+            const msg = JSON.parse(str);
+            if (msg.text) {
+              setInMeetingMessages((prev) => [
+                ...prev,
+                {
+                  id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+                  sender: participant?.name || 'Interlocutor',
+                  text: msg.text,
+                  time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                  isMe: false,
+                },
+              ]);
+            }
+          } catch {}
+        });
+
+        await room.connect(data.serverUrl, data.token);
+
+        try {
+          await room.localParticipant.enableCameraAndMicrophone();
+          const videoPub = Array.from(room.localParticipant.videoTrackPublications.values())[0];
+          if (videoPub?.track && localVideoRef.current) {
+            videoPub.track.attach(localVideoRef.current);
+            localVideoRef.current.muted = true;
+          }
+          setCamOn(true);
+          setMicOn(true);
+        } catch (mediaErr) {
+          console.warn('Erro ao ativar câmera/microfone via LiveKit:', mediaErr);
+        }
+
+        setProviderName('livekit');
+        setIsPeerConnected(true);
+        return true;
+      } catch (err) {
+        console.warn('LiveKit init falhou, recorrendo a WebRTC:', err);
+        return false;
+      }
+    },
+    [propCounterparty]
+  );
+
   // Inicialização quando a chamada é ativada
   useEffect(() => {
     let mounted = true;
 
     if (inCall && activeRoomId) {
       (async () => {
-        const stream = await startCamera();
-        if (mounted && stream) {
-          await initWebRTC(activeRoomId, stream);
+        // 1. Sincroniza status da sala existente (Daily ou LiveKit)
+        try {
+          const statusRes = await fetch('/api/meet/room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'status', roomId: activeRoomId }),
+          });
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.dailyRoomUrl) {
+              setDailyUrl(statusData.dailyRoomUrl);
+              setProviderName('daily.co');
+              return;
+            }
+          }
+        } catch {}
+
+        // 2. Conecta primariamente via LiveKit Cloud Headless
+        const livekitOk = await initLiveKit(activeRoomId);
+        if (!livekitOk && mounted) {
+          // 3. Fallback resiliente para WebRTC com servidores STUN/TURN
+          const stream = await startCamera();
+          if (mounted && stream) {
+            await initWebRTC(activeRoomId, stream);
+          }
         }
       })();
     }
@@ -665,7 +814,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
       mounted = false;
       stopAllMediaTracks();
     };
-  }, [inCall, activeRoomId, startCamera, initWebRTC, stopAllMediaTracks]);
+  }, [inCall, activeRoomId, startCamera, initWebRTC, initLiveKit, stopAllMediaTracks]);
 
   // Criação Dinâmica e Instantânea de Nova Sala Efémera
   const handleCreateNewRoom = async () => {
@@ -709,9 +858,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   };
 
   // Controles de Mídia: Microfone
-  const toggleMic = () => {
+  const toggleMic = async () => {
     const nextState = !micOn;
     setMicOn(nextState);
+    if (livekitRoomRef.current) {
+      try {
+        await livekitRoomRef.current.localParticipant.setMicrophoneEnabled(nextState);
+      } catch {}
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach((track) => {
         track.enabled = nextState;
@@ -720,9 +874,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   };
 
   // Controles de Mídia: Câmera
-  const toggleCam = () => {
+  const toggleCam = async () => {
     const nextState = !camOn;
     setCamOn(nextState);
+    if (livekitRoomRef.current) {
+      try {
+        await livekitRoomRef.current.localParticipant.setCameraEnabled(nextState);
+      } catch {}
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getVideoTracks().forEach((track) => {
         track.enabled = nextState;
@@ -733,32 +892,46 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   // Compartilhamento de Ecrã
   const toggleScreenShare = async () => {
     if (!screenShare) {
-      try {
-        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia) {
-          const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: false,
-          });
-
-          screenStreamRef.current = stream;
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = stream;
-          }
+      if (livekitRoomRef.current) {
+        try {
+          await livekitRoomRef.current.localParticipant.setScreenShareEnabled(true);
           setScreenShare(true);
-
-          // Ao encerrar compartilhamento pelo controle do navegador
-          stream.getVideoTracks()[0].onended = () => {
-            setScreenShare(false);
-            if (screenStreamRef.current) {
-              screenStreamRef.current.getTracks().forEach((t) => t.stop());
-              screenStreamRef.current = null;
-            }
-          };
+        } catch {
+          // Cancelado ou não suportado
         }
-      } catch {
-        // Cancelado pelo usuário
+      } else {
+        try {
+          if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia) {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: false,
+            });
+
+            screenStreamRef.current = stream;
+            if (screenVideoRef.current) {
+              screenVideoRef.current.srcObject = stream;
+            }
+            setScreenShare(true);
+
+            // Ao encerrar compartilhamento pelo controle do navegador
+            stream.getVideoTracks()[0].onended = () => {
+              setScreenShare(false);
+              if (screenStreamRef.current) {
+                screenStreamRef.current.getTracks().forEach((t) => t.stop());
+                screenStreamRef.current = null;
+              }
+            };
+          }
+        } catch {
+          // Cancelado pelo usuário
+        }
       }
     } else {
+      if (livekitRoomRef.current) {
+        try {
+          await livekitRoomRef.current.localParticipant.setScreenShareEnabled(false);
+        } catch {}
+      }
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
@@ -790,16 +963,24 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
     e.preventDefault();
     if (!chatInput.trim()) return;
 
+    const messageText = chatInput.trim();
     const now = new Date();
     const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
     const newMsg = {
       id: `msg-${Date.now()}`,
       sender: 'Você',
-      text: chatInput.trim(),
+      text: messageText,
       time: timeString,
       isMe: true,
     };
+
+    if (livekitRoomRef.current) {
+      try {
+        const payload = new TextEncoder().encode(JSON.stringify({ text: messageText }));
+        livekitRoomRef.current.localParticipant.publishData(payload, { reliable: true });
+      } catch {}
+    }
 
     setInMeetingMessages((prev) => [...prev, newMsg]);
     setChatInput('');

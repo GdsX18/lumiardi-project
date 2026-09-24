@@ -12,6 +12,7 @@ export interface PresignedUrlRequest {
   context?: 'private' | 'shared';
   agencyId?: string;
   modelId?: string;
+  fileKey?: string;
 }
 
 export interface PresignedUrlResponse {
@@ -175,7 +176,7 @@ export const R2StorageService = {
     const client = getR2Client();
     const bucketName = this.getBucketName();
     const expiresIn = req.expiresInSeconds || 300; // 5 minutos padrão
-    const fileKey = this.generateFileKey(req);
+    const fileKey = req.fileKey || this.generateFileKey(req);
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
     if (client) {

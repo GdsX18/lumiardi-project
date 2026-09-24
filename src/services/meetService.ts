@@ -6,7 +6,7 @@ export interface MeetRoomRecord {
   hostId: string;
   hostName: string;
   passcode?: string;
-  provider: 'daily.co' | 'webrtc_native';
+  provider: 'livekit' | 'daily.co' | 'webrtc_native';
   dailyRoomUrl?: string | null;
   dailyToken?: string | null;
   createdAt: string;
@@ -40,7 +40,7 @@ export const MeetService = {
     hostId: string;
     hostName: string;
     passcode?: string;
-    provider?: 'daily.co' | 'webrtc_native';
+    provider?: 'livekit' | 'daily.co' | 'webrtc_native';
     dailyRoomUrl?: string | null;
     dailyToken?: string | null;
   }): Promise<MeetRoomRecord> {

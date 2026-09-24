@@ -761,7 +761,7 @@ export default function AdminDashboardPage() {
                                       <Clock className="w-3 h-3" /> Em Curadoria
                                     </span>
                                     {app.paymentInfo?.hasPaid && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono rounded-xs block">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono rounded-xs">
                                         ✓ {app.paymentInfo.planId?.toUpperCase() || 'PAGO'} (R$ {Number(app.paymentInfo.amount || 0).toFixed(2)})
                                       </span>
                                     )}
@@ -782,7 +782,7 @@ export default function AdminDashboardPage() {
                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
                                       <XCircle className="w-3 h-3" /> Recusado
                                     </span>
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[9px] font-mono rounded-xs block">
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[9px] font-mono rounded-xs">
                                       ↩ Estornado
                                     </span>
                                   </div>

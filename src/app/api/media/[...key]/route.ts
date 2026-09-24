@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { R2StorageService } from '@/lib/storage/r2Service';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 
@@ -64,31 +65,24 @@ function serveLocalFile(filePath: string, request: NextRequest) {
     }
 
     const chunksize = end - start + 1;
-    const stream = fs.createReadStream(filePath, { start, end });
-    const chunks: Buffer[] = [];
+    const nodeStream = fs.createReadStream(filePath, { start, end });
+    const webStream = Readable.toWeb(nodeStream);
 
-    return new Promise<NextResponse>((resolve) => {
-      stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-      stream.on('end', () => {
-        const bodyBuffer = Buffer.concat(chunks);
-        resolve(
-          new NextResponse(bodyBuffer, {
-            status: 206,
-            headers: {
-              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-              'Accept-Ranges': 'bytes',
-              'Content-Length': String(chunksize),
-              'Content-Type': contentType,
-              'Cache-Control': 'public, max-age=31536000, immutable',
-            },
-          })
-        );
-      });
+    return new NextResponse(webStream as any, {
+      status: 206,
+      headers: {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': String(chunksize),
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
     });
   }
 
-  const fileBuffer = fs.readFileSync(filePath);
-  return new NextResponse(fileBuffer, {
+  const nodeStream = fs.createReadStream(filePath);
+  const webStream = Readable.toWeb(nodeStream);
+  return new NextResponse(webStream as any, {
     status: 200,
     headers: {
       'Content-Type': contentType,
@@ -184,26 +178,29 @@ export async function GET(
       return NextResponse.json({ error: 'Corpo do arquivo vazio.' }, { status: 404 });
     }
 
-    const bodyBytes = await response.Body.transformToByteArray();
     const contentType = response.ContentType || inferContentType(fileKey);
-
     const isPartial = Boolean(rangeHeader && response.ContentRange);
     const status = isPartial ? 206 : 200;
 
     const headers: Record<string, string> = {
       'Content-Type': contentType,
-      'Content-Length': String(response.ContentLength || bodyBytes.length),
       'Cache-Control': 'public, max-age=31536000, immutable',
       'X-Content-Type-Options': 'nosniff',
       'Access-Control-Allow-Origin': '*',
       'Accept-Ranges': 'bytes',
     };
 
+    if (response.ContentLength !== undefined) {
+      headers['Content-Length'] = String(response.ContentLength);
+    }
     if (response.ContentRange) {
       headers['Content-Range'] = response.ContentRange;
     }
 
-    return new NextResponse(Buffer.from(bodyBytes), {
+    // Direct WebStream piping — zero RAM accumulation
+    const stream = response.Body.transformToWebStream();
+
+    return new NextResponse(stream as any, {
       status,
       headers,
     });
