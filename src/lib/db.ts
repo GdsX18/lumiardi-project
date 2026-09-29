@@ -42,15 +42,16 @@ export const fallbackStore = {
   meet_rooms: new Map<string, Record<string, unknown>>(),
   meet_participants: new Map<string, Record<string, unknown>>(),
   meet_signals: new Map<string, Record<string, unknown>>(),
+  curation_interviews: new Map<string, Record<string, unknown>>(),
 };
 
 // Inicialização imediata síncrona/assíncrona do fallback
 (async () => {
   const hashPassword = await bcrypt.hash('lumiardi2026', 10);
 
-  // ─── Contas Essenciais para Produção ─────────────────────────────────────────
-  // Apenas 3 contas são mantidas no seed: Admin Master, Modelo de Teste, Agência de Teste.
-  // Todos os auditores e candidatos fictícios foram removidos para ambiente limpo.
+  // ─── Contas Oficiais de Produção ─────────────────────────────────────────
+  // Apenas a Mesa de Curadoria Oficial é mantida no seed.
+  // Candidaturas e cadastros são criados estritamente pelas usuárias reais.
   const defaultUsers = [
     {
       id: 'admin-curadoria-1',
@@ -63,22 +64,12 @@ export const fallbackStore = {
       last_seen_at: new Date().toISOString(),
     },
     {
-      id: 'user-model-1',
-      email: 'modelo@lumiardi.com',
+      id: 'cur-admin-1',
+      email: 'curadoria-exec@lumiardi.com',
       password_hash: hashPassword,
-      role: 'MODELO',
+      role: 'ADMIN',
       curation_status: 'APROVADO',
-      full_name: 'Sua Conta Modelo',
-      created_at: new Date().toISOString(),
-      last_seen_at: new Date().toISOString(),
-    },
-    {
-      id: 'user-agency-1',
-      email: 'agencia@lumiardi.com',
-      password_hash: hashPassword,
-      role: 'AGENCIA',
-      curation_status: 'APROVADO',
-      full_name: 'Sua Agência Corporativa',
+      full_name: 'Mesa de Curadoria Lumiardi',
       created_at: new Date().toISOString(),
       last_seen_at: new Date().toISOString(),
     },
@@ -87,14 +78,13 @@ export const fallbackStore = {
   defaultUsers.forEach((u) => fallbackStore.users.set(u.email.toLowerCase(), u));
 
   // ─── Equipe de Curadoria (RBAC) em Memória ───────────────────────────────────
-  // Apenas o Admin Master é mantido. Auditores fictícios removidos.
-  // Novos membros da equipe serão cadastrados via "Equipe & Cargos (RBAC)" no painel admin.
+  // Apenas o Admin Master Oficial é mantido.
   const defaultAdminUsers = [
     {
       id: 'cur-admin-1',
       email: 'curadoria@lumiardi.com',
       password_hash: hashPassword,
-      full_name: 'Mesa de Curadoria (Diretoria)',
+      full_name: 'Mesa de Curadoria Lumiardi',
       role: 'admin',
       status: 'active',
       created_at: new Date().toISOString(),
@@ -103,7 +93,6 @@ export const fallbackStore = {
 
   defaultAdminUsers.forEach((au) => {
     fallbackStore.admin_users.set(au.id, au);
-    // Também mapeia como usuário para login
     if (!fallbackStore.users.has(au.email.toLowerCase())) {
       fallbackStore.users.set(au.email.toLowerCase(), {
         id: au.id,
@@ -115,51 +104,6 @@ export const fallbackStore = {
         created_at: au.created_at,
       });
     }
-  });
-
-  fallbackStore.profiles.set('user-model-1', {
-    user_id: 'user-model-1',
-    artistic_name: 'Sua Conta Modelo',
-    category: 'Modelo & Criadora VIP',
-    instagram: '@suaconta',
-    gender: 'Feminino',
-    monthly_revenue_estimate: 'Sob Consulta',
-    measurements: { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
-    physiognomy: { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português', 'Inglês'] },
-    address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    photos: [],
-    video_url: '',
-    bio: 'Modelo editorial com experiência em alta costura e campanhas internacionais.',
-    accepts_offers: true,
-    is_represented: true,
-    represented_agency_name: 'Sua Agência Corporativa',
-    represented_agency_id: 'user-agency-1',
-  });
-
-
-  fallbackStore.profiles.set('user-agency-1', {
-    user_id: 'user-agency-1',
-    corporate_name: 'Sua Agência Corporativa',
-    responsible_name: 'Diretoria de Casting',
-    category: 'Agência de Casting & Modelos',
-    cnpj: '12.345.678/0001-90',
-    instagram: '@suaagencia',
-    address: { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-    specialties: ['Alta Moda', 'Editorial', 'Campanhas Digitais'],
-    commission_rate: '20%',
-  });
-
-  // Contrato Inicial Modelo ↔ Agência
-  fallbackStore.agency_model_contracts.set('contract-model-agency-1', {
-    id: 'contract-model-agency-1',
-    agency_id: 'user-agency-1',
-    model_id: 'user-model-1',
-    agency_name: 'Sua Agência Corporativa',
-    model_name: 'Sua Conta Modelo',
-    status: 'active',
-    commission_rate: '20%',
-    start_date: new Date().toISOString(),
-    created_at: new Date().toISOString(),
   });
 
   // Drive Compartilhado Inicial 100% Limpo (Sem arquivos mockados)
@@ -494,7 +438,43 @@ export async function initDatabase(): Promise<boolean> {
           last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
         ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_date DATE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_time VARCHAR(10);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_scheduled_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_approved_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_rejection_reason TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_billing_interval VARCHAR(20);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_selfie_url TEXT;
         CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users(last_seen_at);
+
+        -- Tabela CURATION_INTERVIEWS (Entrevista de Curadoria Prévia Obrigatória)
+        CREATE TABLE IF NOT EXISTS curation_interviews (
+          id VARCHAR(100) PRIMARY KEY,
+          user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          full_name VARCHAR(255) NOT NULL,
+          artistic_name VARCHAR(255),
+          email VARCHAR(255) NOT NULL,
+          whatsapp VARCHAR(50) NOT NULL,
+          plan_id VARCHAR(50) NOT NULL,
+          billing_interval VARCHAR(20) NOT NULL DEFAULT 'monthly',
+          interview_date DATE NOT NULL,
+          interview_time VARCHAR(10) NOT NULL,
+          status VARCHAR(30) NOT NULL DEFAULT 'aguardando_reuniao',
+          rejection_reason TEXT,
+          approved_by VARCHAR(100),
+          approved_at TIMESTAMP WITH TIME ZONE,
+          rejected_by VARCHAR(100),
+          rejected_at TIMESTAMP WITH TIME ZONE,
+          notes TEXT,
+          photo_url TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_curation_interviews_user ON curation_interviews(user_id);
+        CREATE INDEX IF NOT EXISTS idx_curation_interviews_status ON curation_interviews(status);
+        CREATE INDEX IF NOT EXISTS idx_curation_interviews_date ON curation_interviews(interview_date, interview_time);
       `);
 
       // 2. Tabela PROFILES
@@ -900,36 +880,21 @@ export async function initDatabase(): Promise<boolean> {
         DELETE FROM messages WHERE sender_name IN ('Lumiardi Member') AND text = '';
       `);
 
-      // ─── Seed de Contas Essenciais (idempotente via ON CONFLICT) ─────────────
+      // ─── Seed Oficial da Mesa de Curadoria (idempotente via ON CONFLICT) ─────
       await client.query(`
         INSERT INTO users (id, email, password_hash, role, curation_status, full_name, document_name)
         VALUES
           ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL),
-          ('user-model-1', 'modelo@lumiardi.com', $1, 'MODELO', 'APROVADO', 'Sua Conta Modelo', NULL),
-          ('user-agency-1', 'agencia@lumiardi.com', $1, 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa', NULL)
-        ON CONFLICT (email) DO NOTHING;
+          ('cur-admin-1', 'curadoria-exec@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL)
+        ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, role = 'ADMIN', curation_status = 'APROVADO';
       `, [hashPassword]);
 
       await client.query(`
         INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
         VALUES
-          ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria (Diretoria)', 'admin', 'active')
+          ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria Lumiardi', 'admin', 'active')
         ON CONFLICT (email) DO NOTHING;
       `, [hashPassword]);
-
-      await client.query(`
-        INSERT INTO profiles (user_id, artistic_name, category, instagram, accepts_offers, is_represented, represented_agency_name, represented_agency_id, created_at)
-        VALUES
-          ('user-model-1', 'Sua Conta Modelo', 'Modelo & Criadora VIP', '@suaconta', true, true, 'Sua Agência Corporativa', 'user-agency-1', NOW())
-        ON CONFLICT (user_id) DO NOTHING;
-      `);
-
-      await client.query(`
-        INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, is_read, created_at)
-        VALUES
-          ('msg-welcome-official', 'admin-curadoria-1', 'Mesa de Curadoria Lumiardi', 'curadoria', NULL, 'curation', 'Bem-vinda à plataforma Lumiardi! Seu acesso exclusivo está liberado e protegido por criptografia de ponta a ponta. Você pode utilizar este canal para tirar dúvidas com nossa equipe ou receber orientações da nossa curadoria.', TRUE, NOW())
-        ON CONFLICT (id) DO NOTHING;
-      `);
 
       isInitialized = true;
       return true;

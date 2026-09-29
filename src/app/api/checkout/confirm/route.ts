@@ -3,7 +3,7 @@ import { BillingService } from '@/lib/payments/billingService';
 import { StorageService } from '@/services/storageService';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType } from '@/lib/payments/types';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 import { asaasClient } from '@/lib/payments/asaasClient';
 import { pool, initDatabase } from '@/lib/db';
@@ -148,8 +148,6 @@ export async function POST(request: NextRequest) {
           installmentCount: card.installments ? Number(card.installments) : 1,
         });
 
-        console.log('[Asaas Confirm Response]', JSON.stringify(asaasResponse, null, 2));
-
         asaasPaymentId = asaasResponse.id;
 
         if (asaasResponse.status === 'OVERDUE' || asaasResponse.status === 'REFUNDED') {
@@ -245,13 +243,29 @@ export async function POST(request: NextRequest) {
       idempotencyKey: `confirm_${txId}`,
     });
 
-    // 4. Cria notificação para o usuário
+    // 4. Se for pagamento instantâneo confirmado, promove o status para APROVADO
+    let updatedSession: SessionUser | null = null;
+    if (isInstantPayment) {
+      try {
+        await StorageService.updateCurationStatus(userId, 'APROVADO');
+        if (session) {
+          updatedSession = {
+            ...session,
+            curationStatus: 'APROVADO',
+          };
+        }
+      } catch (err) {
+        console.error('[Checkout Confirm] Erro ao promover status para APROVADO:', err);
+      }
+    }
+
+    // 5. Cria notificação para o usuário
     try {
       const formattedTotal = currency === 'USD' ? `$ ${finalAmount.toFixed(2)}` : `R$ ${finalAmount.toFixed(2).replace('.', ',')}`;
-      const title = isInstantPayment ? 'Pagamento Confirmado' : 'Aguardando Pagamento';
+      const title = isInstantPayment ? 'Acesso Oficial Liberado — Bem-vinda à Lumiardi!' : 'Aguardando Compensação';
       const desc = isInstantPayment 
-        ? `O pagamento do Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) de ${formattedTotal} foi confirmado com sucesso via ${gateway === 'nowpayments' ? 'NOWPayments' : 'Asaas'}. Sua candidatura foi enviada com prioridade para a Mesa de Curadoria.`
-        : `Aguardando a confirmação do pagamento do Plano ${plan.name} de ${formattedTotal} via ${paymentMethod === 'pix' ? 'Pix' : 'Cripto'}. Sua assinatura será ativada assim que o pagamento for compensado.`;
+        ? `O pagamento do Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) de ${formattedTotal} foi confirmado com sucesso. Sua credencial foi ativada e o seu acesso ao ecossistema Lumiardi está 100% liberado!`
+        : `Aguardando a confirmação do pagamento do Plano ${plan.name} de ${formattedTotal} via ${paymentMethod === 'pix' ? 'Pix' : 'Cripto'}. Seu acesso oficial será liberado assim que o pagamento for compensado.`;
         
       await StorageService.createNotification({
         userId,
@@ -259,21 +273,37 @@ export async function POST(request: NextRequest) {
         desc,
         category: 'Pagamentos',
         type: isInstantPayment ? 'success' : 'info',
-        link: '/dashboard/pendente',
-        linkText: 'Ver Status da Curadoria',
+        link: isInstantPayment ? '/dashboard' : '/dashboard/pendente',
+        linkText: isInstantPayment ? 'Acessar Meu Painel' : 'Ver Status da Curadoria',
       });
     } catch (e) {
       console.warn('[Checkout Confirm] Erro ao criar notificação:', e);
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       subscription,
       amountPaid: finalAmount,
       currency,
       planName: plan.name,
-      message: isInstantPayment ? 'Pagamento confirmado com sucesso via Asaas. Candidatura em análise pela Curadoria VIP.' : 'Aguardando compensação do pagamento. A assinatura será ativada automaticamente.',
+      message: isInstantPayment
+        ? 'Pagamento confirmado com sucesso via Asaas. Seu acesso ao ecossistema Lumiardi está 100% liberado!'
+        : 'Aguardando compensação do pagamento. A assinatura será ativada automaticamente assim que liquidada.',
     });
+
+    if (updatedSession) {
+      response.cookies.set({
+        name: SESSION_COOKIE_NAME,
+        value: encodeSession(updatedSession),
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    }
+
+    return response;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro ao processar confirmação de pagamento';
     console.error('[Checkout Confirm] Erro:', err);

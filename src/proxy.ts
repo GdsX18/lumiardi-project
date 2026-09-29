@@ -19,7 +19,22 @@ export function proxy(request: NextRequest) {
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = decodeSession(cookie);
 
-  // 1. Proteção de Rotas Privadas (/dashboard/...)
+  // 1. Proteção de Checkout (/checkout) — Exige Aprovação Prévia da Curadoria
+  if (pathname.startsWith('/checkout')) {
+    if (!session) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const canPay = session.curationStatus === 'APROVADA_PAGAMENTO' || session.curationStatus === 'APROVADO';
+    if (!canPay) {
+      // Bloqueia candidatas não aprovadas ou aguardando reunião
+      return NextResponse.redirect(new URL('/dashboard/pendente', request.url));
+    }
+  }
+
+  // 2. Proteção de Rotas Privadas (/dashboard/...)
   if (pathname.startsWith('/dashboard')) {
     if (!session) {
       const loginUrl = new URL('/login', request.url);
@@ -27,22 +42,22 @@ export function proxy(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    const isApproved = session.curationStatus === 'APROVADO';
+    const isFullyApproved = session.curationStatus === 'APROVADO';
 
-    if (!isApproved) {
+    if (!isFullyApproved) {
       if (pathname !== '/dashboard/pendente') {
         return NextResponse.redirect(new URL('/dashboard/pendente', request.url));
       }
     }
 
-    if (isApproved) {
+    if (isFullyApproved) {
       if (pathname === '/dashboard/pendente') {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
     }
   }
 
-  // 2. Proteção de Rotas Administrativas (/admin/...)
+  // 3. Proteção de Rotas Administrativas (/admin/...)
   if (pathname.startsWith('/admin')) {
     const isCuratorOrAdmin = session && (session.role === 'admin' || Boolean(session.curationRole));
     if (pathname === '/admin/login') {
@@ -56,13 +71,16 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // 3. Redirecionamento amigável da página de Login se já autenticado
+  // 4. Redirecionamento amigável da página de Login se já autenticado
   if (pathname === '/login' && session) {
     if (session.role === 'admin') {
       return NextResponse.redirect(new URL('/admin', request.url));
     }
     if (session.curationStatus === 'APROVADO') {
       return NextResponse.redirect(new URL('/dashboard', request.url));
+    } else if (session.curationStatus === 'APROVADA_PAGAMENTO') {
+      const planQuery = session.planId ? `?plan=${session.planId}&billing=${session.planBillingInterval || 'yearly'}` : '';
+      return NextResponse.redirect(new URL(`/checkout${planQuery}`, request.url));
     } else {
       return NextResponse.redirect(new URL('/dashboard/pendente', request.url));
     }

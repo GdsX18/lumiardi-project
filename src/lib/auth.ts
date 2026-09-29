@@ -13,12 +13,17 @@ export interface SessionUser {
   email: string;
   name: string;
   role: 'criadora' | 'agencia' | 'admin';
-  curationStatus: 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO';
+  curationStatus: 'EM_CURATORIA' | 'AGUARDANDO_REUNIAO' | 'APROVADA_PAGAMENTO' | 'APROVADO' | 'REJEITADO';
   curationRole?: 'curador_junior' | 'curador_senior' | 'supervisor' | 'admin';
   documentName?: string;
   category?: string;
   country?: string;
   city?: string;
+  whatsapp?: string;
+  interviewDate?: string;
+  interviewTime?: string;
+  planId?: string;
+  planBillingInterval?: string;
   rejectionReason?: string;
   createdAt: string;
 }

@@ -32,7 +32,15 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const status = body.status === 'APROVADO' ? 'APROVADO' : body.status === 'EM_CURATORIA' ? 'EM_CURATORIA' : 'REJEITADO';
+    const status = body.status === 'APROVADO'
+      ? 'APROVADO'
+      : body.status === 'APROVADA_PAGAMENTO'
+      ? 'APROVADA_PAGAMENTO'
+      : body.status === 'AGUARDANDO_REUNIAO'
+      ? 'AGUARDANDO_REUNIAO'
+      : body.status === 'EM_CURATORIA'
+      ? 'EM_CURATORIA'
+      : 'REJEITADO';
     const rejectionReason = body.rejectionReason ? sanitizeInput(body.rejectionReason) : undefined;
 
     if (status === 'REJEITADO' && !rejectionReason) {
@@ -46,6 +54,26 @@ export async function POST(
     const targetName = targetUserRecord?.fullName || targetUserRecord?.user?.name || targetUserRecord?.basicInfo?.fullName || id;
 
     const success = await StorageService.updateApplicationStatus(id, status, rejectionReason);
+
+    // Sincroniza tabela curation_interviews
+    if (status === 'APROVADA_PAGAMENTO') {
+      await StorageService.updateInterviewStatus(id, 'aprovada', undefined, session.id);
+      try {
+        await StorageService.createNotification({
+          userId: id,
+          title: 'Entrevista de Curadoria Aprovada',
+          desc: 'Parabéns! Sua entrevista foi homologada pela Mesa de Curadoria. Seu pagamento foi liberado para ativação imediata do seu acesso.',
+          category: 'Curadoria',
+          type: 'success',
+          link: '/dashboard/pendente',
+          linkText: 'Efetuar Pagamento',
+        });
+      } catch (notifErr) {
+        console.warn('Erro ao criar notificação:', notifErr);
+      }
+    } else if (status === 'REJEITADO') {
+      await StorageService.updateInterviewStatus(id, 'recusada', rejectionReason, session.id);
+    }
 
     let refundInfo: { refunded: boolean; refundCode?: string; amount?: number; currency?: string; message: string } | null = null;
 
@@ -82,7 +110,13 @@ export async function POST(
       userName: session.name,
       userEmail: session.email,
       userRole: curationRole,
-      actionType: status === 'APROVADO' ? 'APROVOU_MODELO' : 'RECUSOU_MODELO',
+      actionType: status === 'APROVADO'
+        ? 'APROVOU_MODELO'
+        : status === 'APROVADA_PAGAMENTO'
+        ? 'APROVOU_PARA_PAGAMENTO'
+        : status === 'AGUARDANDO_REUNIAO' || status === 'EM_CURATORIA'
+        ? 'REABRIU_CANDIDATURA'
+        : 'RECUSOU_MODELO',
       targetId: id,
       targetName,
       targetType: 'MODELO',

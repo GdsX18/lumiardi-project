@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
         [idempotencyKey]
       );
       if (existing.rows.length > 0) {
-        console.log(`[Asaas Webhook] Evento duplicado ignorado (idempotent): ${idempotencyKey}`);
         return NextResponse.json({ received: true, action: 'already_processed' });
       }
     } catch {
@@ -195,16 +194,23 @@ export async function POST(request: NextRequest) {
           // Ignora
         }
 
-        // Notifica o usuário na plataforma
+        // Promove o status de curadoria para APROVADO (Acesso Oficial Liberado)
+        try {
+          await StorageService.updateCurationStatus(userId, 'APROVADO');
+        } catch (curationErr) {
+          console.error('[Asaas Webhook] Erro ao promover status para APROVADO:', curationErr);
+        }
+
+        // Notifica o usuário na plataforma com celebração de boas-vindas
         try {
           await StorageService.createNotification({
             userId,
-            title: 'Pagamento Asaas Aprovado',
-            desc: `Seu pagamento via ${billingType === 'PIX' ? 'Pix' : 'Cartão de Crédito'} para o Plano ${plan.name} foi confirmado com sucesso.`,
+            title: 'Acesso Oficial Liberado — Bem-vinda à Lumiardi!',
+            desc: `Seu pagamento via ${billingType === 'PIX' ? 'Pix' : 'Cartão de Crédito'} para o Plano ${plan.name} foi confirmado com sucesso. Sua credencial foi ativada e o seu acesso ao ecossistema Lumiardi está 100% liberado!`,
             category: 'Pagamentos',
             type: 'success',
-            link: '/dashboard/billing',
-            linkText: 'Ver Detalhes do Plano',
+            link: '/dashboard',
+            linkText: 'Acessar Meu Painel',
           });
         } catch {
           // Ignora erro de notificação

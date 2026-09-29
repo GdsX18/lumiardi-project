@@ -59,6 +59,42 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS document_type VARCHAR(100);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS document_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS document_url VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_date DATE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_time VARCHAR(10);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_scheduled_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_approved_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_rejection_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_billing_interval VARCHAR(20);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_selfie_url TEXT;
+
+-- TABELA DE ENTREVISTAS DE CURADORIA PRÉVIA
+CREATE TABLE IF NOT EXISTS curation_interviews (
+  id VARCHAR(100) PRIMARY KEY,
+  user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  full_name VARCHAR(255) NOT NULL,
+  artistic_name VARCHAR(255),
+  email VARCHAR(255) NOT NULL,
+  whatsapp VARCHAR(50) NOT NULL,
+  plan_id VARCHAR(50) NOT NULL,
+  billing_interval VARCHAR(20) NOT NULL DEFAULT 'monthly',
+  interview_date DATE NOT NULL,
+  interview_time VARCHAR(10) NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'aguardando_reuniao',
+  rejection_reason TEXT,
+  approved_by VARCHAR(100),
+  approved_at TIMESTAMP WITH TIME ZONE,
+  rejected_by VARCHAR(100),
+  rejected_at TIMESTAMP WITH TIME ZONE,
+  notes TEXT,
+  photo_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_curation_interviews_user ON curation_interviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_curation_interviews_status ON curation_interviews(status);
+CREATE INDEX IF NOT EXISTS idx_curation_interviews_date ON curation_interviews(interview_date, interview_time);
 
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS accepts_offers BOOLEAN DEFAULT TRUE;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_represented BOOLEAN DEFAULT FALSE;

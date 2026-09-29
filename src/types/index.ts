@@ -21,6 +21,7 @@ export interface DocumentUploadData {
   fileName: string;
   fileSize?: number;
   fileData?: string; // Base64 ou URL
+  fileUrl?: string; // Data URL ou URL remota
   uploadedAt: string;
   verifiedStatus: 'pending' | 'verified' | 'rejected';
 }
@@ -37,6 +38,8 @@ export interface CreatorBasicRegistration {
   cpf: string;
   birthDate: string;
   email: string;
+  whatsapp?: string;
+  phone?: string;
   password?: string;
   address: ResidentialAddress;
   document: DocumentUploadData;
@@ -114,18 +117,45 @@ export interface CreatorQualitativeData {
 export interface CurationAppointment {
   date: string;       // YYYY-MM-DD
   timeSlot: string;   // ex: 10:00, 14:30
-  status: 'scheduled' | 'confirmed' | 'completed';
+  status: 'scheduled' | 'confirmed' | 'completed' | 'canceled' | 'aguardando_reuniao' | 'aprovada' | 'recusada';
   notes?: string;
+  whatsapp?: string;
 }
 
 export type CurationStatusType =
   | 'EM_CURATORIA'
+  | 'AGUARDANDO_REUNIAO'
+  | 'APROVADA_PAGAMENTO'
   | 'APROVADO'
   | 'REJEITADO'
+  | 'RECUSADO'
   | 'submitted'
   | 'under_review'
   | 'approved'
   | 'rejected';
+
+export interface CurationInterview {
+  id: string;
+  userId: string;
+  fullName: string;
+  artisticName?: string;
+  email: string;
+  whatsapp: string;
+  planId: string;
+  billingInterval: string;
+  interviewDate: string;
+  interviewTime: string;
+  status: 'aguardando_reuniao' | 'confirmada' | 'realizada' | 'aprovada' | 'recusada';
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  photoUrl?: string;
+}
 
 export interface CompleteCreatorProfile {
   id: string;
@@ -152,6 +182,8 @@ export interface AgencyBasicRegistration {
   responsibleName: string;
   taxId: string; // CPF ou CNPJ
   corporateEmail: string;
+  whatsapp?: string;
+  phone?: string;
   password?: string;
   document: DocumentUploadData;
   createdAt: string;
@@ -277,6 +309,9 @@ export type AuditActionType =
   | 'TEAM_MEMBER_DELETED'
   | 'APROVOU_MODELO'
   | 'RECUSOU_MODELO'
+  | 'APROVOU_PARA_PAGAMENTO'
+  | 'AGENDOU_ENTREVISTA'
+  | 'RECUSOU_ANTES_PAGAMENTO'
   | 'APROVOU_AGENCIA'
   | 'RECUSOU_AGENCIA'
   | 'ADICIONOU_NOTA'

@@ -16,6 +16,7 @@ import {
   AdminUser,
   CurationRole,
   NotificationItem,
+  CurationInterview,
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
 
@@ -114,6 +115,10 @@ export const StorageService = {
         const au = adminRes.rows[0];
         const match = await bcrypt.compare(cleanPass, au.password_hash);
         if (match) {
+          try {
+            await pool.query('UPDATE users SET last_seen_at = NOW() WHERE id = $1 OR id = $2 OR LOWER(email) = $3', [au.id, 'admin-curadoria-1', normEmail]);
+            await pool.query('UPDATE admin_users SET updated_at = NOW() WHERE id = $1', [au.id]);
+          } catch {}
           return {
             user: {
               id: au.id,
@@ -223,26 +228,25 @@ export const StorageService = {
     try {
       const res = await pool.query(`
         SELECT 
-          COUNT(*) FILTER (WHERE curation_status = 'EM_CURATORIA') AS pending,
+          COUNT(*) FILTER (WHERE curation_status IN ('EM_CURATORIA', 'AGUARDANDO_REUNIAO', 'APROVADA_PAGAMENTO')) AS pending,
           COUNT(*) FILTER (WHERE curation_status = 'APROVADO' AND role = 'MODELO') AS approved_models,
           COUNT(*) FILTER (WHERE curation_status = 'APROVADO' AND role = 'AGENCIA') AS approved_agencies,
-          COUNT(*) FILTER (WHERE curation_status = 'REJEITADO') AS rejected
+          COUNT(*) FILTER (WHERE curation_status IN ('REJEITADO', 'RECUSADO')) AS rejected
         FROM users
         WHERE role != 'ADMIN';
       `);
 
       if (res.rows.length > 0) {
         const row = res.rows[0];
-        const dbPending = Number(row.pending) || 0;
         return {
-          pending: Math.max(dbPending, fbPending),
-          approvedModels: Math.max(Number(row.approved_models) || 0, fbApprovedModels),
-          approvedAgencies: Math.max(Number(row.approved_agencies) || 0, fbApprovedAgencies),
-          rejected: Math.max(Number(row.rejected) || 0, fbRejected),
+          pending: Number(row.pending) || 0,
+          approvedModels: Number(row.approved_models) || 0,
+          approvedAgencies: Number(row.approved_agencies) || 0,
+          rejected: Number(row.rejected) || 0,
         };
       }
     } catch {
-      // Fallback
+      // Fallback resiliente apenas em caso de indisponibilidade temporária do banco
     }
 
     return {
@@ -344,9 +348,12 @@ export const StorageService = {
               fullName: row.full_name,
               role: isModel ? 'criadora' : 'agencia',
               curationStatus: row.curation_status,
-              phone: row.phone || '-',
-              documentType: row.document_type || (isModel ? 'Passaporte / RG' : 'Contrato Social & CNPJ'),
-              documentName: row.document_name || (isModel ? 'doc_identidade.pdf' : 'contrato_social_cnpj.pdf'),
+              phone: row.phone || row.whatsapp || '-',
+              whatsapp: row.whatsapp || row.phone || '',
+              interviewDate: row.interview_date || null,
+              interviewTime: row.interview_time || null,
+              documentType: row.document_type || (isModel ? 'Documento de Identificação' : 'Contrato Social & CNPJ'),
+              documentName: row.document_name || null,
               documentUrl: row.document_url || '',
               rejectionReason: row.rejection_reason,
               createdAt: row.created_at,
@@ -360,16 +367,16 @@ export const StorageService = {
                 documentNumber: row.document_number || row.cnpj || '-',
                 cnpj: row.cnpj || row.document_number || '-',
                 gender: row.gender || '-',
-                measurements: row.measurements || (isModel ? { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' } : null),
-                physiognomy: row.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
-                address: row.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
+                measurements: row.measurements || null,
+                physiognomy: row.physiognomy || null,
+                address: row.address || null,
                 photos: row.photos || [],
                 videoUrl: row.video_url || '',
                 bio: row.bio || '',
                 exposureOpinion: row.exposure_opinion || '',
-                monthlyRevenueEstimate: row.monthly_revenue_estimate || 'Sob Consulta',
-                commissionRate: row.commission_rate || '20%',
-                specialties: row.specialties || ['Alta Moda', 'Editorial', 'Campanhas Digitais'],
+                monthlyRevenueEstimate: row.monthly_revenue_estimate || null,
+                commissionRate: row.commission_rate || null,
+                specialties: row.specialties || [],
               },
               paymentInfo: paymentInfo || (row as any).payment_info || null,
             };
@@ -426,6 +433,9 @@ export const StorageService = {
         role: isModel ? 'criadora' : 'agencia',
         curationStatus: u.curation_status,
         phone: u.phone || p.phone || '-',
+        whatsapp: (u.whatsapp || u.phone || '') as string,
+        interviewDate: (u.interview_date || u.interviewDate || null) as string | null,
+        interviewTime: (u.interview_time || u.interviewTime || null) as string | null,
         documentType: u.document_type || (isModel ? 'Passaporte / RG' : 'Contrato Social & CNPJ'),
         documentName: u.document_name || (isModel ? 'doc_identidade.pdf' : 'contrato_social_cnpj.pdf'),
         documentUrl: u.document_url || '',
@@ -442,9 +452,9 @@ export const StorageService = {
           documentNumber: p.document_number || p.cnpj || '-',
           cnpj: p.cnpj || '-',
           gender: p.gender || '-',
-          measurements: p.measurements || (isModel ? { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' } : null),
-          physiognomy: p.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
-          address: p.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
+          measurements: p.measurements || null,
+          physiognomy: p.physiognomy || null,
+          address: p.address || (u.address ? u.address : null),
           photos: p.photos || [],
           videoUrl: p.video_url || '',
           bio: p.bio || '',
@@ -504,6 +514,9 @@ export const StorageService = {
           role: isModel ? 'criadora' : 'agencia',
           curationStatus: row.curation_status,
           phone: row.phone || '-',
+          whatsapp: (row.whatsapp || row.phone || '') as string,
+          interviewDate: (row.interview_date || null) as string | null,
+          interviewTime: (row.interview_time || null) as string | null,
           documentType: row.document_type || (isModel ? 'Passaporte / RG' : 'Contrato Social & CNPJ'),
           documentName: row.document_name || (isModel ? 'doc_identidade.pdf' : 'contrato_social_cnpj.pdf'),
           documentUrl: row.document_url || '',
@@ -519,9 +532,9 @@ export const StorageService = {
             documentNumber: row.document_number || row.cnpj || '-',
             cnpj: row.cnpj || row.document_number || '-',
             gender: row.gender || '-',
-            measurements: row.measurements || (isModel ? { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' } : null),
-            physiognomy: row.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
-            address: row.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
+            measurements: row.measurements || null,
+            physiognomy: row.physiognomy || null,
+            address: row.address || null,
             photos: row.photos || [],
             videoUrl: row.video_url || '',
             bio: row.bio || '',
@@ -545,7 +558,7 @@ export const StorageService = {
    */
   async updateApplicationStatus(
     id: string,
-    status: 'APROVADO' | 'REJEITADO' | 'EM_CURATORIA',
+    status: CurationStatusType | string,
     rejectionReason?: string
   ): Promise<boolean> {
     await initDatabase();
@@ -607,12 +620,26 @@ export const StorageService = {
     category?: string;
     instagram?: string;
     documentName?: string;
+    documentUrl?: string;
+    whatsapp?: string;
+    phone?: string;
+    curationStatus?: CurationStatusType | string;
+    planId?: string;
+    billingInterval?: string;
+    interviewDate?: string;
+    interviewTime?: string;
+    qualitative?: any;
+    address?: any;
+    birthDate?: string;
+    cpf?: string;
   }) {
     const normEmail = data.email.trim().toLowerCase();
     const hash = await bcrypt.hash(data.password || 'lumiardi2026', 10);
     const id = data.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const roleDb = data.role === 'criadora' ? 'MODELO' : 'AGENCIA';
     const now = new Date().toISOString();
+    const statusDb = data.curationStatus || 'AGUARDANDO_REUNIAO';
+    const phoneVal = data.whatsapp || data.phone || null;
 
     await initDatabase();
 
@@ -621,43 +648,127 @@ export const StorageService = {
       email: normEmail,
       password_hash: hash,
       role: roleDb,
-      curation_status: 'EM_CURATORIA',
+      curation_status: statusDb,
       full_name: data.fullName,
+      phone: phoneVal,
+      whatsapp: phoneVal,
       document_name: data.documentName,
+      document_url: data.documentUrl,
+      plan_id: data.planId,
+      plan_billing_interval: data.billingInterval,
+      interview_date: data.interviewDate,
+      interview_time: data.interviewTime,
+      interview_scheduled_at: data.interviewDate ? now : null,
       created_at: now,
     };
     fallbackStore.users.set(normEmail, userObj);
     fallbackStore.users.set(id, userObj);
-    fallbackStore.profiles.set(id, {
+
+    const profileObj = {
       user_id: id,
       artistic_name: data.artisticName || data.fullName,
       category: data.category,
       instagram: data.instagram,
-    });
+      gender: data.qualitative?.gender || null,
+      birth_date: data.birthDate || null,
+      document_number: data.cpf || null,
+      bio: data.qualitative?.hobbies || null,
+      hobbies: data.qualitative?.hobbies || null,
+      exposure_opinion: data.qualitative?.exposureOpinion || null,
+      measurements: data.qualitative?.measurements || null,
+      physiognomy: data.qualitative?.physiognomy || null,
+      address: data.address || null,
+      monthly_revenue_estimate: data.qualitative?.monthlyRevenueEstimate || null,
+      created_at: now,
+    };
+    fallbackStore.profiles.set(id, profileObj);
 
     try {
       await pool.query(
-        `INSERT INTO users (id, email, password_hash, role, curation_status, full_name, document_name, created_at)
-         VALUES ($1, $2, $3, $4, 'EM_CURATORIA', $5, $6, NOW())
-         ON CONFLICT (id) DO UPDATE SET curation_status = 'EM_CURATORIA'`,
-        [id, normEmail, hash, roleDb, data.fullName, data.documentName || null]
+        `INSERT INTO users (
+           id, email, password_hash, role, curation_status, full_name,
+           phone, whatsapp, document_name, document_url, plan_id,
+           plan_billing_interval, interview_date, interview_time,
+           interview_scheduled_at, created_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+         ON CONFLICT (id) DO UPDATE SET 
+           curation_status = EXCLUDED.curation_status,
+           whatsapp = COALESCE(EXCLUDED.whatsapp, users.whatsapp),
+           phone = COALESCE(EXCLUDED.phone, users.phone),
+           document_name = COALESCE(EXCLUDED.document_name, users.document_name),
+           document_url = COALESCE(EXCLUDED.document_url, users.document_url),
+           plan_id = COALESCE(EXCLUDED.plan_id, users.plan_id),
+           plan_billing_interval = COALESCE(EXCLUDED.plan_billing_interval, users.plan_billing_interval),
+           interview_date = COALESCE(EXCLUDED.interview_date, users.interview_date),
+           interview_time = COALESCE(EXCLUDED.interview_time, users.interview_time)`,
+        [
+          id,
+          normEmail,
+          hash,
+          roleDb,
+          statusDb,
+          data.fullName,
+          phoneVal,
+          phoneVal,
+          data.documentName || null,
+          data.documentUrl || null,
+          data.planId || null,
+          data.billingInterval || null,
+          data.interviewDate || null,
+          data.interviewTime || null,
+          data.interviewDate ? now : null,
+        ]
       );
 
       await pool.query(
-        `INSERT INTO profiles (user_id, artistic_name, category, instagram, created_at)
-         VALUES ($1, $2, $3, $4, NOW())
-         ON CONFLICT (user_id) DO UPDATE SET artistic_name = EXCLUDED.artistic_name`,
-        [id, data.artisticName || data.fullName, data.category || null, data.instagram || null]
+        `INSERT INTO profiles (
+           user_id, artistic_name, category, instagram, gender, birth_date,
+           document_number, bio, hobbies, exposure_opinion, measurements,
+           physiognomy, address, monthly_revenue_estimate, created_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET 
+           artistic_name = EXCLUDED.artistic_name,
+           category = COALESCE(EXCLUDED.category, profiles.category),
+           instagram = COALESCE(EXCLUDED.instagram, profiles.instagram),
+           gender = COALESCE(EXCLUDED.gender, profiles.gender),
+           birth_date = COALESCE(EXCLUDED.birth_date, profiles.birth_date),
+           document_number = COALESCE(EXCLUDED.document_number, profiles.document_number),
+           measurements = COALESCE(EXCLUDED.measurements, profiles.measurements),
+           physiognomy = COALESCE(EXCLUDED.physiognomy, profiles.physiognomy),
+           address = COALESCE(EXCLUDED.address, profiles.address),
+           monthly_revenue_estimate = COALESCE(EXCLUDED.monthly_revenue_estimate, profiles.monthly_revenue_estimate)`,
+        [
+          id,
+          data.artisticName || data.fullName,
+          data.category || null,
+          data.instagram || null,
+          data.qualitative?.gender || null,
+          data.birthDate || null,
+          data.cpf || null,
+          data.qualitative?.hobbies || null,
+          data.qualitative?.hobbies || null,
+          data.qualitative?.exposureOpinion || null,
+          data.qualitative?.measurements ? JSON.stringify(data.qualitative.measurements) : null,
+          data.qualitative?.physiognomy ? JSON.stringify(data.qualitative.physiognomy) : null,
+          data.address ? JSON.stringify(data.address) : null,
+          data.qualitative?.monthlyRevenueEstimate || null,
+        ]
       );
     } catch (err) {
       console.error('[StorageService registerUser DB ERROR]:', err);
     }
 
-    return { id, email: normEmail, role: roleDb, curation_status: 'EM_CURATORIA', full_name: data.fullName };
+    return { id, email: normEmail, role: roleDb, curation_status: statusDb, full_name: data.fullName };
   },
 
-  async updateCurationStatus(userId: string, status: CurationStatusType): Promise<boolean> {
-    return this.updateApplicationStatus(userId, status === 'APROVADO' ? 'APROVADO' : 'REJEITADO');
+  async updateCurationStatus(userId: string, status: CurationStatusType, rejectionReason?: string): Promise<boolean> {
+    let mappedStatus: CurationStatusType | string = status;
+    if (status === 'approved') mappedStatus = 'APROVADO';
+    else if (status === 'rejected') mappedStatus = 'REJEITADO';
+    else if (status === 'submitted' || status === 'under_review') mappedStatus = 'EM_CURATORIA';
+    return this.updateApplicationStatus(userId, mappedStatus, rejectionReason);
   },
 
   async updateUserLastSeen(userId: string): Promise<void> {
@@ -667,6 +778,15 @@ export const StorageService = {
         'UPDATE users SET last_seen_at = NOW() WHERE id = $1',
         [userId]
       );
+      await pool.query(
+        'UPDATE admin_users SET updated_at = NOW() WHERE id = $1',
+        [userId]
+      );
+      if (userId.startsWith('cur-') || userId.startsWith('admin-') || userId === '6f8d2da2-0df9-4dd2-8638-245c6f1f7dad') {
+        await pool.query(
+          'UPDATE users SET last_seen_at = NOW() WHERE id = \'admin-curadoria-1\' OR id = \'cur-admin-1\' OR id = \'6f8d2da2-0df9-4dd2-8638-245c6f1f7dad\''
+        );
+      }
     } catch {
       // Fallback tolerante se banco inacessível
     }
@@ -1591,7 +1711,7 @@ export const StorageService = {
     try {
       const curRes = await pool.query(
         `SELECT id FROM users
-         WHERE (role = 'admin' OR role = 'ADMIN' OR id = 'admin-curadoria-1')
+         WHERE (role ILIKE 'admin%' OR id LIKE 'admin-%' OR id LIKE 'cur-%' OR email LIKE '%curadoria%')
            AND last_seen_at IS NOT NULL
            AND last_seen_at > NOW() - INTERVAL '5 minutes'
          LIMIT 1`
@@ -1599,10 +1719,15 @@ export const StorageService = {
       if (curRes.rows.length > 0) {
         isCurationOnline = true;
       } else {
-        isCurationOnline = checkFallbackUserOnline('admin-curadoria-1', 5);
+        const auRes = await pool.query(
+          `SELECT id FROM admin_users
+           WHERE updated_at > NOW() - INTERVAL '5 minutes'
+           LIMIT 1`
+        );
+        isCurationOnline = auRes.rows.length > 0 || checkFallbackUserOnline('admin-curadoria-1', 5) || checkFallbackUserOnline('cur-admin-1', 5);
       }
     } catch {
-      isCurationOnline = checkFallbackUserOnline('admin-curadoria-1', 5);
+      isCurationOnline = checkFallbackUserOnline('admin-curadoria-1', 5) || checkFallbackUserOnline('cur-admin-1', 5);
     }
 
     const curationMsgs = await this.listMessages('curation', undefined, userId, role);
@@ -2090,7 +2215,7 @@ export const StorageService = {
     return { totalBytes, totalGB, fileCount };
   },
 
-  async saveCreator(creatorData: Partial<CompleteCreatorProfile>): Promise<CompleteCreatorProfile> {
+  async saveCreator(creatorData: Partial<CompleteCreatorProfile> & { planId?: string; billingInterval?: string }): Promise<CompleteCreatorProfile> {
     const id = creatorData.id || `creator-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
 
@@ -2103,7 +2228,7 @@ export const StorageService = {
         timeSlot: '14:00',
         status: 'scheduled',
       },
-      curationStatus: (creatorData.curationStatus as CurationStatusType) || 'EM_CURATORIA',
+      curationStatus: (creatorData.curationStatus as CurationStatusType) || 'AGUARDANDO_REUNIAO',
       createdAt: creatorData.createdAt || now,
       updatedAt: now,
     };
@@ -2111,15 +2236,46 @@ export const StorageService = {
     const user = await this.registerUser({
       id,
       email: fullProfile.basicInfo.email,
+      password: fullProfile.basicInfo.password,
       fullName: fullProfile.basicInfo.fullName,
       role: 'criadora',
       artisticName: fullProfile.qualitative.artisticName,
       category: fullProfile.qualitative.category,
       instagram: fullProfile.qualitative.platforms?.instagram,
-      documentName: fullProfile.basicInfo.document?.fileName,
+      documentName: fullProfile.basicInfo.document?.fileName || (fullProfile.basicInfo.document as any)?.name || 'documento_identidade.jpg',
+      documentUrl: fullProfile.basicInfo.document?.fileUrl || fullProfile.basicInfo.document?.fileData || (fullProfile.basicInfo.document as any)?.url || '',
+      whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
+      phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
+      curationStatus: fullProfile.curationStatus,
+      planId: creatorData.planId || 'glow',
+      billingInterval: creatorData.billingInterval || 'monthly',
+      interviewDate: fullProfile.appointment?.date,
+      interviewTime: fullProfile.appointment?.timeSlot,
+      qualitative: fullProfile.qualitative,
+      address: fullProfile.basicInfo.address,
+      birthDate: fullProfile.basicInfo.birthDate,
+      cpf: fullProfile.basicInfo.cpf,
     });
 
     fullProfile.id = user.id;
+
+    // Persistência imediata na tabela de entrevistas
+    if (fullProfile.appointment?.date) {
+      await this.saveInterview({
+        userId: user.id,
+        fullName: fullProfile.basicInfo.fullName,
+        artisticName: fullProfile.qualitative.artisticName,
+        email: fullProfile.basicInfo.email,
+        whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone || '',
+        planId: creatorData.planId || 'glow',
+        billingInterval: creatorData.billingInterval || 'monthly',
+        interviewDate: fullProfile.appointment.date,
+        interviewTime: fullProfile.appointment.timeSlot,
+        status: 'aguardando_reuniao',
+        notes: fullProfile.appointment.notes,
+      });
+    }
+
     return fullProfile;
   },
 
@@ -2131,7 +2287,7 @@ export const StorageService = {
       id,
       basicInfo: agencyData.basicInfo || ({} as CompleteAgencyProfile['basicInfo']),
       qualitative: agencyData.qualitative || ({} as CompleteAgencyProfile['qualitative']),
-      curationStatus: (agencyData.curationStatus as CurationStatusType) || 'EM_CURATORIA',
+      curationStatus: (agencyData.curationStatus as CurationStatusType) || 'AGUARDANDO_REUNIAO',
       createdAt: agencyData.createdAt || now,
       updatedAt: now,
     };
@@ -2139,14 +2295,228 @@ export const StorageService = {
     const user = await this.registerUser({
       id,
       email: fullProfile.basicInfo.corporateEmail,
+      password: fullProfile.basicInfo.password,
       fullName: fullProfile.basicInfo.responsibleName,
       role: 'agencia',
       instagram: fullProfile.qualitative.instagram,
-      documentName: fullProfile.basicInfo.document?.fileName,
+      documentName: fullProfile.basicInfo.document?.fileName || (fullProfile.basicInfo.document as any)?.name || 'contrato_social.pdf',
+      documentUrl: fullProfile.basicInfo.document?.fileUrl || fullProfile.basicInfo.document?.fileData || (fullProfile.basicInfo.document as any)?.url || '',
+      whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
+      phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
+      curationStatus: fullProfile.curationStatus,
     });
 
     fullProfile.id = user.id;
     return fullProfile;
+  },
+
+  async saveInterview(interviewData: {
+    id?: string;
+    userId: string;
+    fullName: string;
+    artisticName?: string;
+    email: string;
+    whatsapp: string;
+    planId: string;
+    billingInterval?: string;
+    interviewDate: string;
+    interviewTime: string;
+    status?: string;
+    photoUrl?: string;
+    notes?: string;
+  }): Promise<CurationInterview> {
+    await initDatabase();
+    const id = interviewData.id || `interview-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+    const interviewObj: CurationInterview = {
+      id,
+      userId: interviewData.userId,
+      fullName: interviewData.fullName,
+      artisticName: interviewData.artisticName,
+      email: interviewData.email,
+      whatsapp: interviewData.whatsapp,
+      planId: interviewData.planId,
+      billingInterval: interviewData.billingInterval || 'monthly',
+      interviewDate: interviewData.interviewDate,
+      interviewTime: interviewData.interviewTime,
+      status: (interviewData.status as any) || 'aguardando_reuniao',
+      photoUrl: interviewData.photoUrl,
+      notes: interviewData.notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    fallbackStore.curation_interviews.set(id, interviewObj as any);
+    fallbackStore.curation_interviews.set(`user_${interviewData.userId}`, interviewObj as any);
+
+    try {
+      await pool.query(
+        `INSERT INTO curation_interviews (
+           id, user_id, full_name, artistic_name, email, whatsapp,
+           plan_id, billing_interval, interview_date, interview_time,
+           status, photo_url, notes, created_at, updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           interview_date = EXCLUDED.interview_date,
+           interview_time = EXCLUDED.interview_time,
+           status = EXCLUDED.status,
+           whatsapp = EXCLUDED.whatsapp,
+           updated_at = NOW()`,
+        [
+          id,
+          interviewData.userId,
+          interviewData.fullName,
+          interviewData.artisticName || null,
+          interviewData.email,
+          interviewData.whatsapp,
+          interviewData.planId,
+          interviewData.billingInterval || 'monthly',
+          interviewData.interviewDate,
+          interviewData.interviewTime,
+          interviewData.status || 'aguardando_reuniao',
+          interviewData.photoUrl || null,
+          interviewData.notes || null,
+        ]
+      );
+    } catch (err) {
+      console.error('[StorageService saveInterview DB ERROR]:', err);
+    }
+
+    return interviewObj;
+  },
+
+  async getInterviews(filter?: { status?: string; date?: string }): Promise<CurationInterview[]> {
+    await initDatabase();
+    try {
+      let query = `
+        SELECT 
+          ci.*,
+          p.avatar_url, p.photos
+        FROM curation_interviews ci
+        LEFT JOIN profiles p ON ci.user_id = p.user_id
+      `;
+      const conditions: string[] = [];
+      const values: any[] = [];
+
+      if (filter?.status && filter.status !== 'ALL') {
+        values.push(filter.status);
+        conditions.push(`ci.status = $${values.length}`);
+      }
+      if (filter?.date) {
+        values.push(filter.date);
+        conditions.push(`ci.interview_date = $${values.length}`);
+      }
+
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      query += ` ORDER BY ci.interview_date ASC, ci.interview_time ASC`;
+
+      const res = await pool.query(query, values);
+      if (res.rows.length > 0) {
+        return res.rows.map((r) => {
+          const rawPhotos = Array.isArray(r.photos) ? r.photos : [];
+          const photoUrl = r.photo_url || r.avatar_url || (rawPhotos[0]?.url || '');
+          let dateStr = r.interview_date;
+          if (dateStr instanceof Date) {
+            dateStr = dateStr.toISOString().split('T')[0];
+          } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
+            dateStr = dateStr.split('T')[0];
+          }
+          return {
+            id: r.id,
+            userId: r.user_id,
+            fullName: r.full_name,
+            artisticName: r.artistic_name,
+            email: r.email,
+            whatsapp: r.whatsapp,
+            planId: r.plan_id,
+            billingInterval: r.billing_interval,
+            interviewDate: String(dateStr),
+            interviewTime: r.interview_time,
+            status: r.status,
+            rejectionReason: r.rejection_reason,
+            approvedBy: r.approved_by,
+            approvedAt: r.approved_at,
+            rejectedBy: r.rejected_by,
+            rejectedAt: r.rejected_at,
+            notes: r.notes,
+            photoUrl,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          };
+        });
+      }
+    } catch (err) {
+      console.error('[StorageService getInterviews DB ERROR]:', err);
+    }
+
+    // Fallback store
+    const list: CurationInterview[] = [];
+    for (const [key, val] of fallbackStore.curation_interviews.entries()) {
+      if (key.startsWith('user_')) continue;
+      const item = val as unknown as CurationInterview;
+      if (filter?.status && filter.status !== 'ALL' && item.status !== filter.status) continue;
+      if (filter?.date && item.interviewDate !== filter.date) continue;
+      list.push(item);
+    }
+    return list.sort((a, b) => `${a.interviewDate} ${a.interviewTime}`.localeCompare(`${b.interviewDate} ${b.interviewTime}`));
+  },
+
+  async updateInterviewStatus(
+    userIdOrInterviewId: string,
+    status: 'aguardando_reuniao' | 'confirmada' | 'realizada' | 'aprovada' | 'recusada',
+    reason?: string,
+    curatorId?: string
+  ): Promise<boolean> {
+    await initDatabase();
+    const now = new Date().toISOString();
+    try {
+      if (status === 'aprovada') {
+        await pool.query(
+          `UPDATE curation_interviews 
+           SET status = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW() 
+           WHERE id = $3 OR user_id = $3`,
+          [status, curatorId || 'curadoria', userIdOrInterviewId]
+        );
+      } else if (status === 'recusada') {
+        await pool.query(
+          `UPDATE curation_interviews 
+           SET status = $1, rejected_by = $2, rejected_at = NOW(), rejection_reason = $3, updated_at = NOW() 
+           WHERE id = $4 OR user_id = $4`,
+          [status, curatorId || 'curadoria', reason || null, userIdOrInterviewId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE curation_interviews 
+           SET status = $1, updated_at = NOW() 
+           WHERE id = $2 OR user_id = $2`,
+          [status, userIdOrInterviewId]
+        );
+      }
+    } catch {
+      // Fallback
+    }
+
+    for (const item of fallbackStore.curation_interviews.values()) {
+      const interview = item as unknown as CurationInterview;
+      if (interview.id === userIdOrInterviewId || interview.userId === userIdOrInterviewId) {
+        interview.status = status;
+        if (status === 'aprovada') {
+          interview.approvedBy = curatorId || 'curadoria';
+          interview.approvedAt = now;
+        } else if (status === 'recusada') {
+          interview.rejectedBy = curatorId || 'curadoria';
+          interview.rejectedAt = now;
+          interview.rejectionReason = reason;
+        }
+        interview.updatedAt = now;
+      }
+    }
+
+    return true;
   },
 
   async findCreatorByEmail(email: string) {

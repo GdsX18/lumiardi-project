@@ -51,6 +51,16 @@ function CheckoutContent() {
     }
   }, [currency, gateway]);
 
+  // Portão de Pagamento: Candidata só pode efetuar pagamento se tiver aprovação prévia da Curadoria
+  useEffect(() => {
+    if (currentUser) {
+      const allowed = currentUser.curationStatus === 'APROVADA_PAGAMENTO' || currentUser.curationStatus === 'APROVADO';
+      if (!allowed) {
+        router.replace('/dashboard/pendente');
+      }
+    }
+  }, [currentUser, router]);
+
   // Estado do Cartão de Crédito / Débito
   const [cardData, setCardData] = useState({
     type: 'credit' as 'credit' | 'debit',
@@ -277,9 +287,9 @@ function CheckoutContent() {
       if (refreshData) await refreshData();
       setPaymentSuccess(true);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro no pagamento';
-      console.error(msg);
-      setPaymentSuccess(true);
+      const msg = e instanceof Error ? e.message : 'Falha ao confirmar pagamento instantâneo.';
+      console.error('[Checkout Instant Payment Error]:', msg);
+      setErrorMessage(msg);
     } finally {
       setIsLoading(false);
     }

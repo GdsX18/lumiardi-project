@@ -113,6 +113,44 @@ export function calculateExactAge(birthDateStr: string): number {
   return age;
 }
 
+/**
+ * Remove qualquer prefixo de Data URL antes de enviar bytes Base64 para a API do Gemini
+ */
+export function cleanBase64(dataUrlOrBase64: string): string {
+  if (!dataUrlOrBase64) return '';
+  if (dataUrlOrBase64.includes(',')) {
+    return dataUrlOrBase64.split(',')[1].trim();
+  }
+  return dataUrlOrBase64.trim();
+}
+
+/**
+ * Detecta e sanitiza o MimeType da imagem.
+ * Rejeita 'application/octet-stream' e extrai tipos suportados ('image/jpeg', 'image/png', 'image/webp')
+ * utilizando 'image/jpeg' como fallback universal seguro.
+ */
+export function detectMimeType(dataUrlOrBase64: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+  if (!dataUrlOrBase64) return 'image/jpeg';
+
+  if (dataUrlOrBase64.startsWith('data:')) {
+    const match = dataUrlOrBase64.match(/^data:([^;,]+)/);
+    if (match && match[1]) {
+      const detected = match[1].toLowerCase().trim();
+      if (detected === 'image/png') return 'image/png';
+      if (detected === 'image/webp') return 'image/webp';
+      if (detected === 'image/jpeg' || detected === 'image/jpg') return 'image/jpeg';
+    }
+  }
+
+  // Fallback baseado nos primeiros bytes mágicos em base64
+  const rawBase64 = cleanBase64(dataUrlOrBase64);
+  if (rawBase64.startsWith('/9j/')) return 'image/jpeg';
+  if (rawBase64.startsWith('iVBORw0KGgo')) return 'image/png';
+  if (rawBase64.startsWith('UklGR')) return 'image/webp';
+
+  return 'image/jpeg';
+}
+
 export const BiometricEngine = {
   /**
    * Ponto de entrada da verificação biométrica e documental
@@ -151,15 +189,21 @@ export const BiometricEngine = {
     
     // Lista ordenada por velocidade e disponibilidade sem 503
     const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
       'gemini-flash-lite-latest',
       'gemini-3.6-flash',
-      'gemini-3.7-flash',
-      'gemini-3.1-flash-lite',
       'gemini-3.5-flash',
     ];
 
-    const cleanDocBase64 = input.documentBase64.replace(/^data:image\/\w+;base64,/, '');
-    const cleanSelfieBase64 = input.liveSelfieBase64.replace(/^data:image\/\w+;base64,/, '');
+    // Higienização completa do Base64 (remove 'data:...;base64,')
+    const cleanDocBase64 = cleanBase64(input.documentBase64);
+    const cleanSelfieBase64 = cleanBase64(input.liveSelfieBase64);
+
+    // Detecção estrita de MimeType (nunca repassa 'application/octet-stream')
+    const docMime = detectMimeType(input.documentBase64);
+    const selfieMime = detectMimeType(input.liveSelfieBase64);
 
     const prompt = `
 Você é um auditor sênior de segurança antifraude, perito documental e biométrico para uma plataforma de luxo (Conformidade 18 U.S.C. § 2257).
@@ -214,8 +258,8 @@ Responda ESTRITAMENTE em JSON puro (sem markdown extra) com o seguinte formato:
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent([
           prompt,
-          { inlineData: { mimeType: 'image/jpeg', data: cleanDocBase64 } },
-          { inlineData: { mimeType: 'image/jpeg', data: cleanSelfieBase64 } },
+          { inlineData: { mimeType: docMime, data: cleanDocBase64 } },
+          { inlineData: { mimeType: selfieMime, data: cleanSelfieBase64 } },
         ]);
         responseText = result.response.text();
         if (responseText) break;

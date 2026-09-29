@@ -17,6 +17,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const whatsapp = sanitizedBody.basicInfo?.whatsapp?.trim() || (rawBody as any).whatsapp?.trim();
+    if (!whatsapp || whatsapp.replace(/\D/g, '').length < 10) {
+      return NextResponse.json(
+        { error: 'WhatsApp / Celular com DDD é estritamente obrigatório para agendamento da entrevista de curadoria.' },
+        { status: 400 }
+      );
+    }
+    sanitizedBody.basicInfo.whatsapp = whatsapp;
+
+    const appointment = sanitizedBody.appointment;
+    if (!appointment?.date || !appointment?.timeSlot) {
+      return NextResponse.json(
+        { error: 'A seleção de data e horário para a entrevista de curadoria prévia é obrigatória.' },
+        { status: 400 }
+      );
+    }
+
+    const planId = (rawBody as any).planId || 'glow';
+    const billingInterval = (rawBody as any).billingInterval || 'yearly';
+
     if (!sanitizedBody.qualitative?.platforms?.instagram?.startsWith('@')) {
       if (sanitizedBody.qualitative?.platforms?.instagram) {
         sanitizedBody.qualitative.platforms.instagram = `@${sanitizedBody.qualitative.platforms.instagram.replace(/^@+/, '')}`;
@@ -32,20 +52,24 @@ export async function POST(request: NextRequest) {
 
     const savedProfile = await StorageService.saveCreator({
       ...sanitizedBody,
-      curationStatus: 'EM_CURATORIA',
+      curationStatus: 'AGUARDANDO_REUNIAO',
+      planId,
+      billingInterval,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
+    const displayDate = appointment.date.split('-').reverse().join('/');
+
     try {
       await StorageService.createNotification({
         userId: savedProfile.id,
-        title: 'Candidatura Submetida',
-        desc: 'Sua candidatura foi submetida com sucesso e está em análise pela Mesa de Curadoria.',
+        title: 'Entrevista de Curadoria Agendada',
+        desc: `Sua entrevista de alinhamento com a Mesa de Curadoria foi agendada para ${displayDate} às ${appointment.timeSlot}. Aguarde o contato da nossa equipe via WhatsApp.`,
         category: 'Curadoria',
         type: 'info',
         link: '/dashboard/pendente',
-        linkText: 'Acompanhar Status',
+        linkText: 'Ver Detalhes do Agendamento',
       });
     } catch (e) {
       console.warn('Erro ao criar notificação de registro:', e);
@@ -56,11 +80,16 @@ export async function POST(request: NextRequest) {
       email: savedProfile.basicInfo.email,
       name: savedProfile.qualitative.artisticName || savedProfile.basicInfo.fullName,
       role: 'criadora',
-      curationStatus: 'EM_CURATORIA',
+      curationStatus: 'AGUARDANDO_REUNIAO',
       documentName: savedProfile.basicInfo.document?.fileName,
       category: savedProfile.qualitative.category,
       country: savedProfile.basicInfo.address?.country,
       city: savedProfile.basicInfo.address?.city,
+      whatsapp: savedProfile.basicInfo.whatsapp,
+      interviewDate: appointment.date,
+      interviewTime: appointment.timeSlot,
+      planId,
+      planBillingInterval: billingInterval,
       createdAt: savedProfile.createdAt,
     };
 
@@ -68,7 +97,7 @@ export async function POST(request: NextRequest) {
       success: true,
       profileId: savedProfile.id,
       user: sessionUser,
-      message: 'Candidatura submetida com sucesso. Status: EM_CURATORIA.',
+      message: 'Candidatura submetida com sucesso. Status: AGUARDANDO_REUNIAO.',
     });
 
     response.cookies.set({

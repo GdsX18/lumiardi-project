@@ -153,6 +153,7 @@ function QualificacaoContent() {
     cpf: '',
     birthDate: '',
     email: '',
+    whatsapp: '',
     password: '',
     address: {
       country: 'Brasil',
@@ -249,6 +250,12 @@ function QualificacaoContent() {
       return;
     }
 
+    const cleanWhatsapp = basicData.whatsapp.replace(/\D/g, '');
+    if (!cleanWhatsapp || cleanWhatsapp.length < 10) {
+      setSubmissionError('O WhatsApp com DDD é estritamente obrigatório para que a Mesa de Curadoria envie o link do Google Meet da sua entrevista.');
+      return;
+    }
+
     if (!basicData.address.city.trim()) {
       setSubmissionError(t('err_inform_city'));
       return;
@@ -321,13 +328,22 @@ function QualificacaoContent() {
     setIsSubmitting(true);
     setSubmissionError(null);
 
+    if (!appointment.date || !appointment.timeSlot) {
+      setSubmissionError('A seleção de data e horário para a sua entrevista de curadoria prévia é estritamente obrigatória.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const fullProfile: Partial<CompleteCreatorProfile> = {
+      const fullProfile = {
         basicInfo: {
           fullName: basicData.fullName,
           cpf: basicData.cpf,
           birthDate: basicData.birthDate,
           email: basicData.email,
+          whatsapp: basicData.whatsapp,
+          phone: basicData.whatsapp,
+          password: basicData.password,
           address: basicData.address,
           document: basicData.document!,
           createdAt: new Date().toISOString(),
@@ -337,12 +353,16 @@ function QualificacaoContent() {
           exposureOpinion: qualitativeData.exposureOpinion.slice(0, 50),
           mainGoal: qualitativeData.mainGoal.slice(0, 50),
         },
-        appointment: appointment.date ? appointment : {
-          date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-          timeSlot: '15:00',
-          status: 'scheduled',
+        appointment: {
+          date: appointment.date,
+          timeSlot: appointment.timeSlot,
+          status: 'aguardando_reuniao' as const,
+          notes: `Plano Pretendido: ${selectedPlan.toUpperCase()} (${selectedBilling})`,
+          whatsapp: basicData.whatsapp,
         },
-        curationStatus: 'submitted',
+        planId: selectedPlan,
+        billingInterval: selectedBilling,
+        curationStatus: 'AGUARDANDO_REUNIAO' as const,
       };
 
       const res = await fetch('/api/creators/register', {
@@ -352,7 +372,8 @@ function QualificacaoContent() {
       });
 
       if (!res.ok) {
-        throw new Error(t('err_submission_failed'));
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || t('err_submission_failed'));
       }
 
       try {
@@ -457,66 +478,72 @@ function QualificacaoContent() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           {submitted ? (
             /* ═══════════════════════════════════════════════════════════════
-               TELA DE SUCESSO & CONFIRMAÇÃO DE AGENDAMENTO
+               TELA DE SUCESSO & CONFIRMAÇÃO DE AGENDAMENTO DE CURADORIA
             ═══════════════════════════════════════════════════════════════ */
-            <div className="bg-white border-2 border-[#C9A96B] p-5 sm:p-8 md:p-14 text-center space-y-6 sm:space-y-8 shadow-2xl animate-in fade-in duration-500">
+            <div className="bg-white border-2 border-[#C9A96B] p-6 sm:p-10 md:p-14 text-center space-y-6 sm:space-y-8 shadow-2xl animate-in fade-in duration-500">
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#C9A96B]/20 text-[#8C6B2F] rounded-full flex items-center justify-center mx-auto border border-[#C9A96B]">
                 <CalendarCheck className="w-8 h-8 sm:w-10 sm:h-10 stroke-[1.5]" />
               </div>
 
               <div className="space-y-2 sm:space-y-3">
                 <span className="text-[10px] uppercase tracking-[0.3em] text-[#8C6B2F] font-sans font-semibold">
-                  {t('qual_success_badge')}
+                  MESA DE CURADORIA LUMIARDI
                 </span>
                 <h2 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-5xl font-light text-[#0B0B0B] leading-tight">
-                  {t('qual_success_title')}
+                  Entrevista de Curadoria Agendada
                 </h2>
                 <p className="text-xs sm:text-sm md:text-base text-[#0B0B0B]/75 font-sans leading-relaxed max-w-xl mx-auto font-light">
-                  {t('qual_success_desc')}
+                  Sua candidatura preliminar e validação biométrica foram registradas com sucesso. A próxima etapa obrigatória é a reunião de alinhamento com nossa Mesa de Curadoria.
                 </p>
               </div>
 
               {/* Card Resumo do Agendamento */}
               <div className="bg-[#FAF7F2] border border-[#C9A96B]/40 p-4 sm:p-6 max-w-md mx-auto text-left space-y-3">
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_creator_label')}</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Candidata</span>
                   <span className="font-serif-lumiardi text-base sm:text-lg font-medium text-[#0B0B0B] truncate max-w-[200px]">{qualitativeData.artisticName || basicData.fullName}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_insta_label')}</span>
-                  <span className="text-xs font-sans text-[#8C6B2F] font-semibold truncate max-w-[200px]">{qualitativeData.platforms.instagram}</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">WhatsApp Cadastrado</span>
+                  <span className="text-xs font-mono text-[#8C6B2F] font-bold truncate max-w-[200px]">{basicData.whatsapp}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_date_label')}</span>
-                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? appointment.date.split('-').reverse().join('/') : t('qual_summary_tbd')}</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Data da Entrevista</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? appointment.date.split('-').reverse().join('/') : 'A definir'}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Horário Agendado</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.timeSlot} (Horário de Brasília)</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_time_label')}</span>
-                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.timeSlot} {t('qual_summary_tz')}</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Plano Pretendido</span>
+                  <span className="text-xs font-mono uppercase tracking-wider text-[#8C6B2F] font-semibold">{selectedPlan.toUpperCase()} ({selectedBilling === 'yearly' ? 'Anual' : 'Mensal'})</span>
                 </div>
               </div>
 
-              <div className="p-3.5 sm:p-4 bg-emerald-50 border border-emerald-200 text-[11px] sm:text-xs text-emerald-800 font-sans flex items-center justify-center gap-2 max-w-md mx-auto">
-                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>{t('qual_success_email_note')} <strong className="break-all">{basicData.email}</strong></span>
+              {/* Aviso Editorial de Próximos Passos */}
+              <div className="p-4 bg-amber-50/80 border border-amber-300 text-[11px] sm:text-xs text-amber-900 font-sans text-left space-y-1.5 max-w-md mx-auto leading-relaxed">
+                <div className="flex items-center gap-2 font-semibold text-amber-950 uppercase tracking-wider text-[10px]">
+                  <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>Protocolo de Entrada Lumiardi</span>
+                </div>
+                <p>
+                  No horário agendado, a Mesa de Curadoria enviará o link seguro da sala confidencial do Google Meet diretamente para o seu WhatsApp.
+                </p>
+                <p className="text-[10px] text-amber-800/90 pt-1 border-t border-amber-200">
+                  ⚠️ <strong>Regra de Negócio:</strong> O pagamento da assinatura e a liberação de acesso à plataforma ocorrem exclusivamente após a conclusão desta reunião.
+                </p>
               </div>
 
               <div className="pt-4 sm:pt-6 border-t border-[#0B0B0B]/10 flex flex-col gap-3 justify-center max-w-md mx-auto">
                 <Button
                   variant="primary"
-                  onClick={() => router.push(`/checkout?plan=${selectedPlan}&category=criadoras&billing=${selectedBilling}&currency=${activeCurrency}`)}
-                  className="w-full py-3.5 sm:py-4 px-4 text-xs sm:text-sm tracking-[0.15em] sm:tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl leading-normal text-center"
-                >
-                  <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                  <span>Prosseguir para Pagamento do Plano ({selectedPlan.toUpperCase()}) →</span>
-                </Button>
-                <button
-                  type="button"
                   onClick={() => router.push('/dashboard/pendente')}
-                  className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/60 hover:text-[#8C6B2F] py-2 transition-colors cursor-pointer text-center"
+                  className="w-full py-4 px-6 text-xs sm:text-sm tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl leading-normal text-center cursor-pointer"
                 >
-                  Ver Status da Minha Curadoria
-                </button>
+                  <CalendarCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
+                  <span>Acompanhar Status da Entrevista →</span>
+                </Button>
               </div>
             </div>
           ) : (
@@ -579,8 +606,8 @@ function QualificacaoContent() {
                       </div>
                     </div>
 
-                    {/* Data de Nascimento, E-mail e Senha */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Data de Nascimento e WhatsApp / Celular com DDD */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
                           {t('qual_birthdate_label')}
@@ -594,6 +621,36 @@ function QualificacaoContent() {
                         />
                       </div>
 
+                      <div>
+                        <label className="block text-[#0B0B0B]/90 font-semibold mb-1 uppercase tracking-wider flex items-center justify-between">
+                          <span>WhatsApp com DDD (Link do Meet)</span>
+                          <span className="text-[10px] font-mono text-[#8C6B2F] font-bold">OBRIGATÓRIO</span>
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="(11) 99999-9999"
+                          value={basicData.whatsapp}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '');
+                            if (val.length > 11) val = val.substring(0, 11);
+                            if (val.length > 6) {
+                              val = `(${val.substring(0, 2)}) ${val.substring(2, 7)}-${val.substring(7)}`;
+                            } else if (val.length > 2) {
+                              val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                            }
+                            setBasicData({ ...basicData, whatsapp: val });
+                          }}
+                          className="w-full px-4 py-3 border-2 border-[#C9A96B]/60 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B] font-medium"
+                        />
+                        <span className="text-[10px] text-[#0B0B0B]/60 mt-1 block">
+                          Número onde você receberá o convite confidencial do Google Meet no horário da reunião.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* E-mail e Senha */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
                           {t('qual_email_label')}
@@ -1383,10 +1440,10 @@ function QualificacaoContent() {
                       type="button"
                       disabled={isSubmitting}
                       onClick={handleFinalSubmit}
-                      className="w-full sm:w-auto px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] sm:tracking-[0.25em] font-semibold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 text-center"
+                      className="w-full sm:w-auto px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] sm:tracking-[0.25em] font-bold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 text-center"
                     >
                       <Check className="w-4 h-4 shrink-0" />
-                      <span>{isSubmitting ? t('qual_btn_submitting') : t('qual_btn_final_submit')}</span>
+                      <span>{isSubmitting ? t('qual_btn_submitting') : 'Concluir Agendamento de Curadoria →'}</span>
                     </button>
                   </div>
                 </div>

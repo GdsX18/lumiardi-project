@@ -40,6 +40,7 @@ import {
   Shield,
   Lock,
   Headphones,
+  CreditCard,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -48,6 +49,7 @@ import { CurationDossierExport } from '@/components/admin/CurationDossierExport'
 import { CurationTeamTab } from '@/components/admin/CurationTeamTab';
 import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
 import { AdminChatTab } from '@/components/admin/AdminChatTab';
+import { InterviewQueueTab } from '@/components/admin/InterviewQueueTab';
 import { CurationRole } from '@/types';
 
 interface Application {
@@ -55,8 +57,11 @@ interface Application {
   email: string;
   fullName: string;
   role: 'criadora' | 'agencia';
-  curationStatus: 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO' | 'RECUSADO';
+  curationStatus: 'EM_CURATORIA' | 'AGUARDANDO_REUNIAO' | 'APROVADA_PAGAMENTO' | 'APROVADO' | 'REJEITADO' | 'RECUSADO';
   phone?: string;
+  whatsapp?: string;
+  interviewDate?: string;
+  interviewTime?: string;
   documentType?: string;
   documentName?: string;
   documentUrl?: string;
@@ -103,7 +108,7 @@ interface Metrics {
 }
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'team' | 'audit' | 'chat'>('criadora');
+  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'interviews' | 'team' | 'audit' | 'chat'>('criadora');
   const [currentCurator, setCurrentCurator] = useState<{
     id: string;
     email: string;
@@ -191,7 +196,7 @@ export default function AdminDashboardPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
-      if (tab === 'chat' || tab === 'team' || tab === 'audit' || tab === 'criadora' || tab === 'agencia') {
+      if (tab === 'chat' || tab === 'team' || tab === 'audit' || tab === 'criadora' || tab === 'agencia' || tab === 'interviews') {
         setActiveTab(tab as any);
       }
     }
@@ -276,6 +281,30 @@ export default function AdminDashboardPage() {
       }
     } catch (e) {
       console.error('Erro ao aprovar credencial:', e);
+    } finally {
+      setProcessingDecision(false);
+    }
+  };
+
+  const handleApproveForPayment = async (appId: string) => {
+    setProcessingDecision(true);
+    try {
+      const res = await fetch(`/api/admin/applications/${appId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'APROVADA_PAGAMENTO' }),
+      });
+
+      if (res.ok) {
+        setActionSuccessMsg('Candidata homologada para pagamento com sucesso!');
+        setTimeout(() => setActionSuccessMsg(null), 4000);
+        await loadData();
+        if (selectedApp?.id === appId) {
+          setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'APROVADA_PAGAMENTO' } : null));
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao aprovar para pagamento:', e);
     } finally {
       setProcessingDecision(false);
     }
@@ -519,6 +548,18 @@ export default function AdminDashboardPage() {
               </button>
 
               <button
+                onClick={() => setActiveTab('interviews')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
+                  activeTab === 'interviews'
+                    ? 'bg-gold text-black-matte font-bold shadow-md shadow-gold/20'
+                    : 'bg-[#121212] text-ivory/70 hover:text-ivory border border-white/[0.08]'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Entrevistas de Curadoria</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('team')}
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
                   activeTab === 'team'
@@ -575,8 +616,10 @@ export default function AdminDashboardPage() {
                   className="bg-[#121212] border border-white/[0.12] focus:border-gold px-3 py-1.5 text-xs text-ivory outline-none rounded-sm cursor-pointer"
                 >
                   <option value="ALL">Status: Todos</option>
-                  <option value="EM_CURATORIA">Pendentes (Em Curadoria)</option>
-                  <option value="APROVADO">Aprovados</option>
+                  <option value="AGUARDANDO_REUNIAO">Aguardando Reunião</option>
+                  <option value="EM_CURATORIA">Em Curadoria / Análise</option>
+                  <option value="APROVADA_PAGAMENTO">Aprovadas p/ Pagamento</option>
+                  <option value="APROVADO">Aprovados (Ativos)</option>
                   <option value="REJEITADO">Recusados</option>
                 </select>
 
@@ -615,6 +658,13 @@ export default function AdminDashboardPage() {
 
           {activeTab === 'audit' && (
             <AuditLogsTab currentCuratorRole={currentCurator?.curationRole || 'admin'} />
+          )}
+
+          {activeTab === 'interviews' && (
+            <InterviewQueueTab
+              currentCuratorRole={currentCurator?.curationRole || 'admin'}
+              onRefreshMetrics={loadData}
+            />
           )}
 
           {(activeTab === 'criadora' || activeTab === 'agencia') && (
@@ -700,8 +750,11 @@ export default function AdminDashboardPage() {
                       </thead>
                       <tbody className="divide-y divide-white/[0.04]">
                         {filteredApps.map((app) => {
-                          const isPending = app.curationStatus === 'EM_CURATORIA';
+                          const isAwaitingMeeting = app.curationStatus === 'AGUARDANDO_REUNIAO';
+                          const isUnderReview = app.curationStatus === 'EM_CURATORIA';
+                          const isApprovedPayment = app.curationStatus === 'APROVADA_PAGAMENTO';
                           const isApproved = app.curationStatus === 'APROVADO';
+                          const isRejected = app.curationStatus === 'REJEITADO' || app.curationStatus === 'RECUSADO';
 
                           return (
                             <tr
@@ -755,21 +808,34 @@ export default function AdminDashboardPage() {
                               </td>
 
                               <td className="py-3.5 px-4">
-                                {isPending ? (
+                                {isAwaitingMeeting ? (
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-sky-500/10 text-sky-400 border border-sky-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                      <Calendar className="w-3 h-3 text-sky-400" /> Aguardando Reunião
+                                    </span>
+                                    {app.interviewDate && (
+                                      <span className="text-[9px] font-mono text-ivory/60 block">
+                                        {app.interviewDate.split('-').reverse().join('/')} às {app.interviewTime || '14:00'}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : isUnderReview ? (
                                   <div className="space-y-1">
                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
                                       <Clock className="w-3 h-3" /> Em Curadoria
                                     </span>
-                                    {app.paymentInfo?.hasPaid && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono rounded-xs">
-                                        ✓ {app.paymentInfo.planId?.toUpperCase() || 'PAGO'} (R$ {Number(app.paymentInfo.amount || 0).toFixed(2)})
-                                      </span>
-                                    )}
+                                  </div>
+                                ) : isApprovedPayment ? (
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#C9A96B]/15 text-[#C9A96B] border border-[#C9A96B]/40 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                      <CreditCard className="w-3 h-3" /> Aprovada p/ Pagamento
+                                    </span>
+                                    <span className="text-[9px] font-mono text-ivory/50 block">Aguardando Checkout</span>
                                   </div>
                                 ) : isApproved ? (
                                   <div className="space-y-1">
                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
-                                      <CheckCircle2 className="w-3 h-3" /> Aprovado
+                                      <CheckCircle2 className="w-3 h-3" /> Aprovado (Ativo)
                                     </span>
                                     {app.paymentInfo?.planId && (
                                       <span className="text-[9px] font-mono text-gold block">
@@ -777,13 +843,21 @@ export default function AdminDashboardPage() {
                                       </span>
                                     )}
                                   </div>
-                                ) : (
+                                ) : isRejected ? (
                                   <div className="space-y-1">
                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
                                       <XCircle className="w-3 h-3" /> Recusado
                                     </span>
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[9px] font-mono rounded-xs">
-                                      ↩ Estornado
+                                    {app.paymentInfo?.hasPaid && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-950/40 text-rose-300 border border-rose-500/20 text-[9px] font-mono rounded-xs">
+                                        ↩ Estornado
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-neutral-800 text-ivory/70 border border-white/10 text-[10px] font-semibold uppercase tracking-wider rounded-xs">
+                                      {app.curationStatus || 'Pendente'}
                                     </span>
                                   </div>
                                 )}
@@ -792,7 +866,7 @@ export default function AdminDashboardPage() {
                               <td className="py-3.5 px-4 text-right">
                                 <Button
                                   size="sm"
-                                  variant={isPending ? 'primary' : 'secondary'}
+                                  variant={isAwaitingMeeting || isUnderReview || isApprovedPayment ? 'primary' : 'secondary'}
                                   onClick={() => setSelectedApp(app)}
                                   className="text-[10px] uppercase tracking-wider py-1.5 px-3 cursor-pointer"
                                 >
@@ -838,15 +912,27 @@ export default function AdminDashboardPage() {
                 <CurationDossierExport application={selectedApp} auditorEmail="curadoria@lumiardi.com" />
 
                 <span
-                  className={`text-[10px] font-sans px-2.5 py-1 uppercase tracking-widest font-semibold rounded-xs border ${
+                  className={`text-[10px] font-sans px-2.5 py-1 uppercase tracking-widest font-semibold rounded-xs border flex items-center gap-1.5 ${
                     selectedApp.curationStatus === 'APROVADO'
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : selectedApp.curationStatus === 'APROVADA_PAGAMENTO'
+                      ? 'bg-[#D4AF37]/15 text-[#F5D77F] border-[#D4AF37]/40'
+                      : selectedApp.curationStatus === 'AGUARDANDO_REUNIAO'
+                      ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
                       : selectedApp.curationStatus === 'REJEITADO' || selectedApp.curationStatus === 'RECUSADO'
                       ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                       : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
                   }`}
                 >
-                  {selectedApp.curationStatus === 'REJEITADO' ? 'RECUSADO' : selectedApp.curationStatus}
+                  {selectedApp.curationStatus === 'APROVADO'
+                    ? 'Credencial Ativa'
+                    : selectedApp.curationStatus === 'APROVADA_PAGAMENTO'
+                    ? 'Aprovada p/ Pagamento'
+                    : selectedApp.curationStatus === 'AGUARDANDO_REUNIAO'
+                    ? 'Aguardando Reunião'
+                    : selectedApp.curationStatus === 'REJEITADO' || selectedApp.curationStatus === 'RECUSADO'
+                    ? 'Recusada'
+                    : 'Em Análise Preliminar'}
                 </span>
 
                 <button
@@ -860,6 +946,53 @@ export default function AdminDashboardPage() {
 
             {/* Conteúdo com Scroll */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Card de Alinhamento da Entrevista / Reunião (quando agendada) */}
+              {(selectedApp.curationStatus === 'AGUARDANDO_REUNIAO' || selectedApp.interviewDate) && (
+                <div className="p-4 bg-gradient-to-r from-sky-950/40 via-[#0f172a]/60 to-black/60 border border-sky-500/40 rounded-sm space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-sky-400 font-semibold flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                        Reunião de Curadoria Agendada
+                      </span>
+                      <p className="text-xs text-ivory/90">
+                        Data e Horário: <strong className="text-sky-300 font-mono text-sm">{selectedApp.interviewDate ? new Date(selectedApp.interviewDate).toLocaleDateString('pt-BR') : 'A definir'} às {selectedApp.interviewTime || 'A definir'}</strong> (Horário de Brasília)
+                      </p>
+                      <p className="text-[11px] text-ivory/60">
+                        WhatsApp do Candidato: <span className="text-emerald-400 font-mono font-medium">{selectedApp.whatsapp || selectedApp.phone || 'Não informado'}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const rawPhone = (selectedApp.whatsapp || selectedApp.phone || '').replace(/\D/g, '');
+                        const cleanPhone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
+                        const meetMsg = encodeURIComponent(
+                          `Olá ${selectedApp.fullName}! Aqui é da Mesa de Curadoria da Lumiardi.\n\nConfirmamos a sua reunião de curadoria prévia para o dia ${selectedApp.interviewDate ? new Date(selectedApp.interviewDate).toLocaleDateString('pt-BR') : ''} às ${selectedApp.interviewTime || ''} (Horário de Brasília).\n\nSegue o link da sala virtual no Google Meet:\nhttps://meet.google.com/new\n\nPodemos confirmar sua presença?`
+                        );
+                        return (
+                          <a
+                            href={rawPhone ? `https://wa.me/${cleanPhone}?text=${meetMsg}` : '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              if (!rawPhone) {
+                                e.preventDefault();
+                                alert('Número de WhatsApp não informado pelo candidato.');
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-sm transition-colors flex items-center gap-2 shadow-sm"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>Enviar Google Meet via WhatsApp</span>
+                          </a>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Seção 0: Status Financeiro & Plano Contratado */}
               <div className="p-4 bg-gradient-to-r from-[#181611] to-[#111] border border-gold/40 rounded-sm space-y-3">
                 <div className="flex items-center justify-between">
@@ -1041,27 +1174,34 @@ export default function AdminDashboardPage() {
                           {selectedApp.documentType || (selectedApp.role === 'agencia' ? 'Contrato Social & Cartão CNPJ' : 'Documento Oficial de Identificação')}
                         </span>
                         <span className="text-[10px] text-ivory/50 block">
-                          Arquivo: {selectedApp.documentName || 'documento_oficial.jpg'} (Custódia 18 U.S.C. § 2257)
+                          Arquivo: {selectedApp.documentName || 'Não anexado'} (Custódia 18 U.S.C. § 2257)
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          openLightbox([
-                            {
-                              url: selectedApp.documentUrl || '/api/media/assets/images/hero_visual.jpg',
-                              title: `Documento de Identificação - ${selectedApp.fullName}`,
-                              tag: 'Documento 2257',
-                            },
-                          ])
-                        }
-                        className="px-3 py-1.5 bg-[#1C1C1C] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
-                      >
-                        <ZoomIn className="w-3.5 h-3.5" />
-                        <span>Inspecionar Documento</span>
-                      </button>
+                      {selectedApp.documentUrl ? (
+                        <button
+                          onClick={() =>
+                            openLightbox([
+                              {
+                                url: selectedApp.documentUrl!,
+                                title: `Documento de Identificação - ${selectedApp.fullName}`,
+                                tag: 'Documento 2257',
+                              },
+                            ])
+                          }
+                          className="px-3 py-1.5 bg-[#1C1C1C] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                          <span>Inspecionar Documento</span>
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] text-ivory/40 text-xs font-sans rounded-sm flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-ivory/30" />
+                          <span>Documento Físico / Pendente de Envio</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1097,21 +1237,17 @@ export default function AdminDashboardPage() {
                       <span className="text-[11px] text-ivory/60 font-sans block">
                         Fotos de Portfólio (Clique para Zoom):
                       </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(() => {
-                          const photosList = [
-                            { url: selectedApp.profile?.photos?.[0]?.url || '/api/media/assets/images/creator_elena.jpg', title: `${selectedApp.fullName} - Ensaio 01`, tag: 'Foto 01' },
-                            { url: selectedApp.profile?.photos?.[1]?.url || '/api/media/assets/images/creator_sophia.jpg', title: `${selectedApp.fullName} - Ensaio 02`, tag: 'Foto 02' },
-                          ];
-                          return photosList.map((p, pIdx) => (
+                      {selectedApp.profile?.photos && selectedApp.profile.photos.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {selectedApp.profile.photos.map((p, pIdx) => (
                             <div
                               key={pIdx}
-                              onClick={() => openLightbox(photosList, pIdx)}
+                              onClick={() => openLightbox(selectedApp.profile!.photos!.map(ph => ({ url: ph.url, title: ph.title || `${selectedApp.fullName} - Ensaio`, tag: 'Ensaio' })), pIdx)}
                               className="relative aspect-[3/4] bg-black border border-white/[0.08] hover:border-gold/60 overflow-hidden rounded-sm cursor-pointer group transition-all"
                             >
                               <Image
                                 src={p.url}
-                                alt={p.title}
+                                alt={p.title || `Foto ${pIdx + 1}`}
                                 fill
                                 className="object-cover group-hover:scale-105 transition-transform duration-300"
                               />
@@ -1119,9 +1255,14 @@ export default function AdminDashboardPage() {
                                 <ZoomIn className="w-6 h-6" />
                               </div>
                             </div>
-                          ));
-                        })()}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 bg-black/40 border border-white/[0.06] rounded-sm text-center flex flex-col items-center justify-center min-h-[140px]">
+                          <Eye className="w-5 h-5 text-ivory/20 mb-1.5" />
+                          <p className="text-xs text-ivory/50">Nenhum ensaio fotográfico preliminar anexado.</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Vídeo Showreel */}
@@ -1129,57 +1270,79 @@ export default function AdminDashboardPage() {
                       <span className="text-[11px] text-ivory/60 font-sans block">
                         Vídeo de Apresentação / Showreel:
                       </span>
-                      <div
-                        onClick={() =>
-                          openLightbox([
-                            {
-                              url: selectedApp.profile?.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-                              title: `Vídeo de Apresentação - ${selectedApp.fullName}`,
-                              type: 'video',
-                            },
-                          ])
-                        }
-                        className="relative aspect-[4/3] bg-black border border-gold/30 hover:border-gold overflow-hidden rounded-sm flex items-center justify-center group cursor-pointer"
-                      >
-                        <video
-                          src={selectedApp.profile?.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'}
-                          className="w-full h-full object-cover pointer-events-none"
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <div className="w-12 h-12 rounded-full bg-gold text-black-matte flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                      {selectedApp.profile?.videoUrl ? (
+                        <div
+                          onClick={() =>
+                            openLightbox([
+                              {
+                                url: selectedApp.profile!.videoUrl!,
+                                title: `Vídeo de Apresentação - ${selectedApp.fullName}`,
+                                type: 'video',
+                              },
+                            ])
+                          }
+                          className="relative aspect-[4/3] bg-black border border-gold/30 hover:border-gold overflow-hidden rounded-sm flex items-center justify-center group cursor-pointer"
+                        >
+                          <video
+                            src={selectedApp.profile.videoUrl}
+                            className="w-full h-full object-cover pointer-events-none"
+                          />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <div className="w-12 h-12 rounded-full bg-gold text-black-matte flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                              <Play className="w-5 h-5 fill-current ml-0.5" />
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="p-6 bg-black/40 border border-white/[0.06] rounded-sm text-center flex flex-col items-center justify-center min-h-[140px]">
+                          <Video className="w-5 h-5 text-ivory/20 mb-1.5" />
+                          <p className="text-xs text-ivory/50">Nenhum vídeo de apresentação submetido.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Medidas */}
-                  {selectedApp.profile?.measurements && (
+                  {/* Medidas Corporais Reais */}
+                  {selectedApp.profile?.measurements &&
+                    (selectedApp.profile.measurements.height ||
+                      selectedApp.profile.measurements.weight ||
+                      selectedApp.profile.measurements.waist ||
+                      selectedApp.profile.measurements.bust ||
+                      selectedApp.profile.measurements.hips) && (
                     <div className="p-3.5 bg-[#141414] border border-white/[0.06] rounded-sm">
                       <span className="text-[10px] uppercase tracking-wider text-ivory/50 font-semibold block mb-2">
-                        Ficha Técnica Corporal:
+                        Ficha Técnica Corporal Declarada:
                       </span>
                       <div className="grid grid-cols-5 gap-2 text-center text-xs font-sans">
                         <div className="bg-[#181818] p-2 border border-white/[0.04]">
                           <span className="text-[10px] text-ivory/40 block">Altura</span>
-                          <span className="font-semibold text-gold">{selectedApp.profile.measurements.height || '175'} cm</span>
+                          <span className="font-semibold text-gold">
+                            {selectedApp.profile.measurements.height ? `${selectedApp.profile.measurements.height} cm` : '-'}
+                          </span>
                         </div>
                         <div className="bg-[#181818] p-2 border border-white/[0.04]">
                           <span className="text-[10px] text-ivory/40 block">Peso</span>
-                          <span className="font-semibold text-gold">{selectedApp.profile.measurements.weight || '55'} kg</span>
+                          <span className="font-semibold text-gold">
+                            {selectedApp.profile.measurements.weight ? `${selectedApp.profile.measurements.weight} kg` : '-'}
+                          </span>
                         </div>
                         <div className="bg-[#181818] p-2 border border-white/[0.04]">
                           <span className="text-[10px] text-ivory/40 block">Cintura</span>
-                          <span className="font-semibold text-gold">{selectedApp.profile.measurements.waist || '60'} cm</span>
+                          <span className="font-semibold text-gold">
+                            {selectedApp.profile.measurements.waist ? `${selectedApp.profile.measurements.waist} cm` : '-'}
+                          </span>
                         </div>
                         <div className="bg-[#181818] p-2 border border-white/[0.04]">
                           <span className="text-[10px] text-ivory/40 block">Busto</span>
-                          <span className="font-semibold text-gold">{selectedApp.profile.measurements.bust || '88'} cm</span>
+                          <span className="font-semibold text-gold">
+                            {selectedApp.profile.measurements.bust ? `${selectedApp.profile.measurements.bust} cm` : '-'}
+                          </span>
                         </div>
                         <div className="bg-[#181818] p-2 border border-white/[0.04]">
                           <span className="text-[10px] text-ivory/40 block">Quadril</span>
-                          <span className="font-semibold text-gold">{selectedApp.profile.measurements.hips || '90'} cm</span>
+                          <span className="font-semibold text-gold">
+                            {selectedApp.profile.measurements.hips ? `${selectedApp.profile.measurements.hips} cm` : '-'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1261,8 +1424,13 @@ export default function AdminDashboardPage() {
             {/* Rodapé do Modal: Mesa de Decisão */}
             {(() => {
               const isJunior = currentCurator?.curationRole === 'curador_junior';
+              const isWaitingMeeting = selectedApp.curationStatus === 'AGUARDANDO_REUNIAO';
+              const isApprovedPayment = selectedApp.curationStatus === 'APROVADA_PAGAMENTO';
+              const isApproved = selectedApp.curationStatus === 'APROVADO';
+              const isRejected = selectedApp.curationStatus === 'REJEITADO' || selectedApp.curationStatus === 'RECUSADO';
+
               return (
-                <div className="px-6 py-4 border-t border-white/[0.08] bg-[#111111] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="px-6 py-4 border-t border-white/[0.08] bg-[#111111] flex flex-col sm:flex-row items-center justify-between gap-4">
                   {isJunior ? (
                     <span className="text-[11px] font-sans text-amber-400 bg-amber-950/40 border border-amber-500/30 px-3 py-1.5 rounded-xs flex items-center gap-1.5">
                       <Lock className="w-3.5 h-3.5 shrink-0" />
@@ -1271,31 +1439,122 @@ export default function AdminDashboardPage() {
                       </span>
                     </span>
                   ) : (
-                    <span className="text-[11px] font-sans text-ivory/40">
-                      A aprovação liberará o login imediato do usuário no painel operacional.
+                    <span className="text-[11px] font-sans text-ivory/50">
+                      {isWaitingMeeting
+                        ? 'Após realizar a entrevista por Google Meet, clique em "Reunião Aceita" para liberar o pagamento da adesão no Asaas.'
+                        : isApprovedPayment
+                        ? 'Candidata homologada na entrevista. Aguardando confirmação do pagamento no Asaas ou confirmação manual.'
+                        : isApproved
+                        ? 'Credencial ativa com acesso irrestrito ao painel e catálogo operacional.'
+                        : isRejected
+                        ? 'Candidatura recusada pela Mesa de Curadoria.'
+                        : 'Avalie as informações cadastrais antes de homologar a candidata.'}
                     </span>
                   )}
 
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowRejectModal(true)}
-                      disabled={processingDecision || isJunior}
-                      className="flex-1 sm:flex-none border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs uppercase tracking-wider py-2.5 px-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <X className="w-4 h-4 mr-1.5" />
-                      Recusar Credencial
-                    </Button>
+                  <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+                    {/* Botão de Recusar (se não estiver recusado) */}
+                    {!isRejected && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setShowRejectModal(true)}
+                        disabled={processingDecision || isJunior}
+                        className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs uppercase tracking-wider py-2.5 px-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <X className="w-4 h-4 mr-1.5" />
+                        Recusar Candidatura
+                      </Button>
+                    )}
 
-                    <Button
-                      variant="primary"
-                      onClick={() => handleApprove(selectedApp.id)}
-                      disabled={processingDecision || isJunior || selectedApp.curationStatus === 'APROVADO'}
-                      className="flex-1 sm:flex-none text-xs font-bold uppercase tracking-wider py-2.5 px-5 cursor-pointer shadow-lg shadow-gold/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Check className="w-4 h-4 mr-1.5" />
-                      {processingDecision ? 'Processando...' : selectedApp.curationStatus === 'APROVADO' ? 'Já Aprovado' : 'Aprovar Credencial'}
-                    </Button>
+                    {/* Botão de WhatsApp rápido se tiver telefone */}
+                    {(selectedApp.whatsapp || selectedApp.phone) && (
+                      <a
+                        href={`https://wa.me/${(selectedApp.whatsapp || selectedApp.phone || '').replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2.5 bg-[#1C1C1C] hover:bg-white/[0.08] border border-white/[0.12] text-ivory text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
+
+                    {/* Caso 1: AGUARDANDO_REUNIAO -> Botão "Reunião Aceita: Liberar Pagamento" */}
+                    {isWaitingMeeting && (
+                      <Button
+                        variant="primary"
+                        onClick={() => handleApproveForPayment(selectedApp.id)}
+                        disabled={processingDecision || isJunior}
+                        className="bg-gradient-to-r from-amber-600 via-gold to-amber-500 hover:brightness-110 text-black-matte text-xs font-bold uppercase tracking-wider py-2.5 px-5 cursor-pointer shadow-lg shadow-gold/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Check className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+                        {processingDecision ? 'Processando...' : 'Reunião Realizada & Aceita (Liberar Pagamento)'}
+                      </Button>
+                    )}
+
+                    {/* Caso 2: APROVADA_PAGAMENTO -> Botão "Confirmar Pagamento Manual & Ativar" */}
+                    {isApprovedPayment && (
+                      <Button
+                        variant="primary"
+                        onClick={() => handleApprove(selectedApp.id)}
+                        disabled={processingDecision || isJunior}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider py-2.5 px-5 cursor-pointer shadow-lg shadow-emerald-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <CreditCard className="w-4 h-4 mr-1.5" />
+                        {processingDecision ? 'Processando...' : 'Confirmar Pagamento & Ativar Acesso'}
+                      </Button>
+                    )}
+
+                    {/* Caso 3: APROVADO -> Credencial Plena Ativa */}
+                    {isApproved && (
+                      <span className="px-4 py-2 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-semibold uppercase tracking-wider rounded-sm flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        Credencial Plena Ativa
+                      </span>
+                    )}
+
+                    {/* Caso 4: REJEITADO -> Reabrir Candidatura */}
+                    {isRejected && (
+                      <Button
+                        variant="secondary"
+                        onClick={async () => {
+                          setProcessingDecision(true);
+                          try {
+                            const res = await fetch(`/api/admin/applications/${selectedApp.id}/status`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ status: 'AGUARDANDO_REUNIAO' }),
+                            });
+                            if (res.ok) {
+                              setActionSuccessMsg('Candidatura reaberta para a fila de reunião!');
+                              setTimeout(() => setActionSuccessMsg(null), 4000);
+                              await loadData();
+                              setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'AGUARDANDO_REUNIAO' } : null));
+                            }
+                          } finally {
+                            setProcessingDecision(false);
+                          }
+                        }}
+                        disabled={processingDecision || isJunior}
+                        className="border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-xs uppercase tracking-wider py-2.5 px-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1.5" />
+                        {processingDecision ? 'Processando...' : 'Reabrir para Reunião'}
+                      </Button>
+                    )}
+
+                    {/* Caso 5: EM_CURATORIA (outras aplicações preliminares) */}
+                    {!isWaitingMeeting && !isApprovedPayment && !isApproved && !isRejected && (
+                      <Button
+                        variant="primary"
+                        onClick={() => handleApproveForPayment(selectedApp.id)}
+                        disabled={processingDecision || isJunior}
+                        className="bg-gradient-to-r from-amber-600 via-gold to-amber-500 hover:brightness-110 text-black-matte text-xs font-bold uppercase tracking-wider py-2.5 px-5 cursor-pointer shadow-lg shadow-gold/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Check className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+                        {processingDecision ? 'Processando...' : 'Reunião Realizada & Aceita (Liberar Pagamento)'}
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

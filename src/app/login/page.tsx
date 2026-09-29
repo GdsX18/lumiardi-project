@@ -56,6 +56,9 @@ function LoginForm() {
 
       if (data.user.curationStatus === 'APROVADO') {
         router.push(redirectUrl || '/dashboard');
+      } else if (data.user.curationStatus === 'APROVADA_PAGAMENTO') {
+        const planQuery = data.user.planId ? `?plan=${data.user.planId}&billing=${data.user.planBillingInterval || 'yearly'}` : '';
+        router.push(redirectUrl || `/checkout${planQuery}`);
       } else {
         router.push('/dashboard/pendente');
       }

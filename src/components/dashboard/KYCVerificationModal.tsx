@@ -40,6 +40,8 @@ export interface KYCVerificationModalProps {
     birthDate?: string;
     email?: string;
   };
+  initialStep?: 'intro' | 'document' | 'liveness' | 'processing' | 'approved' | 'rejected';
+  initialCameraError?: string;
 }
 
 export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
@@ -48,12 +50,14 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   onSuccess,
   onDocumentUpload,
   claimedData,
+  initialStep,
+  initialCameraError,
 }) => {
   const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const { currentUser, refreshData } = useAuthPortal();
 
-  const [step, setStep] = useState<'intro' | 'document' | 'liveness' | 'processing' | 'approved' | 'rejected'>('intro');
+  const [step, setStep] = useState<'intro' | 'document' | 'liveness' | 'processing' | 'approved' | 'rejected'>(initialStep || 'intro');
   const [docType, setDocType] = useState<'cnh' | 'passaporte' | 'rg'>('cnh');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
@@ -68,6 +72,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   const [verificationResult, setVerificationResult] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const selfieInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -78,11 +83,11 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setStep('intro');
+      setStep(initialStep || 'intro');
       setLivenessProgress(0);
       setIsScanning(false);
       setCameraActive(false);
-      setCameraPermissionError(null);
+      setCameraPermissionError(initialCameraError || null);
       setErrorMsg(null);
       setVerificationResult(null);
     } else {
@@ -170,7 +175,8 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }
   };
 
-  // Solicitar acesso real à câmera do dispositivo
+  // Solicitar acesso à câmera com pedido totalmente flexível (sem facingMode ou resoluções fixas)
+  // para permitir webcams virtuais (Iriun Webcam, OBS Virtual Camera, DroidCam) e câmeras físicas
   const requestCameraAccess = async () => {
     setCameraPermissionError(null);
     setErrorMsg(null);
@@ -180,16 +186,27 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         throw new Error(t('kyc_err_browser_no_cam'));
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 720 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        // Pedido flexível sem restrições de facingMode ou resolução fixa
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      } catch (firstErr) {
+        // Fallback para pedido mínimo absoluto
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
 
       streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch((err) => {
+          console.warn('Erro ao reproduzir vídeo:', err);
+        });
+      }
       setCameraActive(true);
 
       startFacialScanRoutine();
@@ -197,14 +214,48 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       console.error('Erro de permissão da câmera:', err);
       setCameraActive(false);
       const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('NotAllowedError') || msg.includes('Permission') || msg.includes('denied')) {
+      const name = err instanceof Error ? err.name : '';
+
+      if (
+        name === 'NotReadableError' ||
+        msg.includes('NotReadableError') ||
+        msg.includes('Could not start video source')
+      ) {
+        setCameraPermissionError(
+          'Não foi possível iniciar a fonte de vídeo (câmera ocupada por outro app ou indisponível). Você pode tentar novamente ou enviar uma foto do rosto abaixo.'
+        );
+      } else if (name === 'NotAllowedError' || msg.includes('NotAllowedError') || msg.includes('Permission') || msg.includes('denied')) {
         setCameraPermissionError(t('kyc_err_permission_denied'));
-      } else if (msg.includes('NotFoundError') || msg.includes('DevicesNotFoundError')) {
+      } else if (name === 'NotFoundError' || msg.includes('NotFoundError') || msg.includes('DevicesNotFoundError')) {
         setCameraPermissionError(t('kyc_err_no_cam_detected'));
       } else {
         setCameraPermissionError(t('kyc_err_cam_in_use'));
       }
     }
+  };
+
+  // Upload manual alternativo de foto do rosto (caso não tenha webcam ou a câmera dê erro)
+  const handleSelfieFileSelect = (file: File) => {
+    if (!file) return;
+
+    if (file.size > 25 * 1024 * 1024) {
+      setErrorMsg(t('kyc_err_file_max_size'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      let dataUrl = event.target?.result as string;
+      if (!dataUrl) return;
+
+      if (dataUrl.startsWith('data:application/octet-stream;base64,')) {
+        dataUrl = dataUrl.replace('data:application/octet-stream;base64,', 'data:image/jpeg;base64,');
+      }
+
+      stopCamera();
+      captureAndVerifyBiometrics(dataUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   // Rotina de Escaneamento e Captura Biométrica Real
@@ -235,11 +286,11 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     }, 120);
   };
 
-  // Captura o frame real da webcam usando um Canvas HTML5 e envia para a API
-  const captureAndVerifyBiometrics = async () => {
-    let capturedSelfieBase64 = '';
+  // Captura o frame real da webcam usando um Canvas HTML5 ou utiliza foto enviada e envia para a API
+  const captureAndVerifyBiometrics = async (overrideSelfieBase64?: string) => {
+    let capturedSelfieBase64 = overrideSelfieBase64 || '';
 
-    if (videoRef.current && videoRef.current.videoWidth > 0) {
+    if (!capturedSelfieBase64 && videoRef.current && videoRef.current.videoWidth > 0) {
       const canvas = document.createElement('canvas');
       canvas.width = Math.min(720, videoRef.current.videoWidth);
       canvas.height = Math.min(720, videoRef.current.videoHeight);
@@ -553,9 +604,22 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
           </div>
         )}
 
-        {/* ETAPA 3: Prova de Vida e Face Match com Câmera Real */}
+        {/* ETAPA 3: Prova de Vida e Face Match com Câmera Real ou Upload de Foto */}
         {step === 'liveness' && (
           <div className="space-y-6 text-center">
+            {/* Input oculto para carregar foto do rosto caso não tenha webcam ou ocorra erro */}
+            <input
+              type="file"
+              ref={selfieInputRef}
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleSelfieFileSelect(e.target.files[0]);
+                }
+              }}
+            />
+
             <div className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#C9A96B] shadow-[0_0_40px_rgba(201,169,107,0.35)] bg-neutral-950 flex items-center justify-center">
               <video
                 ref={videoRef}
@@ -594,14 +658,24 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     {cameraPermissionError}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={requestCameraAccess}
-                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>{t('kyc_btn_try_again')}</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={requestCameraAccess}
+                    className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{t('kyc_btn_try_again')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selfieInputRef.current?.click()}
+                    className="flex-1 py-2.5 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Enviar Foto do Rosto</span>
+                  </button>
+                </div>
               </div>
             ) : cameraActive ? (
               <div className="space-y-3">
@@ -615,17 +689,53 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     style={{ width: `${livenessProgress}%` }}
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopCamera();
+                    selfieInputRef.current?.click();
+                  }}
+                  className="text-[11px] text-ivory/50 hover:text-[#C9A96B] transition-colors inline-flex items-center gap-1.5 pt-1 cursor-pointer"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Problemas na câmera? Enviar foto do rosto</span>
+                </button>
               </div>
             ) : (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={requestCameraAccess}
+                  className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold font-sans flex items-center justify-center gap-2.5 cursor-pointer shadow-lg"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>{t('kyc_btn_activate_cam')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selfieInputRef.current?.click()}
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/15 text-ivory/90 hover:text-ivory text-xs uppercase tracking-wider font-semibold font-sans flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <UploadCloud className="w-4 h-4 text-[#C9A96B]" />
+                  <span>Enviar Foto do Rosto</span>
+                </button>
+              </div>
+            )}
+
+            <div className="pt-2">
               <button
                 type="button"
-                onClick={requestCameraAccess}
-                className="w-full py-4 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold font-sans flex items-center justify-center gap-2.5 cursor-pointer shadow-lg"
+                onClick={() => {
+                  stopCamera();
+                  setStep('document');
+                  setErrorMsg(null);
+                  setCameraPermissionError(null);
+                }}
+                className="text-[11px] text-ivory/40 hover:text-ivory transition-colors cursor-pointer"
               >
-                <Camera className="w-4 h-4" />
-                <span>{t('kyc_btn_activate_cam')}</span>
+                ← Voltar para seleção do documento
               </button>
-            )}
+            </div>
           </div>
         )}
 
@@ -660,15 +770,42 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               </p>
             </div>
 
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('liveness');
+                  setErrorMsg(null);
+                  requestCameraAccess();
+                }}
+                className="px-6 py-3 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-wider font-semibold transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Tentar Câmera Novamente</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('liveness');
+                  setErrorMsg(null);
+                  selfieInputRef.current?.click();
+                }}
+                className="px-6 py-3 bg-white/10 text-ivory hover:bg-white/20 text-xs uppercase tracking-wider font-semibold transition-all cursor-pointer border border-white/20 flex items-center justify-center gap-2"
+              >
+                <UploadCloud className="w-3.5 h-3.5 text-[#C9A96B]" />
+                <span>Enviar Foto do Rosto</span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => {
                 setStep('document');
                 setErrorMsg(null);
               }}
-              className="px-8 py-3.5 bg-white/10 text-ivory hover:bg-white/20 text-xs uppercase tracking-widest font-semibold transition-all cursor-pointer border border-white/20"
+              className="text-[11px] text-ivory/40 hover:text-ivory transition-colors cursor-pointer block mx-auto pt-2"
             >
-              {t('kyc_btn_try_upload_again')}
+              {t('kyc_btn_try_upload_again')} (Trocar Documento)
             </button>
           </div>
         )}
