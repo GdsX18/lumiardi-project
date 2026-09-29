@@ -294,10 +294,13 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       messagesCacheRef.current.set(targetUserId, {
         ...cached,
         messages: [...cached.messages, optimisticMsg],
-        lastMsgTime: nowIso,
+        // NÃO atualiza lastMsgTime ainda — só após confirmação do servidor
       });
     }
-    lastMsgTimeRef.current = nowIso;
+    // NÃO atualiza lastMsgTimeRef aqui — o timestamp otimista (local) pode ser
+    // ligeiramente diferente do NOW() do PostgreSQL e contaminar o parâmetro
+    // `since`, fazendo o polling nunca encontrar a mensagem real (retornando 304
+    // para sempre) e travar o envio das mensagens seguintes.
 
     // 2. Limpa input imediatamente
     setMessageText('');
@@ -334,22 +337,38 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
         setErrorMsg(data.error || 'Erro ao enviar mensagem.');
         setMessageText(textToSend);
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        // Reverte o cache também
+        const revertCached = messagesCacheRef.current.get(targetUserId);
+        if (revertCached) {
+          messagesCacheRef.current.set(targetUserId, {
+            ...revertCached,
+            messages: revertCached.messages.filter((m) => m.id !== tempId),
+          });
+        }
       } else {
         const data = await res.json();
         const realId = data.message?.id;
         const realCreated = data.message?.createdAt;
+
         if (realId) {
           const replaceOpt = (m: ChatMessage) =>
             m.id === tempId ? { ...m, id: realId, createdAt: realCreated || m.createdAt } : m;
 
           setMessages((prev) => prev.map(replaceOpt));
 
+          // Atualiza o cache com o ID e timestamp reais do servidor
           const curCached = messagesCacheRef.current.get(targetUserId);
           if (curCached) {
             messagesCacheRef.current.set(targetUserId, {
               ...curCached,
               messages: curCached.messages.map(replaceOpt),
+              lastMsgTime: realCreated || curCached.lastMsgTime,
             });
+          }
+
+          // ✅ Agora sim: atualiza lastMsgTimeRef com o timestamp REAL do servidor
+          if (realCreated) {
+            lastMsgTimeRef.current = realCreated;
           }
         }
       }
@@ -357,6 +376,13 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       setErrorMsg('Falha na conexão ao enviar mensagem.');
       setMessageText(textToSend);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      const revertCached = messagesCacheRef.current.get(targetUserId);
+      if (revertCached) {
+        messagesCacheRef.current.set(targetUserId, {
+          ...revertCached,
+          messages: revertCached.messages.filter((m) => m.id !== tempId),
+        });
+      }
     } finally {
       setSending(false);
       inputRef.current?.focus();
