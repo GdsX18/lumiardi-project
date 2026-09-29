@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
         : 'asaas';
 
     const cryptoCurrency = rawBody.cryptoCurrency ? (sanitizeInput(rawBody.cryptoCurrency) as CryptoCurrency) : undefined;
+    const couponCode = rawBody.couponCode ? (sanitizeInput(rawBody.couponCode) as string).trim().toUpperCase() : undefined;
 
     if (!planId) {
       return NextResponse.json(
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
       cryptoCurrency,
       cpfCnpj: rawBody.cpfCnpj || rawBody.cpf,
       phone: rawBody.phone,
+      couponCode,
       successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/billing?status=success`,
       cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout?plan=${planId}&status=canceled`,
     };
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
             pixDetails: sessionResult.pixDetails,
             planId,
             interval,
+            couponCode,
             orderSummary: sessionResult.orderSummary,
           },
           idempotencyKey: `init_pix_${sessionResult.pixDetails.paymentId}`,

@@ -344,3 +344,23 @@ INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
 VALUES
   ('cur-admin-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Mesa de Curadoria (Diretoria)', 'admin', 'active')
 ON CONFLICT (email) DO NOTHING;
+
+-- 17. TABELA DE CUPÕES DE DESCONTO (COUPONS)
+CREATE TABLE IF NOT EXISTS coupons (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  code TEXT UNIQUE NOT NULL, -- sempre em maiúsculas (ex: BOASVINDAS, VIP10, LUMIARDI10)
+  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')), -- 'percentage' (%) ou 'fixed' (R$ / €)
+  discount_value NUMERIC NOT NULL, -- valor do desconto (ex: 10 para 10% ou 100.00 para R$ 100 de abatimento)
+  active BOOLEAN DEFAULT true,
+  max_uses INTEGER DEFAULT NULL,
+  times_used INTEGER DEFAULT 0,
+  expires_at TIMESTAMPTZ DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
+CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(active);
+
+-- Seed do Cupom Modelo Oficial LUMIARDI10 (10% de desconto)
+INSERT INTO coupons (id, code, discount_type, discount_value, active, max_uses, times_used, expires_at)
+VALUES ('coupon-lumiardi10', 'LUMIARDI10', 'percentage', 10, true, NULL, 0, NULL)
+ON CONFLICT (code) DO NOTHING;

@@ -17,6 +17,8 @@ import {
   Zap,
   Globe,
   AlertCircle,
+  Tag,
+  X,
 } from 'lucide-react';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/lib/payments/types';
@@ -92,12 +94,156 @@ function CheckoutContent() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // ─── Estado do Cupom de Desconto ─────────────────────────────────────────
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountType: 'percentage' | 'fixed';
+    discountValue: number;
+    discountAmount: number;
+    finalPrice: number;
+    message?: string;
+  } | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [couponFeedback, setCouponFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
   const currentPlan = getPlan(selectedPlanId);
   const isYearly = billingInterval === 'yearly';
 
-  // Preços
-  const priceBRL = isYearly ? currentPlan.priceBRL.yearly * 12 : currentPlan.priceBRL.monthly;
-  const priceUSD = isYearly ? currentPlan.priceUSD.yearly * 12 : currentPlan.priceUSD.monthly;
+  // Preços Originais Base
+  const basePriceBRL = isYearly ? currentPlan.priceBRL.yearly * 12 : currentPlan.priceBRL.monthly;
+  const basePriceUSD = isYearly ? currentPlan.priceUSD.yearly * 12 : currentPlan.priceUSD.monthly;
+  const basePriceEUR = isYearly ? currentPlan.priceEUR.yearly * 12 : currentPlan.priceEUR.monthly;
+
+  // Cálculo Dinâmico do Abatimento do Cupom
+  let discountAmountBRL = 0;
+  let discountAmountUSD = 0;
+  let discountAmountEUR = 0;
+
+  if (appliedCoupon) {
+    if (appliedCoupon.discountType === 'percentage') {
+      discountAmountBRL = Math.round(((basePriceBRL * appliedCoupon.discountValue) / 100) * 100) / 100;
+      discountAmountUSD = Math.round(((basePriceUSD * appliedCoupon.discountValue) / 100) * 100) / 100;
+      discountAmountEUR = Math.round(((basePriceEUR * appliedCoupon.discountValue) / 100) * 100) / 100;
+    } else {
+      discountAmountBRL = Math.min(appliedCoupon.discountValue, basePriceBRL);
+      discountAmountUSD = Math.min(Math.round((appliedCoupon.discountValue / 5) * 100) / 100, basePriceUSD);
+      discountAmountEUR = Math.min(Math.round((appliedCoupon.discountValue / 5.5) * 100) / 100, basePriceEUR);
+    }
+  }
+
+  const finalPriceBRL = Math.max(0, Math.round((basePriceBRL - discountAmountBRL) * 100) / 100);
+  const finalPriceUSD = Math.max(0, Math.round((basePriceUSD - discountAmountUSD) * 100) / 100);
+  const finalPriceEUR = Math.max(0, Math.round((basePriceEUR - discountAmountEUR) * 100) / 100);
+
+  // Preço faturado atualizado
+  const priceBRL = finalPriceBRL;
+  const priceUSD = finalPriceUSD;
+  const priceEUR = finalPriceEUR;
+
+  // Revalidação automática caso mude de plano/intervalo com cupom ativo
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    let isCancelled = false;
+
+    const revalidate = async () => {
+      try {
+        const res = await fetch('/api/checkout/validate-coupon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: appliedCoupon.code,
+            planPrice: basePriceBRL,
+          }),
+        });
+        const data = await res.json();
+        if (!isCancelled && res.ok && data.valid) {
+          setAppliedCoupon({
+            code: data.code,
+            discountType: data.discountType,
+            discountValue: data.discountValue,
+            discountAmount: data.discountAmount,
+            finalPrice: data.finalPrice,
+            message: data.message,
+          });
+        }
+      } catch {
+        // Ignora
+      }
+    };
+
+    revalidate();
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedPlanId, billingInterval, basePriceBRL]);
+
+  // Ação de Aplicar Cupom
+  const handleApplyCoupon = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanCode = couponInput.trim().toUpperCase();
+    if (!cleanCode) {
+      setCouponFeedback({
+        type: 'error',
+        message: 'Por favor, digite o código do cupom.',
+      });
+      return;
+    }
+
+    setIsValidatingCoupon(true);
+    setCouponFeedback(null);
+
+    try {
+      const res = await fetch('/api/checkout/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: cleanCode,
+          planPrice: basePriceBRL,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.valid) {
+        setAppliedCoupon({
+          code: data.code,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
+          discountAmount: data.discountAmount,
+          finalPrice: data.finalPrice,
+          message: data.message,
+        });
+        setCouponFeedback({
+          type: 'success',
+          message: data.message || 'Cupom aplicado com sucesso!',
+        });
+      } else {
+        setAppliedCoupon(null);
+        setCouponFeedback({
+          type: 'error',
+          message: data.message || 'Cupom inválido ou expirado.',
+        });
+      }
+    } catch {
+      setAppliedCoupon(null);
+      setCouponFeedback({
+        type: 'error',
+        message: 'Não foi possível validar o cupom no momento. Tente novamente.',
+      });
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponFeedback(null);
+  };
 
   // Carrega Pix dinâmico oficial do Asaas (API v3)
   useEffect(() => {
@@ -115,6 +261,7 @@ function CheckoutContent() {
             interval: billingInterval,
             currency: 'BRL',
             gateway: 'pix',
+            couponCode: appliedCoupon?.code,
             userId: currentUser?.id,
             userEmail: currentUser?.email,
             userName: currentUser?.name,
@@ -142,7 +289,7 @@ function CheckoutContent() {
     return () => {
       isMounted = false;
     };
-  }, [gateway, currency, selectedPlanId, billingInterval, currentUser]);
+  }, [gateway, currency, selectedPlanId, billingInterval, currentUser, appliedCoupon]);
 
   // Código Pix Copia e Cola Padrão Asaas / BACEN EMV
   const fallbackPixCopiaECola = `00020126580014br.gov.bcb.pix0136pix@asaas.com.br520400005303986540${priceBRL.toFixed(2)}5802BR5916LUMIARDI PLATFORM6009SAO PAULO62070503***6304`;
@@ -223,6 +370,7 @@ function CheckoutContent() {
           currency,
           gateway: 'asaas',
           paymentMethod: 'credit_card',
+          couponCode: appliedCoupon?.code,
           cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
           cardData: {
             number: cardData.number,
@@ -273,6 +421,7 @@ function CheckoutContent() {
           currency,
           gateway: gatewayType,
           paymentMethod: paymentMethodType,
+          couponCode: appliedCoupon?.code,
           userId: currentUser?.id,
           userEmail: currentUser?.email,
           userName: currentUser?.name,
@@ -1032,12 +1181,114 @@ function CheckoutContent() {
                   </ul>
                 </div>
 
+                {/* Seção do Cupom de Desconto */}
+                <div className="pt-4 border-t border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span>Cupom de Desconto</span>
+                    </label>
+                    {appliedCoupon && (
+                      <span className="text-[9px] uppercase tracking-widest font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-xs">
+                        Ativo
+                      </span>
+                    )}
+                  </div>
+
+                  {!appliedCoupon ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="EX: LUMIARDI10"
+                          value={couponInput}
+                          onChange={(e) => {
+                            setCouponInput(e.target.value.toUpperCase());
+                            if (couponFeedback) setCouponFeedback(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyCoupon();
+                            }
+                          }}
+                          className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-3.5 py-2.5 text-xs font-mono uppercase tracking-wider text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCoupon()}
+                          disabled={isValidatingCoupon || !couponInput.trim()}
+                          className="px-4 py-2.5 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-sans uppercase tracking-wider font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 rounded-xs flex items-center gap-1.5"
+                        >
+                          {isValidatingCoupon ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <span>Aplicar</span>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Feedback de Erro Discreto */}
+                      {couponFeedback && couponFeedback.type === 'error' && (
+                        <div className="p-2.5 bg-red-950/40 border border-red-500/40 rounded-xs flex items-center gap-2 text-xs text-red-300 animate-in fade-in duration-200">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                          <span className="font-sans leading-tight">{couponFeedback.message}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Cupom Ativo com Resumo e Opção de Remoção */
+                    <div className="p-3 bg-[#0a1e16] border border-emerald-500/30 rounded-xs flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-ivory tracking-wider truncate">
+                              {appliedCoupon.code}
+                            </span>
+                            <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-xs border border-emerald-500/30 shrink-0">
+                              {appliedCoupon.discountType === 'percentage'
+                                ? `${appliedCoupon.discountValue}% OFF`
+                                : `- ${formatPrice(appliedCoupon.discountAmount, appliedCoupon.discountAmount / 5, appliedCoupon.discountAmount / 5.5)}`}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-300/80 font-sans mt-0.5">
+                            {appliedCoupon.message || 'Cupom aplicado com sucesso!'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="px-2.5 py-1 text-[11px] font-sans text-ivory/60 hover:text-red-400 border border-white/10 hover:border-red-400/40 rounded-xs transition-colors cursor-pointer shrink-0"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Totais */}
                 <div className="space-y-3 pt-4 border-t border-white/10 text-xs">
                   <div className="flex justify-between text-ivory/70">
-                    <span>{t('checkout_subtotal')}</span>
-                    <span>{formatPrice(priceBRL, priceUSD)}</span>
+                    <span>{appliedCoupon ? 'Valor Original' : t('checkout_subtotal')}</span>
+                    <span className={appliedCoupon ? 'line-through text-ivory/40' : ''}>
+                      {formatPrice(basePriceBRL, basePriceUSD, basePriceEUR)}
+                    </span>
                   </div>
+
+                  {appliedCoupon && (
+                    <div className="flex justify-between text-emerald-400 font-medium animate-in fade-in duration-200">
+                      <span className="flex items-center gap-1.5">
+                        <Tag className="w-3 h-3" />
+                        Desconto Aplicado ({appliedCoupon.code})
+                      </span>
+                      <span>
+                        - {formatPrice(discountAmountBRL, discountAmountUSD, discountAmountEUR)}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between text-ivory/70">
                     <span>{t('checkout_fee_escrow')}</span>
                     <span className="text-emerald-400 font-semibold">{t('checkout_fee_included')}</span>
@@ -1047,8 +1298,8 @@ function CheckoutContent() {
                     <span className="text-[#D4AF37] font-semibold">{t('checkout_shielding_active')}</span>
                   </div>
                   <div className="flex justify-between text-base font-serif-lumiardi text-ivory pt-3 border-t border-white/10 font-bold">
-                    <span>{t('checkout_total')}</span>
-                    <span className="text-[#F5D77F]">{formatPrice(priceBRL, priceUSD)}</span>
+                    <span>{appliedCoupon ? 'Total Atualizado' : t('checkout_total')}</span>
+                    <span className="text-[#F5D77F]">{formatPrice(finalPriceBRL, finalPriceUSD, finalPriceEUR)}</span>
                   </div>
                 </div>
               </div>

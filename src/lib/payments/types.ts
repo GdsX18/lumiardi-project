@@ -88,6 +88,7 @@ export interface CreateCheckoutSessionRequest {
   cancelUrl?: string;
   cpfCnpj?: string;
   phone?: string;
+  couponCode?: string;
 }
 
 export interface CheckoutSessionResponse {

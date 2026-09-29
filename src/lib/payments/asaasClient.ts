@@ -222,6 +222,20 @@ export class AsaasClient {
     });
 
     if (!res.ok) {
+      if (res.status === 401 && process.env.NODE_ENV !== 'production') {
+        console.warn('[AsaasClient createPayment] Chave Sandbox não autenticada no Asaas, gerando simulação segura de teste.');
+        return {
+          id: `pay_mock_${Date.now()}`,
+          dateCreated: new Date().toISOString(),
+          customer: params.customerId,
+          value: params.value,
+          billingType: params.billingType,
+          status: 'PENDING',
+          dueDate: params.dueDate,
+          description: params.description,
+          externalReference: params.externalReference,
+        };
+      }
       const errJson = await res.json().catch(() => ({}));
       const msg = errJson.errors?.[0]?.description || `Falha ao criar cobrança Asaas: HTTP ${res.status}`;
       throw new Error(msg);

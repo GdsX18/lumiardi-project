@@ -14,6 +14,7 @@ import {
 } from './types';
 import { getPlan } from './plansConfig';
 import { asaasClient } from './asaasClient';
+import { CouponService } from '@/services/couponService';
 
 export class AsaasAdapter implements PaymentGatewayService {
   public readonly gatewayName: PaymentGatewayType = 'asaas';
@@ -26,9 +27,18 @@ export class AsaasAdapter implements PaymentGatewayService {
   ): Promise<CheckoutSessionResponse> {
     const plan = getPlan(req.planId);
     const isYearly = req.interval === 'yearly';
-    const amount = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+    let amount = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+    let appliedCoupon: { code: string; discountAmount: number } | null = null;
 
-    const externalReference = `${req.userId}:${req.planId}:${req.interval}`;
+    if (req.couponCode) {
+      const validation = await CouponService.validateCoupon(req.couponCode, amount);
+      if (validation.valid) {
+        amount = validation.finalPrice;
+        appliedCoupon = { code: validation.code, discountAmount: validation.discountAmount };
+      }
+    }
+
+    const externalReference = `${req.userId}:${req.planId}:${req.interval}${appliedCoupon ? `:${appliedCoupon.code}` : ''}`;
     const today = new Date();
     const dueDate = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 

@@ -43,6 +43,7 @@ export const fallbackStore = {
   meet_participants: new Map<string, Record<string, unknown>>(),
   meet_signals: new Map<string, Record<string, unknown>>(),
   curation_interviews: new Map<string, Record<string, unknown>>(),
+  coupons: new Map<string, Record<string, unknown>>(),
 };
 
 // Inicialização imediata síncrona/assíncrona do fallback
@@ -109,9 +110,18 @@ export const fallbackStore = {
   // Drive Compartilhado Inicial 100% Limpo (Sem arquivos mockados)
   // Toda nova parceria inicia vazia para upload real
 
-  // ─── Estado Inicial 100% Limpo (Produção) ─────────────────────────────────
-  // Nenhuma candidatura fictícia, modelo ou agência de demonstração pré-carregada.
-  // Todos os dados do sistema derivam exclusivamente de registros reais.
+  // ─── Cupão Oficial Modelo LUMIARDI10 ─────────────────────────────────────
+  fallbackStore.coupons.set('LUMIARDI10', {
+    id: 'coupon-lumiardi10',
+    code: 'LUMIARDI10',
+    discount_type: 'percentage',
+    discount_value: 10,
+    active: true,
+    max_uses: null,
+    times_used: 0,
+    expires_at: null,
+    created_at: new Date().toISOString(),
+  });
 })();
 
 let isInitialized = false;
@@ -607,6 +617,28 @@ export async function initDatabase(): Promise<boolean> {
           ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria Lumiardi', 'admin', 'active')
         ON CONFLICT (email) DO NOTHING;
       `, [hashPassword]);
+
+      // ─── 18. Tabela COUPONS (Sistema de Descontos & Promoções) ───────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS coupons (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          code TEXT UNIQUE NOT NULL,
+          discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
+          discount_value NUMERIC NOT NULL,
+          active BOOLEAN DEFAULT true,
+          max_uses INTEGER DEFAULT NULL,
+          times_used INTEGER DEFAULT 0,
+          expires_at TIMESTAMPTZ DEFAULT NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
+        CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(active);
+
+        -- Seed do Cupom Modelo Oficial LUMIARDI10 (10% de desconto)
+        INSERT INTO coupons (id, code, discount_type, discount_value, active, max_uses, times_used, expires_at)
+        VALUES ('coupon-lumiardi10', 'LUMIARDI10', 'percentage', 10, true, NULL, 0, NULL)
+        ON CONFLICT (code) DO NOTHING;
+      `);
 
       isInitialized = true;
       return true;

@@ -7,6 +7,7 @@ import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser } from '
 import { sanitizeInput } from '@/lib/security';
 import { asaasClient } from '@/lib/payments/asaasClient';
 import { pool, initDatabase } from '@/lib/db';
+import { CouponService } from '@/services/couponService';
 
 /** Traduz erros técnicos da API Asaas em mensagens amigáveis para o usuário final */
 function normalizeAsaasError(raw: string): string {
@@ -59,9 +60,33 @@ export async function POST(request: NextRequest) {
     const plan = getPlan(planId);
     const isYearly = billingInterval === 'yearly';
     const currency = (rawBody.currency === 'USD' ? 'USD' : 'BRL') as 'BRL' | 'USD';
-    const finalAmount = currency === 'USD'
+    const couponCode = rawBody.couponCode ? (sanitizeInput(rawBody.couponCode) as string).trim().toUpperCase() : undefined;
+    let couponValidation: {
+      code: string;
+      discountType: 'percentage' | 'fixed';
+      discountValue: number;
+      discountAmount: number;
+      finalPrice: number;
+    } | null = null;
+
+    const baseAmount = currency === 'USD'
       ? (isYearly ? plan.priceUSD.yearly * 12 : plan.priceUSD.monthly)
       : (isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly);
+
+    let finalAmount = baseAmount;
+
+    if (couponCode) {
+      const v = await CouponService.validateCoupon(couponCode, baseAmount);
+      if (v.valid) {
+        couponValidation = v;
+        finalAmount = v.finalPrice;
+      } else {
+        return NextResponse.json(
+          { error: 'Cupom de desconto inválido ou expirado.' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Caso não haja sessão (testes sandbox / visitante), gera um ID anônimo temporário
     const userId = session?.id || rawBody.userId || `guest_${Date.now()}`;
@@ -84,8 +109,18 @@ export async function POST(request: NextRequest) {
       const dueDate = today.toISOString().split('T')[0];
 
       // O Asaas só aceita Reais (BRL) e com valor mínimo de R$ 5,00.
-      // Independentemente de a tela estar mostrando USD, cobramos o equivalente BRL do plano.
-      const asaasValue = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+      // Abate o desconto do cupom diretamente no valor faturado no Asaas
+      const baseAsaasValue = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+      let asaasValue = baseAsaasValue;
+      if (couponValidation) {
+        if (couponValidation.discountType === 'percentage') {
+          const disc = (baseAsaasValue * couponValidation.discountValue) / 100;
+          asaasValue = Math.max(0, Math.round((baseAsaasValue - disc) * 100) / 100);
+        } else {
+          const disc = currency === 'BRL' ? couponValidation.discountAmount : Math.min(baseAsaasValue, couponValidation.discountAmount);
+          asaasValue = Math.max(0, Math.round((baseAsaasValue - disc) * 100) / 100);
+        }
+      }
 
       if (asaasValue < 5.00) {
         return NextResponse.json(
@@ -128,8 +163,10 @@ export async function POST(request: NextRequest) {
           billingType: 'CREDIT_CARD',
           value: asaasValue,
           dueDate,
-          description: `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
-          externalReference: `${userId}:${plan.id}:${billingInterval}`,
+          description: couponValidation
+            ? `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) [Cupom ${couponValidation.code}]`
+            : `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
+          externalReference: `${userId}:${plan.id}:${billingInterval}${couponValidation ? `:${couponValidation.code}` : ''}`,
           creditCard: {
             holderName: card.holderName || userName,
             number: card.number.replace(/\D/g, ''),
@@ -211,6 +248,8 @@ export async function POST(request: NextRequest) {
           userEmail,
           userName,
           asaasPaymentId: asaasPaymentId || undefined,
+          couponCode: couponValidation?.code || undefined,
+          discountAmount: couponValidation?.discountAmount || undefined,
         },
       });
 
@@ -239,9 +278,20 @@ export async function POST(request: NextRequest) {
         gateway: effectiveGateway,
         paidAt: isInstantPayment ? new Date().toISOString() : null,
         asaasPaymentId,
+        couponCode: couponValidation?.code || null,
+        discountAmount: couponValidation?.discountAmount || 0,
       },
       idempotencyKey: `confirm_${txId}`,
     });
+
+    // Incrementa contagem de utilizações do cupom no banco após confirmação da transação
+    if (couponValidation && (isInstantPayment || rawBody.paymentConfirmed)) {
+      try {
+        await CouponService.incrementCouponUses(couponValidation.code);
+      } catch (couponErr) {
+        console.warn('[Checkout Confirm] Erro ao incrementar times_used do cupom:', couponErr);
+      }
+    }
 
     // 4. Se for pagamento instantâneo confirmado, promove o status para APROVADO
     let updatedSession: SessionUser | null = null;
@@ -284,6 +334,9 @@ export async function POST(request: NextRequest) {
       success: true,
       subscription,
       amountPaid: finalAmount,
+      originalAmount: baseAmount,
+      discountAmount: couponValidation ? couponValidation.discountAmount : 0,
+      couponCode: couponValidation ? couponValidation.code : null,
       currency,
       planName: plan.name,
       message: isInstantPayment

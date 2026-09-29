@@ -5,6 +5,7 @@ import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval } from '@/lib/payments/types';
 import { pool, initDatabase, fallbackStore } from '@/lib/db';
 import { StorageService } from '@/services/storageService';
+import { CouponService } from '@/services/couponService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
     let userId = '';
     let planId: PlanId = 'glow';
     let interval: BillingInterval = 'monthly';
+    let couponCode: string | undefined = undefined;
 
     const extRef = (payment.externalReference as string) || '';
     if (extRef) {
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
           userId = parsed.userId || '';
           planId = (parsed.planId as PlanId) || 'glow';
           interval = (parsed.interval as BillingInterval) || 'monthly';
+          couponCode = parsed.couponCode || undefined;
         } catch {
           // ignora
         }
@@ -78,6 +81,7 @@ export async function POST(request: NextRequest) {
         userId = parts[0] || '';
         planId = (parts[1] as PlanId) || 'glow';
         interval = (parts[2] as BillingInterval) || 'monthly';
+        couponCode = parts[3] || undefined;
       } else {
         userId = extRef;
       }
@@ -192,6 +196,15 @@ export async function POST(request: NextRequest) {
           );
         } catch {
           // Ignora
+        }
+
+        // Incrementa contagem de usos do cupom se foi utilizado nesta liquidação
+        if (couponCode) {
+          try {
+            await CouponService.incrementCouponUses(couponCode);
+          } catch (couponErr) {
+            console.warn('[Asaas Webhook] Erro ao incrementar uso do cupom:', couponErr);
+          }
         }
 
         // Promove o status de curadoria para APROVADO (Acesso Oficial Liberado)
