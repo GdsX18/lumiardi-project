@@ -310,9 +310,9 @@ function CheckoutContent() {
           currency,
           gateway: 'nowpayments',
           cryptoCurrency: selectedCrypto,
-          userId: currentUser?.id || 'user-model-1',
-          userEmail: currentUser?.email || 'membro@lumiardi.com',
-          userName: currentUser?.name || 'Membro VIP Lumiardi',
+          userId: currentUser?.id || '',
+          userEmail: currentUser?.email || '',
+          userName: currentUser?.name || 'Membro Lumiardi',
         }),
       });
 

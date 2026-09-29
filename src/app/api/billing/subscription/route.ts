@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const userId = session?.id || (request.nextUrl.searchParams.get('userId') || 'user-model-1');
+    const userId = session?.id || request.nextUrl.searchParams.get('userId');
+    if (!userId) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
     const userRole = session?.role || 'criadora';
 
     const [subscriptionRecord, driveUsage] = await Promise.all([

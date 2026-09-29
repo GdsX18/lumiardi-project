@@ -83,7 +83,7 @@ export const AgencyDirectoryView: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           receiverId: selectedAgency.id,
-          conversationId: `conv-${currentUser?.id || 'user-model-1'}-${selectedAgency.id}`,
+          conversationId: `conv-${currentUser?.id || 'direct'}-${selectedAgency.id}`,
           text: `[CANDIDATURA DE CASTING]: Olá! Gostaria de submeter meu portfólio e book oficial para a agência ${selectedAgency.name}. Mensagem: "${customPitch || 'Gostaria de apresentar meu book para casting.'}"`,
         }),
       });

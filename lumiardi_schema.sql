@@ -333,89 +333,14 @@ CREATE INDEX IF NOT EXISTS idx_payment_transactions_idemp ON payment_transaction
 CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
 CREATE INDEX IF NOT EXISTS idx_payouts_user_id ON payouts(recipient_id);
 
--- 16. SEED DAS CONTAS DE TESTE & CURADORIA (Senha padrão: lumiardi2026)
+-- 16. SEED DA CONTA MASTER DE CURADORIA
 INSERT INTO users (id, email, password_hash, role, curation_status, full_name)
 VALUES 
-  ('admin-curadoria-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi'),
-  ('user-admin-model', 'admin@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'ADMIN', 'APROVADO', 'Administrador Lumiardi'),
-  ('user-model-1', 'modelo@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'MODELO', 'APROVADO', 'Sua Conta Modelo'),
-  ('user-agency-1', 'agencia@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'AGENCIA', 'APROVADO', 'Sua Agência Corporativa')
+  ('admin-curadoria-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi')
 ON CONFLICT (email) DO NOTHING;
 
--- Equipe de Curadoria (RBAC)
+-- Equipe de Curadoria Oficial (RBAC)
 INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
 VALUES
-  ('cur-admin-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Mesa de Curadoria (Diretoria)', 'admin', 'active'),
-  ('cur-admin-2', 'admin@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Administrador Executivo', 'admin', 'active'),
-  ('cur-snr-1', 'curador.senior@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Rodrigo Medeiros (Curador Sênior)', 'curador_senior', 'active'),
-  ('cur-jnr-1', 'curador.junior@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Camila Duarte (Curadora Júnior)', 'curador_junior', 'active')
+  ('cur-admin-1', 'curadoria@lumiardi.com', '$2b$10$F7jc7UsrlHke163lG44NeOAuJJegKt8xUHRxyPSxNeOGyLZStYAzS', 'Mesa de Curadoria (Diretoria)', 'admin', 'active')
 ON CONFLICT (email) DO NOTHING;
-
--- Perfis Iniciais
-INSERT INTO profiles (user_id, artistic_name, category, instagram, gender, monthly_revenue_estimate, measurements, address, photos, video_url, accepts_offers, is_represented, represented_agency_name, represented_agency_id)
-VALUES (
-  'user-model-1',
-  'Sua Conta Modelo',
-  'Modelo & Criadora VIP',
-  '@suaconta',
-  'Feminino',
-  'Sob Consulta',
-  '{"height": "175", "weight": "55", "waist": "60", "bust": "88", "hips": "90"}'::jsonb,
-  '{"country": "Brasil", "state": "SP", "city": "São Paulo"}'::jsonb,
-  '[{"id": "1", "url": "/images/creator_elena.jpg", "title": "Editorial Milan", "tag": "Alta Resolução · RAW"}, {"id": "2", "url": "/images/creator_sophia.jpg", "title": "Studio Portrait", "tag": "Book Oficial"}]'::jsonb,
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  true,
-  true,
-  'Sua Agência Corporativa',
-  'user-agency-1'
-) ON CONFLICT (user_id) DO NOTHING;
-
-INSERT INTO profiles (user_id, corporate_name, responsible_name, category, cnpj, instagram, address, commission_rate, specialties)
-VALUES (
-  'user-agency-1',
-  'Sua Agência Corporativa',
-  'Diretoria de Casting',
-  'Agência de Casting & Modelos',
-  '12.345.678/0001-90',
-  '@suaagencia',
-  '{"country": "Brasil", "state": "SP", "city": "São Paulo"}'::jsonb,
-  '20%',
-  '["Alta Moda", "Editorial", "Campanhas Internacionais"]'::jsonb
-) ON CONFLICT (user_id) DO NOTHING;
-
--- Contrato Inicial Modelo ↔ Agência
-INSERT INTO agency_model_contracts (id, agency_id, model_id, agency_name, model_name, status, commission_rate)
-VALUES (
-  'contract-model-agency-1',
-  'user-agency-1',
-  'user-model-1',
-  'Sua Agência Corporativa',
-  'Sua Conta Modelo',
-  'active',
-  '20%'
-) ON CONFLICT (id) DO NOTHING;
-
--- Arquivos Iniciais do Drive Compartilhado
-INSERT INTO shared_drive_files (id, agency_id, model_id, name, category, type, size, uploaded_by_id, uploaded_by_name, file_url, downloads)
-VALUES
-  ('sfile-1', 'user-agency-1', 'user-model-1', 'Contrato_Agenciamento_Exclusivo_2026.pdf', 'contracts', 'document', '2.4 MB', 'user-agency-1', 'Sua Agência Corporativa', '/documents/contrato_agenciamento.pdf', 2),
-  ('sfile-2', 'user-agency-1', 'user-model-1', 'Composto_Digital_Alta_Moda_SS26.pdf', 'compostos', 'document', '4.1 MB', 'user-agency-1', 'Sua Agência Corporativa', '/documents/composto_digital.pdf', 5),
-  ('sfile-3', 'user-agency-1', 'user-model-1', 'Ensaio_Milan_Look01_RAW_Master.jpg', 'raw-photos', 'image', '12.8 MB', 'user-model-1', 'Sua Conta Modelo', '/images/creator_elena.jpg', 1)
-ON CONFLICT (id) DO NOTHING;
-
--- Logs Iniciais de Auditoria da Curadoria
-INSERT INTO curation_audit_logs (id, user_id, user_name, user_email, user_role, action_type, target_id, target_name, target_type, details)
-VALUES
-  ('log-seed-1', 'cur-admin-1', 'Mesa de Curadoria (Diretoria)', 'curadoria@lumiardi.com', 'admin', 'APROVOU_MODELO', 'user-model-1', 'Sua Conta Modelo', 'MODELO', '{"reason": "Documentação e biometria validadas com sucesso"}'::jsonb),
-  ('log-seed-2', 'cur-admin-1', 'Mesa de Curadoria (Diretoria)', 'curadoria@lumiardi.com', 'admin', 'APROVOU_AGENCIA', 'user-agency-1', 'Sua Agência Corporativa', 'AGENCIA', '{"reason": "CNPJ e contrato social verificados"}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
-
--- Notificações Iniciais
-INSERT INTO notifications (id, user_id, title, description, category, type, link, link_text, is_read)
-VALUES
-  ('notif-seed-1', 'user-model-1', 'Credencial Aprovada', 'Sua conta foi homologada com sucesso sob o protocolo 18 U.S.C. § 2257. Todos os recursos estão liberados.', 'Curadoria', 'success', '/dashboard/book', 'Ver Meu Book', false),
-  ('notif-seed-2', 'user-model-1', 'Portfólio & Book Digital', 'Mantenha suas fotos em alta resolução atualizadas para atrair agências internacionais parceiras.', 'Talentos', 'info', '/dashboard/book', 'Gerenciar Book', false),
-  ('notif-seed-3', 'user-model-1', 'Criptografia Militar E2E', 'Todas as mensagens no Chat e arquivos no Drive Lumiardi são protegidos por AES-256 e SHA-512.', 'Segurança', 'info', '/dashboard/drive', 'Acessar Drive', false),
-  ('notif-seed-4', 'user-agency-1', 'Credencial Aprovada', 'Sua agência foi homologada pela Mesa de Curadoria Lumiardi com sucesso.', 'Curadoria', 'success', '/dashboard/agencias', 'Ver Agência', false),
-  ('notif-seed-5', 'user-agency-1', 'Catálogo de Talentos Atualizado', 'Novas criadoras de elite foram aprovadas e estão disponíveis para contratação.', 'Scout', 'info', '/dashboard/agencias', 'Explorar Roster', false)
-ON CONFLICT (id) DO NOTHING;

@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
       const isYearly = orderDesc.toLowerCase().includes('anual');
       const plan = getPlan(planName);
 
-      const userId = result.userId || payload.userId || 'user-model-1';
+      const userId = result.userId || payload.userId || payload.order_id || '';
+      if (!userId) {
+        return NextResponse.json({ error: 'User ID missing in payload' }, { status: 400 });
+      }
 
       // Cria/Renova assinatura ativa
       const sub = await BillingService.createOrRenewSubscription({

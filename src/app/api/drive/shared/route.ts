@@ -75,12 +75,21 @@ export async function GET(req: NextRequest) {
     }
 
     // Regra de Cota: Obter capacidade e uso total da Agência vinculada
-    const agencyToBill = targetAgencyId || (session.role === 'agencia' ? session.id : 'user-agency-1');
-    const [agencyUsage, agencySub, agencyUser] = await Promise.all([
-      StorageService.getAgencyTotalDriveUsage(agencyToBill),
-      BillingService.getUserSubscription(agencyToBill),
-      StorageService.getUserById(agencyToBill),
-    ]);
+    const agencyToBill = targetAgencyId || (session.role === 'agencia' ? session.id : null);
+    let agencyUsage = { totalGB: 0, fileCount: 0 };
+    let agencySub = null;
+    let agencyUser = null;
+
+    if (agencyToBill) {
+      const [u, s, usr] = await Promise.all([
+        StorageService.getAgencyTotalDriveUsage(agencyToBill),
+        BillingService.getUserSubscription(agencyToBill),
+        StorageService.getUserById(agencyToBill),
+      ]);
+      agencyUsage = u;
+      agencySub = s;
+      agencyUser = usr;
+    }
 
     const agencyPlan = getPlan(agencySub?.planId || 'select');
     const maxAgencyGB = typeof agencyPlan.limits.maxDriveStorageGB === 'number'
@@ -142,7 +151,7 @@ export async function POST(req: NextRequest) {
         finalAgencyId = contracts[0]?.agencyId;
         if (!finalAgencyId) {
           const user = await StorageService.getUserById(session.id);
-          finalAgencyId = (user?.profile as any)?.represented_agency_id || 'user-agency-1';
+          finalAgencyId = (user?.profile as any)?.represented_agency_id || null;
         }
       }
     } else if (session.role === 'agencia') {
