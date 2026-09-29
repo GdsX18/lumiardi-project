@@ -400,12 +400,12 @@ const ChatPanelInner: React.FC = () => {
       }
 
       if (isMounted) {
-        // Agenda o próximo ciclo 2.5s após a conclusão da requisição atual
-        pollTimeout = setTimeout(runPoll, 2500);
+        // Agenda o próximo ciclo 1s após a conclusão da requisição atual
+        pollTimeout = setTimeout(runPoll, 1000);
       }
     };
 
-    pollTimeout = setTimeout(runPoll, 2500);
+    pollTimeout = setTimeout(runPoll, 1000);
 
     return () => {
       isMounted = false;
@@ -917,7 +917,7 @@ const ChatPanelInner: React.FC = () => {
               return (
                 <div
                   key={msg.id}
-                  className={`flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'} items-end gap-2 group`}
+                  className={`flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'} items-end gap-2 group min-w-0`}
                 >
                   {!msg.isMe && (
                     <div
@@ -929,7 +929,7 @@ const ChatPanelInner: React.FC = () => {
                   )}
 
                   <div
-                    className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[80%] sm:max-w-lg md:max-w-2xl space-y-1`}
+                    className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-lg md:max-w-2xl min-w-0 space-y-1`}
                   >
                     {!msg.isMe && (
                       <span className="text-[10px] text-ivory/50 font-sans px-1">
@@ -938,7 +938,7 @@ const ChatPanelInner: React.FC = () => {
                     )}
 
                     <div
-                      className={`px-4 py-3 text-xs font-sans leading-relaxed shadow-sm relative transition-all ${
+                      className={`px-4 py-3 text-xs font-sans leading-relaxed shadow-sm relative transition-all min-w-0 break-words break-all [overflow-wrap:anywhere] ${
                         msg.isMe
                           ? 'bg-[#1C1914] border border-[#C9A96B]/25 text-[#F5F2EB] rounded-2xl rounded-tr-xs'
                           : 'bg-[#141414] border border-white/[0.07] text-ivory/90 rounded-2xl rounded-tl-xs hover:border-white/[0.12]'
@@ -987,7 +987,7 @@ const ChatPanelInner: React.FC = () => {
                         <>
                           {msg.text && (
                             <p
-                              className={`whitespace-pre-wrap text-[13px] leading-relaxed ${
+                              className={`whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere] text-[13px] leading-relaxed ${
                                 msg.isMe ? 'text-[#F5F2EB]/95' : 'text-ivory/90'
                               }`}
                             >

@@ -18,8 +18,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId') || 'curation';
     const since = searchParams.get('since') || undefined;
+    const targetUserId = searchParams.get('targetUserId') || searchParams.get('userId') || undefined;
 
-    const rawMessages = await StorageService.listMessages(conversationId, since, session.id, session.role);
+    const rawMessages = await StorageService.listMessages(
+      conversationId,
+      since,
+      session.id,
+      session.role,
+      targetUserId
+    );
 
     // Polling incremental ultra-rápido: se o cliente enviou `since` e não há novas mensagens, retorna 304 instantâneo
     if (since && rawMessages.length === 0) {

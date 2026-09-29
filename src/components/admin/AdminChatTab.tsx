@@ -141,7 +141,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
     }
 
     try {
-      const params = new URLSearchParams({ conversationId: 'curation' });
+      const params = new URLSearchParams({ conversationId: 'curation', targetUserId: userId });
       const since = isPolling ? lastMsgTimeRef.current : undefined;
       if (since) params.set('since', since);
 
@@ -221,6 +221,13 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
     loadMessages(conv.userId, false);
   }, [selectedConv?.userId, loadMessages]);
 
+  // Pré-seleciona a primeira conversa se disponível
+  useEffect(() => {
+    if (!selectedConv && conversations.length > 0) {
+      handleSelectConversation(conversations[0]);
+    }
+  }, [conversations, selectedConv, handleSelectConversation]);
+
   // ─── Polling Sequencial Confiável (Anti-Lag / Sem Acúmulo de Requests) ─────
 
   useEffect(() => {
@@ -233,7 +240,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       if (!isMounted) return;
 
       if (typeof document !== 'undefined' && document.hidden) {
-        pollTimeout = setTimeout(runPoll, 5000);
+        pollTimeout = setTimeout(runPoll, 3000);
         return;
       }
 
@@ -242,11 +249,11 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       }
 
       if (isMounted) {
-        pollTimeout = setTimeout(runPoll, 2500);
+        pollTimeout = setTimeout(runPoll, 1000);
       }
     };
 
-    pollTimeout = setTimeout(runPoll, 2500);
+    pollTimeout = setTimeout(runPoll, 1000);
     return () => {
       isMounted = false;
       if (pollTimeout) clearTimeout(pollTimeout);
@@ -596,13 +603,13 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
                 messages.map((msg) => {
                   const isAdmin = msg.senderRole === 'curadoria' || msg.isMe;
                   return (
-                    <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[72%] space-y-1 ${isAdmin ? 'items-end' : 'items-start'} flex flex-col`}>
+                    <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} w-full min-w-0`}>
+                      <div className={`max-w-[85%] sm:max-w-[72%] min-w-0 space-y-1 ${isAdmin ? 'items-end' : 'items-start'} flex flex-col`}>
                         <span className="text-[10px] text-ivory/40 font-sans px-1">
                           {msg.senderName || (isAdmin ? 'Curadoria' : selectedConv.displayName)}
                         </span>
                         <div
-                          className={`px-4 py-2.5 rounded-xs text-xs font-sans leading-relaxed ${
+                          className={`px-4 py-2.5 rounded-xs text-xs font-sans leading-relaxed whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere] ${
                             isAdmin
                               ? 'bg-gold/10 border border-gold/20 text-ivory'
                               : 'bg-white/[0.06] border border-white/[0.08] text-ivory/90'

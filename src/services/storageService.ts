@@ -1444,7 +1444,8 @@ export const StorageService = {
     conversationId: string = 'curation',
     since?: string,
     requestUserId?: string,
-    requestUserRole?: string
+    requestUserRole?: string,
+    targetUserId?: string
   ) {
     await initDatabase();
     try {
@@ -1455,8 +1456,13 @@ export const StorageService = {
         sinceParam = !isNaN(sinceMs) ? new Date(sinceMs - 1000).toISOString() : since;
       }
 
-      if (conversationId === 'curation' && requestUserRole !== 'admin' && requestUserId) {
-        // Canal de Curadoria estritamente isolado por participante para privacidade
+      const participantId =
+        conversationId === 'curation'
+          ? (requestUserRole === 'admin' ? targetUserId : requestUserId)
+          : undefined;
+
+      if (conversationId === 'curation' && participantId) {
+        // Canal de Curadoria estritamente isolado por participante para privacidade e velocidade máxima
         if (sinceParam) {
           res = await pool.query(
             `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
@@ -1465,7 +1471,7 @@ export const StorageService = {
                AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
                AND created_at > $3
              ORDER BY created_at ASC`,
-            [conversationId, requestUserId, sinceParam]
+            [conversationId, participantId, sinceParam]
           );
         } else {
           res = await pool.query(
@@ -1477,7 +1483,7 @@ export const StorageService = {
                ORDER BY created_at DESC
                LIMIT 100
              ) sub ORDER BY created_at ASC`,
-            [conversationId, requestUserId]
+            [conversationId, participantId]
           );
         }
       } else {
@@ -1532,14 +1538,19 @@ export const StorageService = {
       console.warn('[Chat] PostgreSQL query falhou em listMessages, usando fallback:', err);
     }
 
+    const participantId =
+      conversationId === 'curation'
+        ? (requestUserRole === 'admin' ? targetUserId : requestUserId)
+        : undefined;
+
     const sinceDate = since ? new Date(new Date(since).getTime() - 1000) : null;
     let msgs = Array.from(fallbackStore.messages.values())
       .filter((m) => {
         if (m.conversation_id !== conversationId) return false;
-        if (conversationId === 'curation' && requestUserRole !== 'admin' && requestUserId) {
+        if (conversationId === 'curation' && participantId) {
           const isMine =
-            m.sender_id === requestUserId ||
-            m.receiver_id === requestUserId ||
+            m.sender_id === participantId ||
+            m.receiver_id === participantId ||
             (m.sender_role === 'curadoria' && !m.receiver_id);
           if (!isMine) return false;
         }
