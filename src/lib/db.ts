@@ -518,7 +518,10 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
         CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_conv_created_asc ON messages(conversation_id, created_at ASC);
         CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_curation_sender ON messages(conversation_id, sender_id, receiver_id);
+        CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at DESC NULLS LAST);
 
         -- 17. Tabelas Lumiardi Meet (WebRTC & Sinalização Multi-Nó Persistente)
         CREATE TABLE IF NOT EXISTS meet_rooms (

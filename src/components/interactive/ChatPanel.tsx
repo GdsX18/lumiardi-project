@@ -138,6 +138,11 @@ const ChatPanelInner: React.FC = () => {
   const [isStartingMeet, setIsStartingMeet] = useState<boolean>(false);
 
   // ─── REFS DE CONTROLE E CACHE DE ALTA VELOCIDADE (0ms Latency) ────────────
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+  const activeCreatorRef = useRef(activeCreator);
+  activeCreatorRef.current = activeCreator;
+
   const cacheRef = useRef<Map<string, ConversationCacheEntry>>(new Map());
   const activeConvIdRef = useRef<string>(activeConvId);
   activeConvIdRef.current = activeConvId;
@@ -220,10 +225,10 @@ const ChatPanelInner: React.FC = () => {
           if (data.conversationId && data.conversationId !== targetConvId) return;
           if (!Array.isArray(data.messages)) return;
 
-          const currentId = currentUser?.id || data.currentUserId;
+          const currentId = currentUserRef.current?.id || data.currentUserId;
           const myName =
-            activeCreator?.qualitative?.artisticName ||
-            currentUser?.name ||
+            activeCreatorRef.current?.qualitative?.artisticName ||
+            currentUserRef.current?.name ||
             data.currentUserName ||
             'Você';
 
@@ -289,7 +294,7 @@ const ChatPanelInner: React.FC = () => {
         }
       }
     },
-    [currentUser?.id, currentUser?.name, activeCreator, normalizeMessages]
+    [normalizeMessages]
   );
 
   // ─── Troca de Conversa Instantânea (0ms com Cache) ─────────────────────────
@@ -847,7 +852,9 @@ const ChatPanelInner: React.FC = () => {
                   }`}
                 />
                 <span>
-                  {activeConv.isOnline
+                  {isLoadingMessages && messages.length > 0
+                    ? 'Sincronizando...'
+                    : activeConv.isOnline
                     ? (activeConv.id === 'curation' ? 'Equipe ativa · Resposta prioritária' : 'Online agora · Resposta ativa')
                     : 'Offline · Mensagem segura arquivada'}
                 </span>
@@ -876,12 +883,22 @@ const ChatPanelInner: React.FC = () => {
 
         {/* ── Histórico de Mensagens ── */}
         <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-6 md:px-8 space-y-5">
-          {isLoadingMessages ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3">
-              <RefreshCw className="w-6 h-6 text-gold/60 animate-spin" />
-              <span className="text-xs text-ivory/50 font-sans tracking-wide">
-                Sincronizando canal criptografado...
-              </span>
+          {isLoadingMessages && messages.length === 0 ? (
+            <div className="h-full flex flex-col justify-end p-4 md:p-6 space-y-4">
+              <div className="flex justify-start items-end gap-2 animate-pulse">
+                <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 mb-0.5" />
+                <div className="h-12 w-64 bg-white/5 border border-white/[0.06] rounded-2xl rounded-tl-xs" />
+              </div>
+              <div className="flex justify-end items-end gap-2 animate-pulse">
+                <div className="h-14 w-72 bg-gold/10 border border-gold/15 rounded-2xl rounded-tr-xs" />
+              </div>
+              <div className="flex justify-start items-end gap-2 animate-pulse">
+                <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 mb-0.5" />
+                <div className="h-10 w-48 bg-white/5 border border-white/[0.06] rounded-2xl rounded-tl-xs" />
+              </div>
+              <div className="flex justify-end items-end gap-2 animate-pulse">
+                <div className="h-12 w-56 bg-gold/10 border border-gold/15 rounded-2xl rounded-tr-xs" />
+              </div>
             </div>
           ) : messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-ivory/40">

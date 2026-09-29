@@ -75,6 +75,7 @@ function getInitials(name: string): string {
 export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
   const [filter, setFilter] = useState<'all' | 'criadora' | 'agencia'>('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [selectedConv, setSelectedConv] = useState<AdminConversation | null>(null);
@@ -82,20 +83,30 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
-  const [lastMsgTime, setLastMsgTime] = useState<string | undefined>(undefined);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const convPollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ─── REFS DE ALTA VELOCIDADE & CACHE DE MENSAGENS (0ms Flash) ──────────────
+  const messagesCacheRef = useRef<Map<string, { messages: ChatMessage[]; lastMsgTime?: string }>>(new Map());
+  const selectedUserIdRef = useRef<string | null>(null);
+  selectedUserIdRef.current = selectedConv?.userId || null;
+  const lastMsgTimeRef = useRef<string | undefined>(undefined);
+
+  // Debounce na busca de conversas para evitar sobrecarga no servidor
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // ─── Load Conversations ─────────────────────────────────────────────────
 
   const loadConversations = useCallback(async () => {
     try {
       const params = new URLSearchParams({ filter });
-      if (search.trim()) params.set('search', search.trim());
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
       const res = await fetch(`/api/admin/chat/conversations?${params}`);
       if (res.ok) {
         const data = await res.json();
@@ -106,7 +117,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
     } finally {
       setLoadingConvs(false);
     }
-  }, [filter, search]);
+  }, [filter, debouncedSearch]);
 
   useEffect(() => {
     setLoadingConvs(true);
@@ -119,17 +130,28 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
     return () => { if (convPollingRef.current) clearInterval(convPollingRef.current); };
   }, [loadConversations]);
 
-  // ─── Load Messages ──────────────────────────────────────────────────────
+  // ─── Load Messages com Delta & Anti-Flash ────────────────────────────────
 
-  const loadMessages = useCallback(async (userId: string, since?: string) => {
-    if (!since) setLoadingMsgs(true);
+  const loadMessages = useCallback(async (userId: string, isPolling = false) => {
+    if (!isPolling) {
+      const cached = messagesCacheRef.current.get(userId);
+      if (!cached || cached.messages.length === 0) {
+        setLoadingMsgs(true);
+      }
+    }
+
     try {
       const params = new URLSearchParams({ conversationId: 'curation' });
+      const since = isPolling ? lastMsgTimeRef.current : undefined;
       if (since) params.set('since', since);
+
       const res = await fetch(`/api/chat/messages?${params}`);
-      if (res.status === 304) return; // no new messages
+      if (res.status === 304) return; // Nenhuma mensagem nova
       if (!res.ok) return;
       const data = await res.json();
+
+      // Ignora se o auditor já tiver trocado de conversa
+      if (selectedUserIdRef.current !== userId) return;
 
       const allMsgs: ChatMessage[] = (data.messages || []).filter(
         (m: ChatMessage) =>
@@ -137,60 +159,158 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
           (m as any).receiverId === userId
       );
 
+      let finalMessages: ChatMessage[] = [];
+
       if (since) {
-        // Incremental: only append new messages
+        // Delta incremental: preserva mensagens locais e anexa novas
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m.id));
           const newOnes = allMsgs.filter((m) => !existingIds.has(m.id));
-          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          finalMessages = newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          return finalMessages;
         });
       } else {
-        setMessages(allMsgs);
+        // Carga completa: preserva mensagens otimistas pendentes se houver
+        const prevMsgs = messagesCacheRef.current.get(userId)?.messages || [];
+        const pendingOptimistic = prevMsgs.filter((m) => m.id.startsWith('opt-'));
+        const stillPending = pendingOptimistic.filter(
+          (opt) => !allMsgs.some((s) => s.isMe && s.text === opt.text)
+        );
+        finalMessages = [...allMsgs, ...stillPending];
+        setMessages(finalMessages);
       }
 
       if (allMsgs.length > 0) {
         const latest = allMsgs[allMsgs.length - 1];
-        setLastMsgTime(latest.createdAt);
+        lastMsgTimeRef.current = latest.createdAt;
       }
+
+      // Atualiza cache em memória
+      const prevCached = messagesCacheRef.current.get(userId);
+      messagesCacheRef.current.set(userId, {
+        messages: finalMessages.length > 0 ? finalMessages : (prevCached?.messages || []),
+        lastMsgTime: lastMsgTimeRef.current,
+      });
     } catch {
       // silent
     } finally {
-      setLoadingMsgs(false);
+      if (selectedUserIdRef.current === userId) {
+        setLoadingMsgs(false);
+      }
     }
   }, []);
 
+  // ─── Seleção de Conversa com Cache Instantâneo (Zero Latência) ───────────
+
+  const handleSelectConversation = useCallback((conv: AdminConversation) => {
+    if (selectedConv?.userId === conv.userId) return;
+    setSelectedConv(conv);
+    selectedUserIdRef.current = conv.userId;
+    setErrorMsg(null);
+
+    const cached = messagesCacheRef.current.get(conv.userId);
+    if (cached && cached.messages.length > 0) {
+      setMessages(cached.messages);
+      lastMsgTimeRef.current = cached.lastMsgTime;
+      setLoadingMsgs(false);
+    } else {
+      setMessages([]);
+      lastMsgTimeRef.current = undefined;
+      setLoadingMsgs(true);
+    }
+    loadMessages(conv.userId, false);
+  }, [selectedConv?.userId, loadMessages]);
+
+  // ─── Polling Sequencial Confiável (Anti-Lag / Sem Acúmulo de Requests) ─────
+
   useEffect(() => {
     if (!selectedConv) return;
-    setMessages([]);
-    setLastMsgTime(undefined);
-    loadMessages(selectedConv.userId);
-  }, [selectedConv, loadMessages]);
+    const targetUserId = selectedConv.userId;
+    let isMounted = true;
+    let pollTimeout: NodeJS.Timeout | null = null;
 
-  // Incremental polling for active conversation
-  useEffect(() => {
-    if (!selectedConv) return;
-    pollingRef.current = setInterval(() => {
-      loadMessages(selectedConv.userId, lastMsgTime);
-    }, 2500);
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [selectedConv, lastMsgTime, loadMessages]);
+    const runPoll = async () => {
+      if (!isMounted) return;
 
-  // Auto-scroll to bottom on new messages
+      if (typeof document !== 'undefined' && document.hidden) {
+        pollTimeout = setTimeout(runPoll, 5000);
+        return;
+      }
+
+      if (selectedUserIdRef.current === targetUserId) {
+        await loadMessages(targetUserId, true);
+      }
+
+      if (isMounted) {
+        pollTimeout = setTimeout(runPoll, 2500);
+      }
+    };
+
+    pollTimeout = setTimeout(runPoll, 2500);
+    return () => {
+      isMounted = false;
+      if (pollTimeout) clearTimeout(pollTimeout);
+    };
+  }, [selectedConv?.userId, loadMessages]);
+
+  // Auto-scroll para a última mensagem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ─── Send Message ───────────────────────────────────────────────────────
+  // ─── Envio Otimista Ultra-Rápido (0ms Perceived Latency) ─────────────────
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedConv || !messageText.trim() || sending) return;
 
-    setSending(true);
-    setErrorMsg(null);
     const textToSend = messageText.trim();
-    setMessageText('');
+    const targetUserId = selectedConv.userId;
+    const tempId = `opt-${Date.now()}`;
+    const nowIso = new Date().toISOString();
+    const curatorFirst = currentCuratorName?.split(' ')[0] || 'Curadoria';
 
+    const optimisticMsg: ChatMessage = {
+      id: tempId,
+      senderId: 'admin',
+      senderName: `Mesa de Curadoria — Auditor ${curatorFirst}`,
+      senderRole: 'curadoria',
+      text: textToSend,
+      createdAt: nowIso,
+      isMe: true,
+    };
+
+    // 1. Renderização Instantânea na Tela e no Cache
+    setMessages((prev) => [...prev, optimisticMsg]);
+    const cached = messagesCacheRef.current.get(targetUserId);
+    if (cached) {
+      messagesCacheRef.current.set(targetUserId, {
+        ...cached,
+        messages: [...cached.messages, optimisticMsg],
+        lastMsgTime: nowIso,
+      });
+    }
+    lastMsgTimeRef.current = nowIso;
+
+    // 2. Limpa input imediatamente
+    setMessageText('');
+    setErrorMsg(null);
+
+    // 3. Atualiza lista de conversas da barra lateral em tempo real
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.userId === targetUserId
+          ? {
+              ...c,
+              lastMessage: textToSend,
+              lastTime: nowIso,
+            }
+          : c
+      )
+    );
+
+    // 4. Envia ao servidor em background
+    setSending(true);
     try {
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
@@ -198,22 +318,38 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
         body: JSON.stringify({
           text: textToSend,
           conversationId: 'curation',
-          receiverId: selectedConv.userId,
+          receiverId: targetUserId,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json();
         setErrorMsg(data.error || 'Erro ao enviar mensagem.');
-        setMessageText(textToSend); // restore
+        setMessageText(textToSend);
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
       } else {
-        // Reload messages immediately after send
-        await loadMessages(selectedConv.userId);
-        await loadConversations();
+        const data = await res.json();
+        const realId = data.message?.id;
+        const realCreated = data.message?.createdAt;
+        if (realId) {
+          const replaceOpt = (m: ChatMessage) =>
+            m.id === tempId ? { ...m, id: realId, createdAt: realCreated || m.createdAt } : m;
+
+          setMessages((prev) => prev.map(replaceOpt));
+
+          const curCached = messagesCacheRef.current.get(targetUserId);
+          if (curCached) {
+            messagesCacheRef.current.set(targetUserId, {
+              ...curCached,
+              messages: curCached.messages.map(replaceOpt),
+            });
+          }
+        }
       }
     } catch {
       setErrorMsg('Falha na conexão ao enviar mensagem.');
       setMessageText(textToSend);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -336,7 +472,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
             conversations.map((conv) => (
               <button
                 key={conv.userId}
-                onClick={() => setSelectedConv(conv)}
+                onClick={() => handleSelectConversation(conv)}
                 className={`w-full text-left p-3.5 border-b border-white/[0.05] transition-colors cursor-pointer ${
                   selectedConv?.userId === conv.userId
                     ? 'bg-gold/10 border-l-2 border-l-gold'
@@ -443,7 +579,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {loadingMsgs ? (
+              {loadingMsgs && messages.length === 0 ? (
                 <div className="space-y-4">
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>

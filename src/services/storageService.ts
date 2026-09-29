@@ -1469,11 +1469,14 @@ export const StorageService = {
           );
         } else {
           res = await pool.query(
-            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
-             FROM messages
-             WHERE conversation_id = $1
-               AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
-             ORDER BY created_at ASC`,
+            `SELECT * FROM (
+               SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
+               FROM messages
+               WHERE conversation_id = $1
+                 AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
+               ORDER BY created_at DESC
+               LIMIT 100
+             ) sub ORDER BY created_at ASC`,
             [conversationId, requestUserId]
           );
         }
@@ -1488,10 +1491,13 @@ export const StorageService = {
           );
         } else {
           res = await pool.query(
-            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
-             FROM messages
-             WHERE conversation_id = $1
-             ORDER BY created_at ASC`,
+            `SELECT * FROM (
+               SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
+               FROM messages
+               WHERE conversation_id = $1
+               ORDER BY created_at DESC
+               LIMIT 100
+             ) sub ORDER BY created_at ASC`,
             [conversationId]
           );
         }
@@ -1527,7 +1533,7 @@ export const StorageService = {
     }
 
     const sinceDate = since ? new Date(new Date(since).getTime() - 1000) : null;
-    const msgs = Array.from(fallbackStore.messages.values())
+    let msgs = Array.from(fallbackStore.messages.values())
       .filter((m) => {
         if (m.conversation_id !== conversationId) return false;
         if (conversationId === 'curation' && requestUserRole !== 'admin' && requestUserId) {
@@ -1543,6 +1549,10 @@ export const StorageService = {
         return true;
       })
       .sort((a, b) => new Date(String(a.created_at)).getTime() - new Date(String(b.created_at)).getTime());
+
+    if (!sinceDate && msgs.length > 100) {
+      msgs = msgs.slice(-100);
+    }
 
     return msgs.map((m: any) => {
       let sName = m.sender_name;
@@ -1572,6 +1582,60 @@ export const StorageService = {
         isRead: Boolean(m.is_read),
       };
     });
+  },
+
+  async getLastMessage(conversationId: string, userId?: string, role?: string): Promise<{ text: string; createdAt: string } | null> {
+    await initDatabase();
+    try {
+      let res;
+      if (conversationId === 'curation' && role !== 'admin' && userId) {
+        res = await pool.query(
+          `SELECT text, created_at FROM messages
+           WHERE conversation_id = $1
+             AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
+           ORDER BY created_at DESC LIMIT 1`,
+          [conversationId, userId]
+        );
+      } else {
+        res = await pool.query(
+          `SELECT text, created_at FROM messages
+           WHERE conversation_id = $1
+           ORDER BY created_at DESC LIMIT 1`,
+          [conversationId]
+        );
+      }
+      if (res && res.rows.length > 0) {
+        return {
+          text: res.rows[0].text,
+          createdAt: res.rows[0].created_at ? new Date(res.rows[0].created_at).toISOString() : new Date().toISOString(),
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    const fallbackMsgs = Array.from(fallbackStore.messages.values())
+      .filter((m: any) => {
+        if (m.conversation_id !== conversationId) return false;
+        if (conversationId === 'curation' && role !== 'admin' && userId) {
+          return (
+            m.sender_id === userId ||
+            m.receiver_id === userId ||
+            (m.sender_role === 'curadoria' && !m.receiver_id)
+          );
+        }
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime());
+
+    if (fallbackMsgs.length > 0) {
+      return {
+        text: String(fallbackMsgs[0].text || ''),
+        createdAt: String(fallbackMsgs[0].created_at || new Date().toISOString()),
+      };
+    }
+
+    return null;
   },
 
   async sendMessage(data: {
@@ -1730,8 +1794,7 @@ export const StorageService = {
       isCurationOnline = checkFallbackUserOnline('admin-curadoria-1', 5) || checkFallbackUserOnline('cur-admin-1', 5);
     }
 
-    const curationMsgs = await this.listMessages('curation', undefined, userId, role);
-    const lastCurationMsg = curationMsgs[curationMsgs.length - 1];
+    const lastCurationMsg = await this.getLastMessage('curation', userId, role);
 
     const curationChannel = {
       id: 'curation',
@@ -1907,8 +1970,7 @@ export const StorageService = {
         .map((n: string) => n[0].toUpperCase())
         .join('');
 
-      const convMsgs = await this.listMessages(convId, undefined, userId, role);
-      const lastMsg = convMsgs[convMsgs.length - 1];
+      const lastMsg = await this.getLastMessage(convId, userId, role);
       const isOnline = checkFallbackUserOnline(partnerId, 3);
 
       directChannels.push({
