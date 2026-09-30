@@ -20,6 +20,7 @@ import {
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
 import crypto from 'crypto';
+import { isAdminRole, normalizeSenderRole } from '@/lib/chatRoles';
 
 /** Política mínima de senha: 8+ caracteres, com letras e números. */
 export function isStrongPassword(password: unknown): password is string {
@@ -1360,151 +1361,108 @@ export const StorageService = {
     targetUserId?: string
   ) {
     await initDatabase();
-    try {
-      let res;
-      let sinceParam: string | null = null;
-      if (since) {
-        const sinceMs = new Date(since).getTime();
-        sinceParam = !isNaN(sinceMs) ? new Date(sinceMs - 1000).toISOString() : since;
-      }
 
-      const participantId =
-        conversationId === 'curation'
-          ? (requestUserRole === 'admin' ? targetUserId : requestUserId)
-          : undefined;
-
-      if (conversationId === 'curation' && participantId) {
-        // Canal de Curadoria estritamente isolado por participante para privacidade e velocidade máxima
-        if (sinceParam) {
-          res = await pool.query(
-            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
-             FROM messages
-             WHERE conversation_id = $1
-               AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
-               AND created_at > $3
-             ORDER BY created_at ASC`,
-            [conversationId, participantId, sinceParam]
-          );
-        } else {
-          res = await pool.query(
-            `SELECT * FROM (
-               SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
-               FROM messages
-               WHERE conversation_id = $1
-                 AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
-               ORDER BY created_at DESC
-               LIMIT 100
-             ) sub ORDER BY created_at ASC`,
-            [conversationId, participantId]
-          );
-        }
-      } else {
-        if (sinceParam) {
-          res = await pool.query(
-            `SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
-             FROM messages
-             WHERE conversation_id = $1 AND created_at > $2
-             ORDER BY created_at ASC`,
-            [conversationId, sinceParam]
-          );
-        } else {
-          res = await pool.query(
-            `SELECT * FROM (
-               SELECT id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at
-               FROM messages
-               WHERE conversation_id = $1
-               ORDER BY created_at DESC
-               LIMIT 100
-             ) sub ORDER BY created_at ASC`,
-            [conversationId]
-          );
-        }
-      }
-
-      if (res && res.rows) {
-        return res.rows.map((m) => {
-          let sName = m.sender_name;
-          let sRole = m.sender_role;
-          if (!sName && m.sender_id) {
-            if (m.sender_id.startsWith('admin') || m.sender_id.includes('curadoria')) {
-              sName = 'Mesa de Curadoria Lumiardi';
-              sRole = 'curadoria';
-            }
-          }
-          return {
-            id: m.id,
-            senderId: m.sender_id,
-            senderName: sName,
-            senderRole: sRole,
-            receiverId: m.receiver_id,
-            text: m.text,
-            attachmentUrl: m.attachment_url,
-            attachmentName: m.attachment_name,
-            attachmentType: m.attachment_type,
-            createdAt: m.created_at ? new Date(m.created_at).toISOString() : new Date().toISOString(),
-            isRead: m.is_read,
-          };
-        });
-      }
-    } catch (err) {
-      console.warn('[Chat] PostgreSQL query falhou em listMessages, usando fallback:', err);
+    let sinceParam: string | null = null;
+    if (since) {
+      const sinceMs = new Date(since).getTime();
+      sinceParam = !isNaN(sinceMs) ? new Date(sinceMs - 1000).toISOString() : since;
     }
 
+    // Canal de Curadoria: a modelo vê apenas a própria conversa; o admin vê a conversa da candidata
+    // selecionada (targetUserId) — TODAS as mensagens dela, enviadas pela modelo ou pela curadoria.
+    // Sem targetUserId, o admin recebe o canal inteiro.
     const participantId =
       conversationId === 'curation'
         ? (requestUserRole === 'admin' ? targetUserId : requestUserId)
         : undefined;
 
-    const sinceDate = since ? new Date(new Date(since).getTime() - 1000) : null;
-    let msgs = Array.from(fallbackStore.messages.values())
-      .filter((m) => {
-        if (m.conversation_id !== conversationId) return false;
-        if (conversationId === 'curation' && participantId) {
-          const isMine =
-            m.sender_id === participantId ||
-            m.receiver_id === participantId ||
-            (m.sender_role === 'curadoria' && !m.receiver_id);
-          if (!isMine) return false;
-        }
-        if (sinceDate && !isNaN(sinceDate.getTime())) {
-          return new Date(String(m.created_at)) > sinceDate;
-        }
-        return true;
-      })
-      .sort((a, b) => new Date(String(a.created_at)).getTime() - new Date(String(b.created_at)).getTime());
+    const columns =
+      'id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at';
 
-    if (!sinceDate && msgs.length > 100) {
-      msgs = msgs.slice(-100);
+    const conditions = ['conversation_id = $1'];
+    const params: unknown[] = [conversationId];
+
+    if (participantId) {
+      params.push(participantId);
+      // Mensagens da curadoria sem destinatário (avisos gerais) aceitam o papel canônico e o legado
+      conditions.push(
+        `(sender_id = $${params.length} OR receiver_id = $${params.length} OR (sender_role IN ('admin', 'curadoria') AND receiver_id IS NULL))`
+      );
     }
 
-    return msgs.map((m: any) => {
-      let sName = m.sender_name;
-      let sRole = m.sender_role;
-      if (!sName && m.sender_id) {
-        if (m.sender_id.startsWith('admin') || m.sender_id.includes('curadoria')) {
-          sName = 'Mesa de Curadoria Lumiardi';
-          sRole = 'curadoria';
-        } else if (fallbackStore.users.has(m.sender_id)) {
-          const u = fallbackStore.users.get(m.sender_id);
-          const p = fallbackStore.profiles.get(m.sender_id);
-          sName = (p?.artistic_name as string) || (p?.artisticName as string) || (u?.full_name as string);
-          sRole = u?.role === 'MODELO' ? 'modelo' : u?.role === 'AGENCIA' ? 'agencia' : 'admin';
-        }
-      }
+    let query: string;
+    if (sinceParam) {
+      params.push(sinceParam);
+      conditions.push(`created_at > $${params.length}`);
+      query = `SELECT ${columns} FROM messages WHERE ${conditions.join(' AND ')} ORDER BY created_at ASC`;
+    } else {
+      query = `SELECT * FROM (
+                 SELECT ${columns} FROM messages WHERE ${conditions.join(' AND ')}
+                 ORDER BY created_at DESC LIMIT 100
+               ) sub ORDER BY created_at ASC`;
+    }
+
+    // Falhas de banco são propagadas (a rota responde 5xx): nunca servir conversas de memória local,
+    // que divergem entre instâncias e escondem mensagens reais.
+    const res = await pool.query(query, params);
+
+    return res.rows.map((m) => {
+      const senderRole = normalizeSenderRole(m.sender_role, m.sender_id);
       return {
-        id: m.id as string,
-        senderId: m.sender_id as string,
-        senderName: sName,
-        senderRole: sRole,
-        receiverId: m.receiver_id as string | undefined,
-        text: m.text as string,
-        attachmentUrl: m.attachment_url as string | undefined,
-        attachmentName: m.attachment_name as string | undefined,
-        attachmentType: m.attachment_type as string | undefined,
-        createdAt: m.created_at as string,
-        isRead: Boolean(m.is_read),
+        id: m.id,
+        senderId: m.sender_id,
+        senderName: m.sender_name || (senderRole === 'admin' ? 'Mesa de Curadoria Lumiardi' : undefined),
+        senderRole,
+        receiverId: m.receiver_id,
+        text: m.text,
+        attachmentUrl: m.attachment_url,
+        attachmentName: m.attachment_name,
+        attachmentType: m.attachment_type,
+        createdAt: m.created_at ? new Date(m.created_at).toISOString() : new Date().toISOString(),
+        isRead: m.is_read,
       };
     });
+  },
+
+  /**
+   * Marca como lidas as mensagens que o leitor acabou de receber (zera o contador de não lidas do admin).
+   * - Admin abrindo a conversa de uma candidata: mensagens enviadas por ela no canal 'curation'.
+   * - Modelo/agência no canal 'curation': respostas da curadoria para ela (ou avisos gerais).
+   * - Conversa direta: mensagens destinadas ao leitor.
+   */
+  async markMessagesRead(params: {
+    conversationId: string;
+    viewerId: string;
+    viewerRole: string;
+    targetUserId?: string;
+  }): Promise<void> {
+    const { conversationId, viewerId, viewerRole, targetUserId } = params;
+    await initDatabase();
+
+    if (conversationId === 'curation') {
+      if (viewerRole === 'admin') {
+        if (!targetUserId) return;
+        await pool.query(
+          `UPDATE messages SET is_read = TRUE
+           WHERE conversation_id = 'curation' AND sender_id = $1 AND is_read = FALSE`,
+          [targetUserId]
+        );
+        return;
+      }
+      await pool.query(
+        `UPDATE messages SET is_read = TRUE
+         WHERE conversation_id = 'curation' AND is_read = FALSE AND sender_id <> $1
+           AND (receiver_id = $1 OR (sender_role IN ('admin', 'curadoria') AND receiver_id IS NULL))`,
+        [viewerId]
+      );
+      return;
+    }
+
+    await pool.query(
+      `UPDATE messages SET is_read = TRUE
+       WHERE conversation_id = $1 AND receiver_id = $2 AND is_read = FALSE`,
+      [conversationId, viewerId]
+    );
   },
 
   async getLastMessage(conversationId: string, userId?: string, role?: string): Promise<{ text: string; createdAt: string } | null> {
@@ -1515,7 +1473,7 @@ export const StorageService = {
         res = await pool.query(
           `SELECT text, created_at FROM messages
            WHERE conversation_id = $1
-             AND (sender_id = $2 OR receiver_id = $2 OR (sender_role = 'curadoria' AND receiver_id IS NULL))
+             AND (sender_id = $2 OR receiver_id = $2 OR (sender_role IN ('admin', 'curadoria') AND receiver_id IS NULL))
            ORDER BY created_at DESC LIMIT 1`,
           [conversationId, userId]
         );
@@ -1544,7 +1502,7 @@ export const StorageService = {
           return (
             m.sender_id === userId ||
             m.receiver_id === userId ||
-            (m.sender_role === 'curadoria' && !m.receiver_id)
+            (isAdminRole(m.sender_role) && !m.receiver_id)
           );
         }
         return true;
@@ -1573,8 +1531,7 @@ export const StorageService = {
     attachmentType?: string;
   }) {
     await initDatabase();
-    const id = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
-    const now = new Date().toISOString();
+    const id = `msg-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 
     // Se receiverId não foi fornecido e o canal for direto determinístico (conv_idA_idB), infere automaticamente
     let targetReceiverId = data.receiverId;
@@ -1585,94 +1542,47 @@ export const StorageService = {
       }
     }
 
-    try {
-      const dbRes = await pool.query(
-        `INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, NOW())
-         RETURNING id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at`,
-        [
-          id,
-          data.senderId,
-          data.senderName || null,
-          data.senderRole || null,
-          targetReceiverId || null,
-          data.conversationId,
-          data.text,
-          data.attachmentUrl || null,
-          data.attachmentName || null,
-          data.attachmentType || null,
-        ]
-      );
+    // Papel canônico ('admin' | 'creator' | 'agencia'), nunca nulo
+    const senderRole = normalizeSenderRole(data.senderRole, data.senderId);
 
-      if (dbRes.rows.length > 0) {
-        const row = dbRes.rows[0];
-        const serverCreatedAt = row.created_at ? new Date(row.created_at).toISOString() : now;
+    // Limites das colunas: valores maiores (ex.: MIME de .docx) não podem derrubar o INSERT
+    const clip = (value: string | undefined | null, max: number) =>
+      value ? String(value).slice(0, max) : null;
 
-        const savedMsg = {
-          id: row.id,
-          senderId: row.sender_id,
-          senderName: row.sender_name || data.senderName,
-          senderRole: row.sender_role || data.senderRole,
-          receiverId: row.receiver_id,
-          conversationId: row.conversation_id,
-          text: row.text,
-          attachmentUrl: row.attachment_url,
-          attachmentName: row.attachment_name,
-          attachmentType: row.attachment_type,
-          createdAt: serverCreatedAt,
-          isRead: false,
-        };
+    // Sem fallback em memória: se o INSERT falhar, o erro sobe e a rota responde 5xx. Antes a mensagem
+    // era guardada só na memória da instância, parecia enviada para a modelo e nunca chegava ao admin.
+    const dbRes = await pool.query(
+      `INSERT INTO messages (id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, NOW())
+       RETURNING id, sender_id, sender_name, sender_role, receiver_id, conversation_id, text, attachment_url, attachment_name, attachment_type, is_read, created_at`,
+      [
+        id,
+        data.senderId,
+        clip(data.senderName, 255),
+        senderRole,
+        targetReceiverId || null,
+        data.conversationId,
+        data.text,
+        data.attachmentUrl || null,
+        clip(data.attachmentName, 255),
+        clip(data.attachmentType, 255),
+      ]
+    );
 
-        // Mantém fallback sincronizado
-        fallbackStore.messages.set(row.id, {
-          id: row.id,
-          sender_id: row.sender_id,
-          sender_name: row.sender_name,
-          sender_role: row.sender_role,
-          receiver_id: row.receiver_id,
-          conversation_id: row.conversation_id,
-          text: row.text,
-          attachment_url: row.attachment_url,
-          attachment_name: row.attachment_name,
-          attachment_type: row.attachment_type,
-          is_read: false,
-          created_at: serverCreatedAt,
-        });
-
-        return savedMsg;
-      }
-    } catch (dbErr) {
-      console.warn('[Chat] Erro ao gravar mensagem no PostgreSQL, usando fallback:', dbErr);
-    }
-
-    const msgObj = {
-      id,
-      sender_id: data.senderId,
-      sender_name: data.senderName,
-      sender_role: data.senderRole,
-      receiver_id: targetReceiverId,
-      conversation_id: data.conversationId,
-      text: data.text,
-      attachment_url: data.attachmentUrl,
-      attachment_name: data.attachmentName,
-      attachment_type: data.attachmentType,
-      is_read: false,
-      created_at: now,
-    };
-    fallbackStore.messages.set(id, msgObj);
-
+    const row = dbRes.rows[0];
     return {
-      id,
-      senderId: data.senderId,
-      senderName: data.senderName,
-      senderRole: data.senderRole,
-      receiverId: targetReceiverId,
-      conversationId: data.conversationId,
-      text: data.text,
-      attachmentUrl: data.attachmentUrl,
-      attachmentName: data.attachmentName,
-      attachmentType: data.attachmentType,
-      createdAt: now,
+      id: row.id,
+      senderId: row.sender_id,
+      senderName: row.sender_name || data.senderName,
+      senderRole: normalizeSenderRole(row.sender_role, row.sender_id),
+      receiverId: row.receiver_id,
+      conversationId: row.conversation_id,
+      text: row.text,
+      attachmentUrl: row.attachment_url,
+      attachmentName: row.attachment_name,
+      attachmentType: row.attachment_type,
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      isRead: false,
     };
   },
 
@@ -2892,7 +2802,7 @@ export const StorageService = {
     modelName: string;
     message: string;
     proposedCommission?: string;
-  }): Promise<{ proposal: ScoutProposal; blocked?: boolean }> {
+  }): Promise<{ proposal: ScoutProposal; blocked?: boolean; conversationId?: string }> {
     // 1. Verifica se o modelo aceita ofertas
     const targetModel = await this.getUserById(data.modelId);
     const profile = targetModel?.profile as any;
@@ -2941,19 +2851,32 @@ export const StorageService = {
       // Fallback
     }
 
-    // Cria mensagem inicial no chat entre agência e modelo
+    // Canal direto determinístico agência ↔ modelo: passa a existir na listagem de conversas
+    // assim que a proposta é registrada (listActiveConversations lê scout_proposals)
+    const conversationId = getDirectConversationId(data.agencyId, data.modelId);
+    const commissionRate = String(proposal.proposedCommission).trim().replace(/%$/, '');
+
+    // Mensagem automática com os dados completos da proposta
     try {
       await this.sendMessage({
         senderId: data.agencyId,
+        senderName: data.agencyName,
+        senderRole: 'agencia',
         receiverId: data.modelId,
-        conversationId: getDirectConversationId(data.agencyId, data.modelId),
-        text: `[PROPOSTA DE SCOUTING]: Olá ${data.modelName}, a agência ${data.agencyName} enviou uma proposta formal de agenciamento (Comissão proposta: ${proposal.proposedCommission}). Mensagem: "${data.message}"`,
+        conversationId,
+        text: [
+          '📋 PROPOSTA FORMAL DE AGENCIAMENTO',
+          `Agência: ${data.agencyName}`,
+          `Comissão Proposta: ${commissionRate}%`,
+          'Detalhes / Mensagem:',
+          `"${data.message}"`,
+        ].join('\n'),
       });
     } catch (err) {
       console.warn('Erro ao inicializar chat com proposta:', err);
     }
 
-    return { proposal, blocked: false };
+    return { proposal, blocked: false, conversationId };
   },
 
   async listScoutProposals(params: { agencyId?: string; modelId?: string }): Promise<ScoutProposal[]> {

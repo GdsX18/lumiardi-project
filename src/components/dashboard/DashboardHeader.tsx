@@ -45,6 +45,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     notifications,
     notificationsCount,
     clearNotifications,
+    markNotificationAsRead,
     refreshData,
   } = useAuthPortal();
   const { t, formatTime } = useLanguage();
@@ -176,13 +177,18 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       </p>
                       {n.link && (
                         <div className="pt-1">
-                          <Link
-                            href={n.link}
-                            onClick={() => setShowNotifications(false)}
-                            className="text-[10px] font-sans uppercase tracking-wider text-gold hover:underline inline-flex items-center gap-1"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!n.link) return;
+                              setShowNotifications(false);
+                              if (!n.isRead) void markNotificationAsRead(n.id);
+                              router.push(n.link);
+                            }}
+                            className="text-[10px] font-sans uppercase tracking-wider text-gold hover:underline inline-flex items-center gap-1 cursor-pointer"
                           >
                             <span>{n.linkText} →</span>
-                          </Link>
+                          </button>
                         </div>
                       )}
                     </div>

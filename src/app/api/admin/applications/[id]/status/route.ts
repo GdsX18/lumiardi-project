@@ -185,7 +185,7 @@ export async function POST(
       try {
         const welcomeRes = await pool.query(
           `SELECT 1 FROM messages
-           WHERE conversation_id = 'curation' AND receiver_id = $1 AND sender_role = 'curadoria'
+           WHERE conversation_id = 'curation' AND receiver_id = $1 AND sender_role IN ('admin', 'curadoria')
              AND text LIKE '%canal oficial da Curadoria Lumiardi%'
            LIMIT 1`,
           [id]
@@ -197,7 +197,7 @@ export async function POST(
           await StorageService.sendMessage({
             senderId: session.id,
             senderName: `Mesa de Curadoria — Auditor ${auditorFirstName}`,
-            senderRole: 'curadoria',
+            senderRole: 'admin',
             receiverId: id,
             conversationId: 'curation',
             text: 'Bem-vinda ao canal oficial da Curadoria Lumiardi. Este é o seu espaço criptografado e prioritário para suporte, dúvidas contratuais e alinhamentos de casting.',

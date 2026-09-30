@@ -22,6 +22,7 @@ interface AuthPortalContextType {
   notifications: NotificationItem[];
   notificationsCount: number;
   clearNotifications: () => Promise<void>;
+  markNotificationAsRead: (id: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -259,6 +260,23 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const markNotificationAsRead = async (id: string) => {
+    // Atualização otimista: o badge cai na hora, sem esperar a API
+    const wasUnread = notifications.some((n) => n.id === id && !n.isRead);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    if (wasUnread) setNotificationsCount((c) => Math.max(0, c - 1));
+
+    try {
+      await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {
+      console.warn('Erro ao marcar notificação como lida:', e);
+    }
+  };
+
   return (
     <AuthPortalContext.Provider
       value={{
@@ -276,6 +294,7 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         notifications,
         notificationsCount,
         clearNotifications,
+        markNotificationAsRead,
         isLoading,
       }}
     >

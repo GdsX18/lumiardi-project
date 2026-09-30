@@ -22,6 +22,7 @@ import {
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { VideoCallWidget } from './VideoCallWidget';
+import { isOwnChatMessage } from '@/lib/chatRoles';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,10 @@ export interface ChatMessage {
   sender?: string;
   senderName?: string;
   senderRole?: string;
+  /** Mensagem enviada pela Mesa de Curadoria (admin): sempre à esquerda, com o selo oficial. */
+  isStaff?: boolean;
+  /** Chave React estável: não muda quando o id otimista é trocado pelo id do servidor (evita remontar a linha). */
+  clientKey?: string;
   text: string;
   time?: string;
   createdAt?: string;
@@ -81,6 +86,22 @@ function formatTime(isoOrTime: string | undefined, locale: string, nowLabel: str
   }
 }
 
+/** A mensagem veio da Mesa de Curadoria? Aceita o papel canônico ('admin') e o legado ('curadoria'). */
+function isStaffMessage(m: { senderRole?: string; senderType?: string; sender_role?: string; senderId?: string }): boolean {
+  const role = String(m.senderType || m.senderRole || m.sender_role || '').toLowerCase();
+  if (role === 'admin' || role === 'curadoria') return true;
+  if (role) return false;
+  const id = String(m.senderId || '').toLowerCase();
+  return id.startsWith('admin') || id.startsWith('cur-') || id.includes('curadoria');
+}
+
+/** Papel canônico gravado nas mensagens otimistas (o servidor sempre define o definitivo). */
+function canonicalRole(userRole?: string): string {
+  if (userRole === 'agencia') return 'agencia';
+  if (userRole === 'admin') return 'admin';
+  return 'creator';
+}
+
 function getInitials(name?: string): string {
   if (!name) return 'LM';
   return name
@@ -93,8 +114,16 @@ function getInitials(name?: string): string {
 
 // ─── Componente Principal ────────────────────────────────────────────────────
 
-const ChatPanelInner: React.FC = () => {
-  const { t, locale } = useLanguage();
+interface ChatPanelProps {
+  /**
+   * `true`: o painel preenche a altura do contêiner pai (shell flex rígido de /dashboard/chat) e o scroll
+   * acontece só dentro da lista de mensagens. `false` (abas embutidas): altura própria e definida.
+   */
+  fullHeight?: boolean;
+}
+
+const ChatPanelInner: React.FC<ChatPanelProps> = ({ fullHeight = false }) => {
+  const { t, locale, tApiError } = useLanguage();
   const i18nRef = useRef({ t, locale });
   const { currentUser, activeCreator } = useAuthPortal();
   const searchParams = useSearchParams();
@@ -155,8 +184,8 @@ const ChatPanelInner: React.FC = () => {
   const isSyncingRef = useRef<boolean>(false);
 
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
-  const prevMessagesCountRef = useRef<number>(0);
-  const isInitialLoadRef = useRef<boolean>(true);
+  const lastMessageCountRef = useRef<number>(0);
+  const [sendError, setSendError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -165,23 +194,32 @@ const ChatPanelInner: React.FC = () => {
   // ─── Normalização de mensagens da API ─────────────────────────────────────
 
   const normalizeMessages = useCallback(
-    (raw: any[], currentId?: string, myName?: string): ChatMessage[] => {
+    (raw: any[], currentId?: string, myName?: string, currentRole?: string): ChatMessage[] => {
       return raw.map((m: any) => {
+        const isStaff = isStaffMessage(m);
+        // Mesma regra do /admin: mesmo sender_id da sessão ou mesmo papel (modelo ↔ 'creator', admin ↔ 'admin')
         const isMe =
-          m.isMe !== undefined
-            ? Boolean(m.isMe)
-            : Boolean((currentId && m.senderId === currentId) || m.senderId === 'me');
+          m.senderId === 'me' ||
+          isOwnChatMessage(
+            { senderId: m.senderId ?? m.sender_id, senderRole: m.senderType || m.senderRole || m.sender_role },
+            currentId,
+            currentRole
+          );
 
         const senderDisplayName = isMe
           ? myName || i18nRef.current.t('chat_you')
           : m.sender || m.senderName || i18nRef.current.t('dwg_chat_curation_name');
 
+        const messageId = m.id || `msg-${Math.random().toString(36).slice(2)}`;
+
         return {
-          id: m.id || String(Math.random()),
+          id: messageId,
+          clientKey: messageId,
+          isStaff,
           senderId: m.senderId,
           sender: senderDisplayName,
           senderName: m.senderName || senderDisplayName,
-          senderRole: m.senderRole,
+          senderRole: m.senderType || m.senderRole,
           text: m.text || m.content || '',
           time: m.time || formatTime(m.createdAt, i18nRef.current.locale, i18nRef.current.t('dwg_chat_now')),
           createdAt: m.createdAt,
@@ -236,17 +274,20 @@ const ChatPanelInner: React.FC = () => {
             data.currentUserName ||
             i18nRef.current.t('chat_you');
 
-          const incoming = normalizeMessages(data.messages, currentId, myName);
+          const currentRole = currentUserRef.current?.role || data.currentUserRole;
+          const incoming = normalizeMessages(data.messages, currentId, myName, currentRole);
           const prevEntry = cacheRef.current.get(targetConvId);
           let merged: ChatMessage[] = [];
+          let changed = true;
 
           if (isFullLoad || !prevEntry || !prevEntry.isLoaded) {
             // Carga inicial completa: preserva mensagens otimistas locais ainda pendentes
             const pendingOptimistic = (prevEntry?.messages || []).filter((m) =>
               m.id.startsWith('optimistic-')
             );
+            const knownIds = new Set((prevEntry?.messages || []).map((m) => m.id));
             const stillPending = pendingOptimistic.filter(
-              (opt) => !incoming.some((s) => s.isMe && s.text === opt.text)
+              (opt) => !incoming.some((s) => s.isMe && s.text === opt.text && !knownIds.has(s.id))
             );
             merged = [...incoming, ...stillPending];
           } else {
@@ -254,6 +295,7 @@ const ChatPanelInner: React.FC = () => {
             const existingIds = new Set(prevEntry.messages.map((m) => m.id));
             const updatedPrev = [...prevEntry.messages];
             const fresh: ChatMessage[] = [];
+            changed = false;
 
             for (const nm of incoming) {
               if (existingIds.has(nm.id)) continue;
@@ -262,15 +304,18 @@ const ChatPanelInner: React.FC = () => {
                   (m) => m.id.startsWith('optimistic-') && m.text === nm.text
                 );
                 if (optIndex !== -1) {
-                  updatedPrev[optIndex] = nm;
+                  // Mantém a chave React da mensagem otimista: a linha não remonta ao receber o id real
+                  updatedPrev[optIndex] = { ...nm, clientKey: updatedPrev[optIndex].clientKey || nm.clientKey };
                   existingIds.add(nm.id);
+                  changed = true;
                   continue;
                 }
               }
               fresh.push(nm);
               existingIds.add(nm.id);
+              changed = true;
             }
-            merged = [...updatedPrev, ...fresh];
+            merged = changed ? [...updatedPrev, ...fresh] : prevEntry.messages;
           }
 
           const lastMsg = merged[merged.length - 1];
@@ -285,8 +330,9 @@ const ChatPanelInner: React.FC = () => {
 
           // REGRA DE OURO ANTI-LEAK:
           // Só atualiza a tela SE o usuário AINDA ESTIVER nesta conversa
+          // (sem novidades no polling → não recria o array, evitando re-render a cada segundo)
           if (activeConvIdRef.current === targetConvId) {
-            setMessages(merged);
+            if (changed) setMessages(merged);
             setIsLoadingMessages(false);
           }
         }
@@ -320,8 +366,7 @@ const ChatPanelInner: React.FC = () => {
       activeConvIdRef.current = newConvId;
       setActiveConvId(newConvId);
       setShowMobileList(false);
-      isInitialLoadRef.current = true;
-      prevMessagesCountRef.current = 0;
+      lastMessageCountRef.current = 0;
 
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('lumiardi_active_chat', newConvId);
@@ -359,6 +404,30 @@ const ChatPanelInner: React.FC = () => {
   }, []);
 
   // ─── Inicialização e Ciclos de Polling Sequenciados (Anti-Lag) ─────────────
+
+  // ─── Deep link: ?conversationId=… ou ?agencyId=… (ex.: notificação de proposta) ──
+  // Reage também quando a URL muda com o chat já montado (clique na notificação dentro de /dashboard/chat).
+  // Cada valor de parâmetro é aplicado uma única vez, para não prender o usuário na conversa.
+  const queryAgencyId = searchParams?.get('agencyId');
+  const appliedDeepLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (queryConv) {
+      const key = `conv:${queryConv}`;
+      if (appliedDeepLinkRef.current === key) return;
+      appliedDeepLinkRef.current = key;
+      handleSelectConversation(queryConv);
+      return;
+    }
+    if (queryAgencyId) {
+      const key = `agency:${queryAgencyId}`;
+      if (appliedDeepLinkRef.current === key) return;
+      const target = conversations.find((c) => c.partnerId === queryAgencyId);
+      if (!target) return; // aguarda a lista de conversas carregar
+      appliedDeepLinkRef.current = key;
+      handleSelectConversation(target.id);
+    }
+  }, [queryConv, queryAgencyId, conversations, handleSelectConversation]);
 
   useEffect(() => {
     fetchConversations();
@@ -433,29 +502,34 @@ const ChatPanelInner: React.FC = () => {
     };
   }, []);
 
-  // ─── Scroll Estritamente Contido no Contêiner Interno ──────────────────────
-
+  // ─── Auto-scroll: só quando uma NOVA mensagem é adicionada ────────────────
+  // Depende apenas de messages.length (e da conversa ativa): re-renders e polls sem novidade não rolam.
+  // Mensagem própria ou usuária já perto do fim → rola; quem está lendo o histórico não é interrompida.
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    if (isInitialLoadRef.current && messages.length > 0) {
-      container.scrollTop = container.scrollHeight;
-      isInitialLoadRef.current = false;
-      prevMessagesCountRef.current = messages.length;
-      return;
-    }
+    const isFirstLoad = lastMessageCountRef.current === 0;
+    const grew = messages.length > lastMessageCountRef.current;
+    lastMessageCountRef.current = messages.length;
+    if (!grew) return;
 
-    if (messages.length > prevMessagesCountRef.current) {
-      const isNearBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight < 140;
-      if (isNearBottom) {
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-      }
-    }
+    const lastIsMine = Boolean(messages[messages.length - 1]?.isMe);
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 160;
 
-    prevMessagesCountRef.current = messages.length;
-  }, [messages]);
+    if (isFirstLoad || lastIsMine || nearBottom) {
+      // Rola só o contêiner da lista (scrollIntoView também moveria a janela e outros ancestrais)
+      container.scrollTo({ top: container.scrollHeight, behavior: isFirstLoad ? 'auto' : 'smooth' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, activeConvId]);
+
+  // Aviso de erro de envio: fecha sozinho em 5 s (timer limpo ao trocar/desmontar)
+  useEffect(() => {
+    if (!sendError) return;
+    const timer = setTimeout(() => setSendError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [sendError]);
 
   // ─── Auto-resize do textarea ──────────────────────────────────────────────
 
@@ -472,49 +546,64 @@ const ChatPanelInner: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const attachmentKind: AttachedFile['type'] = file.type.startsWith('image/') ? 'image' : 'file';
     setIsUploading(true);
+    setSendError(null);
     try {
       const presignRes = await fetch('/api/chat/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, fileType: file.type }),
+        body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size }),
       });
 
-      if (presignRes.ok) {
-        const presignData = await presignRes.json();
+      if (!presignRes.ok) {
+        const errData = await presignRes.json().catch(() => ({}));
+        setSendError(tApiError(errData, 'api_err_generic'));
+        return;
+      }
 
-        if (presignData.fallback) {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('category', 'chat');
-          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
-          if (uploadRes.ok) {
-            const uploadData = await uploadRes.json();
-            setAttachedFile({
-              name: file.name,
-              url: uploadData.url || uploadData.file?.url,
-              type: file.type.startsWith('image/') ? 'image' : 'file',
-            });
-          } else {
-            setAttachedFile({ name: file.name, type: file.type.startsWith('image/') ? 'image' : 'file' });
-          }
-        } else if (presignData.uploadUrl) {
-          await fetch(presignData.uploadUrl, {
+      const presignData = await presignRes.json();
+      let uploadedUrl: string | undefined;
+      let uploadedKey: string | undefined;
+
+      // 1) Upload direto ao R2 pela URL pré-assinada; a URL do anexo é a rota autenticada /api/media
+      if (!presignData.fallback && presignData.uploadUrl) {
+        try {
+          const putRes = await fetch(presignData.uploadUrl, {
             method: 'PUT',
             headers: { 'Content-Type': file.type },
             body: file,
           });
-
-          setAttachedFile({
-            name: file.name,
-            url: presignData.publicUrl || presignData.uploadUrl,
-            type: file.type.startsWith('image/') ? 'image' : 'file',
-            fileKey: presignData.fileKey,
-          });
+          if (putRes.ok) {
+            uploadedUrl = presignData.mediaUrl;
+            uploadedKey = presignData.fileKey;
+          }
+        } catch {
+          // segue para o upload pelo servidor
         }
       }
+
+      // 2) Fallback: upload pelo servidor (R2 não configurado ou PUT direto bloqueado)
+      if (!uploadedUrl) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', 'chat');
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          setSendError(tApiError(errData, 'api_err_generic'));
+          return;
+        }
+        const uploadData = await uploadRes.json();
+        uploadedUrl = uploadData.url;
+        uploadedKey = uploadData.r2Key;
+      }
+
+      if (uploadedUrl) {
+        setAttachedFile({ name: file.name, url: uploadedUrl, type: attachmentKind, fileKey: uploadedKey });
+      }
     } catch {
-      setAttachedFile({ name: file.name, type: file.type.startsWith('image/') ? 'image' : 'file' });
+      setSendError(tApiError({ code: 'network' }, 'api_err_network'));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -537,13 +626,11 @@ const ChatPanelInner: React.FC = () => {
 
     const optimisticMsg: ChatMessage = {
       id: tempId,
+      clientKey: tempId,
       senderId: currentUser?.id || 'me',
       sender: myDisplayName,
       senderName: myDisplayName,
-      senderRole:
-        currentUser?.role === 'criadora'
-          ? 'modelo'
-          : currentUser?.role || 'modelo',
+      senderRole: canonicalRole(currentUser?.role),
       text: currentText,
       time: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date().toISOString(),
@@ -586,15 +673,22 @@ const ChatPanelInner: React.FC = () => {
       )
     );
 
-    // 4. Scroll imediato
-    setTimeout(() => {
-      if (messagesContainerRef.current) {
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      }
-    }, 30);
+    // 4. (o scroll até a nova mensagem é feito pelo efeito de messages.length)
+
+    // Desfaz o envio otimista quando o servidor não confirma: a mensagem não pode parecer entregue
+    const revertOptimistic = (errorText: string) => {
+      const withoutTemp = (list: ChatMessage[]) => list.filter((m) => m.id !== tempId);
+      const entry = cacheRef.current.get(targetConvId);
+      if (entry) cacheRef.current.set(targetConvId, { ...entry, messages: withoutTemp(entry.messages) });
+      if (activeConvIdRef.current === targetConvId) setMessages(withoutTemp);
+      setInputVal((current) => (current && current !== currentText ? `${currentText}\n${current}` : currentText));
+      if (currentAttachment) setAttachedFile((current) => current || currentAttachment);
+      setSendError(errorText);
+    };
 
     // 5. Envia no background para o servidor
     setIsSending(true);
+    setSendError(null);
     try {
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
@@ -608,7 +702,10 @@ const ChatPanelInner: React.FC = () => {
         }),
       });
 
-      if (res.ok) {
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        revertOptimistic(tApiError(errData, 'api_err_generic'));
+      } else {
         const data = await res.json();
         const serverId = data.message?.id;
         const serverCreatedAt = data.message?.createdAt;
@@ -632,7 +729,7 @@ const ChatPanelInner: React.FC = () => {
         }
       }
     } catch {
-      // Mensagem otimista permanece visível mesmo com instabilidade temporária
+      revertOptimistic(tApiError({ code: 'network' }, 'api_err_network'));
     } finally {
       setIsSending(false);
     }
@@ -665,12 +762,14 @@ const ChatPanelInner: React.FC = () => {
           activeCreator?.qualitative?.artisticName || currentUser?.name || t('chat_you');
         const meetMsgText = `Reunião VIP iniciada. Clique para aceder à sala executiva: ${roomId}`;
 
+        const meetTempId = `optimistic-${Date.now()}`;
         const optimisticMsg: ChatMessage = {
-          id: `optimistic-${Date.now()}`,
+          id: meetTempId,
+          clientKey: meetTempId,
           senderId: currentUser?.id || 'me',
           sender: myDisplayName,
           senderName: myDisplayName,
-          senderRole: currentUser?.role === 'criadora' ? 'modelo' : currentUser?.role || 'modelo',
+          senderRole: canonicalRole(currentUser?.role),
           text: meetMsgText,
           time: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
           createdAt: new Date().toISOString(),
@@ -692,8 +791,23 @@ const ChatPanelInner: React.FC = () => {
           });
         }
 
+        // Remove o cartão otimista se o servidor não gravar a mensagem (a outra parte nunca a receberia)
+        const removeMeetCard = () => {
+          const entry = cacheRef.current.get(targetConvId);
+          if (entry) {
+            cacheRef.current.set(targetConvId, {
+              ...entry,
+              messages: entry.messages.filter((m) => m.id !== meetTempId),
+            });
+          }
+          if (activeConvIdRef.current === targetConvId) {
+            setMessages((prev) => prev.filter((m) => m.id !== meetTempId));
+          }
+        };
+
+        // Reconcilia o cartão otimista com a mensagem gravada (senão o polling exibiria um segundo cartão)
         try {
-          await fetch('/api/chat/messages', {
+          const meetRes = await fetch('/api/chat/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -704,7 +818,25 @@ const ChatPanelInner: React.FC = () => {
               attachmentUrl: inviteUrl,
             }),
           });
-        } catch {}
+          if (meetRes.ok) {
+            const meetData = await meetRes.json();
+            const serverId = meetData.message?.id;
+            if (serverId) {
+              const replaceMeet = (m: ChatMessage) =>
+                m.id === meetTempId ? { ...m, id: serverId, createdAt: meetData.message?.createdAt || m.createdAt } : m;
+              const entry = cacheRef.current.get(targetConvId);
+              if (entry) cacheRef.current.set(targetConvId, { ...entry, messages: entry.messages.map(replaceMeet) });
+              if (activeConvIdRef.current === targetConvId) setMessages((prev) => prev.map(replaceMeet));
+            }
+          } else {
+            const errData = await meetRes.json().catch(() => ({}));
+            removeMeetCard();
+            setSendError(tApiError(errData, 'api_err_generic'));
+          }
+        } catch {
+          removeMeetCard();
+          setSendError(tApiError({ code: 'network' }, 'api_err_network'));
+        }
 
         setActiveMeetRoom(roomId);
       }
@@ -728,10 +860,14 @@ const ChatPanelInner: React.FC = () => {
   const canSend = (inputVal.trim().length > 0 || !!attachedFile) && !isSending && !isUploading;
 
   return (
-    <div className="w-full h-full min-h-[580px] bg-[#080808] border border-white/[0.08] rounded-xs shadow-2xl flex overflow-hidden">
+    <div
+      className={`w-full bg-[#080808] border border-white/[0.08] rounded-xs shadow-2xl flex overflow-hidden ${
+        fullHeight ? 'flex-1 min-h-0 h-full' : 'h-[70vh] min-h-[520px] max-h-[780px]'
+      }`}
+    >
       {/* ── Barra Lateral de Canais ── */}
       <div
-        className={`w-full md:w-80 lg:w-88 border-r border-white/[0.06] bg-[#0A0A0A] flex flex-col shrink-0 transition-all ${
+        className={`w-full md:w-80 lg:w-88 min-h-0 border-r border-white/[0.06] bg-[#0A0A0A] flex flex-col shrink-0 transition-all ${
           showMobileList ? 'flex' : 'hidden md:flex'
         }`}
       >
@@ -762,7 +898,7 @@ const ChatPanelInner: React.FC = () => {
         </div>
 
         {/* Lista de Canais */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
           {filteredConversations.map((conv) => {
             const isSelected = conv.id === activeConvId;
             return (
@@ -818,7 +954,7 @@ const ChatPanelInner: React.FC = () => {
       </div>
 
       {/* ── Janela de Conversa Ativa ── */}
-      <div className="flex-1 flex flex-col bg-[#0B0B0B] h-full overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0B0B0B] overflow-hidden">
         {/* Header da Conversa */}
         <div className="px-4 py-3 bg-[#0E0E0E]/90 border-b border-white/[0.06] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -886,7 +1022,7 @@ const ChatPanelInner: React.FC = () => {
         </div>
 
         {/* ── Histórico de Mensagens ── */}
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-6 md:px-8 space-y-5">
+        <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto p-4 md:px-8 space-y-4">
           {isLoadingMessages && messages.length === 0 ? (
             <div className="h-full flex flex-col justify-end p-4 md:p-6 space-y-4">
               <div className="flex justify-start items-end gap-2 animate-pulse">
@@ -917,13 +1053,23 @@ const ChatPanelInner: React.FC = () => {
           ) : (
             messages.map((msg) => {
               const initials = getInitials(msg.sender);
+              // Minhas mensagens à direita (sem avatar); as do outro lado à esquerda com avatar e nome
+              const alignRight = Boolean(msg.isMe);
 
               return (
                 <div
-                  key={msg.id}
-                  className={`flex w-full ${msg.isMe ? 'justify-end' : 'justify-start'} items-end gap-2 group min-w-0`}
+                  key={msg.clientKey || msg.id}
+                  className={`flex w-full ${alignRight ? 'justify-end' : 'justify-start'} items-end gap-2 group min-w-0`}
                 >
-                  {!msg.isMe && (
+                  {!alignRight && msg.isStaff && (
+                    <div
+                      className="w-8 h-8 rounded-full bg-gradient-to-br from-gold to-gold-light text-black-matte ring-2 ring-gold/30 flex items-center justify-center font-serif-lumiardi font-bold text-[10px] shrink-0 mb-0.5"
+                      title={t('dwg_chat_official_badge')}
+                    >
+                      LM
+                    </div>
+                  )}
+                  {!alignRight && !msg.isStaff && (
                     <div
                       className="w-7 h-7 rounded-full bg-[#141414] border border-gold/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-[10px] shrink-0 mb-0.5"
                       title={msg.sender}
@@ -933,9 +1079,23 @@ const ChatPanelInner: React.FC = () => {
                   )}
 
                   <div
-                    className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-lg md:max-w-2xl min-w-0 space-y-1`}
+                    className={`flex flex-col ${alignRight ? 'items-end ml-auto' : 'items-start mr-auto'} max-w-[75%] min-w-0 space-y-1`}
                   >
-                    {!msg.isMe && (
+                    {alignRight && (
+                      <span className="text-[10px] text-amber-200/50 font-sans px-1">{t('chat_you')}</span>
+                    )}
+                    {!alignRight && msg.isStaff && (
+                      <span className="flex items-center gap-1.5 px-1 min-w-0">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold/10 border border-gold/25 px-1.5 py-0.5 rounded-xs shrink-0">
+                          <ShieldCheck className="w-3 h-3" />
+                          {t('dwg_chat_official_badge')}
+                        </span>
+                        {msg.sender && msg.sender !== t('dwg_chat_official_badge') && (
+                          <span className="text-[10px] text-ivory/45 font-sans truncate">{msg.sender}</span>
+                        )}
+                      </span>
+                    )}
+                    {!alignRight && !msg.isStaff && (
                       <span className="text-[10px] text-ivory/50 font-sans px-1">
                         {msg.sender}
                       </span>
@@ -943,9 +1103,9 @@ const ChatPanelInner: React.FC = () => {
 
                     <div
                       className={`px-4 py-3 text-xs font-sans leading-relaxed shadow-sm relative transition-all min-w-0 break-all [overflow-wrap:anywhere] ${
-                        msg.isMe
-                          ? 'bg-[#1C1914] border border-[#C9A96B]/25 text-[#F5F2EB] rounded-2xl rounded-tr-xs'
-                          : 'bg-[#141414] border border-white/[0.07] text-ivory/90 rounded-2xl rounded-tl-xs hover:border-white/[0.12]'
+                        alignRight
+                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-100 rounded-2xl rounded-br-none'
+                          : 'bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-2xl rounded-bl-none hover:border-zinc-700'
                       }`}
                     >
                       {/* Caso Reunião VIP */}
@@ -992,7 +1152,7 @@ const ChatPanelInner: React.FC = () => {
                           {msg.text && (
                             <p
                               className={`whitespace-pre-wrap break-all [overflow-wrap:anywhere] text-[13px] leading-relaxed ${
-                                msg.isMe ? 'text-[#F5F2EB]/95' : 'text-ivory/90'
+                                alignRight ? 'text-amber-100' : 'text-zinc-100'
                               }`}
                             >
                               {msg.text}
@@ -1002,7 +1162,7 @@ const ChatPanelInner: React.FC = () => {
                           {msg.hasAttachment && msg.attachmentUrl && (
                             <div
                               className={`mt-2.5 rounded-xs border overflow-hidden ${
-                                msg.isMe
+                                alignRight
                                   ? 'border-[#C9A96B]/20 bg-black/25'
                                   : 'border-white/[0.07] bg-[#181818]'
                               }`}
@@ -1053,11 +1213,11 @@ const ChatPanelInner: React.FC = () => {
 
                       <div
                         className={`flex items-center gap-1 mt-1.5 ${
-                          msg.isMe ? 'justify-end' : 'justify-start'
+                          alignRight ? 'justify-end' : 'justify-start'
                         }`}
                       >
                         <span className="text-[10px] text-ivory/35 font-sans">{msg.time}</span>
-                        {msg.isMe && (
+                        {alignRight && (
                           <CheckCheck className="w-3 h-3 text-gold/50" />
                         )}
                       </div>
@@ -1066,7 +1226,7 @@ const ChatPanelInner: React.FC = () => {
                         onClick={() => copyMessageText(msg.id, msg.text)}
                         title={t('dwg_chat_copy_message')}
                         className={`absolute -top-2 ${
-                          msg.isMe ? '-left-7' : '-right-7'
+                          alignRight ? '-left-7' : '-right-7'
                         } opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-[#181818] border border-white/10 rounded-xs text-ivory/50 hover:text-gold shadow-sm cursor-pointer`}
                       >
                         {copiedMsgId === msg.id ? (
@@ -1077,24 +1237,33 @@ const ChatPanelInner: React.FC = () => {
                       </button>
                     </div>
                   </div>
-
-                  {msg.isMe && (
-                    <div
-                      className="w-7 h-7 rounded-full bg-gold/10 border border-[#C9A96B]/30 text-gold flex items-center justify-center font-serif-lumiardi font-bold text-[10px] shrink-0 mb-0.5"
-                      title={msg.sender}
-                    >
-                      {initials || 'VC'}
-                    </div>
-                  )}
                 </div>
               );
             })
           )}
         </div>
 
+        {/* ── Aviso de erro de envio/upload (fecha em 5 s ou no X) ── */}
+        {sendError && (
+          <div
+            role="alert"
+            className="shrink-0 px-4 py-2 bg-rose-950/60 border-t border-rose-500/40 flex items-center justify-between gap-3 text-xs text-rose-300"
+          >
+            <span>{sendError}</span>
+            <button
+              type="button"
+              onClick={() => setSendError(null)}
+              aria-label={t('dwg_close')}
+              className="shrink-0 text-rose-300/70 hover:text-rose-200 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* ── Prévia de Anexo Selecionado ── */}
         {attachedFile && (
-          <div className="px-5 py-2 bg-[#111] border-t border-gold/20 flex items-center justify-between gap-3 text-xs text-gold/80">
+          <div className="shrink-0 px-5 py-2 bg-[#111] border-t border-gold/20 flex items-center justify-between gap-3 text-xs text-gold/80">
             <span className="flex items-center gap-2 truncate">
               {attachedFile.type === 'image' ? (
                 <ImageIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1115,7 +1284,7 @@ const ChatPanelInner: React.FC = () => {
         {/* ── Barra de Input ── */}
         <form
           onSubmit={handleSend}
-          className="px-4 py-3 md:px-5 md:py-4 bg-[#0E0E0E] border-t border-white/[0.07] flex items-end gap-2.5"
+          className="shrink-0 p-4 border-t border-gold/15 bg-background flex items-end gap-2.5"
         >
           <label
             className={`p-2.5 bg-[#161616] border border-white/[0.08] text-ivory/60 rounded-xs transition-all shrink-0 mb-px ${
@@ -1182,17 +1351,17 @@ const ChatPanelInner: React.FC = () => {
   );
 };
 
-export const ChatPanel: React.FC = () => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({ fullHeight = false }) => {
   const { t } = useLanguage();
   return (
     <Suspense
       fallback={
-        <div className="w-full h-full min-h-[400px] flex items-center justify-center text-white/40">
+        <div className={`w-full flex items-center justify-center text-white/40 ${fullHeight ? 'flex-1 min-h-0' : 'min-h-[400px]'}`}>
           {t('dwg_chat_loading')}
         </div>
       }
     >
-      <ChatPanelInner />
+      <ChatPanelInner fullHeight={fullHeight} />
     </Suspense>
   );
 };

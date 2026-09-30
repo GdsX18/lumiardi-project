@@ -122,7 +122,7 @@ async function runReset() {
         'msg-welcome-official',
         'admin-curadoria-1',
         'Mesa de Curadoria Lumiardi',
-        'curadoria',
+        'admin',
         NULL,
         'curation',
         'Bem-vinda à plataforma Lumiardi! Seu acesso exclusivo está liberado e protegido por criptografia de ponta a ponta. Você pode utilizar este canal para tirar dúvidas com nossa equipe ou receber orientações da nossa curadoria.',

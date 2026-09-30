@@ -3,6 +3,7 @@ import type { ModuleTranslations } from './types';
 /** Widgets interativos e modais do dashboard. Prefixo de chave: `dwg_` */
 export const dashboardWidgets: ModuleTranslations = {
   pt: {
+    dwg_chat_official_badge: "Curadoria Lumiardi",
     dwg_close: "Fechar",
     dwg_cancel_default_period_end: "o fim do ciclo de 30 dias",
     dwg_vip_default_name: "Membro VIP",
@@ -300,6 +301,7 @@ export const dashboardWidgets: ModuleTranslations = {
     dwg_kyc_change_doc_suffix: "(Trocar Documento)",
   },
   en: {
+    dwg_chat_official_badge: "Lumiardi Curation",
     dwg_close: "Close",
     dwg_cancel_default_period_end: "the end of the 30-day cycle",
     dwg_vip_default_name: "VIP Member",
@@ -597,6 +599,7 @@ export const dashboardWidgets: ModuleTranslations = {
     dwg_kyc_change_doc_suffix: "(Change Document)",
   },
   es: {
+    dwg_chat_official_badge: "Curaduría Lumiardi",
     dwg_close: "Cerrar",
     dwg_cancel_default_period_end: "el final del ciclo de 30 días",
     dwg_vip_default_name: "Miembro VIP",
@@ -894,6 +897,7 @@ export const dashboardWidgets: ModuleTranslations = {
     dwg_kyc_change_doc_suffix: "(Cambiar Documento)",
   },
   fr: {
+    dwg_chat_official_badge: "Curation Lumiardi",
     dwg_close: "Fermer",
     dwg_cancel_default_period_end: "la fin du cycle de 30 jours",
     dwg_vip_default_name: "Membre VIP",
@@ -1191,6 +1195,7 @@ export const dashboardWidgets: ModuleTranslations = {
     dwg_kyc_change_doc_suffix: "(Changer de Document)",
   },
   it: {
+    dwg_chat_official_badge: "Curatela Lumiardi",
     dwg_close: "Chiudi",
     dwg_cancel_default_period_end: "la fine del ciclo di 30 giorni",
     dwg_vip_default_name: "Membro VIP",
@@ -1488,6 +1493,7 @@ export const dashboardWidgets: ModuleTranslations = {
     dwg_kyc_change_doc_suffix: "(Cambia Documento)",
   },
   ru: {
+    dwg_chat_official_badge: "Кураторы Lumiardi",
     dwg_close: "Закрыть",
     dwg_cancel_default_period_end: "окончания 30-дневного цикла",
     dwg_vip_default_name: "VIP-участник",

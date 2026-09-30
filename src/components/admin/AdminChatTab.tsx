@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { isOwnChatMessage } from '@/lib/chatRoles';
 import {
   MessageSquare,
   Search,
@@ -93,6 +94,8 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
   const messagesCacheRef = useRef<Map<string, { messages: ChatMessage[]; lastMsgTime?: string }>>(new Map());
   const selectedUserIdRef = useRef<string | null>(null);
   const lastMsgTimeRef = useRef<string | undefined>(undefined);
+  /** ID do admin autenticado (devolvido por /api/chat/messages) para o cálculo de "isMe". */
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     selectedUserIdRef.current = selectedConv?.userId || null;
@@ -152,15 +155,14 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       if (res.status === 304) return; // Nenhuma mensagem nova
       if (!res.ok) return;
       const data = await res.json();
+      if (data.currentUserId) setCurrentUserId(String(data.currentUserId));
 
       // Ignora se o auditor já tiver trocado de conversa
       if (selectedUserIdRef.current !== userId) return;
 
-      const allMsgs: ChatMessage[] = (data.messages || []).filter(
-        (m: ChatMessage) =>
-          m.senderId === userId ||
-          (m as any).receiverId === userId
-      );
+      // O servidor já devolve a thread completa da candidata (tudo que ela enviou + tudo que a
+      // curadoria enviou a ela): sem filtro no cliente, para que nenhuma mensagem seja descartada.
+      const allMsgs: ChatMessage[] = data.messages || [];
 
       let finalMessages: ChatMessage[] = [];
 
@@ -168,8 +170,21 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
         // Delta incremental: preserva mensagens locais e anexa novas
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m.id));
-          const newOnes = allMsgs.filter((m) => !existingIds.has(m.id));
-          finalMessages = newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+          const next = [...prev];
+          let changed = false;
+          for (const incoming of allMsgs) {
+            if (existingIds.has(incoming.id)) continue;
+            // A mensagem que o próprio auditor acabou de enviar pode chegar pelo polling antes da resposta
+            // do POST: substitui a otimista em vez de duplicar.
+            const optIndex = incoming.isMe
+              ? next.findIndex((m) => m.id.startsWith('opt-') && m.text === incoming.text)
+              : -1;
+            if (optIndex !== -1) next[optIndex] = incoming;
+            else next.push(incoming);
+            existingIds.add(incoming.id);
+            changed = true;
+          }
+          finalMessages = changed ? next : prev;
           return finalMessages;
         });
       } else {
@@ -264,9 +279,10 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
   }, [selectedConv?.userId, loadMessages]);
 
   // Auto-scroll para a última mensagem
+  // (apenas quando chega/envia uma mensagem nova — polls sem novidade não rolam a tela)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages.length]);
 
   // ─── Envio Otimista Ultra-Rápido (0ms Perceived Latency) ─────────────────
 
@@ -284,7 +300,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       id: tempId,
       senderId: 'admin',
       senderName: `Mesa de Curadoria — Auditor ${curatorFirst}`,
-      senderRole: 'curadoria',
+      senderRole: 'admin',
       text: textToSend,
       createdAt: nowIso,
       isMe: true,
@@ -336,7 +352,7 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setErrorMsg(data.error || 'Erro ao enviar mensagem.');
         setMessageText(textToSend);
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -356,15 +372,18 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
         if (realId) {
           const replaceOpt = (m: ChatMessage) =>
             m.id === tempId ? { ...m, id: realId, createdAt: realCreated || m.createdAt } : m;
+          // Se o polling já trouxe a mensagem real, descarta a otimista em vez de renomeá-la (evita duplicar)
+          const dropOrReplace = (list: ChatMessage[]) =>
+            list.some((m) => m.id === realId) ? list.filter((m) => m.id !== tempId) : list.map(replaceOpt);
 
-          setMessages((prev) => prev.map(replaceOpt));
+          setMessages((prev) => dropOrReplace(prev));
 
           // Atualiza o cache com o ID e timestamp reais do servidor
           const curCached = messagesCacheRef.current.get(targetUserId);
           if (curCached) {
             messagesCacheRef.current.set(targetUserId, {
               ...curCached,
-              messages: curCached.messages.map(replaceOpt),
+              messages: dropOrReplace(curCached.messages),
               lastMsgTime: realCreated || curCached.lastMsgTime,
             });
           }
@@ -630,25 +649,38 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
                 </div>
               ) : (
                 messages.map((msg) => {
-                  const isAdmin = msg.senderRole === 'curadoria' || msg.isMe;
+                  // Mesma regra do /dashboard/chat: mesmo sender_id da sessão ou mesmo papel (admin ↔ Mesa de Curadoria)
+                  const isMe = isOwnChatMessage(msg, currentUserId, 'admin');
+                  const time = new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                   return (
-                    <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} w-full min-w-0`}>
-                      <div className={`max-w-[85%] sm:max-w-[72%] min-w-0 space-y-1 ${isAdmin ? 'items-end' : 'items-start'} flex flex-col`}>
-                        <span className="text-[10px] text-ivory/40 font-sans px-1">
-                          {msg.senderName || (isAdmin ? 'Curadoria' : selectedConv.displayName)}
+                    <div
+                      key={msg.id}
+                      className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end gap-2 w-full min-w-0`}
+                    >
+                      {!isMe && (
+                        <div
+                          className={`w-8 h-8 rounded-full border flex items-center justify-center text-[10px] font-semibold font-sans flex-shrink-0 mb-0.5 ${getAvatarColor(selectedConv.userRole)}`}
+                          title={msg.senderName || selectedConv.displayName}
+                        >
+                          {getInitials(selectedConv.displayName)}
+                        </div>
+                      )}
+                      <div className={`max-w-[75%] min-w-0 space-y-1 flex flex-col ${isMe ? 'items-end ml-auto' : 'items-start mr-auto'}`}>
+                        <span className={`text-[10px] font-sans px-1 ${isMe ? 'text-amber-200/50' : 'text-ivory/50'}`}>
+                          {isMe ? 'Você' : msg.senderName || selectedConv.displayName}
                         </span>
                         <div
-                          className={`px-4 py-2.5 rounded-xs text-xs font-sans leading-relaxed whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere] ${
-                            isAdmin
-                              ? 'bg-gold/10 border border-gold/20 text-ivory'
-                              : 'bg-white/[0.06] border border-white/[0.08] text-ivory/90'
+                          className={`px-4 py-2.5 text-xs font-sans leading-relaxed min-w-0 ${
+                            isMe
+                              ? 'bg-amber-500/10 border border-amber-500/30 text-amber-100 rounded-2xl rounded-br-none'
+                              : 'bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-2xl rounded-bl-none'
                           }`}
                         >
-                          {msg.text}
+                          <p className="whitespace-pre-wrap break-all [overflow-wrap:anywhere]">{msg.text}</p>
+                          <div className={`flex mt-1.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <span className="text-[9px] text-ivory/35 font-sans">{time}</span>
+                          </div>
                         </div>
-                        <span className="text-[9px] text-ivory/25 font-sans px-1">
-                          {new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
                       </div>
                     </div>
                   );

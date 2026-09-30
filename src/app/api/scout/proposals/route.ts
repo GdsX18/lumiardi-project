@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { StorageService } from '@/services/storageService';
+import { StorageService, getDirectConversationId } from '@/services/storageService';
 import { getSessionFromCookie } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -55,14 +55,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const conversationId = result.conversationId || getDirectConversationId(session.id, modelId);
+
     try {
       await StorageService.createNotification({
         userId: modelId,
         title: 'Nova Proposta de Agenciamento',
-        desc: `A agência "${agencyName}" enviou uma proposta formal de casting com comissão de ${proposedCommission || '20%'}.`,
+        desc: `A agência "${agencyName}" enviou uma proposta formal de casting com comissão de ${result.proposal.proposedCommission}.`,
         category: 'Scout',
         type: 'invite',
-        link: '/dashboard/chat',
+        link: `/dashboard/chat?conversationId=${encodeURIComponent(conversationId)}`,
         linkText: 'Ver Mensagem',
       });
     } catch (e) {
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       proposal: result.proposal,
+      conversationId,
       message: 'Proposta enviada com sucesso! Uma conversa foi iniciada.',
     });
   } catch (error) {

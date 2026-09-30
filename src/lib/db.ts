@@ -205,10 +205,17 @@ async function runInitDatabase(): Promise<boolean> {
           text TEXT NOT NULL,
           attachment_url TEXT,
           attachment_name VARCHAR(255),
-          attachment_type VARCHAR(50),
+          attachment_type VARCHAR(255),
           is_read BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+      `);
+
+      // Migração: MIMEs longos (ex.: .docx = 73 caracteres) estouravam VARCHAR(50) e o INSERT falhava
+      await client.query(`
+        ALTER TABLE messages ALTER COLUMN attachment_type TYPE VARCHAR(255);
+        ALTER TABLE messages ALTER COLUMN attachment_name TYPE VARCHAR(255);
+        ALTER TABLE messages ALTER COLUMN sender_name TYPE VARCHAR(255);
       `);
 
       // 5. Tabela DRIVE_FILES (Privado)
@@ -404,9 +411,8 @@ async function runInitDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at ASC);
         CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at ASC);
 
-        -- Purga de mensagens de teste e conversas fantasmas
-        DELETE FROM messages WHERE text IN ('dw', 'oi', 'dwadaw', 'eu mandei pela conta modelo');
-        DELETE FROM messages WHERE sender_name IN ('Lumiardi Member') AND text = '';
+        -- (Mensagens de usuárias nunca são apagadas na inicialização: a purga antiga por texto
+        --  — 'oi', 'dw'… — removia mensagens reais a cada cold start.)
 
         -- Migrações e higienização do Lumiardi Drive
         ALTER TABLE drive_files ADD COLUMN IF NOT EXISTS is_official BOOLEAN DEFAULT FALSE;

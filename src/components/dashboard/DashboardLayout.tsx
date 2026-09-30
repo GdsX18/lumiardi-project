@@ -13,6 +13,11 @@ export interface DashboardLayoutProps {
   setActiveTab?: (tab: string) => void;
   pageTitle?: string;
   pageSubtitle?: string;
+  /**
+   * Shell de altura fixa (100dvh): o scroll acontece dentro do conteúdo, não na página.
+   * Usado pelo chat, que precisa de lista rolável + rodapé de envio fixo.
+   */
+  fullHeight?: boolean;
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
@@ -21,19 +26,24 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   setActiveTab,
   pageTitle,
   pageSubtitle,
+  fullHeight = false,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <ContentProtectionProvider>
-      <div className="min-h-screen bg-[#070707] text-ivory font-sans flex flex-col selection:bg-gold selection:text-black-matte overflow-x-hidden">
+      <div
+        className={`bg-[#070707] text-ivory font-sans flex flex-col selection:bg-gold selection:text-black-matte overflow-x-hidden ${
+          fullHeight ? 'h-dvh overflow-hidden' : 'min-h-screen'
+        }`}
+      >
         {/* Header Corporativo Fixo */}
         <DashboardHeader
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
           mobileMenuOpen={mobileMenuOpen}
         />
 
-        <div className="flex-1 flex w-full max-w-[1920px] mx-auto min-w-0">
+        <div className={`flex-1 flex w-full max-w-[1920px] mx-auto min-w-0 ${fullHeight ? 'min-h-0' : ''}`}>
           {/* Sidebar Desktop */}
           <div className="hidden lg:block shrink-0">
             <DashboardSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -70,9 +80,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </AnimatePresence>
 
           {/* Área Principal de Conteúdo */}
-          <main className="flex-1 p-3 sm:p-5 md:p-8 lg:p-10 pb-24 lg:pb-10 overflow-y-auto max-w-full min-w-0">
+          <main
+            className={`flex-1 p-3 sm:p-5 md:p-8 lg:p-10 pb-24 lg:pb-10 max-w-full min-w-0 ${
+              fullHeight ? 'min-h-0 flex flex-col overflow-hidden' : 'overflow-y-auto'
+            }`}
+          >
             {pageTitle && (
-              <div className="mb-5 sm:mb-6 pb-3 sm:pb-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
+              <div className="shrink-0 mb-5 sm:mb-6 pb-3 sm:pb-4 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
                 <div>
                   <h1 className="font-serif-lumiardi text-xl sm:text-2xl md:text-4xl font-light text-ivory tracking-wide">
                     {pageTitle}

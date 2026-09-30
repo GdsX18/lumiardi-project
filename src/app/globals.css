@@ -11,6 +11,7 @@
 }
 
 @theme inline {
+  --color-background: var(--background);
   --color-black-matte: var(--black-matte);
   --color-ivory: var(--ivory);
   --color-gold: var(--gold);
