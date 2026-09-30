@@ -23,19 +23,19 @@ export const MobileBottomNav: React.FC = () => {
   const isCriadora = role === 'criadora';
 
   const criadoraItems = [
-    { href: '/dashboard', label: t('dash_nav_home') || 'Início', icon: LayoutDashboard },
-    { href: '/dashboard/book', label: t('dash_nav_book_short') || 'Book', icon: Camera },
-    { href: '/dashboard/kanban', label: t('dash_nav_projects_short') || 'Projetos', icon: Kanban },
-    { href: '/dashboard/drive', label: t('dash_nav_drive_short') || 'Drive', icon: HardDrive },
-    { href: '/dashboard/chat', label: t('dash_nav_chat_short') || 'Chat', icon: MessageSquare },
+    { href: '/dashboard', label: t('dash_nav_home'), icon: LayoutDashboard },
+    { href: '/dashboard/book', label: t('dash_nav_book_short'), icon: Camera },
+    { href: '/dashboard/kanban', label: t('dash_nav_projects_short'), icon: Kanban },
+    { href: '/dashboard/drive', label: t('dash_nav_drive_short'), icon: HardDrive },
+    { href: '/dashboard/chat', label: t('dash_nav_chat_short'), icon: MessageSquare },
   ];
 
   const agenciaItems = [
-    { href: '/dashboard', label: t('dash_nav_home') || 'Painel', icon: LayoutDashboard },
-    { href: '/dashboard/agencias', label: t('dash_nav_scout_short') || 'Scout', icon: Building2 },
-    { href: '/dashboard/kanban', label: t('dash_nav_projects_short') || 'Projetos', icon: Kanban },
-    { href: '/dashboard/drive', label: t('dash_nav_drive_short') || 'Drive', icon: HardDrive },
-    { href: '/dashboard/chat', label: t('dash_nav_chat_short') || 'Chat', icon: MessageSquare },
+    { href: '/dashboard', label: t('dash_nav_home'), icon: LayoutDashboard },
+    { href: '/dashboard/agencias', label: t('dash_nav_scout_short'), icon: Building2 },
+    { href: '/dashboard/kanban', label: t('dash_nav_projects_short'), icon: Kanban },
+    { href: '/dashboard/drive', label: t('dash_nav_drive_short'), icon: HardDrive },
+    { href: '/dashboard/chat', label: t('dash_nav_chat_short'), icon: MessageSquare },
   ];
 
   const items = isCriadora ? criadoraItems : agenciaItems;

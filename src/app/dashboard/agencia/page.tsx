@@ -26,9 +26,9 @@ export default function AgenciaDashboardPage() {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { activeAgency, currentUser, allCreators, refreshData } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, formatPrice } = useLanguage();
 
-  const agencyName = currentUser?.name || activeAgency?.basicInfo.responsibleName || 'Sua Agência';
+  const agencyName = currentUser?.name || activeAgency?.basicInfo.responsibleName || t('dsh_ov_your_agency');
   const creatorsCount = allCreators.length;
 
   return (
@@ -46,7 +46,7 @@ export default function AgenciaDashboardPage() {
             className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-semibold uppercase tracking-wider transition-all flex items-center gap-2 rounded-sm cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>{t('dash_edit_profile', 'Editar Perfil & Dados')}</span>
+            <span>{t('dash_edit_profile')}</span>
           </button>
         </div>
 
@@ -56,40 +56,40 @@ export default function AgenciaDashboardPage() {
             {/* KPI Stats Cards Limpos */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <StatsCard
-                title="Faturamento do Roster"
-                value="R$ 0,00"
-                change="Sem pendências"
+                title={t('dsh_ov_roster_revenue')}
+                value={formatPrice(0, 0, 0)}
+                change={t('dsh_ag_no_pending')}
                 isPositive={true}
-                subtitle="Comissão configurada: 20%"
+                subtitle={t('dsh_ag_commission_set').replace('{pct}', '20%')}
                 icon={DollarSign}
                 highlight={true}
-                badgeText="Agência Oficial"
+                badgeText={t('dsh_ag_official_agency')}
               />
 
               <StatsCard
-                title="Modelos no Roster"
-                value="0 Ativas"
-                change="Pronto para novos contratos"
+                title={t('dsh_ov_roster_models')}
+                value={t('dsh_ag_active_count').replace('{count}', '0')}
+                change={t('dsh_ag_ready_contracts')}
                 isPositive={true}
-                subtitle="Contratos com gestão integrada"
+                subtitle={t('dsh_ag_integrated_contracts')}
                 icon={Users}
               />
 
               <StatsCard
-                title="Talentos na Vitrine"
-                value={`${creatorsCount} Modelos`}
-                change="Filtros de busca ativos"
+                title={t('dsh_ag_showcase_talents')}
+                value={t('dsh_ag_models_count').replace('{count}', String(creatorsCount))}
+                change={t('dsh_ag_filters_active')}
                 isPositive={true}
-                subtitle="Disponíveis para propostas"
+                subtitle={t('dsh_ag_available_proposals')}
                 icon={Search}
               />
 
               <StatsCard
-                title="Campanhas no Kanban"
-                value="0 Ativas"
-                change="Ambiente pronto"
+                title={t('dsh_ag_kanban_campaigns')}
+                value={t('dsh_ag_active_count').replace('{count}', '0')}
+                change={t('dsh_ag_env_ready')}
                 isPositive={true}
-                subtitle="Gestão de entregas e aprovação"
+                subtitle={t('dsh_ag_delivery_mgmt')}
                 icon={Kanban}
               />
             </div>
@@ -101,15 +101,15 @@ export default function AgenciaDashboardPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] uppercase tracking-widest text-gold font-semibold font-sans">
-                      Busca Especializada
+                      {t('dsh_ag_specialized_search')}
                     </span>
                     <Search className="w-4 h-4 text-gold" />
                   </div>
                   <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                    Talent Scout com Filtros
+                    {t('dsh_ag_scout_title')}
                   </h3>
                   <p className="text-xs font-sans text-ivory/60 mt-1 leading-relaxed">
-                    Pesquise criadoras aprovadas por nicho, medidas, idiomas e faixa de faturamento para envio de propostas.
+                    {t('dsh_ag_scout_desc')}
                   </p>
                 </div>
 
@@ -117,7 +117,7 @@ export default function AgenciaDashboardPage() {
                   onClick={() => setActiveTab('scout')}
                   className="px-4 py-2.5 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-between cursor-pointer"
                 >
-                  <span>Acessar Scout de Modelos</span>
+                  <span>{t('dsh_ag_scout_cta')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -127,15 +127,15 @@ export default function AgenciaDashboardPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] uppercase tracking-widest text-gold font-semibold font-sans">
-                      Elenco da Agência
+                      {t('dsh_ag_roster_label')}
                     </span>
                     <Users className="w-4 h-4 text-gold" />
                   </div>
                   <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                    Gestão de Agenciadas & Roster
+                    {t('dsh_ag_roster_title')}
                   </h3>
                   <p className="text-xs font-sans text-ivory/60 mt-1 leading-relaxed">
-                    Monitore faturamentos, contratos assinados e entregas de cada modelo conectada ao seu perfil.
+                    {t('dsh_ag_roster_desc')}
                   </p>
                 </div>
 
@@ -143,7 +143,7 @@ export default function AgenciaDashboardPage() {
                   onClick={() => setActiveTab('roster')}
                   className="px-4 py-2.5 bg-[#151515] hover:bg-white/10 text-ivory hover:text-gold border border-white/10 text-xs font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-between cursor-pointer"
                 >
-                  <span>Gerenciar Meu Roster</span>
+                  <span>{t('dsh_ag_roster_cta')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

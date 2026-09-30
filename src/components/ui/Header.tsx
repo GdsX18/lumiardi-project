@@ -80,7 +80,7 @@ export const Header: React.FC = () => {
             <div className="relative w-7 h-7 sm:w-8 sm:h-8 transition-transform duration-300 group-hover:scale-105">
               <Image
                 src="/Lumiardi logo2-Trasparente.png"
-                alt="Lumiardi Emblem"
+                alt={t('lgm_header_emblem_alt')}
                 fill
                 className="object-contain"
                 priority
@@ -119,7 +119,7 @@ export const Header: React.FC = () => {
               href="/login"
               className="px-3.5 py-1.5 border border-gold/40 text-gold hover:bg-gold hover:text-black-matte text-[11px] sm:text-xs uppercase font-sans tracking-widest font-medium transition-all duration-300 hidden sm:inline-flex items-center gap-1.5"
             >
-              <span>Login</span>
+              <span>{t('nav_login')}</span>
             </Link>
             
             <LanguageSelector />
@@ -129,7 +129,7 @@ export const Header: React.FC = () => {
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 text-ivory/80 hover:text-gold transition-colors"
-              aria-label="Abrir Menu"
+              aria-label={t('lgm_header_open_menu')}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -164,7 +164,7 @@ export const Header: React.FC = () => {
                     <div className="relative w-6 h-6">
                       <Image
                         src="/Lumiardi logo2-Trasparente.png"
-                        alt="Lumiardi Emblem"
+                        alt={t('lgm_header_emblem_alt')}
                         fill
                         className="object-contain"
                       />
@@ -176,6 +176,7 @@ export const Header: React.FC = () => {
                   <button
                     onClick={() => setMobileMenuOpen(false)}
                     className="p-1.5 text-ivory/60 hover:text-gold"
+                    aria-label={t('lgm_header_close_menu')}
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -212,7 +213,7 @@ export const Header: React.FC = () => {
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full py-3 text-center border border-gold/50 text-gold text-xs uppercase font-sans tracking-[0.2em] font-medium block hover:bg-gold hover:text-black-matte transition-colors"
                 >
-                  {t('login_btn_submit') || 'Acessar Conta VIP'}
+                  {t('login_btn_submit')}
                 </Link>
                 <button
                   onClick={() => {
@@ -222,7 +223,7 @@ export const Header: React.FC = () => {
                   }}
                   className="w-full py-3 text-center bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase font-sans tracking-[0.2em] font-medium block hover:bg-[#D4B87A] transition-colors"
                 >
-                  {t('hero_cta_creators') || 'Cadastrar Criadora'}
+                  {t('hero_cta_creators')}
                 </button>
               </div>
             </motion.div>

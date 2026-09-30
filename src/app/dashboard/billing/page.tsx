@@ -28,7 +28,14 @@ import { UpgradePlanModal } from '@/components/dashboard/UpgradePlanModal';
 
 export default function BillingPortalPage() {
   const { currentUser, role, refreshData } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, tApiError, formatDate, locale } = useLanguage();
+
+  const formatMoney = (amount: unknown, currency?: string) =>
+    new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currency === 'USD' ? 'USD' : currency === 'EUR' ? 'EUR' : 'BRL',
+      minimumFractionDigits: 2,
+    }).format(Number(amount || 0));
 
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -85,14 +92,14 @@ export default function BillingPortalPage() {
       if (res.ok) {
         setActionFeedback({
           type: 'warn',
-          msg: json.message || 'Sua assinatura foi programada para cancelamento ao fim do ciclo atual. Seu acesso VIP continua 100% ativo até a data de expiração.',
+          msg: t('dsh_bill_cancel_scheduled_msg'),
         });
         await fetchBillingData();
       } else {
-        throw new Error(json.error || 'Erro ao cancelar');
+        throw new Error(tApiError(json, 'dsh_bill_cancel_error'));
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Falha ao programar cancelamento.';
+      const msg = e instanceof Error ? e.message : t('dsh_bill_cancel_failed');
       setActionFeedback({ type: 'warn', msg });
     }
   };
@@ -106,14 +113,14 @@ export default function BillingPortalPage() {
       if (res.ok) {
         setActionFeedback({
           type: 'success',
-          msg: json.message || 'Sua assinatura foi reativada com sucesso! A renovação automática foi restabelecida.',
+          msg: t('dsh_bill_reactivated_msg'),
         });
         await fetchBillingData();
       } else {
-        throw new Error(json.error || 'Erro ao reativar');
+        throw new Error(tApiError(json, 'dsh_bill_reactivate_error'));
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Falha ao reativar assinatura.';
+      const msg = e instanceof Error ? e.message : t('dsh_bill_reactivate_failed');
       setActionFeedback({ type: 'warn', msg });
     } finally {
       setIsReactivating(false);
@@ -131,23 +138,23 @@ export default function BillingPortalPage() {
   const metrics = subscriptionData?.usageMetrics;
 
   const formattedPeriodEnd = sub?.currentPeriodEnd
-    ? new Date(sub.currentPeriodEnd).toLocaleDateString('pt-BR', {
+    ? formatDate(sub.currentPeriodEnd, {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
       })
-    : 'Em 30 dias';
+    : t('dsh_bill_in_30_days');
 
   return (
     <DashboardLayout
-      pageTitle={t('billing_portal_title') || 'Portal de Faturamento & Assinaturas'}
-      pageSubtitle={t('billing_portal_subtitle') || 'Gestão de planos VIP, limites operacionais de cota, histórico de faturas e repasses.'}
+      pageTitle={t('billing_portal_title')}
+      pageSubtitle={t('billing_portal_subtitle')}
     >
       {isLoading ? (
         <div className="py-24 text-center space-y-4">
           <RefreshCw className="w-8 h-8 animate-spin text-[#C9A96B] mx-auto" />
           <p className="text-xs uppercase tracking-widest text-ivory/60 font-mono">
-            Carregando dados financeiros seguros...
+            {t('dsh_bill_loading')}
           </p>
         </div>
       ) : (
@@ -173,7 +180,7 @@ export default function BillingPortalPage() {
                 onClick={() => setActionFeedback(null)}
                 className="text-[10px] uppercase font-bold hover:underline cursor-pointer ml-4"
               >
-                Dispensar
+                {t('dsh_bill_dismiss')}
               </button>
             </div>
           )}
@@ -185,10 +192,10 @@ export default function BillingPortalPage() {
                 <Calendar className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <span className="text-xs font-sans uppercase tracking-wider font-bold text-amber-300 block">
-                    Cancelamento Programado — Acesso VIP 100% Ativo até {formattedPeriodEnd}
+                    {t('dsh_bill_cancel_banner_title').replace('{date}', formattedPeriodEnd)}
                   </span>
                   <p className="text-xs text-ivory/80 font-sans leading-relaxed">
-                    Você continuará aproveitando todos os recursos do <strong>Plano {plan?.name}</strong> (Drive {metrics?.driveStorageTotalGB || 5} GB, Chat e Scouting) até o final do período que já foi pago. Nenhuma nova cobrança será realizada.
+                    {t('dsh_bill_cancel_banner_a')} <strong>{t('dsh_bill_plan_name').replace('{name}', plan?.name || '')}</strong> {t('dsh_bill_cancel_banner_b').replace('{gb}', String(metrics?.driveStorageTotalGB || 5))}
                   </p>
                 </div>
               </div>
@@ -200,7 +207,7 @@ export default function BillingPortalPage() {
                 className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md shrink-0 disabled:opacity-50"
               >
                 <RotateCcw className={`w-3.5 h-3.5 ${isReactivating ? 'animate-spin' : ''}`} />
-                <span>{isReactivating ? 'Reativando...' : 'Reativar Renovação Automática'}</span>
+                <span>{isReactivating ? t('dsh_bill_reactivating') : t('dsh_bill_reactivate_auto')}</span>
               </button>
             </div>
           )}
@@ -214,10 +221,10 @@ export default function BillingPortalPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
                 <div>
                   <span className="text-[10px] uppercase tracking-[0.3em] text-[#C9A96B] font-semibold">
-                    {t('billing_current_plan') || 'Plano Ativo'}
+                    {t('billing_current_plan')}
                   </span>
                   <h2 className="font-serif-lumiardi text-3xl font-light text-ivory mt-1">
-                    {plan?.name || 'Membro Lumiardi'}
+                    {plan?.name || t('dsh_bill_member_fallback')}
                   </h2>
                 </div>
 
@@ -225,12 +232,12 @@ export default function BillingPortalPage() {
                   {sub?.cancelAtPeriodEnd ? (
                     <span className="px-3 py-1 bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[10px] uppercase tracking-widest font-semibold flex items-center gap-1.5 rounded-xs">
                       <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                      Expira em {formattedPeriodEnd}
+                      {t('dsh_bill_expires_on').replace('{date}', formattedPeriodEnd)}
                     </span>
                   ) : (
                     <span className="px-3 py-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] uppercase tracking-widest font-semibold flex items-center gap-1.5 rounded-xs">
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      Status: Ativo & Renovando
+                      {t('dsh_bill_status_active')}
                     </span>
                   )}
                 </div>
@@ -240,19 +247,19 @@ export default function BillingPortalPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                 <div className="p-4 bg-[#141414] border border-white/5 space-y-1 rounded-xs">
                   <span className="text-[10px] uppercase tracking-wider text-ivory/50 block font-sans">
-                    Valor Recorrente
+                    {t('dsh_bill_recurring_amount')}
                   </span>
                   <div className="text-xl font-serif-lumiardi text-[#C9A96B] font-medium">
-                    {sub?.currency === 'USD' ? '$' : 'R$'} {Number(sub?.amount || 0).toFixed(2)}
+                    {formatMoney(sub?.amount, sub?.currency)}
                     <span className="text-[10px] text-ivory/50 font-sans ml-1">
-                      /{sub?.billingInterval === 'yearly' ? 'ano' : 'mês'}
+                      /{sub?.billingInterval === 'yearly' ? t('dsh_bill_per_year') : t('dsh_bill_per_month')}
                     </span>
                   </div>
                 </div>
 
                 <div className="p-4 bg-[#141414] border border-white/5 space-y-1 rounded-xs">
                   <span className="text-[10px] uppercase tracking-wider text-ivory/50 block font-sans">
-                    {sub?.cancelAtPeriodEnd ? 'Término do Ciclo' : 'Próxima Renovação'}
+                    {sub?.cancelAtPeriodEnd ? t('dsh_bill_cycle_end') : t('dsh_bill_next_renewal')}
                   </span>
                   <div className="text-sm font-sans text-ivory font-medium pt-1">
                     {formattedPeriodEnd}
@@ -261,12 +268,12 @@ export default function BillingPortalPage() {
 
                 <div className="p-4 bg-[#141414] border border-white/5 space-y-1 rounded-xs">
                   <span className="text-[10px] uppercase tracking-wider text-ivory/50 block font-sans">
-                    Provedor / Gateway
+                    {t('dsh_bill_provider')}
                   </span>
                   <div className="text-sm font-sans text-ivory font-medium pt-1 uppercase flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-[#C9A96B]" />
                     <span>{sub?.gateway === 'nowpayments' ? 'NOWPayments (Crypto)' : 'CCBill / Pix'}</span>
-                    <span>{sub?.gateway === 'nowpayments' ? 'NOWPayments (Crypto)' : 'Asaas (Pix / Cartão)'}</span>
+                    <span>{sub?.gateway === 'nowpayments' ? 'NOWPayments (Crypto)' : t('dsh_bill_gateway_asaas')}</span>
                   </div>
                 </div>
               </div>
@@ -279,7 +286,7 @@ export default function BillingPortalPage() {
                   className="px-5 py-2.5 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.2em] font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-md rounded-xs hover:brightness-110"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span>Fazer Upgrade de Plano</span>
+                  <span>{t('dsh_bill_upgrade')}</span>
                 </button>
 
                 {!sub?.cancelAtPeriodEnd ? (
@@ -288,7 +295,7 @@ export default function BillingPortalPage() {
                     onClick={() => setIsCancelModalOpen(true)}
                     className="px-4 py-2 bg-transparent hover:bg-rose-500/10 text-ivory/50 hover:text-rose-400 border border-transparent hover:border-rose-500/20 text-xs font-sans uppercase tracking-wider transition-all cursor-pointer rounded-xs"
                   >
-                    Cancelar Assinatura
+                    {t('billing_cancel_sub')}
                   </button>
                 ) : (
                   <button
@@ -297,7 +304,7 @@ export default function BillingPortalPage() {
                     disabled={isReactivating}
                     className="px-4 py-2 bg-transparent hover:bg-gold/10 text-gold border border-gold/40 text-xs font-sans uppercase tracking-wider transition-all cursor-pointer rounded-xs"
                   >
-                    {isReactivating ? 'Reativando...' : 'Reativar Assinatura'}
+                    {isReactivating ? t('dsh_bill_reactivating') : t('dsh_bill_reactivate_sub')}
                   </button>
                 )}
               </div>
@@ -307,10 +314,10 @@ export default function BillingPortalPage() {
             <div className="lg:col-span-5 bg-[#0E0E0E] border border-white/10 p-8 space-y-6 rounded-sm">
               <div className="border-b border-white/10 pb-4">
                 <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                  Cotas & Recursos do Tier
+                  {t('billing_tier_quotas')}
                 </h3>
                 <span className="text-[10px] uppercase tracking-widest text-ivory/50 font-sans">
-                  Limites do Plano {plan?.name}
+                  {t('dsh_bill_plan_limits').replace('{name}', plan?.name || '')}
                 </span>
               </div>
 
@@ -320,7 +327,7 @@ export default function BillingPortalPage() {
                   <div className="flex justify-between text-xs font-sans">
                     <span className="flex items-center gap-2 text-ivory/80">
                       <HardDrive className="w-3.5 h-3.5 text-[#C9A96B]" />
-                      <span>Armazenamento Drive</span>
+                      <span>{t('dsh_bill_drive_storage')}</span>
                     </span>
                     <span className="text-ivory font-mono font-medium">
                       {(metrics?.driveStorageUsedGB ?? 0).toFixed(2)} GB / {metrics?.driveStorageTotalGB || 5} GB
@@ -344,10 +351,10 @@ export default function BillingPortalPage() {
                   <div className="flex justify-between text-xs font-sans">
                     <span className="flex items-center gap-2 text-ivory/80">
                       <Search className="w-3.5 h-3.5 text-[#C9A96B]" />
-                      <span>Consultas de Scouting</span>
+                      <span>{t('dsh_bill_scout_queries')}</span>
                     </span>
                     <span className="text-ivory font-mono font-medium">
-                      {metrics?.scoutSearchesUsed ?? 0} / {metrics?.scoutSearchesTotal === 'unlimited' ? 'Ilimitado' : metrics?.scoutSearchesTotal || 10}
+                      {metrics?.scoutSearchesUsed ?? 0} / {metrics?.scoutSearchesTotal === 'unlimited' ? t('dsh_bill_unlimited') : metrics?.scoutSearchesTotal || 10}
                     </span>
                   </div>
                   <div className="w-full bg-[#181818] h-2 rounded-full overflow-hidden">
@@ -369,16 +376,16 @@ export default function BillingPortalPage() {
                 <div className="pt-3 border-t border-white/10 space-y-2 text-xs font-sans text-ivory/70">
                   <div className="flex items-center gap-2 text-ivory/90">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#C9A96B]" />
-                    <span>Marca d'água Dinâmica Tokenizada Ativa</span>
+                    <span>{t('dsh_bill_benefit_watermark')}</span>
                   </div>
                   <div className="flex items-center gap-2 text-ivory/90">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#C9A96B]" />
-                    <span>Blindagem Jurídica & Modelos de NDA Inclusos</span>
+                    <span>{t('dsh_bill_benefit_legal')}</span>
                   </div>
                   {plan?.limits?.priorityPlacement === 'exclusive' && (
                     <div className="flex items-center gap-2 text-gold font-medium">
                       <Crown className="w-3.5 h-3.5 text-gold" />
-                      <span>Destaque Exclusivo no Topo do Scouting</span>
+                      <span>{t('dsh_bill_benefit_priority')}</span>
                     </div>
                   )}
                 </div>
@@ -391,33 +398,33 @@ export default function BillingPortalPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div>
                 <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                  Faturas & Comprovantes Fiscais
+                  {t('dsh_bill_invoices_title')}
                 </h3>
                 <p className="text-xs font-sans text-ivory/60 mt-1">
-                  Recibos oficiais de quitação gerados com hash de integridade e prontos para download.
+                  {t('dsh_bill_invoices_desc')}
                 </p>
               </div>
 
               <span className="text-xs font-mono text-[#C9A96B]">
-                {invoices.length} Documentos Emitidos
+                {t('dsh_bill_docs_issued').replace('{count}', String(invoices.length))}
               </span>
             </div>
 
             {invoices.length === 0 ? (
               <div className="p-8 text-center text-ivory/40 text-xs font-sans">
-                Nenhuma fatura registrada no momento.
+                {t('dsh_bill_no_invoices')}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[650px]">
                   <thead>
                     <tr className="border-b border-white/10 text-[10px] uppercase font-sans tracking-widest text-ivory/50">
-                      <th className="py-3 px-4">Documento</th>
-                      <th className="py-3 px-4">Data</th>
-                      <th className="py-3 px-4">Descrição</th>
-                      <th className="py-3 px-4">Valor</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Recibo Oficial</th>
+                      <th className="py-3 px-4">{t('dsh_bill_th_document')}</th>
+                      <th className="py-3 px-4">{t('dsh_bill_th_date')}</th>
+                      <th className="py-3 px-4">{t('dsh_bill_th_description')}</th>
+                      <th className="py-3 px-4">{t('dsh_bill_th_amount')}</th>
+                      <th className="py-3 px-4">{t('dash_status')}</th>
+                      <th className="py-3 px-4 text-right">{t('dsh_bill_th_receipt')}</th>
                     </tr>
                   </thead>
                   <tbody className="text-xs font-sans divide-y divide-white/5">
@@ -427,17 +434,17 @@ export default function BillingPortalPage() {
                           {inv.invoiceNumber}
                         </td>
                         <td className="py-4 px-4 text-ivory/70">
-                          {new Date(inv.paidAt || inv.createdAt).toLocaleDateString('pt-BR')}
+                          {formatDate(inv.paidAt || inv.createdAt)}
                         </td>
                         <td className="py-4 px-4 text-ivory/80">
                           {inv.billingReason}
                         </td>
                         <td className="py-4 px-4 font-mono text-[#C9A96B] font-semibold">
-                          {inv.currency === 'USD' ? '$' : 'R$'} {Number(inv.amount).toFixed(2)}
+                          {formatMoney(inv.amount, inv.currency)}
                         </td>
                         <td className="py-4 px-4">
                           <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-400 text-[10px] uppercase font-semibold border border-emerald-500/30 rounded-xs">
-                            Liquidado
+                            {t('dsh_bill_paid')}
                           </span>
                         </td>
                         <td className="py-4 px-4 text-right">
@@ -448,7 +455,7 @@ export default function BillingPortalPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-[#C9A96B] text-ivory hover:text-[#0B0B0B] border border-white/10 hover:border-[#C9A96B] text-[11px] uppercase tracking-wider font-semibold transition-all rounded-xs"
                           >
                             <Download className="w-3 h-3" />
-                            <span>Baixar PDF</span>
+                            <span>{t('dsh_bill_download_pdf')}</span>
                           </a>
                         </td>
                       </tr>
@@ -466,7 +473,7 @@ export default function BillingPortalPage() {
         isOpen={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
         onConfirm={handleConfirmCancel}
-        planName={plan?.name || 'Membro Lumiardi'}
+        planName={plan?.name || t('dsh_bill_member_fallback')}
         currentPeriodEnd={sub?.currentPeriodEnd || ''}
         storageGB={metrics?.driveStorageTotalGB || 5}
       />

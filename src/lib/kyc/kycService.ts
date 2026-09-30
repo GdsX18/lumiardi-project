@@ -5,7 +5,7 @@
  */
 
 import crypto from 'crypto';
-import { fallbackStore, pool, initDatabase } from '@/lib/db';
+import { pool, initDatabase } from '@/lib/db';
 import { cache } from '@/lib/cache';
 
 export interface KYCSessionRequest {
@@ -98,48 +98,36 @@ export const KYCService = {
   async processKYCWebhook(payload: Record<string, unknown>): Promise<{
     handled: boolean;
     userId?: string;
-    newStatus: 'APROVADO' | 'REJEITADO' | 'EM_CURATORIA';
+    kycResult: 'GREEN' | 'RED';
     reason?: string;
   }> {
     await initDatabase();
 
-    const reviewStatus = String(payload.reviewStatus || payload.status || 'completed');
     const reviewResultObj = payload.reviewResult as { reviewAnswer?: string; moderationComment?: string } | undefined;
-    const reviewResult = reviewResultObj?.reviewAnswer || (payload.approved ? 'GREEN' : 'RED');
+    const kycResult = (reviewResultObj?.reviewAnswer || (payload.approved === true ? 'GREEN' : 'RED')) === 'GREEN' ? 'GREEN' : 'RED';
     const userId = (payload.externalUserId || payload.userId) as string | undefined;
     const reason = reviewResultObj?.moderationComment || (payload.reason as string) || 'Verificação biométrica e documental concluída.';
 
-    const newStatus = reviewResult === 'GREEN' ? 'APROVADO' : 'REJEITADO';
-
+    // O resultado do KYC é apenas um insumo para a Mesa de Curadoria: ele NUNCA aprova
+    // nem reprova a candidata sozinho (a decisão e o pagamento seguem o fluxo de curadoria).
     if (userId) {
       try {
         await pool.query(
-          'UPDATE users SET curation_status = $1, rejection_reason = $2, updated_at = NOW() WHERE id = $3',
-          [newStatus, newStatus === 'REJEITADO' ? reason : null, userId]
+          `INSERT INTO curation_audit_logs (id, user_id, user_name, user_email, user_role, action_type, target_id, target_name, target_type, details, ip_address, created_at)
+           VALUES ($1, 'kyc-provider', 'Provedor KYC', 'kyc@system', 'system', $2, $3, $3, 'CANDIDATA', $4, 'webhook', NOW())`,
+          [
+            `audit-kyc-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+            kycResult === 'GREEN' ? 'KYC_APROVADO' : 'KYC_REPROVADO',
+            userId,
+            JSON.stringify({ reason }),
+          ]
         );
-      } catch {
-        // Fallback
+      } catch (err) {
+        console.error('[KYC Webhook] Falha ao registrar resultado:', err);
       }
-
-      // Atualiza memória
-      for (const [email, user] of fallbackStore.users.entries()) {
-        if (user.id === userId) {
-          user.curation_status = newStatus;
-          user.curationStatus = newStatus;
-          if (newStatus === 'REJEITADO') user.rejection_reason = reason;
-          fallbackStore.users.set(email, user);
-          break;
-        }
-      }
-
       await cache.delete(`user:${userId}`);
     }
 
-    return {
-      handled: true,
-      userId,
-      newStatus,
-      reason,
-    };
+    return { handled: Boolean(userId), userId, kycResult, reason };
   },
 };

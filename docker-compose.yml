@@ -6,7 +6,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no ambiente}
       POSTGRES_DB: ${POSTGRES_DB:-lumiardi_db}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
@@ -28,6 +28,9 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://lumiardi.com}
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-}
+        NEXT_PUBLIC_WHATSAPP_SUPPORT: ${NEXT_PUBLIC_WHATSAPP_SUPPORT:-}
+        NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION:-}
     container_name: lumiardi_app
     restart: always
     ports:
@@ -36,9 +39,8 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-lumiardi_db}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-lumiardi_super_secret_jwt_key_2026_prod}
-      JWT_SECRET: ${JWT_SECRET:-lumiardi_super_secret_jwt_key_2026_prod}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no ambiente}@postgres:5432/${POSTGRES_DB:-lumiardi_db}"
+      JWT_SECRET: "${JWT_SECRET:?Defina JWT_SECRET (64+ caracteres aleatorios)}"
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     volumes:
       - uploads_data:/app/public/uploads

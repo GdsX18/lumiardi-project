@@ -23,19 +23,13 @@ export default function BookPageClient({ initialProfile, initialRole }: BookPage
     <DashboardLayout
       pageTitle={
         isCriadora
-          ? t('dash_page_book_title_creator', 'Book Editorial & Portfólio')
-          : t('dash_page_book_title_agency', 'Gestão de Book das Agenciadas')
+          ? t('dash_page_book_title_creator')
+          : t('dash_page_book_title_agency')
       }
       pageSubtitle={
         isCriadora
-          ? t(
-              'dash_page_book_sub_creator',
-              'Área dedicada para upload de ensaios fotográficos em alta resolução, vídeo showreel e medidas corporais.'
-            )
-          : t(
-              'dash_page_book_sub_agency',
-              'Visualização e curadoria de materiais de portfólio, ensaios e casting do elenco.'
-            )
+          ? t('dash_page_book_sub_creator')
+          : t('dash_page_book_sub_agency')
       }
     >
       {isCriadora ? (

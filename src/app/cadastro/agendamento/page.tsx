@@ -21,10 +21,12 @@ import { Footer } from '@/components/ui/Footer';
 import { Button } from '@/components/ui/Button';
 import { CurationScheduler } from '@/components/ui/CurationScheduler';
 import { CurationAppointment } from '@/types';
+import { useLanguage } from '@/context/LanguageContext';
 
 function AgendamentoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t, tApiError, formatDate } = useLanguage();
 
   // Candidata recuperada do cadastro sem retrabalho
   const [candidateInfo, setCandidateInfo] = useState({
@@ -120,12 +122,12 @@ function AgendamentoContent() {
     setErrorMessage(null);
 
     if (!appointment.date || !appointment.timeSlot) {
-      setErrorMessage('Por favor, selecione uma data e horário comercial para sua entrevista de alinhamento.');
+      setErrorMessage(t('pub_sched_err_select_slot'));
       return;
     }
 
     if (!candidateInfo.whatsapp.trim()) {
-      setErrorMessage('O WhatsApp de contato é obrigatório para que a Mesa de Curadoria envie o link do Google Meet.');
+      setErrorMessage(t('pub_sched_err_whatsapp_required'));
       return;
     }
 
@@ -147,20 +149,20 @@ function AgendamentoContent() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Falha ao confirmar o agendamento.');
+        throw new Error(tApiError(data, 'pub_sched_err_confirm_failed'));
       }
 
       setIsSuccess(true);
       window.scrollTo({ top: 150, behavior: 'smooth' });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao agendar reunião';
+      const msg = err instanceof Error ? err.message : t('pub_sched_err_confirm_failed');
       setErrorMessage(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const displayDate = appointment.date ? appointment.date.split('-').reverse().join('/') : '';
+  const displayDate = appointment.date ? formatDate(`${appointment.date}T00:00:00`) : '';
 
   return (
     <main className="min-h-screen bg-[#070707] text-ivory font-sans flex flex-col justify-between selection:bg-[#D4AF37] selection:text-[#0B0B0B]">
@@ -178,50 +180,50 @@ function AgendamentoContent() {
 
             <div className="space-y-3">
               <span className="text-[10px] uppercase tracking-[0.3em] text-[#D4AF37] font-semibold">
-                MESA DE CURADORIA LUMIARDI
+                {t('pub_qual_curation_desk')}
               </span>
               <h2 className="font-serif-lumiardi text-3xl md:text-5xl font-light text-ivory leading-tight">
-                Entrevista Prévia Agendada
+                {t('pub_sched_success_title')}
               </h2>
               <p className="text-xs md:text-sm text-ivory/70 max-w-xl mx-auto font-light leading-relaxed">
-                Seu agendamento para a reunião de alinhamento e curadoria foi registrado com sucesso em nossos servidores seguros.
+                {t('pub_sched_success_desc')}
               </p>
             </div>
 
             {/* Card Nobre com os Dados */}
             <div className="p-6 bg-black/50 border border-[#D4AF37]/40 rounded-lg max-w-md mx-auto text-left space-y-3 font-sans">
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <span className="text-[11px] uppercase tracking-wider text-ivory/50">Candidata</span>
+                <span className="text-[11px] uppercase tracking-wider text-ivory/50">{t('pub_qual_summary_candidate')}</span>
                 <span className="font-serif-lumiardi text-base text-ivory font-medium truncate max-w-[200px]">
-                  {candidateInfo.fullName || 'Candidata Registrada'}
+                  {candidateInfo.fullName || t('pub_sched_registered_candidate')}
                 </span>
               </div>
 
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <span className="text-[11px] uppercase tracking-wider text-ivory/50">WhatsApp de Contato</span>
+                <span className="text-[11px] uppercase tracking-wider text-ivory/50">{t('pub_sched_contact_whatsapp')}</span>
                 <span className="text-xs font-mono text-emerald-400 font-bold truncate max-w-[200px]">
                   {candidateInfo.whatsapp}
                 </span>
               </div>
 
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <span className="text-[11px] uppercase tracking-wider text-ivory/50">Data da Entrevista</span>
+                <span className="text-[11px] uppercase tracking-wider text-ivory/50">{t('pub_qual_summary_date')}</span>
                 <span className="text-xs font-mono text-[#F5D77F] font-semibold">
                   {displayDate}
                 </span>
               </div>
 
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <span className="text-[11px] uppercase tracking-wider text-ivory/50">Horário Marcado</span>
+                <span className="text-[11px] uppercase tracking-wider text-ivory/50">{t('pub_sched_time_booked')}</span>
                 <span className="text-xs font-mono text-[#F5D77F] font-semibold">
-                  {appointment.timeSlot} (Horário de Brasília)
+                  {appointment.timeSlot} {t('pub_qual_summary_tz')}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-wider text-ivory/50">Plano Pretendido</span>
+                <span className="text-[11px] uppercase tracking-wider text-ivory/50">{t('pub_qual_summary_plan')}</span>
                 <span className="text-xs font-mono uppercase tracking-wider text-gold font-bold">
-                  {candidateInfo.planId.toUpperCase()} ({candidateInfo.billingInterval === 'yearly' ? 'Anual' : 'Mensal'})
+                  {candidateInfo.planId.toUpperCase()} ({candidateInfo.billingInterval === 'yearly' ? t('sub_interval_yearly') : t('sub_interval_monthly')})
                 </span>
               </div>
             </div>
@@ -230,13 +232,13 @@ function AgendamentoContent() {
             <div className="p-4 bg-amber-950/20 border border-amber-500/40 rounded-lg text-left text-xs text-amber-200/90 max-w-md mx-auto space-y-1.5 leading-relaxed">
               <div className="flex items-center gap-2 font-semibold text-[#F5D77F] uppercase tracking-wider text-[10px]">
                 <ShieldCheck className="w-4 h-4 text-[#D4AF37] shrink-0" />
-                <span>Instruções da Mesa de Curadoria</span>
+                <span>{t('pub_sched_instructions_title')}</span>
               </div>
               <p>
-                No horário marcado, nossa equipe entrará em contato via WhatsApp e enviará o link da sala confidencial do Google Meet.
+                {t('pub_sched_instructions_desc')}
               </p>
               <p className="text-[10px] text-amber-300/80 pt-1 border-t border-amber-500/20">
-                A liberação do pagamento e o acesso ao ecossistema Lumiardi ocorrerão exclusivamente após a conclusão desta reunião.
+                {t('pub_sched_instructions_note')}
               </p>
             </div>
 
@@ -247,7 +249,7 @@ function AgendamentoContent() {
                 className="w-full py-4 px-6 text-xs uppercase tracking-[0.2em] font-bold bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#AA820A] text-[#0B0B0B] hover:brightness-110 shadow-xl cursor-pointer rounded-sm"
               >
                 <CalendarCheck className="w-4 h-4 mr-2" />
-                <span>Acompanhar Meu Status no Portal →</span>
+                <span>{t('pub_sched_btn_track')}</span>
               </Button>
             </div>
           </div>
@@ -260,13 +262,13 @@ function AgendamentoContent() {
 
             <div className="border-b border-[#24221C] pb-6 space-y-2">
               <span className="px-3 py-1 text-[10px] font-sans uppercase tracking-[0.25em] font-semibold border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37]">
-                ETAPA OBRIGATÓRIA DE ENTRADA
+                {t('pub_sched_step_badge')}
               </span>
               <h1 className="font-serif-lumiardi text-2xl md:text-4xl text-ivory font-light pt-2">
-                Agendamento de Curadoria Prévia
+                {t('pub_sched_title')}
               </h1>
               <p className="text-xs md:text-sm text-ivory/60 font-light max-w-2xl leading-relaxed">
-                Selecione abaixo a melhor data e horário comercial para a sua reunião de alinhamento com a Mesa de Curadoria Lumiardi.
+                {t('pub_sched_desc')}
               </p>
             </div>
 
@@ -283,9 +285,9 @@ function AgendamentoContent() {
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-[#D4AF37] shrink-0" />
                 <div className="truncate">
-                  <span className="text-[10px] text-ivory/40 uppercase block">Candidata</span>
+                  <span className="text-[10px] text-ivory/40 uppercase block">{t('pub_qual_summary_candidate')}</span>
                   <span className="font-medium text-ivory truncate block">
-                    {candidateInfo.fullName || 'Recuperando do cadastro...'}
+                    {candidateInfo.fullName || t('pub_sched_recovering')}
                   </span>
                 </div>
               </div>
@@ -293,7 +295,7 @@ function AgendamentoContent() {
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[#D4AF37] shrink-0" />
                 <div className="truncate">
-                  <span className="text-[10px] text-ivory/40 uppercase block">E-mail</span>
+                  <span className="text-[10px] text-ivory/40 uppercase block">{t('pub_sched_email')}</span>
                   <span className="font-mono text-ivory/80 truncate block">
                     {candidateInfo.email || '-'}
                   </span>
@@ -305,7 +307,7 @@ function AgendamentoContent() {
                 <div className="truncate">
                   <span className="text-[10px] text-ivory/40 uppercase block">WhatsApp (Meet)</span>
                   <span className="font-mono text-emerald-400 font-bold truncate block">
-                    {candidateInfo.whatsapp || 'Informe abaixo'}
+                    {candidateInfo.whatsapp || t('pub_sched_enter_below')}
                   </span>
                 </div>
               </div>
@@ -315,7 +317,7 @@ function AgendamentoContent() {
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs font-serif-lumiardi text-[#D4AF37] uppercase tracking-wider">
                 <CalendarIcon className="w-4 h-4" />
-                <span>Selecione a Data e Intervalo de Horário</span>
+                <span>{t('pub_sched_select_slot_title')}</span>
               </div>
 
               <CurationScheduler
@@ -328,7 +330,7 @@ function AgendamentoContent() {
             {/* Confirmação do WhatsApp */}
             <div className="p-4 bg-[#14120C] border border-[#D4AF37]/30 rounded-lg space-y-2">
               <label className="block text-xs font-semibold uppercase tracking-wider text-ivory/90">
-                Confirmar Celular / WhatsApp com DDD
+                {t('pub_sched_confirm_whatsapp_label')}
               </label>
               <input
                 type="tel"
@@ -338,7 +340,7 @@ function AgendamentoContent() {
                 className="w-full px-4 py-3 bg-black/60 border border-white/20 focus:border-[#D4AF37] text-xs font-mono text-emerald-400 rounded-xs focus:outline-none"
               />
               <span className="text-[10px] text-ivory/50 block">
-                O convite do Google Meet será enviado para este número no dia e hora marcados.
+                {t('pub_sched_whatsapp_hint')}
               </span>
             </div>
 
@@ -346,7 +348,7 @@ function AgendamentoContent() {
             <div className="pt-4 border-t border-[#24221C] flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2 text-[11px] text-ivory/50">
                 <Lock className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span>Agendamento criptografado sob protocolo de sigilo Lumiardi</span>
+                <span>{t('pub_sched_encrypted_note')}</span>
               </div>
 
               <button
@@ -355,7 +357,7 @@ function AgendamentoContent() {
                 onClick={handleConfirmSchedule}
                 className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#AA820A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold hover:brightness-110 transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-40 disabled:cursor-not-allowed rounded-sm"
               >
-                <span>{submitting ? 'Gravando Agendamento...' : 'Confirmar Entrevista de Curadoria →'}</span>
+                <span>{submitting ? t('pub_sched_btn_saving') : t('pub_sched_btn_confirm')}</span>
               </button>
             </div>
           </div>
@@ -368,8 +370,9 @@ function AgendamentoContent() {
 }
 
 export default function AgendamentoPage() {
+  const { t } = useLanguage();
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#070707] text-[#D4AF37] flex items-center justify-center font-mono text-xs">Carregando agendador...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#070707] text-[#D4AF37] flex items-center justify-center font-mono text-xs">{t('pub_sched_loading')}</div>}>
       <AgendamentoContent />
     </Suspense>
   );

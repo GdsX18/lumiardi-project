@@ -55,7 +55,9 @@ export const CurationStatusBanner: React.FC = () => {
                 {isApproved ? t('banner_curation_approved') : t('banner_curation_pending')}
               </Badge>
               <span className="text-[10px] font-sans tracking-widest uppercase text-ivory/50">
-                {role === 'criadora' ? t('banner_curation_role_creator') : t('banner_curation_role_agency')} · ID: #{role === 'criadora' ? (activeCreator?.id || 'CR-9042') : (activeAgency?.id || 'AG-8821')}
+                {t('dsh_cb_role_id')
+                  .replace('{role}', role === 'criadora' ? t('banner_curation_role_creator') : t('banner_curation_role_agency'))
+                  .replace('{id}', role === 'criadora' ? (activeCreator?.id?.slice(-6).toUpperCase() || '------') : (activeAgency?.id?.slice(-6).toUpperCase() || '------'))}
               </span>
             </div>
 

@@ -10,18 +10,19 @@ interface LocationSelectorProps {
   required?: boolean;
 }
 
-const COUNTRIES = [
-  'Brasil',
-  'Estados Unidos',
-  'França',
-  'Itália',
-  'Espanha',
-  'Reino Unido',
-  'Portugal',
-  'Alemanha',
-  'Suíça',
-  'Emirados Árabes Unidos',
-  'Outro',
+// `value` é o valor persistido (estável, em português); `iso` é usado só para exibir o nome traduzido
+const COUNTRIES: { value: string; iso: string | null }[] = [
+  { value: 'Brasil', iso: 'BR' },
+  { value: 'Estados Unidos', iso: 'US' },
+  { value: 'França', iso: 'FR' },
+  { value: 'Itália', iso: 'IT' },
+  { value: 'Espanha', iso: 'ES' },
+  { value: 'Reino Unido', iso: 'GB' },
+  { value: 'Portugal', iso: 'PT' },
+  { value: 'Alemanha', iso: 'DE' },
+  { value: 'Suíça', iso: 'CH' },
+  { value: 'Emirados Árabes Unidos', iso: 'AE' },
+  { value: 'Outro', iso: null },
 ];
 
 const BRAZIL_STATES = [
@@ -59,7 +60,16 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
   onChange,
   required = true,
 }) => {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const regionNames = React.useMemo(() => {
+    try {
+      return new Intl.DisplayNames([locale], { type: 'region' });
+    } catch {
+      return null;
+    }
+  }, [locale]);
+  const countryLabel = (c: { value: string; iso: string | null }) =>
+    c.iso ? regionNames?.of(c.iso) ?? c.value : t('gender_other');
   const [isBrazil, setIsBrazil] = useState(value.country === 'Brasil' || !value.country);
 
   const handleCountryChange = (country: string) => {
@@ -87,8 +97,8 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({
             required={required}
           >
             {COUNTRIES.map((c) => (
-              <option key={c} value={c}>
-                {c === 'Outro' ? t('gender_other') : c}
+              <option key={c.value} value={c.value}>
+                {countryLabel(c)}
               </option>
             ))}
           </select>

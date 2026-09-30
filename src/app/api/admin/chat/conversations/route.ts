@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getVerifiedAdminSession } from '@/lib/apiAuth';
 import { pool, initDatabase, fallbackStore } from '@/lib/db';
 
 export interface AdminConversation {
@@ -15,10 +16,9 @@ export interface AdminConversation {
 
 export async function GET(request: NextRequest) {
   try {
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getVerifiedAdminSession();
 
-    if (!session || session.role !== 'admin') {
+    if (!session) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 403 });
     }
 

@@ -21,6 +21,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface EditProfileModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   onSaved,
   defaultTab = 'basic',
 }) => {
+  const { t, tApiError, formatPrice } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'book' | 'video' | 'measurements' | 'limits'>(defaultTab);
   const [saving, setSaving] = useState(false);
@@ -176,7 +178,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Falha ao sincronizar arquivo com o Cloudflare R2.');
+        throw new Error(tApiError(errData, 'dwg_prof_err_upload'));
       }
 
       const data = await res.json();
@@ -200,7 +202,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro no envio para o Cloudflare R2';
+      const msg = err instanceof Error ? err.message : t('dwg_prof_err_upload_generic');
       console.error('[UPLOAD ERROR]:', err);
       setErrorMsg(msg);
     } finally {
@@ -246,7 +248,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Erro ao salvar alterações.');
+        throw new Error(tApiError(data, 'dwg_prof_err_save'));
       }
 
       setSaveSuccess(true);
@@ -256,7 +258,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         onClose();
       }, 1200);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro ao processar atualização';
+      const message = err instanceof Error ? err.message : t('dwg_prof_err_process');
       setErrorMsg(message);
     } finally {
       setSaving(false);
@@ -284,10 +286,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </div>
             <div>
               <h2 className="font-serif-lumiardi text-lg md:text-xl text-ivory font-medium">
-                Gerenciador de Book & Perfil da Modelo
+                {t('dwg_prof_title')}
               </h2>
               <span className="text-[11px] font-sans text-ivory/50">
-                Edite suas fotos profissionais, biometria e informações de apresentação.
+                {t('dwg_prof_subtitle')}
               </span>
             </div>
           </div>
@@ -312,7 +314,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             }`}
           >
             <Camera className="w-3.5 h-3.5" />
-            <span>1. Foto & Identidade</span>
+            <span>{t('dwg_prof_tab_basic')}</span>
           </button>
 
           <button
@@ -325,7 +327,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>2. Fotos do Book ({photos.length})</span>
+            <span>{t('dwg_prof_tab_book').replace('{count}', String(photos.length))}</span>
           </button>
 
           <button
@@ -338,7 +340,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             }`}
           >
             <Play className="w-3.5 h-3.5" />
-            <span>3. Vídeo Showreel</span>
+            <span>{t('dwg_prof_tab_video')}</span>
           </button>
 
           <button
@@ -351,7 +353,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>4. Ficha Técnica & Medidas</span>
+            <span>{t('dwg_prof_tab_measurements')}</span>
           </button>
 
           <button
@@ -364,7 +366,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>5. Diretrizes & Negócio</span>
+            <span>{t('dwg_prof_tab_limits')}</span>
           </button>
         </div>
 
@@ -377,7 +379,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         {saveSuccess && (
           <div className="mx-6 mt-4 p-3 bg-emerald-950/50 border border-emerald-500/50 text-emerald-300 text-xs font-sans flex items-center gap-2 rounded-sm">
             <Check className="w-4 h-4 text-emerald-400" />
-            <span>Informações atualizadas com sucesso no ecossistema!</span>
+            <span>{t('dwg_prof_save_success')}</span>
           </div>
         )}
 
@@ -393,14 +395,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     avatarUrl.startsWith('data:') ? (
                       <img
                         src={avatarUrl}
-                        alt="Foto de Perfil"
+                        alt={t('dwg_prof_avatar_alt')}
                         className="absolute inset-0 w-full h-full object-cover"
                         onError={() => setImgError(true)}
                       />
                     ) : (
                       <Image
                         src={avatarUrl}
-                        alt="Foto de Perfil"
+                        alt={t('dwg_prof_avatar_alt')}
                         fill
                         className="object-cover"
                         unoptimized
@@ -410,12 +412,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-[#181818] text-gold font-serif-lumiardi text-lg font-bold">
                       <Camera className="w-6 h-6 mb-1 opacity-70" />
-                      <span className="text-[9px] font-sans font-normal text-gold/80">+ Foto</span>
+                      <span className="text-[9px] font-sans font-normal text-gold/80">{t('dwg_prof_add_photo')}</span>
                     </div>
                   )}
                   <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-gold cursor-pointer transition-opacity">
                     <Camera className="w-5 h-5 mb-1" />
-                    <span>Trocar Foto</span>
+                    <span>{t('dwg_prof_change_photo')}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -426,14 +428,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 </div>
 
                 <div className="space-y-2 flex-1 text-center sm:text-left">
-                  <h4 className="text-sm font-medium text-ivory">Foto Principal do Perfil</h4>
+                  <h4 className="text-sm font-medium text-ivory">{t('dwg_prof_main_photo_title')}</h4>
                   <p className="text-xs text-ivory/60 font-sans leading-relaxed">
-                    Esta imagem é exibida no catálogo de agências, no casting internacional e no topo do seu Book oficial.
+                    {t('dwg_prof_main_photo_desc')}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 pt-1 justify-center sm:justify-start">
                     <label className="px-3 py-1.5 bg-[#1E1E1E] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Upload de Arquivo</span>
+                      <span>{t('dwg_prof_upload_file')}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -443,7 +445,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     </label>
                     <input
                       type="text"
-                      placeholder="Ou cole a URL da imagem..."
+                      placeholder={t('dwg_prof_avatar_url_placeholder')}
                       value={avatarUrl}
                       onChange={(e) => setAvatarUrl(e.target.value)}
                       className="bg-[#181818] border border-white/[0.1] px-3 py-1.5 text-xs text-ivory outline-none rounded-sm flex-1 min-w-[200px]"
@@ -455,7 +457,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                    Nome Artístico / Nome de Apresentação
+                    {t('dwg_prof_artistic_name')}
                   </label>
                   <input
                     type="text"
@@ -468,24 +470,24 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                    Categoria Artística
+                    {t('dwg_prof_category')}
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
                   >
-                    <option value="Modelo & Criadora VIP">Modelo & Criadora VIP</option>
-                    <option value="Alta Moda & Editorial">Alta Moda & Editorial</option>
-                    <option value="Comercial & Publicidade">Comercial & Publicidade</option>
-                    <option value="Passarela Internacional">Passarela Internacional</option>
-                    <option value="Fitness & Lingerie de Luxo">Fitness & Lingerie de Luxo</option>
+                    <option value="Modelo & Criadora VIP">{t('dwg_prof_cat_vip')}</option>
+                    <option value="Alta Moda & Editorial">{t('dwg_prof_cat_editorial')}</option>
+                    <option value="Comercial & Publicidade">{t('dwg_prof_cat_commercial')}</option>
+                    <option value="Passarela Internacional">{t('dwg_prof_cat_runway')}</option>
+                    <option value="Fitness & Lingerie de Luxo">{t('dwg_prof_cat_fitness')}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                    Instagram Profissional (@)
+                    {t('dwg_prof_instagram')}
                   </label>
                   <input
                     type="text"
@@ -499,7 +501,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                      Cidade
+                      {t('dwg_prof_city')}
                     </label>
                     <input
                       type="text"
@@ -510,7 +512,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
                   <div>
                     <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                      Estado (UF)
+                      {t('dwg_prof_state')}
                     </label>
                     <input
                       type="text"
@@ -523,13 +525,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                    Biografia / Apresentação Profissional
+                    {t('dwg_prof_bio')}
                   </label>
                   <textarea
                     rows={3}
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Conte sobre sua trajetória, experiência editorial e objetivos..."
+                    placeholder={t('dwg_prof_bio_placeholder')}
                     className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold p-3 text-xs text-ivory outline-none rounded-sm"
                   />
                 </div>
@@ -544,10 +546,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               <div className="p-4 bg-[#141414] border border-gold/30 rounded-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gold flex items-center gap-1.5 uppercase tracking-wider">
-                    <Plus className="w-4 h-4" /> Adicionar Novo Ensaio ao Book
+                    <Plus className="w-4 h-4" /> {t('dwg_prof_book_add_title')}
                   </span>
                   <span className="text-[10px] text-ivory/40 font-sans">
-                    Formatos: JPG, PNG, WEBP ou RAW
+                    {t('dwg_prof_book_formats')}
                   </span>
                 </div>
 
@@ -555,7 +557,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   <div>
                     <input
                       type="text"
-                      placeholder="Título do ensaio (Ex: Editorial Paris)"
+                      placeholder={t('dwg_prof_photo_title_placeholder')}
                       value={newPhotoTitle}
                       onChange={(e) => setNewPhotoTitle(e.target.value)}
                       className="w-full bg-[#181818] border border-white/[0.1] px-3 py-2 text-xs text-ivory outline-none rounded-sm"
@@ -565,7 +567,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   <div>
                     <input
                       type="text"
-                      placeholder="Tag (Ex: Alta Resolução · RAW)"
+                      placeholder={t('dwg_prof_photo_tag_placeholder')}
                       value={newPhotoTag}
                       onChange={(e) => setNewPhotoTag(e.target.value)}
                       className="w-full bg-[#181818] border border-white/[0.1] px-3 py-2 text-xs text-ivory outline-none rounded-sm"
@@ -575,12 +577,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      placeholder="URL da Imagem..."
+                      placeholder={t('dwg_prof_photo_url_placeholder')}
                       value={newPhotoUrl}
                       onChange={(e) => setNewPhotoUrl(e.target.value)}
                       className="w-full bg-[#181818] border border-white/[0.1] px-3 py-2 text-xs text-ivory outline-none rounded-sm"
                     />
-                    <label className="p-2 bg-[#202020] hover:bg-gold hover:text-black-matte border border-white/10 text-gold text-xs transition-colors rounded-sm cursor-pointer shrink-0" title="Upload de Arquivo">
+                    <label className="p-2 bg-[#202020] hover:bg-gold hover:text-black-matte border border-white/10 text-gold text-xs transition-colors rounded-sm cursor-pointer shrink-0" title={t('dwg_prof_upload_file')}>
                       <Upload className="w-4 h-4" />
                       <input
                         type="file"
@@ -599,7 +601,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     disabled={!newPhotoUrl.trim()}
                     className="px-4 py-2 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs uppercase tracking-wider rounded-sm transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    + Incluir na Galeria
+                    {t('dwg_prof_add_to_gallery')}
                   </button>
                 </div>
               </div>
@@ -607,7 +609,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Lista de Fotos Existentes */}
               <div className="space-y-2">
                 <span className="text-[11px] text-ivory/70 uppercase tracking-widest font-semibold block">
-                  Ensaios Cadastrados no seu Book ({photos.length})
+                  {t('dwg_prof_book_list_title').replace('{count}', String(photos.length))}
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -615,8 +617,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     .map((pItem: any, idx: number) => {
                       const photoUrl = typeof pItem === 'string' ? pItem : pItem?.url;
                       const photoId = typeof pItem === 'string' ? `photo-${idx}` : pItem?.id || `photo-${idx}`;
-                      const photoTitle = typeof pItem === 'string' ? `Ensaio ${idx + 1}` : pItem?.title || `Ensaio ${idx + 1}`;
-                      const photoTag = typeof pItem === 'string' ? 'Alta Resolução' : pItem?.tag || 'Alta Resolução';
+                      const defaultPhotoTitle = t('dwg_prof_photo_default_title').replace('{n}', String(idx + 1));
+                      const photoTitle = typeof pItem === 'string' ? defaultPhotoTitle : pItem?.title || defaultPhotoTitle;
+                      const photoTag = typeof pItem === 'string' ? t('dwg_prof_photo_default_tag') : pItem?.tag || t('dwg_prof_photo_default_tag');
 
                       if (!photoUrl || typeof photoUrl !== 'string' || photoUrl.trim() === '') return null;
 
@@ -645,7 +648,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                               type="button"
                               onClick={() => handleRemovePhoto(photoId)}
                               className="absolute top-2 right-2 p-1.5 bg-rose-900/80 hover:bg-rose-600 text-white rounded-xs transition-colors cursor-pointer shadow-md"
-                              title="Remover foto do Book"
+                              title={t('dwg_prof_remove_photo')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -672,15 +675,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <div className="space-y-6 animate-fadeIn">
               <div className="p-4 bg-[#141414] border border-gold/30 rounded-sm space-y-3">
                 <h4 className="text-xs font-medium text-gold uppercase tracking-wider flex items-center gap-2">
-                  <Play className="w-4 h-4" /> Vídeo Showreel de Apresentação
+                  <Play className="w-4 h-4" /> {t('dwg_prof_video_title')}
                 </h4>
                 <p className="text-xs text-ivory/60 font-sans leading-relaxed">
-                  Insira o link direto de vídeo em alta resolução (MP4, Cloud Storage, Vimeo ou YouTube) que será reproduzido no seu portfólio oficial.
+                  {t('dwg_prof_video_desc')}
                 </p>
 
                 <div>
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                    URL ou Arquivo do Vídeo (MP4 / Streaming)
+                    {t('dwg_prof_video_url_label')}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -690,9 +693,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                       placeholder="https://..."
                       className="w-full bg-[#181818] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
                     />
-                    <label className="px-3.5 py-2.5 bg-[#202020] hover:bg-gold hover:text-black-matte border border-white/10 text-gold text-xs font-sans font-medium transition-colors rounded-sm cursor-pointer shrink-0 flex items-center gap-1.5" title="Upload de Arquivo de Vídeo">
+                    <label className="px-3.5 py-2.5 bg-[#202020] hover:bg-gold hover:text-black-matte border border-white/10 text-gold text-xs font-sans font-medium transition-colors rounded-sm cursor-pointer shrink-0 flex items-center gap-1.5" title={t('dwg_prof_video_upload_title')}>
                       <Upload className="w-4 h-4" />
-                      <span className="hidden sm:inline">Upload MP4</span>
+                      <span className="hidden sm:inline">{t('dwg_prof_video_upload_btn')}</span>
                       <input
                         type="file"
                         accept="video/*"
@@ -717,12 +720,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <div className="space-y-6 animate-fadeIn">
               <div className="space-y-4">
                 <span className="text-[11px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                  Biometria e Medidas Corporais
+                  {t('dwg_prof_biometrics')}
                 </span>
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Altura (cm)</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_height')}</label>
                     <input
                       type="text"
                       value={height}
@@ -732,7 +735,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Peso (kg)</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_weight')}</label>
                     <input
                       type="text"
                       value={weight}
@@ -742,7 +745,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Cintura (cm)</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_waist')}</label>
                     <input
                       type="text"
                       value={waist}
@@ -752,7 +755,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Busto (cm)</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_bust')}</label>
                     <input
                       type="text"
                       value={bust}
@@ -762,7 +765,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Quadril (cm)</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_hips')}</label>
                     <input
                       type="text"
                       value={hips}
@@ -775,12 +778,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
               <div className="space-y-4 pt-2">
                 <span className="text-[11px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                  Fisiognomia & Idiomas
+                  {t('dwg_prof_physiognomy')}
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Cor dos Olhos</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_eye_color')}</label>
                     <input
                       type="text"
                       value={eyeColor}
@@ -790,7 +793,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Cor do Cabelo</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_hair_color')}</label>
                     <input
                       type="text"
                       value={hairColor}
@@ -800,7 +803,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Tom de Pele</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_skin_tone')}</label>
                     <input
                       type="text"
                       value={skinTone}
@@ -810,7 +813,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">Idiomas (separados por vírgula)</label>
+                    <label className="block text-[10px] uppercase text-ivory/60 mb-1">{t('dwg_prof_languages')}</label>
                     <input
                       type="text"
                       value={languages}
@@ -831,7 +834,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] font-sans font-bold text-ivory tracking-wide uppercase">
-                      Aceitar novas ofertas de agências
+                      {t('dwg_prof_accept_offers')}
                     </span>
                     <span
                       className={`text-[9px] font-mono px-2 py-0.5 rounded-full border ${
@@ -840,11 +843,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                           : 'border-amber-500/40 bg-amber-950/40 text-amber-300'
                       }`}
                     >
-                      {acceptsOffers ? 'ABERTA A PROPOSTAS' : 'PROPOSTAS PAUSADAS'}
+                      {acceptsOffers ? t('dwg_prof_offers_open') : t('dwg_prof_offers_paused')}
                     </span>
                   </div>
                   <p className="text-[11px] text-ivory/60 leading-relaxed max-w-xl">
-                    Seu perfil continua visível no módulo de Scout das agências. Quando desativado, o botão de envio de novas propostas fica desabilitado para novas agências contratantes.
+                    {t('dwg_prof_offers_desc')}
                   </p>
                 </div>
 
@@ -861,39 +864,39 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                  Faturamento Mensal Estimado
+                  {t('dwg_prof_revenue')}
                 </label>
                 <input
                   type="text"
                   value={monthlyRevenueEstimate}
                   onChange={(e) => setMonthlyRevenueEstimate(e.target.value)}
-                  placeholder="Ex: R$ 50.000 / mês"
+                  placeholder={t('dwg_prof_revenue_placeholder').replace('{amount}', formatPrice(50000, 10000))}
                   className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                  Limites Pessoais & Preservação de Imagem
+                  {t('dwg_prof_limits')}
                 </label>
                 <textarea
                   rows={2}
                   value={personalLimits}
                   onChange={(e) => setPersonalLimits(e.target.value)}
-                  placeholder="Descreva seus limites e exigências contratuais..."
+                  placeholder={t('dwg_prof_limits_placeholder')}
                   className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold p-3 text-xs text-ivory outline-none rounded-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                  Objetivo Principal com as Agências
+                  {t('dwg_prof_goal')}
                 </label>
                 <textarea
                   rows={2}
                   value={mainGoal}
                   onChange={(e) => setMainGoal(e.target.value)}
-                  placeholder="Ex: Contratos editoriais internacionais, campanhas de luxo..."
+                  placeholder={t('dwg_prof_goal_placeholder')}
                   className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold p-3 text-xs text-ivory outline-none rounded-sm"
                 />
               </div>
@@ -907,7 +910,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 text-xs font-sans text-ivory/60 hover:text-ivory transition-colors cursor-pointer"
             >
-              Cancelar
+              {t('dwg_prof_cancel')}
             </button>
 
             <Button
@@ -917,11 +920,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               className="text-xs uppercase font-bold tracking-wider py-2.5 px-6 cursor-pointer shadow-lg shadow-gold/20 flex items-center gap-2"
             >
               {saving ? (
-                'Salvando alterações...'
+                t('dwg_prof_saving')
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Salvar Atualizações</span>
+                  <span>{t('dwg_prof_save')}</span>
                 </>
               )}
             </Button>

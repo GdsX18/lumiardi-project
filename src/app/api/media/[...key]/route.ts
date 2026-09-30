@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { R2StorageService } from '@/lib/storage/r2Service';
+import { canReadMedia, getMediaAccessLevel, normalizeMediaKey, parseMediaKey } from '@/lib/storage/mediaAccess';
+import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import fs from 'fs';
@@ -7,34 +9,34 @@ import path from 'path';
 
 /**
  * Procura um arquivo correspondente no diretório public local.
+ * Cada candidato é resolvido e precisa permanecer dentro de `public/` (anti path traversal).
  */
 function findLocalFile(fileKey: string): string | null {
   const publicDir = path.resolve(path.join(/*turbopackIgnore: true*/ process.cwd(), 'public'));
   const normalizedKey = fileKey.replace(/^\/+/, '');
-  const baseFilePath = path.join(publicDir, normalizedKey);
-
-  if (!path.resolve(baseFilePath).startsWith(publicDir)) {
-    return null;
-  }
+  const withoutAssets = normalizedKey.replace(/^assets\//, '');
+  const baseName = path.basename(normalizedKey);
 
   const candidatePaths = [
     path.join(publicDir, normalizedKey),
-    path.join(publicDir, normalizedKey.replace(/^assets\//, '')),
+    path.join(publicDir, withoutAssets),
     path.join(publicDir, 'assets', normalizedKey),
-    path.join(publicDir, 'assets', normalizedKey.replace(/^assets\//, '')),
+    path.join(publicDir, 'assets', withoutAssets),
     path.join(publicDir, normalizedKey.replace(/_/g, ' ')),
     path.join(publicDir, normalizedKey.replace(/\s+/g, '_')),
-    path.join(publicDir, 'images', path.basename(normalizedKey)),
-    path.join(publicDir, 'assets', 'images', path.basename(normalizedKey)),
-    path.join(publicDir, path.basename(normalizedKey)),
-    path.join(publicDir, path.basename(normalizedKey).replace(/_/g, ' ')),
-    path.join(publicDir, 'assets', path.basename(normalizedKey)),
+    path.join(publicDir, 'images', baseName),
+    path.join(publicDir, 'assets', 'images', baseName),
+    path.join(publicDir, baseName),
+    path.join(publicDir, baseName.replace(/_/g, ' ')),
+    path.join(publicDir, 'assets', baseName),
   ];
 
-  for (const p of candidatePaths) {
+  for (const candidate of candidatePaths) {
+    const resolved = path.resolve(candidate);
+    if (!resolved.startsWith(publicDir + path.sep)) continue;
     try {
-      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
-        return p;
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+        return resolved;
       }
     } catch {
       // continua buscando
@@ -42,6 +44,36 @@ function findLocalFile(fileKey: string): string | null {
   }
   return null;
 }
+
+/**
+ * Interpreta um header Range de intervalo único (`bytes=a-b`, `bytes=a-`, `bytes=-n`).
+ * Retorna null para ranges inválidos/insatisfatíveis.
+ */
+function parseRange(rangeHeader: string, fileSize: number): { start: number; end: number } | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+  if (!match || fileSize === 0) return null;
+  const [, rawStart, rawEnd] = match;
+  let start: number;
+  let end: number;
+  if (rawStart === '') {
+    if (rawEnd === '') return null;
+    const suffix = parseInt(rawEnd, 10);
+    if (suffix <= 0) return null;
+    start = Math.max(0, fileSize - suffix);
+    end = fileSize - 1;
+  } else {
+    start = parseInt(rawStart, 10);
+    end = rawEnd === '' ? fileSize - 1 : Math.min(parseInt(rawEnd, 10), fileSize - 1);
+  }
+  if (start >= fileSize || start > end) return null;
+  return { start, end };
+}
+
+const PUBLIC_CACHE = 'public, max-age=31536000, immutable';
+const PRIVATE_CACHE = 'private, max-age=3600';
+
+/** Tipos que o navegador executaria na origem do site — sempre servidos como download. */
+const ACTIVE_CONTENT_TYPES = /^(text\/html|application\/xhtml|image\/svg|text\/xml|application\/xml|application\/javascript|text\/javascript)/i;
 
 /**
  * Serve um arquivo local com suporte a Range requests (HTTP 206) para vídeos e áudio.
@@ -53,18 +85,15 @@ function serveLocalFile(filePath: string, request: NextRequest) {
   const contentType = inferContentType(filePath);
 
   if (rangeHeader) {
-    const parts = rangeHeader.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-    if (start >= fileSize || end >= fileSize || start > end) {
+    const range = parseRange(rangeHeader, fileSize);
+    if (!range) {
       return new NextResponse(null, {
         status: 416,
         headers: { 'Content-Range': `bytes */${fileSize}` },
       });
     }
 
-    const chunksize = end - start + 1;
+    const { start, end } = range;
     const nodeStream = fs.createReadStream(filePath, { start, end });
     const webStream = Readable.toWeb(nodeStream);
 
@@ -73,9 +102,9 @@ function serveLocalFile(filePath: string, request: NextRequest) {
       headers: {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
-        'Content-Length': String(chunksize),
+        'Content-Length': String(end - start + 1),
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': PUBLIC_CACHE,
       },
     });
   }
@@ -88,13 +117,23 @@ function serveLocalFile(filePath: string, request: NextRequest) {
       'Content-Type': contentType,
       'Content-Length': String(fileSize),
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': PUBLIC_CACHE,
     },
   });
 }
 
+function isMissingObject(err: unknown): boolean {
+  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+  return e?.name === 'NoSuchKey' || e?.Code === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404;
+}
+
+function isInvalidRange(err: unknown): boolean {
+  const e = err as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+  return e?.name === 'InvalidRange' || e?.Code === 'InvalidRange' || e?.$metadata?.httpStatusCode === 416;
+}
+
 /**
- * Rota proxy resiliente para servir arquivos locais e do Cloudflare R2.
+ * Rota proxy para servir arquivos locais (public/) e do Cloudflare R2, com controle de acesso por chave.
  */
 export async function GET(
   request: NextRequest,
@@ -102,94 +141,101 @@ export async function GET(
 ) {
   try {
     const { key: keySegments } = await params;
-    let fileKey = keySegments.map((s) => decodeURIComponent(s)).join('/');
-
-    if (!fileKey || fileKey.length < 2) {
+    let decodedKey: string;
+    try {
+      decodedKey = keySegments.map((s) => decodeURIComponent(s)).join('/');
+    } catch {
       return NextResponse.json({ error: 'Chave de arquivo inválida.' }, { status: 400 });
     }
 
-    // 1. Tentar localizar primeiro no filesystem local (public) para entrega instantânea com 0 cold-start
-    const localFilePath = findLocalFile(fileKey);
-    if (localFilePath) {
-      return await serveLocalFile(localFilePath, request);
+    const normalized = normalizeMediaKey(decodedKey);
+    if (!normalized || normalized.length < 2) {
+      return NextResponse.json({ error: 'Chave de arquivo inválida.' }, { status: 400 });
+    }
+    let fileKey = normalized;
+
+    const parsed = parseMediaKey(fileKey);
+    const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    if (!canReadMedia(fileKey, session)) {
+      // 404 para usuário logado sem permissão: não revela a existência do objeto
+      return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: session ? 404 : 401 });
+    }
+    const isPublic = getMediaAccessLevel(parsed) === 'public';
+
+    // 1. Conteúdo público do site: tenta primeiro o filesystem local (public/)
+    if (!parsed.isVault) {
+      const localFilePath = findLocalFile(fileKey);
+      if (localFilePath) {
+        return serveLocalFile(localFilePath, request);
+      }
     }
 
-    // 2. Se não estiver local, busca no Cloudflare R2
+    // 2. Busca no Cloudflare R2
     const client = R2StorageService.getClient();
     const bucketName = R2StorageService.getBucketName();
 
     if (!client) {
-      return NextResponse.json(
-        { error: 'Arquivo não encontrado localmente e Cloudflare R2 não configurado no ambiente.' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 });
     }
 
     const rangeHeader = request.headers.get('range');
 
-    // Tentar obter o objeto com a chave solicitada
+    // Chaves do vault são exatas; só conteúdo público tem variações legadas de caminho
+    const candidateKeys = parsed.isVault
+      ? [fileKey]
+      : Array.from(
+          new Set([
+            fileKey,
+            `assets/${fileKey}`,
+            `assets/images/${fileKey}`,
+            fileKey.replace(/\s+/g, '_'),
+            fileKey.replace(/^assets\//, ''),
+          ])
+        );
+
     let response;
-    try {
-      response = await client.send(
-        new GetObjectCommand({
-          Bucket: bucketName,
-          Key: fileKey,
-          ...(rangeHeader ? { Range: rangeHeader } : {}),
-        })
-      );
-    } catch {
-      // Se não encontrar, tenta prefixar com 'assets/' ou 'assets/images/' ou 'vault/'
-      const possibleKeys = [
-        `assets/${fileKey}`,
-        `assets/images/${fileKey}`,
-        `vault/${fileKey}`,
-        fileKey.replace(/\s+/g, '_'),
-        `assets/${fileKey.replace(/\s+/g, '_')}`,
-        fileKey.replace(/^assets\//, ''),
-        fileKey.replace(/^assets\/images\//, ''),
-      ];
-
-      let found = false;
-      for (const altKey of possibleKeys) {
-        try {
-          response = await client.send(
-            new GetObjectCommand({
-              Bucket: bucketName,
-              Key: altKey,
-              ...(rangeHeader ? { Range: rangeHeader } : {}),
-            })
-          );
-          if (response) {
-            found = true;
-            fileKey = altKey;
-            break;
-          }
-        } catch {
-          // continua tentando
+    for (const candidate of candidateKeys) {
+      try {
+        response = await client.send(
+          new GetObjectCommand({
+            Bucket: bucketName,
+            Key: candidate,
+            ...(rangeHeader ? { Range: rangeHeader } : {}),
+          })
+        );
+        fileKey = candidate;
+        break;
+      } catch (err) {
+        if (isInvalidRange(err)) {
+          return new NextResponse(null, { status: 416 });
         }
-      }
-
-      if (!found || !response) {
-        return NextResponse.json({ error: 'Arquivo não encontrado no Cloudflare R2 nem localmente.' }, { status: 404 });
+        if (!isMissingObject(err)) throw err;
       }
     }
 
-    if (!response.Body) {
-      return NextResponse.json({ error: 'Corpo do arquivo vazio.' }, { status: 404 });
+    if (!response?.Body) {
+      return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 });
     }
 
-    const contentType = response.ContentType || inferContentType(fileKey);
+    const storedType = response.ContentType || inferContentType(fileKey);
+    const isActiveContent = ACTIVE_CONTENT_TYPES.test(storedType);
+    const contentType = isActiveContent ? 'application/octet-stream' : storedType;
     const isPartial = Boolean(rangeHeader && response.ContentRange);
-    const status = isPartial ? 206 : 200;
 
     const headers: Record<string, string> = {
       'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': isPublic ? PUBLIC_CACHE : PRIVATE_CACHE,
       'X-Content-Type-Options': 'nosniff',
-      'Access-Control-Allow-Origin': '*',
       'Accept-Ranges': 'bytes',
     };
-
+    if (isPublic) {
+      headers['Access-Control-Allow-Origin'] = '*';
+    } else {
+      headers['Vary'] = 'Cookie';
+    }
+    if (isActiveContent) {
+      headers['Content-Disposition'] = `attachment; filename="${path.basename(fileKey).replace(/"/g, '')}"`;
+    }
     if (response.ContentLength !== undefined) {
       headers['Content-Length'] = String(response.ContentLength);
     }
@@ -197,20 +243,16 @@ export async function GET(
       headers['Content-Range'] = response.ContentRange;
     }
 
-    // Direct WebStream piping — zero RAM accumulation
+    // Streaming direto do R2 — sem acumular o arquivo em memória
     const stream = response.Body.transformToWebStream();
 
     return new NextResponse(stream as any, {
-      status,
+      status: isPartial ? 206 : 200,
       headers,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao processar mídia';
-    if (message.includes('NoSuchKey') || message.includes('404')) {
-      return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: 404 });
-    }
     console.error('[MEDIA PROXY ERROR]:', err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao processar mídia.' }, { status: 500 });
   }
 }
 

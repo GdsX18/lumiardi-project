@@ -26,8 +26,8 @@ export default function CriadoraDashboardPage() {
   const { activeCreator, currentUser } = useAuthPortal();
   const { t } = useLanguage();
 
-  const name = currentUser?.name || activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo';
-  const revenue = activeCreator?.qualitative?.monthlyRevenueEstimate || 'Sob Consulta';
+  const name = currentUser?.name || activeCreator?.qualitative?.artisticName || t('dsh_ov_your_model_account');
+  const revenue = activeCreator?.qualitative?.monthlyRevenueEstimate || t('dsh_ov_on_request');
 
   return (
     <DashboardLayout
@@ -43,40 +43,40 @@ export default function CriadoraDashboardPage() {
             {/* KPI Stats Cards Limpos */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <StatsCard
-                title="Faturamento Estimado"
+                title={t('dash_stat_est_revenue')}
                 value={revenue}
-                change="Status Ativo"
+                change={t('dsh_cr_status_active')}
                 isPositive={true}
-                subtitle="Atualizado via Curadoria"
+                subtitle={t('dsh_ov_updated_by_curation')}
                 icon={DollarSign}
                 highlight={true}
-                badgeText="Verificado"
+                badgeText={t('dsh_cr_verified')}
               />
 
               <StatsCard
-                title="Propostas de Agências"
-                value="0 Pendentes"
-                change="Rede Disponível"
+                title={t('dsh_cr_agency_proposals')}
+                value={t('dsh_cr_pending_count').replace('{count}', '0')}
+                change={t('dsh_cr_network_available')}
                 isPositive={true}
-                subtitle="Contratos com repasse direto"
+                subtitle={t('dsh_cr_direct_payout')}
                 icon={Building2}
               />
 
               <StatsCard
-                title="Entregas de Campanha"
-                value="0 Ativas"
-                change="Tudo em dia"
+                title={t('dsh_cr_campaign_deliveries')}
+                value={t('dsh_ag_active_count').replace('{count}', '0')}
+                change={t('dsh_cr_all_up_to_date')}
                 isPositive={true}
-                subtitle="Kanban pronto para novas tarefas"
+                subtitle={t('dsh_cr_kanban_ready')}
                 icon={Kanban}
               />
 
               <StatsCard
-                title="Visualizações de Book"
+                title={t('dsh_cr_portfolio_views')}
                 value="0"
-                change="Perfil Indexado"
+                change={t('dsh_cr_profile_indexed')}
                 isPositive={true}
-                subtitle="Diretores de agências credenciadas"
+                subtitle={t('dsh_cr_accredited_directors')}
                 icon={Eye}
               />
             </div>
@@ -88,15 +88,15 @@ export default function CriadoraDashboardPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] uppercase tracking-widest text-gold font-semibold font-sans">
-                      Portfólio de Alta Resolução
+                      {t('dsh_cr_hires_portfolio')}
                     </span>
                     <Camera className="w-4 h-4 text-gold" />
                   </div>
                   <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                    Book & Ficha Técnica
+                    {t('dsh_cr_portfolio_title')}
                   </h3>
                   <p className="text-xs font-sans text-ivory/60 mt-1 leading-relaxed">
-                    Seu book padronizado com ensaios e medidas corporais para diretores de agências credenciadas.
+                    {t('dsh_cr_portfolio_desc')}
                   </p>
                 </div>
 
@@ -104,7 +104,7 @@ export default function CriadoraDashboardPage() {
                   onClick={() => setActiveTab('book')}
                   className="px-4 py-2.5 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-between cursor-pointer"
                 >
-                  <span>Gerenciar Meu Book e Medidas</span>
+                  <span>{t('dsh_cr_portfolio_cta')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -114,15 +114,15 @@ export default function CriadoraDashboardPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] uppercase tracking-widest text-gold font-semibold font-sans">
-                      Rede de Agências
+                      {t('dash_nav_agencies')}
                     </span>
                     <Building2 className="w-4 h-4 text-gold" />
                   </div>
                   <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                    Agências Credenciadas
+                    {t('dsh_cr_accredited_agencies')}
                   </h3>
                   <p className="text-xs font-sans text-ivory/60 mt-1 leading-relaxed">
-                    Explore a lista de agências parceiras registradas na plataforma para envio de candidaturas diretas.
+                    {t('dsh_cr_agencies_desc')}
                   </p>
                 </div>
 
@@ -130,7 +130,7 @@ export default function CriadoraDashboardPage() {
                   onClick={() => setActiveTab('agencies')}
                   className="px-4 py-2.5 bg-[#151515] hover:bg-white/10 text-ivory hover:text-gold border border-white/10 text-xs font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-between cursor-pointer"
                 >
-                  <span>Explorar Agências Disponíveis</span>
+                  <span>{t('dsh_cr_agencies_cta')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

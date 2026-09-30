@@ -14,7 +14,7 @@ export default function MeetPage() {
       pageSubtitle={t('dash_page_meet_sub')}
     >
       <div className="w-full h-full">
-        <Suspense fallback={<div className="p-12 text-center text-gold font-mono">Conectando à Sala Executiva Lumiardi Meet...</div>}>
+        <Suspense fallback={<div className="p-12 text-center text-gold font-mono">{t('dsh_meet_connecting')}</div>}>
           <VideoCallWidget />
         </Suspense>
       </div>

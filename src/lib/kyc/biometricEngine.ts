@@ -114,22 +114,26 @@ export function calculateExactAge(birthDateStr: string): number {
 }
 
 /**
- * Remove qualquer prefixo de Data URL antes de enviar bytes Base64 para a API do Gemini
+ * Remove qualquer prefixo de Data URL antes de enviar bytes Base64 para a API do Gemini.
+ * Sanitiza rigorosamente 'data:image/[a-z]+;base64,' e 'data:application/octet-stream;base64,'.
  */
-export function cleanBase64(dataUrlOrBase64: string): string {
-  if (!dataUrlOrBase64) return '';
-  if (dataUrlOrBase64.includes(',')) {
-    return dataUrlOrBase64.split(',')[1].trim();
+export function cleanBase64(rawImageString: string): string {
+  if (!rawImageString) return '';
+  const base64Data = rawImageString
+    .replace(/^data:image\/[a-z]+;base64,/i, '')
+    .replace(/^data:application\/octet-stream;base64,/i, '');
+  if (base64Data.includes(',')) {
+    return base64Data.split(',')[1].replace(/[\r\n\s]/g, '').trim();
   }
-  return dataUrlOrBase64.trim();
+  return base64Data.replace(/[\r\n\s]/g, '').trim();
 }
 
 /**
  * Detecta e sanitiza o MimeType da imagem.
- * Rejeita 'application/octet-stream' e extrai tipos suportados ('image/jpeg', 'image/png', 'image/webp')
- * utilizando 'image/jpeg' como fallback universal seguro.
+ * Assegura que o mimeType enviado seja explicitamente 'image/jpeg' ou 'image/png',
+ * NUNCA 'application/octet-stream'.
  */
-export function detectMimeType(dataUrlOrBase64: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+export function detectMimeType(dataUrlOrBase64: string): 'image/jpeg' | 'image/png' {
   if (!dataUrlOrBase64) return 'image/jpeg';
 
   if (dataUrlOrBase64.startsWith('data:')) {
@@ -137,16 +141,14 @@ export function detectMimeType(dataUrlOrBase64: string): 'image/jpeg' | 'image/p
     if (match && match[1]) {
       const detected = match[1].toLowerCase().trim();
       if (detected === 'image/png') return 'image/png';
-      if (detected === 'image/webp') return 'image/webp';
       if (detected === 'image/jpeg' || detected === 'image/jpg') return 'image/jpeg';
     }
   }
 
-  // Fallback baseado nos primeiros bytes mágicos em base64
+  // Fallback baseado nos primeiros bytes mágicos em base64 (nunca application/octet-stream)
   const rawBase64 = cleanBase64(dataUrlOrBase64);
-  if (rawBase64.startsWith('/9j/')) return 'image/jpeg';
   if (rawBase64.startsWith('iVBORw0KGgo')) return 'image/png';
-  if (rawBase64.startsWith('UklGR')) return 'image/webp';
+  if (rawBase64.startsWith('/9j/')) return 'image/jpeg';
 
   return 'image/jpeg';
 }

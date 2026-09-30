@@ -30,16 +30,16 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
   currentPeriodEnd,
   storageGB,
 }) => {
-  const { t } = useLanguage();
+  const { t, formatDate } = useLanguage();
   const [loading, setLoading] = useState(false);
 
   const formattedDate = currentPeriodEnd
-    ? new Date(currentPeriodEnd).toLocaleDateString('pt-BR', {
+    ? formatDate(currentPeriodEnd, {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
       })
-    : 'o fim do ciclo de 30 dias';
+    : t('dwg_cancel_default_period_end');
 
   const handleCancelClick = async () => {
     setLoading(true);
@@ -72,6 +72,7 @@ export const CancelSubscriptionModal: React.FC<CancelSubscriptionModalProps> = (
             <button
               onClick={onClose}
               disabled={loading}
+              aria-label={t('dwg_close')}
               className="absolute top-4 right-4 text-ivory/50 hover:text-gold transition-colors cursor-pointer p-1"
             >
               <X className="w-5 h-5" />

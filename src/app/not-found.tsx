@@ -1,8 +1,13 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, Compass } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function NotFound() {
+  const { t } = useLanguage();
+
   return (
     <main className="min-h-screen w-full bg-[#0B0B0B] text-ivory flex flex-col items-center justify-center p-6 relative overflow-hidden selection:bg-[#C9A96B] selection:text-[#0B0B0B]">
       {/* Luzes de fundo sutis */}
@@ -21,15 +26,15 @@ export default function NotFound() {
 
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-gold text-xs font-mono uppercase tracking-widest">
           <Compass className="w-3.5 h-3.5" />
-          <span>404 — Página Não Encontrada</span>
+          <span>{t('lgm_nf_tag')}</span>
         </div>
 
         <h1 className="font-serif-lumiardi text-4xl md:text-5xl font-light text-ivory leading-tight">
-          Destino <span className="text-gold italic">Inexistente</span>
+          {t('lgm_nf_title_1')} <span className="text-gold italic">{t('lgm_nf_title_2')}</span>
         </h1>
 
         <p className="text-sm font-sans text-ivory/60 leading-relaxed">
-          A página ou recurso solicitado não foi encontrado no ecossistema Lumiardi ou foi movido com segurança.
+          {t('lgm_nf_desc')}
         </p>
 
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -38,14 +43,14 @@ export default function NotFound() {
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-gold hover:bg-gold-light text-black-matte font-sans font-semibold text-xs uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(201,169,107,0.2)]"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retornar ao Início</span>
+            <span>{t('lgm_nf_home')}</span>
           </Link>
 
           <Link
             href="/login"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#141414] hover:bg-[#1A1A1A] text-ivory border border-white/10 hover:border-gold/40 font-sans font-medium text-xs uppercase tracking-widest transition-all duration-300"
           >
-            <span>Acessar Portal</span>
+            <span>{t('lgm_nf_portal')}</span>
           </Link>
         </div>
       </div>

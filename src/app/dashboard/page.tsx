@@ -29,7 +29,7 @@ import { VIPWelcomeCelebrationModal } from '@/components/dashboard/VIPWelcomeCel
 
 export default function DashboardOverviewPage() {
   const { role, activeCreator, activeAgency, currentUser } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, formatPrice } = useLanguage();
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -59,14 +59,14 @@ export default function DashboardOverviewPage() {
   const displayName =
     currentUser?.name ||
     (isCriadora
-      ? activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo'
-      : activeAgency?.basicInfo?.responsibleName || 'Sua Agência');
-  const revenue = activeCreator?.qualitative?.monthlyRevenueEstimate || 'Sob Consulta';
+      ? activeCreator?.qualitative?.artisticName || t('dsh_ov_your_model_account')
+      : activeAgency?.basicInfo?.responsibleName || t('dsh_ov_your_agency'));
+  const revenue = activeCreator?.qualitative?.monthlyRevenueEstimate || t('dsh_ov_on_request');
 
   return (
     <DashboardLayout
-      pageTitle={`${t('dash_nav_overview') || 'Visão Geral'} — ${displayName}`}
-      pageSubtitle={t('dash_hero_desc') || 'Visão geral e resumo das suas conexões, produções e ferramentas de prestígio.'}
+      pageTitle={`${t('dash_nav_overview')} — ${displayName}`}
+      pageSubtitle={t('dash_hero_desc')}
     >
       <VIPWelcomeCelebrationModal
         isOpen={showCelebration}
@@ -74,7 +74,7 @@ export default function DashboardOverviewPage() {
         userName={displayName}
         userRole={role}
         memberId={`LUM-${(currentUser?.id || '8842').substring(0, 6).toUpperCase()}`}
-        category={isCriadora ? 'Criadora de Elite' : 'Agência de Talentos'}
+        category={isCriadora ? t('dsh_pend_elite_creator') : t('dsh_ov_talent_agency')}
       />
 
       <div className="space-y-8 w-full">
@@ -87,13 +87,13 @@ export default function DashboardOverviewPage() {
             <div className="space-y-2.5 max-w-3xl">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-sans uppercase tracking-[0.25em] rounded-xs">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>{t('dash_hero_badge') || 'Credencial Verificada & Ambiente Criptografado'}</span>
+                <span>{t('dash_hero_badge')}</span>
               </div>
               <h2 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-wide">
-                {t('dash_hero_welcome') || 'Bem-vinda ao Ecossistema Lumiardi'}
+                {t('dash_hero_welcome')}
               </h2>
               <p className="text-xs md:text-sm font-sans text-ivory/60 leading-relaxed">
-                {t('dash_hero_desc') || 'Acesse suas mídias no Drive seguro, gerencie propostas com agências parceiras, acompanhe entregas no Kanban e realize videoconferências VIP com total privacidade.'}
+                {t('dash_hero_desc')}
               </p>
             </div>
 
@@ -102,7 +102,7 @@ export default function DashboardOverviewPage() {
                 href={isCriadora ? '/dashboard/book' : '/dashboard/agencias'}
                 className="px-5 py-3 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-bold text-xs font-sans uppercase tracking-wider transition-all flex items-center gap-2 rounded-xs shadow-lg shadow-gold/20 cursor-pointer"
               >
-                <span>{isCriadora ? (t('dash_hero_access_book') || 'Acessar Meu Book') : (t('dash_hero_explore_scout') || 'Explorar Talent Scout')}</span>
+                <span>{isCriadora ? t('dash_hero_access_book') : t('dash_hero_explore_scout')}</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
 
@@ -111,7 +111,7 @@ export default function DashboardOverviewPage() {
                 className="px-5 py-3 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/[0.08] hover:border-gold/40 text-xs font-sans uppercase tracking-wider font-semibold transition-all flex items-center gap-2 rounded-xs cursor-pointer"
               >
                 <Kanban className="w-4 h-4 text-gold" />
-                <span>{t('dash_hero_projects_board') || 'Quadro de Projetos'}</span>
+                <span>{t('dash_hero_projects_board')}</span>
               </Link>
             </div>
           </div>
@@ -120,40 +120,40 @@ export default function DashboardOverviewPage() {
         {/* 4 Cards de Métricas Principais */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
           <StatsCard
-            title={isCriadora ? (t('dash_stat_est_revenue') || 'Faturamento Estimado') : 'Faturamento do Roster'}
-            value={isCriadora ? revenue : 'R$ 0,00'}
-            change="Conta Aprovada"
+            title={isCriadora ? t('dash_stat_est_revenue') : t('dsh_ov_roster_revenue')}
+            value={isCriadora ? revenue : formatPrice(0, 0, 0)}
+            change={t('dsh_ov_account_approved')}
             isPositive={true}
-            subtitle="Atualizado via Curadoria"
+            subtitle={t('dsh_ov_updated_by_curation')}
             icon={DollarSign}
             highlight={true}
-            badgeText="Oficial"
+            badgeText={t('dsh_ov_official')}
           />
 
           <StatsCard
-            title={isCriadora ? (t('dash_stat_connected_agencies') || 'Agências Conectadas') : 'Modelos no Roster'}
-            value="Disponível"
-            change="Rede Aberta"
+            title={isCriadora ? t('dash_stat_connected_agencies') : t('dsh_ov_roster_models')}
+            value={t('dsh_ov_available')}
+            change={t('dsh_ov_open_network')}
             isPositive={true}
-            subtitle="Conexões diretas"
+            subtitle={t('dsh_ov_direct_connections')}
             icon={Building2}
           />
 
           <StatsCard
-            title={t('dash_stat_ongoing_projects') || 'Projetos em Andamento'}
-            value="Kanban Ativo"
-            change="0 Pendências"
+            title={t('dash_stat_ongoing_projects')}
+            value={t('dsh_ov_kanban_active')}
+            change={t('dsh_ov_zero_pending')}
             isPositive={true}
-            subtitle="Acesse a aba Projetos"
+            subtitle={t('dsh_ov_open_projects_tab')}
             icon={Kanban}
           />
 
           <StatsCard
-            title={t('dash_stat_secure_storage') || 'Armazenamento Seguro'}
+            title={t('dash_stat_secure_storage')}
             value="Drive E2E"
             change="Cloudflare R2"
             isPositive={true}
-            subtitle="Arquivos e contratos"
+            subtitle={t('dsh_ov_files_contracts')}
             icon={HardDrive}
           />
         </div>
@@ -163,13 +163,13 @@ export default function DashboardOverviewPage() {
           <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
             <div>
               <span className="text-[10px] font-sans uppercase tracking-[0.25em] text-gold/70 font-semibold block">
-                Navegação Rápida
+                {t('dsh_ov_quick_nav')}
               </span>
               <h3 className="font-serif-lumiardi text-xl font-medium text-ivory">
-                {t('dash_modules_title') || 'Módulos do Ecossistema'}
+                {t('dash_modules_title')}
               </h3>
             </div>
-            <span className="text-xs font-sans text-ivory/40">{t('dash_modules_subtitle') || '6 ferramentas integradas'}</span>
+            <span className="text-xs font-sans text-ivory/40">{t('dash_modules_subtitle')}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -183,16 +183,16 @@ export default function DashboardOverviewPage() {
                   <Camera className="w-5 h-5" />
                 </div>
                 <h4 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                  {isCriadora ? (t('dash_nav_book') || 'Meu Book & Ficha Técnica') : (t('dash_nav_roster') || 'Gestão de Agenciadas')}
+                  {isCriadora ? t('dash_nav_book') : t('dash_nav_roster')}
                 </h4>
                 <p className="text-xs font-sans text-ivory/60 mt-1.5 leading-relaxed">
                   {isCriadora
-                    ? 'Upload e visualização de fotos profissionais em alta resolução, vídeo showreel e medidas corporais.'
-                    : 'Acompanhamento do elenco agenciado e contratos de exclusividade.'}
+                    ? t('dsh_ov_card_book_creator')
+                    : t('dsh_ov_card_book_agency')}
                 </p>
               </div>
               <div className="text-xs font-sans uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
-                <span>{t('dash_access_module') || 'Acessar Módulo'}</span>
+                <span>{t('dash_access_module')}</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
@@ -207,16 +207,16 @@ export default function DashboardOverviewPage() {
                   <Building2 className="w-5 h-5" />
                 </div>
                 <h4 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                  {isCriadora ? (t('dash_nav_agencies') || 'Rede de Agências') : (t('dash_nav_scout') || 'Talent Scout')}
+                  {isCriadora ? t('dash_nav_agencies') : t('dash_nav_scout')}
                 </h4>
                 <p className="text-xs font-sans text-ivory/60 mt-1.5 leading-relaxed">
                   {isCriadora
-                    ? 'Catálogo oficial de agências internacionais parceiras e envio direto de candidaturas com portfólio.'
-                    : 'Filtros avançados de busca por medidas, biometria e idiomas de modelos verificadas.'}
+                    ? t('dsh_ov_card_agencies_creator')
+                    : t('dsh_ov_card_agencies_agency')}
                 </p>
               </div>
               <div className="text-xs font-sans uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
-                <span>{t('dash_access_module') || 'Acessar Módulo'}</span>
+                <span>{t('dash_access_module')}</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
@@ -231,14 +231,14 @@ export default function DashboardOverviewPage() {
                   <Kanban className="w-5 h-5" />
                 </div>
                 <h4 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                  {t('dash_nav_kanban') || 'Quadro de Projetos'}
+                  {t('dash_nav_kanban')}
                 </h4>
                 <p className="text-xs font-sans text-ivory/60 mt-1.5 leading-relaxed">
-                  Gerenciamento visual em colunas (A Fazer, Em Produção, Concluído) para organização de ensaios e produções.
+                  {t('dsh_ov_card_kanban')}
                 </p>
               </div>
               <div className="text-xs font-sans uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
-                <span>{t('dash_access_board') || 'Acessar Quadro'}</span>
+                <span>{t('dash_access_board')}</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
@@ -253,14 +253,14 @@ export default function DashboardOverviewPage() {
                   <MessageSquare className="w-5 h-5" />
                 </div>
                 <h4 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                  {t('dash_nav_chat') || 'Mensagens & Chat'}
+                  {t('dash_nav_chat')}
                 </h4>
                 <p className="text-xs font-sans text-ivory/60 mt-1.5 leading-relaxed">
-                  Canal de comunicação seguro com a Mesa de Curadoria e diretores de agências com anexos protegidos.
+                  {t('dsh_ov_card_chat')}
                 </p>
               </div>
               <div className="text-xs font-sans uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
-                <span>{t('dash_open_chat') || 'Abrir Chat'}</span>
+                <span>{t('dash_open_chat')}</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
@@ -275,14 +275,14 @@ export default function DashboardOverviewPage() {
                   <Video className="w-5 h-5" />
                 </div>
                 <h4 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                  {t('dash_nav_meet') || 'Lumiardi Meet'}
+                  {t('dash_nav_meet')}
                 </h4>
                 <p className="text-xs font-sans text-ivory/60 mt-1.5 leading-relaxed">
-                  Salas executivas de videoconferência com transmissão HD, chat interno e compartilhamento de tela.
+                  {t('dsh_ov_card_meet')}
                 </p>
               </div>
               <div className="text-xs font-sans uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
-                <span>{t('dash_start_call') || 'Iniciar Chamada'}</span>
+                <span>{t('dash_start_call')}</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
@@ -297,14 +297,14 @@ export default function DashboardOverviewPage() {
                   <HardDrive className="w-5 h-5" />
                 </div>
                 <h4 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                  {t('dash_nav_drive') || 'Lumiardi Drive'}
+                  {t('dash_nav_drive')}
                 </h4>
                 <p className="text-xs font-sans text-ivory/60 mt-1.5 leading-relaxed">
-                  Repositório em nuvem de alta segurança (Cloudflare R2) para armazenamento de fotos RAW e contratos.
+                  {t('dsh_ov_card_drive')}
                 </p>
               </div>
               <div className="text-xs font-sans uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
-                <span>{t('dash_access_files') || 'Acessar Arquivos'}</span>
+                <span>{t('dash_access_files')}</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>

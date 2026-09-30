@@ -1,26 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
-import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/security/rateLimiter';
+import { SessionUser, setSessionCookie } from '@/lib/auth';
+import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
+
+const LOGIN_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
+const VALID_STATUSES: SessionUser['curationStatus'][] = [
+  'EM_CURATORIA',
+  'AGUARDANDO_REUNIAO',
+  'APROVADA_PAGAMENTO',
+  'APROVADO',
+  'REJEITADO',
+];
+
+function tooManyAttempts(resetTimeMs: number) {
+  return NextResponse.json(
+    { error: 'Muitas tentativas de acesso. Por motivos de segurança, aguarde alguns minutos.', code: 'rate_limited' },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil(resetTimeMs / 1000)),
+        'X-RateLimit-Remaining': '0',
+      },
+    }
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-    const rateCheck = checkRateLimit(`login:${ip}`, { windowMs: 60000, maxRequests: 10 });
-
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Muitas tentativas de acesso. Por motivos de segurança, aguarde 1 minuto.' },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(Math.ceil(rateCheck.resetTimeMs / 1000)),
-            'X-RateLimit-Remaining': '0',
-          },
-        }
-      );
-    }
+    const ip = getClientIp(request.headers);
+    const ipLimit = await checkRateLimitPersistent(`login:ip:${ip}`, LOGIN_WINDOW);
+    if (!ipLimit.allowed) return tooManyAttempts(ipLimit.resetTimeMs);
 
     const rawBody = await request.json();
     const email = sanitizeInput(rawBody.email);
@@ -29,16 +39,23 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'Por favor, informe e-mail e senha.' },
+        { error: 'Por favor, informe e-mail e senha.', code: 'invalid_input' },
         { status: 400 }
       );
     }
+
+    // Limite por conta: bloqueia força bruta distribuída em vários IPs
+    const accountLimit = await checkRateLimitPersistent(`login:email:${email.toLowerCase()}`, LOGIN_WINDOW);
+    if (!accountLimit.allowed) return tooManyAttempts(accountLimit.resetTimeMs);
 
     const authResult = await StorageService.authenticate(email, password, role);
 
     if (!authResult || !authResult.user) {
       return NextResponse.json(
-        { error: 'Credenciais inválidas. Verifique seu e-mail, senha e se selecionou a aba correta (Modelo ou Agência).' },
+        {
+          error: 'Credenciais inválidas. Verifique seu e-mail, senha e se selecionou a aba correta (Modelo ou Agência).',
+          code: 'invalid_credentials',
+        },
         { status: 401 }
       );
     }
@@ -46,17 +63,19 @@ export async function POST(request: NextRequest) {
     const user = authResult.user;
     const profile = authResult.profile as Record<string, any> | null | undefined;
 
-    const isApproved = String(user.curationStatus).toUpperCase() === 'APROVADO';
+    // Status real do banco — preserva APROVADA_PAGAMENTO e AGUARDANDO_REUNIAO para o roteamento do proxy
+    const dbStatus = String(user.curationStatus || '').toUpperCase() as SessionUser['curationStatus'];
+    const curationStatus = VALID_STATUSES.includes(dbStatus) ? dbStatus : 'EM_CURATORIA';
 
     const sessionUser: SessionUser = {
       id: user.id,
       email: user.email,
-      name: user.name || profile?.artistic_name || profile?.artisticName || (role === 'criadora' ? 'Sua Conta Modelo' : 'Sua Agência'),
+      name: user.name || profile?.artistic_name || profile?.artisticName || user.email.split('@')[0],
       role: role,
-      curationStatus: isApproved ? 'APROVADO' : 'EM_CURATORIA',
-      category: profile?.category || (role === 'criadora' ? 'Criadora VIP' : undefined),
-      country: profile?.address?.country || 'Brasil',
-      city: profile?.address?.city || 'São Paulo',
+      curationStatus,
+      category: profile?.category || undefined,
+      country: profile?.address?.country || undefined,
+      city: profile?.address?.city || undefined,
       createdAt: user.createdAt || new Date().toISOString(),
     };
 
@@ -66,22 +85,15 @@ export async function POST(request: NextRequest) {
       message: 'Autenticação realizada com sucesso.',
     });
 
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: encodeSession(sessionUser),
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    setSessionCookie(response, sessionUser);
 
     return response;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro interno ao autenticar';
     console.error('Erro na rota de login:', err);
+    const unavailable = err instanceof Error && err.message === 'DATABASE_UNAVAILABLE';
     return NextResponse.json(
-      { error: 'Falha interna durante a autenticação.', details: message },
-      { status: 500 }
+      { error: 'Falha interna durante a autenticação.', code: unavailable ? 'service_unavailable' : 'generic' },
+      { status: unavailable ? 503 : 500 }
     );
   }
 }

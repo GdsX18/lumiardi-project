@@ -1,10 +1,12 @@
 'use client';
 
 import React from 'react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export const CreatorProfileSkeleton: React.FC = () => {
+  const { t } = useLanguage();
   return (
-    <div className="space-y-8 animate-pulse" aria-busy="true" aria-label="Carregando Book da Modelo">
+    <div className="space-y-8 animate-pulse" aria-busy="true" aria-label={t('dsh_sk_loading_book')}>
       {/* Header do Perfil Skeleton */}
       <div className="p-6 md:p-8 bg-[#0F0F0F] border border-gold/20 shadow-2xl relative overflow-hidden rounded-sm">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">

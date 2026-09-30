@@ -46,26 +46,26 @@ export const DashboardShowcaseSection: React.FC = () => {
   const tabs = [
     {
       id: 'kanban' as const,
-      label: t('ds_tab1_label') || '01. Kanban de Projetos',
-      sublabel: t('ds_tab1_sub') || 'Organização & Tarefas',
+      label: t('ds_tab1_label'),
+      sublabel: t('ds_tab1_sub'),
       icon: Kanban,
     },
     {
       id: 'chat' as const,
-      label: t('ds_tab2_label') || '02. Chat Criptografado',
-      sublabel: t('ds_tab2_sub') || 'Comunicação Direta',
+      label: t('ds_tab2_label'),
+      sublabel: t('ds_tab2_sub'),
       icon: MessageSquare,
     },
     {
       id: 'video' as const,
-      label: t('ds_tab3_label') || '03. Lumiardi Meet',
-      sublabel: t('ds_tab3_sub') || 'Reunião HD & Sigilo',
+      label: t('ds_tab3_label'),
+      sublabel: t('ds_tab3_sub'),
       icon: Video,
     },
     {
       id: 'drive' as const,
-      label: t('ds_tab4_label') || '04. Lumiardi Drive',
-      sublabel: t('ds_tab4_sub') || 'Armazenamento & Mídias',
+      label: t('ds_tab4_label'),
+      sublabel: t('ds_tab4_sub'),
       icon: HardDrive,
     },
   ];
@@ -148,16 +148,15 @@ export const DashboardShowcaseSection: React.FC = () => {
         <div ref={headerRef} className="text-center space-y-3 sm:space-y-4 max-w-3xl mb-10 sm:mb-12 md:mb-14">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 text-[11px] sm:text-xs uppercase tracking-[0.3em] text-[#C9A96B] border border-[#C9A96B]/30 bg-[#C9A96B]/5 font-sans rounded-xs">
             <Layers className="w-3.5 h-3.5 stroke-[1.5]" />
-            <span>{t('ds_tag') || 'MÓDULOS DA PLATAFORMA'}</span>
+            <span>{t('ds_tag')}</span>
           </div>
 
           <h2 className="font-serif-lumiardi text-3xl sm:text-5xl md:text-6xl font-light text-ivory tracking-tight leading-tight">
-            {t('ds_title') || 'O ecossistema em ação.'}
+            {t('ds_title')}
           </h2>
 
           <p className="text-xs sm:text-sm md:text-base text-ivory/70 font-sans max-w-2xl mx-auto font-light leading-relaxed">
-            {t('ds_desc') ||
-              'Explore a evolução das ferramentas corporativas: Kanban de Projetos, Chat Criptografado, Lumiardi Meet e Lumiardi Drive integrados.'}
+            {t('ds_desc')}
           </p>
         </div>
 
@@ -219,13 +218,13 @@ export const DashboardShowcaseSection: React.FC = () => {
                 <>
                   <div className="space-y-2">
                     <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-[#C9A96B] font-mono font-semibold px-2.5 py-1 bg-[#C9A96B]/10 border border-[#C9A96B]/30 rounded-xs">
-                      <Zap className="w-3 h-3" /> {t('ds_k_module_tag') || 'MÓDULO 01 · GESTÃO DE ENTREGAS'}
+                      <Zap className="w-3 h-3" /> {t('ds_k_module_tag')}
                     </span>
                     <h3 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-4xl font-light text-ivory leading-tight">
-                      {t('ds_k_title') || 'Organização visual de campanhas e ensaios'}
+                      {t('ds_k_title')}
                     </h3>
                     <p className="text-xs sm:text-sm text-ivory/70 font-sans leading-relaxed font-light">
-                      {t('ds_k_desc') || 'Centralize todo o fluxo de produção, aprovação de briefings, cronogramas de lançamento e entregas de conteúdo entre criadoras e agências sem ruídos operacionais.'}
+                      {t('ds_k_desc')}
                     </p>
                   </div>
 
@@ -234,33 +233,33 @@ export const DashboardShowcaseSection: React.FC = () => {
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <CheckCircle2 className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_k_feat1_title') || 'Fluxo de Colunas Estruturado'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_k_feat1_desc') || 'Etapas claras desde o briefing inicial até a aprovação final e publicação.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_k_feat1_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_k_feat1_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <CheckCircle2 className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_k_feat2_title') || 'Controle de Prazos & Prioridades'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_k_feat2_desc') || 'Etiquetas de urgência, datas-limite e checklists de entrega integrados.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_k_feat2_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_k_feat2_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <CheckCircle2 className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_k_feat3_title') || 'Transparência & Histórico'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_k_feat3_desc') || 'Agência e criadora acompanham o status de cada trabalho em tempo real.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_k_feat3_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_k_feat3_desc')}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Tags Técnicas */}
                   <div className="flex flex-wrap gap-2 pt-1 text-[10px] font-mono uppercase tracking-wider text-ivory/50">
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_k_tag_realtime') || 'TEMPO REAL'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_k_tag_audit') || 'CHECKLISTS AUDITÁVEIS'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_k_tag_multi') || 'MULTI-CAMPANHAS'}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_k_tag_realtime')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_k_tag_audit')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_k_tag_multi')}</span>
                   </div>
                 </>
               )}
@@ -269,13 +268,13 @@ export const DashboardShowcaseSection: React.FC = () => {
                 <>
                   <div className="space-y-2">
                     <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-[#C9A96B] font-mono font-semibold px-2.5 py-1 bg-[#C9A96B]/10 border border-[#C9A96B]/30 rounded-xs">
-                      <Lock className="w-3 h-3" /> {t('ds_c_module_tag') || 'MÓDULO 02 · MENSAGERIA BLINDADA'}
+                      <Lock className="w-3 h-3" /> {t('ds_c_module_tag')}
                     </span>
                     <h3 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-4xl font-light text-ivory leading-tight">
-                      {t('ds_c_title') || 'Comunicação direta com criptografia de ponta a ponta'}
+                      {t('ds_c_title')}
                     </h3>
                     <p className="text-xs sm:text-sm text-ivory/70 font-sans leading-relaxed font-light">
-                      {t('ds_c_desc') || 'Canal seguro e confidencial para negociação de valores, alinhamento de roteiros e troca de mídias sensíveis sem risco de interceptação ou vazamentos.'}
+                      {t('ds_c_desc')}
                     </p>
                   </div>
 
@@ -284,33 +283,33 @@ export const DashboardShowcaseSection: React.FC = () => {
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_c_feat1_title') || 'Criptografia Militar E2EE'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_c_feat1_desc') || 'As mensagens são cifradas no dispositivo do remetente e decifradas apenas pelo destinatário.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_c_feat1_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_c_feat1_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_c_feat2_title') || 'Notas de Voz & Mídias em Alta'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_c_feat2_desc') || 'Envie prévias de fotos e áudios de alinhamento com pureza sonora e sem compressão.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_c_feat2_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_c_feat2_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_c_feat3_title') || 'Sigilo & Autodestruição Opcional'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_c_feat3_desc') || 'Controle a retenção das conversas com expiração automática programada.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_c_feat3_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_c_feat3_desc')}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Tags Técnicas */}
                   <div className="flex flex-wrap gap-2 pt-1 text-[10px] font-mono uppercase tracking-wider text-ivory/50">
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_c_tag_aes') || 'AES-256 GCM'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_c_tag_zero') || 'ZERO-KNOWLEDGE'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_c_tag_receipt') || 'RECIBO CRIPTOGRÁFICO'}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_c_tag_aes')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_c_tag_zero')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_c_tag_receipt')}</span>
                   </div>
                 </>
               )}
@@ -319,13 +318,13 @@ export const DashboardShowcaseSection: React.FC = () => {
                 <>
                   <div className="space-y-2">
                     <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-[#C9A96B] font-mono font-semibold px-2.5 py-1 bg-[#C9A96B]/10 border border-[#C9A96B]/30 rounded-xs">
-                      <Activity className="w-3 h-3" /> {t('ds_v_module_tag') || 'MÓDULO 03 · VIDEOCONFERÊNCIA HD'}
+                      <Activity className="w-3 h-3" /> {t('ds_v_module_tag')}
                     </span>
                     <h3 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-4xl font-light text-ivory leading-tight">
-                      {t('ds_v_title') || 'Reuniões executivas P2P sem gravação em servidores'}
+                      {t('ds_v_title')}
                     </h3>
                     <p className="text-xs sm:text-sm text-ivory/70 font-sans leading-relaxed font-light">
-                      {t('ds_v_desc') || 'Realize entrevistas de curadoria, alinhamentos estratégicos e reuniões executivas em alta definição 1080p via conexão direta ponto a ponto.'}
+                      {t('ds_v_desc')}
                     </p>
                   </div>
 
@@ -334,33 +333,33 @@ export const DashboardShowcaseSection: React.FC = () => {
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <Sparkles className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_v_feat1_title') || 'Tecnologia WebRTC P2P'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_v_feat1_desc') || 'Transmissão de vídeo direta entre os membros sem passar por servidores de armazenamento.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_v_feat1_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_v_feat1_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <Sparkles className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_v_feat2_title') || 'Zero Gravação & Sigilo Absoluto'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_v_feat2_desc') || 'Nenhum áudio ou vídeo é gravado, respeitando a privacidade institucional de ponta a ponta.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_v_feat2_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_v_feat2_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <Sparkles className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_v_feat3_title') || 'Compartilhamento de Tela Seguro'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_v_feat3_desc') || 'Apresente contratos, propostas e briefings em tempo real com alta fidelidade de imagem.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_v_feat3_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_v_feat3_desc')}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Tags Técnicas */}
                   <div className="flex flex-wrap gap-2 pt-1 text-[10px] font-mono uppercase tracking-wider text-ivory/50">
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_v_tag_webrtc') || 'WEBRTC DIRECT'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_v_tag_fps') || '1080P 60FPS'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_v_tag_policy') || 'ZERO-LOGS POLICY'}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_v_tag_webrtc')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_v_tag_fps')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_v_tag_policy')}</span>
                   </div>
                 </>
               )}
@@ -369,13 +368,13 @@ export const DashboardShowcaseSection: React.FC = () => {
                 <>
                   <div className="space-y-2">
                     <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] text-[#C9A96B] font-mono font-semibold px-2.5 py-1 bg-[#C9A96B]/10 border border-[#C9A96B]/30 rounded-xs">
-                      <HardDrive className="w-3 h-3" /> {t('ds_d_module_tag') || 'MÓDULO 04 · COFRE DIGITAL DE MÍDIAS'}
+                      <HardDrive className="w-3 h-3" /> {t('ds_d_module_tag')}
                     </span>
                     <h3 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-4xl font-light text-ivory leading-tight">
-                      {t('ds_d_title') || 'Armazenamento seguro de arquivos RAW e contratos'}
+                      {t('ds_d_title')}
                     </h3>
                     <p className="text-xs sm:text-sm text-ivory/70 font-sans leading-relaxed font-light">
-                      {t('ds_d_desc') || 'Cofre corporativo em nuvem para compartilhamento de fotografias brutas, vídeos em 4K e documentos legais através de links temporários pré-assinados.'}
+                      {t('ds_d_desc')}
                     </p>
                   </div>
 
@@ -384,33 +383,33 @@ export const DashboardShowcaseSection: React.FC = () => {
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <Lock className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_d_feat1_title') || 'Links Pré-Assinados Expiráveis'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_d_feat1_desc') || 'URLs de download seguras com tempo de vida limitado contra redistribuição indevida.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_d_feat1_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_d_feat1_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <Lock className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_d_feat2_title') || 'Sem Compressão de Arquivos'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_d_feat2_desc') || 'Armazene arquivos RAW, ProRes e PDFs em sua resolução máxima sem perda de metadados.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_d_feat2_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_d_feat2_desc')}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-[#141414] border border-white/5 flex items-start gap-3">
                       <Lock className="w-4 h-4 text-[#C9A96B] shrink-0 mt-0.5" />
                       <div>
-                        <strong className="block text-xs text-ivory font-medium">{t('ds_d_feat3_title') || 'Pastas Segmentadas por Projeto'}</strong>
-                        <span className="text-[11px] text-ivory/60">{t('ds_d_feat3_desc') || 'Separação automática de pastas por criadora, campanha ou contrato assinado.'}</span>
+                        <strong className="block text-xs text-ivory font-medium">{t('ds_d_feat3_title')}</strong>
+                        <span className="text-[11px] text-ivory/60">{t('ds_d_feat3_desc')}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Tags Técnicas */}
                   <div className="flex flex-wrap gap-2 pt-1 text-[10px] font-mono uppercase tracking-wider text-ivory/50">
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_d_tag_s3') || 'AWS S3 ENCRYPTED'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_d_tag_urls') || 'PRESIGNED URLS'}</span>
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_d_tag_anti') || 'ANTI-PIRATARIA'}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_d_tag_s3')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_d_tag_urls')}</span>
+                    <span className="px-2 py-0.5 bg-white/5 border border-white/10">{t('ds_d_tag_anti')}</span>
                   </div>
                 </>
               )}
@@ -432,7 +431,7 @@ export const DashboardShowcaseSection: React.FC = () => {
 
                   <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 border border-emerald-500/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>{t('ds_system_active') || 'SISTEMA ATIVO'}</span>
+                    <span>{t('ds_system_active')}</span>
                   </div>
                 </div>
 
@@ -445,14 +444,14 @@ export const DashboardShowcaseSection: React.FC = () => {
                       <div className="flex items-center justify-between border-b border-white/10 pb-3">
                         <div>
                           <span className="text-[9px] uppercase tracking-widest text-[#C9A96B] font-mono font-semibold">
-                            {t('ds_k_mock_active_camp') || 'CAMPANHA ATIVA'}
+                            {t('ds_k_mock_active_camp')}
                           </span>
                           <h4 className="font-serif-lumiardi text-base sm:text-lg text-ivory font-light">
-                            {t('ds_k_mock_camp_name') || 'Editorial de Moda · Primavera/Verão'}
+                            {t('ds_k_mock_camp_name')}
                           </h4>
                         </div>
                         <span className="text-[9px] sm:text-[10px] font-mono px-2 py-1 bg-[#C9A96B]/15 text-[#C9A96B] border border-[#C9A96B]/30">
-                          {t('ds_k_mock_deliveries') || '4 ENTREGAS'}
+                          {t('ds_k_mock_deliveries')}
                         </span>
                       </div>
 
@@ -462,21 +461,21 @@ export const DashboardShowcaseSection: React.FC = () => {
                         <div className="bg-[#111111] p-2.5 sm:p-3 border border-white/5 space-y-2.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-mono uppercase tracking-wider text-ivory/60 font-semibold">
-                              {t('ds_k_mock_col_briefing') || 'Briefing (1)'}
+                              {t('ds_k_mock_col_briefing')}
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                           </div>
 
                           <div className="bg-[#181818] p-2.5 border border-white/10 space-y-2">
                             <span className="text-[9px] font-mono px-1.5 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">
-                              {t('ds_k_mock_badge_lookbook') || 'Lookbook'}
+                              {t('ds_k_mock_badge_lookbook')}
                             </span>
                             <p className="text-[11px] font-sans font-medium text-ivory leading-snug">
-                              {t('ds_k_mock_card1_title') || 'Seleção de Peças de Alta Costura'}
+                              {t('ds_k_mock_card1_title')}
                             </p>
                             <div className="flex items-center justify-between text-[9px] text-ivory/40 font-mono pt-1">
-                              <span>{t('ds_k_mock_deadline') || 'Prazo: 18 Out'}</span>
-                              <span className="text-[#C9A96B]">{t('ds_k_mock_priority_high') || 'Alta'}</span>
+                              <span>{t('ds_k_mock_deadline')}</span>
+                              <span className="text-[#C9A96B]">{t('ds_k_mock_priority_high')}</span>
                             </div>
                           </div>
                         </div>
@@ -485,33 +484,33 @@ export const DashboardShowcaseSection: React.FC = () => {
                         <div className="bg-[#111111] p-2.5 sm:p-3 border border-white/5 space-y-2.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-mono uppercase tracking-wider text-[#C9A96B] font-semibold">
-                              {t('ds_k_mock_col_prod') || 'Em Produção (2)'}
+                              {t('ds_k_mock_col_prod')}
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-[#C9A96B] animate-pulse" />
                           </div>
 
                           <div className="bg-[#181818] p-2.5 border border-[#C9A96B]/40 space-y-2 shadow-xs">
                             <span className="text-[9px] font-mono px-1.5 py-0.5 bg-[#C9A96B]/20 text-[#C9A96B] border border-[#C9A96B]/30 uppercase">
-                              {t('ds_k_mock_badge_video') || 'Vídeo 4K'}
+                              {t('ds_k_mock_badge_video')}
                             </span>
                             <p className="text-[11px] font-sans font-medium text-ivory leading-snug">
-                              {t('ds_k_mock_card2_title') || 'Gravação de Reels & Teaser'}
+                              {t('ds_k_mock_card2_title')}
                             </p>
                             <div className="w-full bg-black/60 h-1 rounded-full overflow-hidden">
                               <div className="w-3/4 h-full bg-[#C9A96B]" />
                             </div>
                             <div className="flex items-center justify-between text-[9px] text-ivory/50 font-mono">
-                              <span>{t('ds_k_mock_checklist') || 'Checklist: 3/4'}</span>
+                              <span>{t('ds_k_mock_checklist')}</span>
                               <span className="text-emerald-400">75%</span>
                             </div>
                           </div>
 
                           <div className="bg-[#181818] p-2.5 border border-white/10 space-y-1.5">
                             <span className="text-[9px] font-mono px-1.5 py-0.5 bg-blue-500/15 text-blue-300 border border-blue-500/30 uppercase">
-                              {t('ds_k_mock_badge_photo') || 'Fotografia'}
+                              {t('ds_k_mock_badge_photo')}
                             </span>
                             <p className="text-[11px] font-sans font-medium text-ivory leading-snug">
-                              {t('ds_k_mock_card3_title') || 'Ensaio em Estúdio Luz Natural'}
+                              {t('ds_k_mock_card3_title')}
                             </p>
                           </div>
                         </div>
@@ -520,7 +519,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                         <div className="bg-[#111111] p-2.5 sm:p-3 border border-white/5 space-y-2.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">
-                              {t('ds_k_mock_col_done') || 'Concluído (1)'}
+                              {t('ds_k_mock_col_done')}
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                           </div>
@@ -528,15 +527,15 @@ export const DashboardShowcaseSection: React.FC = () => {
                           <div className="bg-[#181818] p-2.5 border border-emerald-500/30 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-[9px] font-mono px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase">
-                                {t('ds_k_mock_badge_legal') || 'Legal'}
+                                {t('ds_k_mock_badge_legal')}
                               </span>
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
                             </div>
                             <p className="text-[11px] font-sans font-medium text-ivory leading-snug">
-                              {t('ds_k_mock_card4_title') || 'Contrato NDA Homologado'}
+                              {t('ds_k_mock_card4_title')}
                             </p>
                             <span className="text-[9px] text-emerald-400 font-mono block">
-                              {t('ds_k_mock_digitally_signed') || '✓ Assinado digitalmente'}
+                              {t('ds_k_mock_digitally_signed')}
                             </span>
                           </div>
                         </div>
@@ -550,20 +549,20 @@ export const DashboardShowcaseSection: React.FC = () => {
                       {/* Lista Lateral de Contatos */}
                       <div className="sm:col-span-4 bg-[#111111] p-2.5 border border-white/5 space-y-2">
                         <span className="text-[9px] uppercase tracking-wider text-ivory/50 font-mono block px-1">
-                          {t('ds_c_mock_shielded_convs') || 'Conversas Blindadas'}
+                          {t('ds_c_mock_shielded_convs')}
                         </span>
 
                         <div className="p-2 bg-[#1C1C1C] border-l-2 border-[#C9A96B] space-y-0.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold text-ivory truncate">{t('ds_c_mock_contact1_name') || 'Agência Lumina'}</span>
+                            <span className="text-[11px] font-semibold text-ivory truncate">{t('ds_c_mock_contact1_name')}</span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                           </div>
-                          <p className="text-[9px] text-ivory/50 truncate">{t('ds_c_mock_contact1_msg') || 'Material aprovado...'}</p>
+                          <p className="text-[9px] text-ivory/50 truncate">{t('ds_c_mock_contact1_msg')}</p>
                         </div>
 
                         <div className="p-2 bg-transparent hover:bg-white/5 space-y-0.5 opacity-60">
-                          <span className="text-[11px] font-medium text-ivory block truncate">{t('ds_c_mock_contact2_name') || 'Diretor de Mídia'}</span>
-                          <p className="text-[9px] text-ivory/40 truncate">{t('ds_c_mock_contact2_msg') || 'Reunião amanhã às 15h'}</p>
+                          <span className="text-[11px] font-medium text-ivory block truncate">{t('ds_c_mock_contact2_name')}</span>
+                          <p className="text-[9px] text-ivory/40 truncate">{t('ds_c_mock_contact2_msg')}</p>
                         </div>
                       </div>
 
@@ -576,9 +575,9 @@ export const DashboardShowcaseSection: React.FC = () => {
                               AL
                             </div>
                             <div>
-                              <span className="text-xs font-medium text-ivory block">{t('ds_c_mock_chat_header_name') || 'Agência Lumina Elite'}</span>
+                              <span className="text-xs font-medium text-ivory block">{t('ds_c_mock_chat_header_name')}</span>
                               <span className="text-[8px] font-mono text-emerald-400 flex items-center gap-1">
-                                <Lock className="w-2.5 h-2.5" /> {t('ds_c_mock_chat_verified') || 'CHAVE E2EE VERIFICADA'}
+                                <Lock className="w-2.5 h-2.5" /> {t('ds_c_mock_chat_verified')}
                               </span>
                             </div>
                           </div>
@@ -589,7 +588,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                           {/* Balão Recebido */}
                           <div className="bg-[#1C1C1C] p-2.5 border border-white/10 max-w-[85%] space-y-1">
                             <p className="text-[11px] text-ivory/90 leading-relaxed">
-                              {t('ds_c_mock_msg1_text') || 'Isabella, o teaser em 4K e o contrato final já estão no Drive Seguro prontos para sua conferência.'}
+                              {t('ds_c_mock_msg1_text')}
                             </p>
                             <span className="text-[8px] font-mono text-ivory/40 block text-right">14:32</span>
                           </div>
@@ -597,7 +596,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                           {/* Balão Enviado */}
                           <div className="bg-[#C9A96B]/15 border border-[#C9A96B]/40 p-2.5 ml-auto max-w-[85%] space-y-1">
                             <p className="text-[11px] text-ivory leading-relaxed">
-                              {t('ds_c_mock_msg2_text') || 'Perfeito! Acabei de conferir o material. Ficou extraordinário, já autorizei a campanha.'}
+                              {t('ds_c_mock_msg2_text')}
                             </p>
                             <div className="flex items-center justify-end gap-1 text-[8px] font-mono text-[#C9A96B]">
                               <span>14:35</span>
@@ -610,7 +609,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                         <div className="bg-[#050505] p-2 border border-white/10 flex items-center justify-between text-[11px] text-ivory/40">
                           <div className="flex items-center gap-2">
                             <Paperclip className="w-3.5 h-3.5" />
-                            <span>{t('ds_c_mock_input_placeholder') || 'Mensagem criptografada...'}</span>
+                            <span>{t('ds_c_mock_input_placeholder')}</span>
                           </div>
                           <div className="w-6 h-6 bg-[#C9A96B] text-[#0B0B0B] flex items-center justify-center rounded-xs">
                             <Send className="w-3 h-3" />
@@ -627,9 +626,9 @@ export const DashboardShowcaseSection: React.FC = () => {
                       <div className="flex items-center justify-between border-b border-white/10 pb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-mono text-[#C9A96B] bg-[#C9A96B]/15 px-2 py-0.5 border border-[#C9A96B]/30 uppercase">
-                            {t('ds_v_mock_private_room') || 'SALA PRIVADA #049'}
+                            {t('ds_v_mock_private_room')}
                           </span>
-                          <span className="text-xs text-ivory/70 font-sans truncate">{t('ds_v_mock_meeting_topic') || 'Curadoria & Alinhamento de Contrato'}</span>
+                          <span className="text-xs text-ivory/70 font-sans truncate">{t('ds_v_mock_meeting_topic')}</span>
                         </div>
                         <span className="text-[9px] font-mono text-emerald-400 shrink-0">HD 1080P · 60 FPS</span>
                       </div>
@@ -642,12 +641,12 @@ export const DashboardShowcaseSection: React.FC = () => {
                             AL
                           </div>
                           <span className="text-[10px] text-ivory/80 font-sans mt-2 font-medium">
-                            {t('ds_v_mock_participant1') || 'Diretoria de Casting · Lumina'}
+                            {t('ds_v_mock_participant1')}
                           </span>
 
                           <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[8px] font-mono bg-black/80 px-2 py-0.5 border border-white/10">
                             <Mic className="w-2.5 h-2.5 text-emerald-400" />
-                            <span>{t('ds_v_mock_audio_active') || 'Áudio Ativo'}</span>
+                            <span>{t('ds_v_mock_audio_active')}</span>
                           </div>
                         </div>
 
@@ -657,12 +656,12 @@ export const DashboardShowcaseSection: React.FC = () => {
                             IM
                           </div>
                           <span className="text-[10px] text-ivory/80 font-sans mt-2 font-medium">
-                            {t('ds_v_mock_participant2') || 'Isabella Moreira (Criadora)'}
+                            {t('ds_v_mock_participant2')}
                           </span>
 
                           <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[8px] font-mono bg-black/80 px-2 py-0.5 border border-[#C9A96B]/40 text-[#C9A96B]">
                             <Sparkles className="w-2.5 h-2.5" />
-                            <span>{t('ds_v_mock_verified') || 'Verificada'}</span>
+                            <span>{t('ds_v_mock_verified')}</span>
                           </div>
                         </div>
                       </div>
@@ -679,7 +678,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                           <Monitor className="w-3.5 h-3.5" />
                         </div>
                         <div className="px-3 py-1.5 bg-rose-600/80 text-white rounded-xs text-[10px] font-mono uppercase flex items-center gap-1">
-                          <PhoneOff className="w-3 h-3" /> {t('ds_v_mock_end_call') || 'Encerrar'}
+                          <PhoneOff className="w-3 h-3" /> {t('ds_v_mock_end_call')}
                         </div>
                       </div>
                     </div>
@@ -692,10 +691,10 @@ export const DashboardShowcaseSection: React.FC = () => {
                       <div className="flex items-center justify-between border-b border-white/10 pb-2">
                         <div>
                           <span className="text-[9px] uppercase tracking-widest text-[#C9A96B] font-mono font-semibold">
-                            {t('ds_d_mock_s3_vault') || 'COFRE S3 CRIPTOGRAFADO'}
+                            {t('ds_d_mock_s3_vault')}
                           </span>
                           <h4 className="font-serif-lumiardi text-base text-ivory font-light">
-                            {t('ds_d_mock_repo_title') || 'Repositório Privado // Isabella Moreira'}
+                            {t('ds_d_mock_repo_title')}
                           </h4>
                         </div>
                         <span className="text-[10px] font-mono text-ivory/50">142.4 GB / 1.0 TB</span>
@@ -706,24 +705,24 @@ export const DashboardShowcaseSection: React.FC = () => {
                         <div className="p-2 bg-[#121212] border border-white/10 flex items-center gap-2">
                           <Folder className="w-4 h-4 text-[#C9A96B] shrink-0" />
                           <div className="min-w-0">
-                            <span className="block text-[10px] text-ivory font-medium truncate">{t('ds_d_mock_folder1_name') || 'Ensaios RAW 2026'}</span>
-                            <span className="text-[8px] text-ivory/40 font-mono">{t('ds_d_mock_folder1_count') || '18 Arquivos'}</span>
+                            <span className="block text-[10px] text-ivory font-medium truncate">{t('ds_d_mock_folder1_name')}</span>
+                            <span className="text-[8px] text-ivory/40 font-mono">{t('ds_d_mock_folder1_count')}</span>
                           </div>
                         </div>
 
                         <div className="p-2 bg-[#121212] border border-white/10 flex items-center gap-2">
                           <Folder className="w-4 h-4 text-[#C9A96B] shrink-0" />
                           <div className="min-w-0">
-                            <span className="block text-[10px] text-ivory font-medium truncate">{t('ds_d_mock_folder2_name') || 'Vídeos Master 4K'}</span>
-                            <span className="text-[8px] text-ivory/40 font-mono">{t('ds_d_mock_folder2_count') || '6 Arquivos'}</span>
+                            <span className="block text-[10px] text-ivory font-medium truncate">{t('ds_d_mock_folder2_name')}</span>
+                            <span className="text-[8px] text-ivory/40 font-mono">{t('ds_d_mock_folder2_count')}</span>
                           </div>
                         </div>
 
                         <div className="p-2 bg-[#121212] border border-white/10 flex items-center gap-2">
                           <Folder className="w-4 h-4 text-emerald-400 shrink-0" />
                           <div className="min-w-0">
-                            <span className="block text-[10px] text-ivory font-medium truncate">{t('ds_d_mock_folder3_name') || 'NDAs Assinados'}</span>
-                            <span className="text-[8px] text-ivory/40 font-mono">{t('ds_d_mock_folder3_count') || '4 Documentos'}</span>
+                            <span className="block text-[10px] text-ivory font-medium truncate">{t('ds_d_mock_folder3_name')}</span>
+                            <span className="text-[8px] text-ivory/40 font-mono">{t('ds_d_mock_folder3_count')}</span>
                           </div>
                         </div>
                       </div>
@@ -740,7 +739,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                           <div className="flex items-center gap-2 sm:gap-3 font-mono text-[9px] text-ivory/50">
                             <span>48.5 MB</span>
                             <span className="text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 border border-emerald-500/30">
-                              {t('ds_d_mock_badge_active_link') || 'LINK ATIVO'}
+                              {t('ds_d_mock_badge_active_link')}
                             </span>
                           </div>
                         </div>
@@ -755,7 +754,7 @@ export const DashboardShowcaseSection: React.FC = () => {
                           <div className="flex items-center gap-2 sm:gap-3 font-mono text-[9px] text-ivory/50">
                             <span>2.4 MB</span>
                             <span className="text-blue-300 bg-blue-950/40 px-1.5 py-0.5 border border-blue-500/30">
-                              {t('ds_d_mock_badge_signed') || 'ASSINADO'}
+                              {t('ds_d_mock_badge_signed')}
                             </span>
                           </div>
                         </div>
@@ -775,7 +774,7 @@ export const DashboardShowcaseSection: React.FC = () => {
             onClick={() => router.push('/dashboard')}
             className="px-8 sm:px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] font-sans text-xs md:text-sm tracking-[0.25em] uppercase font-bold hover:bg-[#D4B87A] transition-all duration-300 inline-flex items-center gap-3 group cursor-pointer shadow-xl hover:shadow-[0_0_30px_rgba(201,169,107,0.3)] text-center"
           >
-            <span>{t('ds_cta') || 'ACESSAR DASHBOARD COMPLETO'}</span>
+            <span>{t('ds_cta')}</span>
             <ArrowRight className="w-4 h-4 stroke-[1.5] transition-transform duration-300 group-hover:translate-x-1" />
           </button>
         </div>

@@ -20,7 +20,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
   selectedAppointment,
   userType = 'criadora',
 }) => {
-  const { t } = useLanguage();
+  const { t, formatDate } = useLanguage();
 
   // Gera os próximos 7 dias úteis a partir de amanhã
   const getNextDays = () => {
@@ -75,6 +75,12 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
     return days;
   };
 
+  // 'YYYY-MM-DD' → data local formatada no idioma ativo
+  const formatSelectedDate = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return formatDate(new Date(y, m - 1, d), { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
   const availableDays = getNextDays();
   const [selectedDate, setSelectedDate] = useState<string>(
     selectedAppointment?.date || availableDays[0]?.dateStr || ''
@@ -121,7 +127,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
 
       {/* 1. Seleção de Dias */}
       <div className="space-y-3">
-        <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/80 flex items-center gap-2">
+        <label className="text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/80 flex items-center gap-2">
           <CalendarIcon className="w-4 h-4 text-[#8C6B2F] shrink-0" />
           <span>{t('sched_select_date_label')}</span>
         </label>
@@ -157,7 +163,7 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
 
       {/* 2. Seleção de Slots de Horários */}
       <div className="space-y-4 pt-2">
-        <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/80 flex items-center gap-2">
+        <label className="text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/80 flex items-center gap-2">
           <Clock className="w-4 h-4 text-[#8C6B2F] shrink-0" />
           <span>{t('sched_select_time_label')}</span>
         </label>
@@ -255,7 +261,10 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
                 {t('sched_selected_summary_label')}
               </span>
               <span className="font-serif-lumiardi text-base sm:text-lg text-[#0B0B0B]">
-                {selectedDate.split('-').reverse().join('/')} às {selectedSlot} {t('sched_selected_summary_tz')}
+                {t('lgm_sched_summary')
+                  .replace('{date}', formatSelectedDate(selectedDate))
+                  .replace('{time}', selectedSlot)}{' '}
+                {t('sched_selected_summary_tz')}
               </span>
             </div>
           </div>

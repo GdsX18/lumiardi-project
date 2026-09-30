@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BiometricEngine } from '@/lib/kyc/biometricEngine';
-import { initDatabase, pool, fallbackStore } from '@/lib/db';
+import { initDatabase, pool } from '@/lib/db';
+import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
 import { cache } from '@/lib/cache';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { EmailService } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
+    // Cada verificação consome a API de visão computacional: limita por IP
+    const limit = await checkRateLimitPersistent(`kyc:${getClientIp(request.headers)}`, {
+      windowMs: 60 * 60 * 1000,
+      maxRequests: 10,
+    });
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { success: false, approved: false, error: 'Muitas tentativas de verificação. Aguarde e tente novamente.', code: 'rate_limited' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(limit.resetTimeMs / 1000)) } }
+      );
+    }
+
     const body = await request.json();
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const userId = session?.id || body.userId || `creator_${Date.now()}`;
+    // Sem sessão (etapa de qualificação, antes do cadastro) a análise é apenas consultiva
+    const userId = session?.id || `pre-registration-${Date.now()}`;
     const { documentBase64, liveSelfieBase64, docType, claimedData } = body;
 
     if (!documentBase64 || !liveSelfieBase64) {
@@ -34,42 +48,25 @@ export async function POST(request: NextRequest) {
       userId,
     });
 
-    // Se aprovado, atualiza o status de curadoria no banco de dados e na memória
-    if (result.approved) {
-      await initDatabase();
-
+    // O KYC é insumo para a Mesa de Curadoria: NUNCA aprova a conta sozinho.
+    // Para usuárias logadas, apenas registra o tipo de documento verificado.
+    if (result.approved && session) {
       try {
-        await pool.query(
-          `UPDATE users 
-           SET curation_status = 'APROVADO', 
-               rejection_reason = NULL,
-               document_type = $1,
-               updated_at = NOW() 
-           WHERE id = $2`,
-          [result.extractedData.documentType, userId]
-        );
-      } catch {
-        // Fallback em memória se PostgreSQL estiver offline
+        await initDatabase();
+        await pool.query('UPDATE users SET document_type = $1, updated_at = NOW() WHERE id = $2', [
+          result.extractedData.documentType,
+          session.id,
+        ]);
+        await cache.delete(`user:${session.id}`);
+      } catch (err) {
+        console.error('[KYC] Falha ao registrar documento verificado:', err);
       }
-
-      // Atualiza fallback em memória
-      for (const [email, user] of fallbackStore.users.entries()) {
-        if (user.id === userId || user.email === claimedData?.email) {
-          user.curation_status = 'APROVADO';
-          user.curationStatus = 'APROVADO';
-          user.document_type = result.extractedData.documentType;
-          user.rejection_reason = null;
-          fallbackStore.users.set(email, user);
-          break;
-        }
-      }
-
-      await cache.delete(`user:${userId}`);
     }
 
     // Dispara e-mail de notificação de homologação de forma assíncrona
-    const recipientEmail = claimedData?.email || session?.email;
-    const recipientName = claimedData?.fullName || session?.name || 'Criadora';
+    // Só notifica a própria conta logada (evita uso da rota para enviar e-mails a terceiros)
+    const recipientEmail = session?.email;
+    const recipientName = session?.name || 'Criadora';
     if (recipientEmail) {
       EmailService.sendKYCStatusEmail(
         recipientEmail,
@@ -85,7 +82,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error: unknown) {
     console.error('[API KYC / Verify Document & Face] Erro:', error);
-    const msg = error instanceof Error ? error.message : 'Erro interno durante análise biométrica';
-    return NextResponse.json({ success: false, approved: false, error: msg }, { status: 500 });
+    return NextResponse.json(
+      { success: false, approved: false, error: 'Erro interno durante análise biométrica.', code: 'generic' },
+      { status: 500 }
+    );
   }
 }

@@ -69,10 +69,10 @@ interface ConversationCacheEntry {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatTime(isoOrTime?: string): string {
-  if (!isoOrTime) return 'Agora';
+function formatTime(isoOrTime: string | undefined, locale: string, nowLabel: string): string {
+  if (!isoOrTime) return nowLabel;
   try {
-    return new Date(isoOrTime).toLocaleTimeString('pt-BR', {
+    return new Date(isoOrTime).toLocaleTimeString(locale, {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -94,7 +94,8 @@ function getInitials(name?: string): string {
 // ─── Componente Principal ────────────────────────────────────────────────────
 
 const ChatPanelInner: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const i18nRef = useRef({ t, locale });
   const { currentUser, activeCreator } = useAuthPortal();
   const searchParams = useSearchParams();
 
@@ -113,11 +114,11 @@ const ChatPanelInner: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: 'curation',
-      name: 'Mesa de Curadoria Lumiardi',
+      name: t('dwg_chat_curation_name'),
       avatarText: 'LM',
-      subtitle: 'Suporte Oficial & Atendimento VIP',
-      lastMessage: 'Canal oficial com a equipe de Curadoria e Compliance.',
-      lastTime: 'Agora',
+      subtitle: t('dwg_chat_curation_subtitle'),
+      lastMessage: t('dwg_chat_curation_last_message'),
+      lastTime: t('dwg_chat_now'),
       unreadCount: 0,
       verified: true,
       isOnline: true,
@@ -139,13 +140,16 @@ const ChatPanelInner: React.FC = () => {
 
   // ─── REFS DE CONTROLE E CACHE DE ALTA VELOCIDADE (0ms Latency) ────────────
   const currentUserRef = useRef(currentUser);
-  currentUserRef.current = currentUser;
   const activeCreatorRef = useRef(activeCreator);
-  activeCreatorRef.current = activeCreator;
-
   const cacheRef = useRef<Map<string, ConversationCacheEntry>>(new Map());
   const activeConvIdRef = useRef<string>(activeConvId);
-  activeConvIdRef.current = activeConvId;
+
+  useEffect(() => {
+    i18nRef.current = { t, locale };
+    currentUserRef.current = currentUser;
+    activeCreatorRef.current = activeCreator;
+    activeConvIdRef.current = activeConvId;
+  }, [t, locale, currentUser, activeCreator, activeConvId]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const isSyncingRef = useRef<boolean>(false);
@@ -169,8 +173,8 @@ const ChatPanelInner: React.FC = () => {
             : Boolean((currentId && m.senderId === currentId) || m.senderId === 'me');
 
         const senderDisplayName = isMe
-          ? myName || 'Você'
-          : m.sender || m.senderName || 'Mesa de Curadoria Lumiardi';
+          ? myName || i18nRef.current.t('chat_you')
+          : m.sender || m.senderName || i18nRef.current.t('dwg_chat_curation_name');
 
         return {
           id: m.id || String(Math.random()),
@@ -179,7 +183,7 @@ const ChatPanelInner: React.FC = () => {
           senderName: m.senderName || senderDisplayName,
           senderRole: m.senderRole,
           text: m.text || m.content || '',
-          time: m.time || formatTime(m.createdAt),
+          time: m.time || formatTime(m.createdAt, i18nRef.current.locale, i18nRef.current.t('dwg_chat_now')),
           createdAt: m.createdAt,
           isMe,
           hasAttachment: !!m.hasAttachment || !!m.attachmentUrl,
@@ -230,7 +234,7 @@ const ChatPanelInner: React.FC = () => {
             activeCreatorRef.current?.qualitative?.artisticName ||
             currentUserRef.current?.name ||
             data.currentUserName ||
-            'Você';
+            i18nRef.current.t('chat_you');
 
           const incoming = normalizeMessages(data.messages, currentId, myName);
           const prevEntry = cacheRef.current.get(targetConvId);
@@ -248,7 +252,7 @@ const ChatPanelInner: React.FC = () => {
           } else {
             // Delta incremental: funde mensagens novas preservando ordem
             const existingIds = new Set(prevEntry.messages.map((m) => m.id));
-            let updatedPrev = [...prevEntry.messages];
+            const updatedPrev = [...prevEntry.messages];
             const fresh: ChatMessage[] = [];
 
             for (const nm of incoming) {
@@ -528,7 +532,7 @@ const ChatPanelInner: React.FC = () => {
     const targetConvId = activeConvIdRef.current;
 
     const myDisplayName =
-      activeCreator?.qualitative?.artisticName || currentUser?.name || 'Você';
+      activeCreator?.qualitative?.artisticName || currentUser?.name || t('chat_you');
     const tempId = `optimistic-${Date.now()}`;
 
     const optimisticMsg: ChatMessage = {
@@ -541,7 +545,7 @@ const ChatPanelInner: React.FC = () => {
           ? 'modelo'
           : currentUser?.role || 'modelo',
       text: currentText,
-      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date().toISOString(),
       isMe: true,
       hasAttachment: !!currentAttachment,
@@ -576,7 +580,7 @@ const ChatPanelInner: React.FC = () => {
           ? {
               ...c,
               lastMessage: currentText,
-              lastTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              lastTime: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
             }
           : c
       )
@@ -658,7 +662,7 @@ const ChatPanelInner: React.FC = () => {
         const roomId = data.roomId;
         const inviteUrl = data.inviteUrl || `/dashboard/meet?room=${encodeURIComponent(roomId)}`;
         const myDisplayName =
-          activeCreator?.qualitative?.artisticName || currentUser?.name || 'Você';
+          activeCreator?.qualitative?.artisticName || currentUser?.name || t('chat_you');
         const meetMsgText = `Reunião VIP iniciada. Clique para aceder à sala executiva: ${roomId}`;
 
         const optimisticMsg: ChatMessage = {
@@ -668,7 +672,7 @@ const ChatPanelInner: React.FC = () => {
           senderName: myDisplayName,
           senderRole: currentUser?.role === 'criadora' ? 'modelo' : currentUser?.role || 'modelo',
           text: meetMsgText,
-          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          time: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
           createdAt: new Date().toISOString(),
           isMe: true,
           hasAttachment: true,
@@ -735,7 +739,7 @@ const ChatPanelInner: React.FC = () => {
           <div className="flex items-center gap-2">
             <Lock className="w-3.5 h-3.5 text-gold" />
             <h2 className="font-serif-lumiardi text-sm font-semibold tracking-wide text-ivory">
-              Canais Seguros
+              {t('chat_secure_channels')}
             </h2>
           </div>
           <span className="text-[10px] text-gold/70 font-mono bg-gold/10 px-2 py-0.5 rounded-xs border border-gold/20">
@@ -749,7 +753,7 @@ const ChatPanelInner: React.FC = () => {
             <Search className="w-3.5 h-3.5 text-ivory/30 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Pesquisar mensagens ou canais..."
+              placeholder={t('chat_search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-[#121212] border border-white/[0.08] pl-9 pr-3 py-2 text-xs text-ivory outline-none rounded-xs placeholder:text-ivory/30 focus:border-gold/40 transition-colors"
@@ -779,7 +783,7 @@ const ChatPanelInner: React.FC = () => {
                     className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#080808] transition-colors duration-300 ${
                       conv.isOnline ? 'bg-emerald-500' : 'bg-white/80'
                     }`}
-                    title={conv.isOnline ? 'Online' : 'Offline'}
+                    title={conv.isOnline ? t('dwg_chat_online') : t('dwg_chat_offline')}
                   />
                 </div>
 
@@ -808,7 +812,7 @@ const ChatPanelInner: React.FC = () => {
         <div className="px-4 py-2.5 border-t border-white/[0.05] flex items-center gap-1.5">
           <ShieldCheck className="w-3 h-3 text-gold/50 shrink-0" />
           <span className="text-[10px] text-ivory/35 font-sans">
-            Blindagem Criptográfica Lumiardi E2E
+            {t('dwg_chat_e2e_shield')}
           </span>
         </div>
       </div>
@@ -821,7 +825,7 @@ const ChatPanelInner: React.FC = () => {
             <button
               onClick={() => setShowMobileList(true)}
               className="md:hidden p-2 bg-[#161616] border border-white/10 text-gold rounded-xs hover:bg-white/10"
-              title="Ver canais"
+              title={t('dwg_chat_view_channels')}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -834,7 +838,7 @@ const ChatPanelInner: React.FC = () => {
                 className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0E0E0E] transition-colors duration-300 ${
                   activeConv.isOnline ? 'bg-emerald-500' : 'bg-white/80'
                 }`}
-                title={activeConv.isOnline ? 'Online' : 'Offline'}
+                title={activeConv.isOnline ? t('dwg_chat_online') : t('dwg_chat_offline')}
               />
             </div>
 
@@ -853,10 +857,10 @@ const ChatPanelInner: React.FC = () => {
                 />
                 <span>
                   {isLoadingMessages && messages.length > 0
-                    ? 'Sincronizando...'
+                    ? t('dwg_chat_syncing')
                     : activeConv.isOnline
-                    ? (activeConv.id === 'curation' ? 'Equipe ativa · Resposta prioritária' : 'Online agora · Resposta ativa')
-                    : 'Offline · Mensagem segura arquivada'}
+                    ? (activeConv.id === 'curation' ? t('dwg_chat_status_team_active') : t('dwg_chat_status_online'))
+                    : t('dwg_chat_status_offline')}
                 </span>
               </span>
             </div>
@@ -875,7 +879,7 @@ const ChatPanelInner: React.FC = () => {
                 <Video className="w-3.5 h-3.5" />
               )}
               <span className="hidden sm:inline">
-                {isStartingMeet ? 'Iniciando...' : 'Reunião VIP'}
+                {isStartingMeet ? t('dwg_chat_starting') : t('dwg_chat_vip_meeting')}
               </span>
             </button>
           </div>
@@ -904,10 +908,10 @@ const ChatPanelInner: React.FC = () => {
             <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-ivory/40">
               <Lock className="w-8 h-8 text-gold/30 mb-2" />
               <p className="text-xs font-serif-lumiardi font-medium text-ivory/70">
-                Canal Seguro Criptografado E2E
+                {t('dwg_chat_empty_title')}
               </p>
               <p className="text-[11px] max-w-xs leading-relaxed text-ivory/40">
-                Nenhuma mensagem nesta conversa ainda. Suas mensagens são transmitidas com segurança ponta a ponta.
+                {t('dwg_chat_empty_desc')}
               </p>
             </div>
           ) : (
@@ -938,7 +942,7 @@ const ChatPanelInner: React.FC = () => {
                     )}
 
                     <div
-                      className={`px-4 py-3 text-xs font-sans leading-relaxed shadow-sm relative transition-all min-w-0 break-words break-all [overflow-wrap:anywhere] ${
+                      className={`px-4 py-3 text-xs font-sans leading-relaxed shadow-sm relative transition-all min-w-0 break-all [overflow-wrap:anywhere] ${
                         msg.isMe
                           ? 'bg-[#1C1914] border border-[#C9A96B]/25 text-[#F5F2EB] rounded-2xl rounded-tr-xs'
                           : 'bg-[#141414] border border-white/[0.07] text-ivory/90 rounded-2xl rounded-tl-xs hover:border-white/[0.12]'
@@ -953,17 +957,17 @@ const ChatPanelInner: React.FC = () => {
                             </div>
                             <div>
                               <span className="font-serif-lumiardi text-sm text-ivory font-medium block">
-                                Reunião VIP Lumiardi
+                                {t('dwg_chat_meet_card_title')}
                               </span>
                               <p className="text-[11px] text-ivory/55 font-sans">
-                                Sessão executiva criptografada ponta-a-ponta
+                                {t('dwg_chat_meet_card_desc')}
                               </p>
                             </div>
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-gold/15 gap-2 flex-wrap">
                             <span className="text-xs font-mono text-gold bg-gold/10 px-2 py-0.5 rounded-xs border border-gold/20">
-                              {msg.attachmentName || 'Sala VIP Ativa'}
+                              {msg.attachmentName || t('dwg_chat_meet_room_active')}
                             </span>
                             <button
                               type="button"
@@ -979,7 +983,7 @@ const ChatPanelInner: React.FC = () => {
                               className="px-3 py-1.5 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs rounded-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                             >
                               <Video className="w-3 h-3" />
-                              Entrar
+                              {t('dwg_chat_join')}
                             </button>
                           </div>
                         </div>
@@ -987,7 +991,7 @@ const ChatPanelInner: React.FC = () => {
                         <>
                           {msg.text && (
                             <p
-                              className={`whitespace-pre-wrap break-words break-all [overflow-wrap:anywhere] text-[13px] leading-relaxed ${
+                              className={`whitespace-pre-wrap break-all [overflow-wrap:anywhere] text-[13px] leading-relaxed ${
                                 msg.isMe ? 'text-[#F5F2EB]/95' : 'text-ivory/90'
                               }`}
                             >
@@ -1013,7 +1017,7 @@ const ChatPanelInner: React.FC = () => {
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={msg.attachmentUrl}
-                                    alt={msg.attachmentName || 'Imagem'}
+                                    alt={msg.attachmentName || t('dwg_chat_image')}
                                     className="w-full max-h-48 object-cover block"
                                     loading="lazy"
                                   />
@@ -1028,7 +1032,7 @@ const ChatPanelInner: React.FC = () => {
                                     <FileText className="w-3.5 h-3.5 text-gold/70 shrink-0" />
                                   )}
                                   <span className="truncate text-[11px] font-medium text-ivory/75">
-                                    {msg.attachmentName || 'Anexo'}
+                                    {msg.attachmentName || t('dwg_chat_attachment')}
                                   </span>
                                 </div>
                                 <a
@@ -1036,8 +1040,8 @@ const ChatPanelInner: React.FC = () => {
                                   download={msg.attachmentName || 'anexo_lumiardi'}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="p-1 hover:text-gold transition-colors rounded-xs shrink-0 text-ivory/50"
-                                  title="Download"
+                                  className="p-1 text-ivory/50 hover:text-gold transition-colors rounded-xs shrink-0"
+                                  title={t('dwg_chat_download')}
                                 >
                                   <Download className="w-3.5 h-3.5" />
                                 </a>
@@ -1060,7 +1064,7 @@ const ChatPanelInner: React.FC = () => {
 
                       <button
                         onClick={() => copyMessageText(msg.id, msg.text)}
-                        title="Copiar mensagem"
+                        title={t('dwg_chat_copy_message')}
                         className={`absolute -top-2 ${
                           msg.isMe ? '-left-7' : '-right-7'
                         } opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-[#181818] border border-white/10 rounded-xs text-ivory/50 hover:text-gold shadow-sm cursor-pointer`}
@@ -1119,7 +1123,7 @@ const ChatPanelInner: React.FC = () => {
                 ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-gold/10 hover:text-gold hover:border-gold/30 cursor-pointer'
             }`}
-            title="Anexar imagem ou PDF"
+            title={t('dwg_chat_attach_title')}
           >
             {isUploading ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1139,7 +1143,7 @@ const ChatPanelInner: React.FC = () => {
           <textarea
             ref={textareaRef}
             rows={1}
-            placeholder={`Escreva para ${activeConv.name}…`}
+            placeholder={t('dwg_chat_write_to').replace('{name}', activeConv.name)}
             value={inputVal}
             onChange={(e) => {
               setInputVal(e.target.value);
@@ -1160,7 +1164,7 @@ const ChatPanelInner: React.FC = () => {
           >
             <Send className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">
-              {isSending ? '...' : 'Enviar'}
+              {isSending ? '...' : t('chat_send')}
             </span>
           </button>
         </form>
@@ -1179,11 +1183,12 @@ const ChatPanelInner: React.FC = () => {
 };
 
 export const ChatPanel: React.FC = () => {
+  const { t } = useLanguage();
   return (
     <Suspense
       fallback={
         <div className="w-full h-full min-h-[400px] flex items-center justify-center text-white/40">
-          Carregando canal seguro...
+          {t('dwg_chat_loading')}
         </div>
       }
     >

@@ -22,6 +22,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useLanguage } from '@/context/LanguageContext';
 
 type CategoryType =
   | 'menor'
@@ -36,13 +37,13 @@ type CategoryType =
 
 interface ProtocolResult {
   protocol: string;
-  category: string;
-  priority: string;
+  categoryId: CategoryType;
   date: string;
   email: string;
 }
 
 export default function PortalPage() {
+  const { t, tApiError, formatDateTime } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('menor');
   const [personType, setPersonType] = useState('sim');
   const [name, setName] = useState('');
@@ -56,6 +57,8 @@ export default function PortalPage() {
   const [declaration, setDeclaration] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedResult, setSubmittedResult] = useState<ProtocolResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [honeypot, setHoneypot] = useState('');
 
   // Campos específicos para Ordem Judicial
   const [judicialBody, setJudicialBody] = useState('');
@@ -63,116 +66,86 @@ export default function PortalPage() {
   const [authorityName, setAuthorityName] = useState('');
   const [judicialDeadline, setJudicialDeadline] = useState('');
 
-  const categories = [
-    {
-      id: 'menor',
-      code: 'Categoria A',
-      title: 'Menor de Idade (ECA Digital / CSAM)',
-      desc: 'Suspeita de que pessoa menor de 18 anos aparece, participa ou é retratada em conteúdo sexual ou pornográfico.',
-      priority: 'CRÍTICA',
-      badgeColor: 'bg-red-500 text-black-matte',
-      borderHover: 'hover:border-red-500',
-    },
-    {
-      id: 'intimo_nao_consensual',
-      code: 'Categoria B',
-      title: 'Conteúdo Íntimo Não Consensual (NCII)',
-      desc: 'Conteúdo íntimo envolvendo minha imagem ou de terceiro divulgado sem consentimento expresso.',
-      priority: 'CRÍTICA / ALTA',
-      badgeColor: 'bg-red-500/90 text-black-matte',
-      borderHover: 'hover:border-red-500',
-    },
-    {
-      id: 'exploracao_coercao',
-      code: 'Categoria C',
-      title: 'Exploração, Coerção ou Tráfico',
-      desc: 'Suspeita fundamentada de violência, coerção, exploração forçada, tráfico de pessoas ou abuso.',
-      priority: 'CRÍTICA',
-      badgeColor: 'bg-red-500 text-black-matte',
-      borderHover: 'hover:border-red-500',
-    },
-    {
-      id: 'perfil_falso',
-      code: 'Categoria D',
-      title: 'Perfil Falso / Impersonação',
-      desc: 'Perfil fraudulento que utiliza identidade, fotos ou dados pessoais de terceiro.',
-      priority: 'ALTA',
-      badgeColor: 'bg-amber-500 text-black-matte',
-      borderHover: 'hover:border-amber-500',
-    },
-    {
-      id: 'direito_imagem',
-      code: 'Categoria E',
-      title: 'Uso Indevido de Imagem e Voz',
-      desc: 'Uso não autorizado de imagem, fotografia, vídeo, voz ou outro elemento da personalidade.',
-      priority: 'ALTA',
-      badgeColor: 'bg-amber-500 text-black-matte',
-      borderHover: 'hover:border-amber-500',
-    },
-    {
-      id: 'copyright',
-      code: 'Categoria F',
-      title: 'Direito Autoral / Violação de Copyright',
-      desc: 'Material audiovisual, fotográfico ou autoral utilizado sem autorização expressa do titular dos direitos.',
-      priority: 'MODERADA',
-      badgeColor: 'bg-blue-500 text-black-matte',
-      borderHover: 'hover:border-blue-500',
-    },
-    {
-      id: 'fraude',
-      code: 'Categoria G',
-      title: 'Fraude Financeira / Documental',
-      desc: 'Fraude financeira, clonagem, documento adulterado ou manipulação operacional ilícita.',
-      priority: 'ALTA',
-      badgeColor: 'bg-amber-500 text-black-matte',
-      borderHover: 'hover:border-amber-500',
-    },
-    {
-      id: 'violacao_termos',
-      code: 'Categoria H',
-      title: 'Outra Violação dos Termos de Uso',
-      desc: 'Conduta ou conteúdo que viole os Termos de Uso ou políticas internas da Lumiardi.',
-      priority: 'MODERADA',
-      badgeColor: 'bg-gray-400 text-black-matte',
-      borderHover: 'hover:border-gray-400',
-    },
-    {
-      id: 'ordem_judicial',
-      code: 'Ordem Oficial',
-      title: 'Requisição de Autoridade / Ordem Judicial',
-      desc: 'Comunicação oficial expedida por autoridade judiciária, policial ou regulatória competente.',
-      priority: 'IMEDIATA',
-      badgeColor: 'bg-purple-500 text-white',
-      borderHover: 'hover:border-purple-500',
-    },
+  const categories: {
+    id: CategoryType;
+    code: string;
+    priorityKey: string;
+    badgeColor: string;
+    borderHover: string;
+  }[] = [
+    { id: 'menor', code: 'A', priorityKey: 'lgm_portal_prio_critical', badgeColor: 'bg-red-500 text-black-matte', borderHover: 'hover:border-red-500' },
+    { id: 'intimo_nao_consensual', code: 'B', priorityKey: 'lgm_portal_prio_critical_high', badgeColor: 'bg-red-500/90 text-black-matte', borderHover: 'hover:border-red-500' },
+    { id: 'exploracao_coercao', code: 'C', priorityKey: 'lgm_portal_prio_critical', badgeColor: 'bg-red-500 text-black-matte', borderHover: 'hover:border-red-500' },
+    { id: 'perfil_falso', code: 'D', priorityKey: 'lgm_portal_prio_high', badgeColor: 'bg-amber-500 text-black-matte', borderHover: 'hover:border-amber-500' },
+    { id: 'direito_imagem', code: 'E', priorityKey: 'lgm_portal_prio_high', badgeColor: 'bg-amber-500 text-black-matte', borderHover: 'hover:border-amber-500' },
+    { id: 'copyright', code: 'F', priorityKey: 'lgm_portal_prio_moderate', badgeColor: 'bg-blue-500 text-black-matte', borderHover: 'hover:border-blue-500' },
+    { id: 'fraude', code: 'G', priorityKey: 'lgm_portal_prio_high', badgeColor: 'bg-amber-500 text-black-matte', borderHover: 'hover:border-amber-500' },
+    { id: 'violacao_termos', code: 'H', priorityKey: 'lgm_portal_prio_moderate', badgeColor: 'bg-gray-400 text-black-matte', borderHover: 'hover:border-gray-400' },
+    { id: 'ordem_judicial', code: '', priorityKey: 'lgm_portal_prio_immediate', badgeColor: 'bg-purple-500 text-white', borderHover: 'hover:border-purple-500' },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const categoryCode = (code: string) =>
+    code ? t('lgm_portal_category_code').replace('{code}', code) : t('lgm_portal_official_order');
+  const categoryTitle = (id: CategoryType) => t(`lgm_portal_cat_${id}_title`);
+  const categoryPriority = (id: CategoryType) =>
+    t(categories.find((c) => c.id === id)?.priorityKey ?? 'lgm_portal_prio_high');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!declaration) {
-      alert('Você precisa aceitar a declaração formal de veracidade das informações.');
+      setErrorMessage(t('lgm_portal_err_declaration'));
       return;
     }
 
     setIsSubmitting(true);
+    setErrorMessage(null);
 
-    setTimeout(() => {
-      const selectedCatObj = categories.find((c) => c.id === selectedCategory);
-      const randomId = Math.floor(100000 + Math.random() * 900000);
-      const year = new Date().getFullYear();
-      const protocolNumber = `LUM-${year}-${randomId}`;
+    try {
+      const payload = {
+        category: selectedCategory,
+        name,
+        email,
+        phone: phone || undefined,
+        personType,
+        url,
+        username: username || undefined,
+        approxDate: approxDate || undefined,
+        description,
+        declaration,
+        judicialBody: selectedCategory === 'ordem_judicial' ? judicialBody : undefined,
+        processNumber: selectedCategory === 'ordem_judicial' ? processNumber : undefined,
+        authorityName: selectedCategory === 'ordem_judicial' ? authorityName : undefined,
+        judicialDeadline: selectedCategory === 'ordem_judicial' ? judicialDeadline : undefined,
+        honeypot: honeypot || undefined,
+      };
 
-      setSubmittedResult({
-        protocol: protocolNumber,
-        category: selectedCatObj?.title || 'Geral',
-        priority: selectedCatObj?.priority || 'ALTA',
-        date: new Date().toLocaleString('pt-BR'),
-        email: email,
+      const res = await fetch('/api/compliance/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
-      setIsSubmitting(false);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(tApiError(data, 'lgm_portal_err_submit'));
+      }
+
+      setSubmittedResult({
+        protocol: data.protocol,
+        categoryId: selectedCategory,
+        date: formatDateTime(new Date()),
+        email: data.email || email,
+      });
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 1200);
+    } catch (err: unknown) {
+      console.error('[Portal Page] Erro ao enviar denúncia:', err);
+      const msg = err instanceof Error ? err.message : t('lgm_portal_err_network');
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -191,6 +164,8 @@ export default function PortalPage() {
     setProcessNumber('');
     setAuthorityName('');
     setJudicialDeadline('');
+    setHoneypot('');
+    setErrorMessage(null);
   };
 
   return (
@@ -203,19 +178,19 @@ export default function PortalPage() {
         <header className="text-center space-y-5 border-b border-white/10 pb-12 relative">
           <div className="inline-flex items-center gap-2.5 px-4 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-sans uppercase tracking-[0.3em]">
             <ShieldAlert className="w-4 h-4 stroke-[1.5]" />
-            <span>Canal Formal de Notice-and-Action · Trust & Safety</span>
+            <span>{t('lgm_portal_tag')}</span>
           </div>
 
           <h1 className="font-serif-lumiardi text-4xl sm:text-6xl font-light text-ivory tracking-tight leading-tight">
-            Portal Lumiardi — Denúncia, Abuso e Direitos
+            {t('lgm_portal_title')}
           </h1>
 
           <p className="max-w-3xl mx-auto text-sm md:text-base text-ivory/70 font-light leading-relaxed">
-            Utilize este canal para comunicar conteúdo ilegal, violação de direitos autorais, uso não autorizado de imagem, conteúdos envolvendo menores de idade, conteúdo íntimo não consensual, fraude ou infração das regras da Lumiardi.
+            {t('lgm_portal_intro')}
           </p>
 
           <div className="p-4 bg-red-950/25 border border-red-500/30 rounded-lg max-w-2xl mx-auto text-xs text-red-200 text-center font-sans">
-            ⚠️ <strong>Atenção:</strong> Em situações que envolvam risco iminente à integridade física ou sexual de qualquer pessoa, acione imediatamente também as autoridades policiais competentes.
+            ⚠️ <strong>{t('lgm_portal_warning_label')}</strong> {t('lgm_portal_warning_text')}
           </div>
         </header>
 
@@ -227,40 +202,40 @@ export default function PortalPage() {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h2 className="font-serif-lumiardi text-3xl md:text-4xl text-ivory font-light">
-                Denúncia Formal Registrada com Sucesso
+                {t('lgm_portal_success_title')}
               </h2>
               <p className="text-xs md:text-sm text-ivory/70 max-w-lg mx-auto">
-                O seu chamado foi protocolado e encaminhado diretamente para o Núcleo de Trust & Safety e Compliance Legal da Lumiardi.
+                {t('lgm_portal_success_desc')}
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6 bg-white/[0.02] border border-white/10 rounded-lg font-mono text-xs">
               <div className="space-y-1">
-                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">Número de Protocolo</span>
+                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">{t('lgm_portal_protocol_number')}</span>
                 <p className="text-base text-[#C9A96B] font-bold">{submittedResult.protocol}</p>
               </div>
               <div className="space-y-1">
-                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">Data e Hora do Registro</span>
+                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">{t('lgm_portal_registered_at')}</span>
                 <p className="text-ivory">{submittedResult.date}</p>
               </div>
               <div className="space-y-1">
-                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">Categoria do Caso</span>
-                <p className="text-ivory">{submittedResult.category}</p>
+                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">{t('lgm_portal_case_category')}</span>
+                <p className="text-ivory">{categoryTitle(submittedResult.categoryId)}</p>
               </div>
               <div className="space-y-1">
-                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">Nível de Prioridade</span>
+                <span className="text-ivory/50 uppercase tracking-widest text-[10px]">{t('lgm_portal_priority_level')}</span>
                 <span className="inline-block px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded text-[11px] font-bold">
-                  {submittedResult.priority}
+                  {categoryPriority(submittedResult.categoryId)}
                 </span>
               </div>
             </div>
 
             <div className="space-y-3 text-xs md:text-sm text-ivory/80 leading-relaxed">
               <p>
-                Uma confirmação formal com os detalhes de tramitação foi enviada para o e-mail: <strong className="text-ivory font-mono">{submittedResult.email}</strong>.
+                {t('lgm_portal_confirmation_sent')} <strong className="text-ivory font-mono">{submittedResult.email}</strong>.
               </p>
               <p className="text-ivory/60 text-xs">
-                O caso seguirá o fluxo de preservação probatória, análise técnica e adoção das medidas cabíveis (remoção, desindexação, bloqueio ou escalonamento judicial).
+                {t('lgm_portal_success_flow')}
               </p>
             </div>
 
@@ -270,7 +245,7 @@ export default function PortalPage() {
                 onClick={handleReset}
                 className="px-6 py-3 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-widest font-bold hover:bg-[#D4B87A] transition-all cursor-pointer"
               >
-                Registrar Nova Comunicação
+                {t('lgm_portal_new_report')}
               </button>
             </div>
           </div>
@@ -282,7 +257,7 @@ export default function PortalPage() {
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-[#C9A96B] text-xs uppercase tracking-widest font-semibold">
                 <span className="w-5 h-5 rounded-full bg-[#C9A96B]/20 border border-[#C9A96B] flex items-center justify-center text-[10px]">1</span>
-                <span>Selecione a Categoria da Denúncia (Obrigatório)</span>
+                <span>{t('lgm_portal_step1')}</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -292,7 +267,7 @@ export default function PortalPage() {
                     <button
                       type="button"
                       key={cat.id}
-                      onClick={() => setSelectedCategory(cat.id as CategoryType)}
+                      onClick={() => setSelectedCategory(cat.id)}
                       className={`p-4 text-left border rounded-lg transition-all flex flex-col justify-between space-y-3 cursor-pointer ${
                         isSelected
                           ? 'bg-[#C9A96B]/10 border-[#C9A96B] shadow-lg ring-1 ring-[#C9A96B]'
@@ -302,18 +277,18 @@ export default function PortalPage() {
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] uppercase font-mono tracking-widest text-[#C9A96B]">
-                            {cat.code}
+                            {categoryCode(cat.code)}
                           </span>
                           <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase font-mono ${cat.badgeColor}`}>
-                            {cat.priority}
+                            {t(cat.priorityKey)}
                           </span>
                         </div>
                         <h3 className="font-serif-lumiardi text-lg text-ivory font-normal leading-snug">
-                          {cat.title}
+                          {categoryTitle(cat.id)}
                         </h3>
                       </div>
                       <p className="text-[11px] text-ivory/60 leading-relaxed font-light">
-                        {cat.desc}
+                        {t(`lgm_portal_cat_${cat.id}_desc`)}
                       </p>
                     </button>
                   );
@@ -325,36 +300,36 @@ export default function PortalPage() {
             <section className="space-y-6 pt-6 border-t border-white/10">
               <div className="flex items-center gap-2 text-[#C9A96B] text-xs uppercase tracking-widest font-semibold">
                 <span className="w-5 h-5 rounded-full bg-[#C9A96B]/20 border border-[#C9A96B] flex items-center justify-center text-[10px]">2</span>
-                <span>Identificação do Comunicante / Denunciante</span>
+                <span>{t('lgm_portal_step2')}</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs text-ivory/80 uppercase tracking-wider">Nome Completo *</label>
+                  <label className="text-xs text-ivory/80 uppercase tracking-wider">{t('lgm_portal_full_name')}</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Seu nome completo"
+                    placeholder={t('lgm_portal_full_name_ph')}
                     className="w-full px-4 py-3 bg-[#0D0D0D] border border-white/15 text-ivory text-sm rounded focus:outline-none focus:border-[#C9A96B]"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs text-ivory/80 uppercase tracking-wider">E-mail para Notificações *</label>
+                  <label className="text-xs text-ivory/80 uppercase tracking-wider">{t('lgm_portal_email_label')}</label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seuemail@dominio.com"
+                    placeholder={t('lgm_portal_email_ph')}
                     className="w-full px-4 py-3 bg-[#0D0D0D] border border-white/15 text-ivory text-sm rounded focus:outline-none focus:border-[#C9A96B]"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs text-ivory/80 uppercase tracking-wider">Telefone com DDD (Opcional)</label>
+                  <label className="text-xs text-ivory/80 uppercase tracking-wider">{t('lgm_portal_phone_label')}</label>
                   <input
                     type="tel"
                     value={phone}
@@ -367,15 +342,15 @@ export default function PortalPage() {
 
               <div className="space-y-2">
                 <label className="text-xs text-ivory/80 uppercase tracking-wider block">
-                  Qual é a sua relação com a pessoa ou direito indicado? *
+                  {t('lgm_portal_relation_label')}
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
                   {[
-                    { id: 'sim', label: 'Sou a própria pessoa retratada' },
-                    { id: 'nao', label: 'Terceiro / Testemunha' },
-                    { id: 'rep_legal', label: 'Sou Representante Legal' },
-                    { id: 'procurador', label: 'Sou Procurador / Advogado' },
-                    { id: 'resp_legal', label: 'Responsável Legal' },
+                    { id: 'sim', label: t('lgm_portal_rel_self') },
+                    { id: 'nao', label: t('lgm_portal_rel_third') },
+                    { id: 'rep_legal', label: t('lgm_portal_rel_legal_rep') },
+                    { id: 'procurador', label: t('lgm_portal_rel_attorney') },
+                    { id: 'resp_legal', label: t('lgm_portal_rel_guardian') },
                   ].map((item) => (
                     <button
                       type="button"
@@ -399,22 +374,22 @@ export default function PortalPage() {
               <section className="p-6 bg-purple-950/20 border border-purple-500/40 rounded-lg space-y-4">
                 <div className="flex items-center gap-2 text-purple-300 text-xs uppercase tracking-widest font-semibold">
                   <Gavel className="w-4 h-4" />
-                  <span>Dados Específicos da Requisição de Autoridade / Mandado</span>
+                  <span>{t('lgm_portal_judicial_section')}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                   <div className="space-y-1">
-                    <label className="text-ivory/70 uppercase">Órgão / Vara Judicial *</label>
+                    <label className="text-ivory/70 uppercase">{t('lgm_portal_judicial_body')}</label>
                     <input
                       type="text"
                       required
                       value={judicialBody}
                       onChange={(e) => setJudicialBody(e.target.value)}
-                      placeholder="Ex: 3ª Vara Criminal de SP"
+                      placeholder={t('lgm_portal_judicial_body_ph')}
                       className="w-full p-2.5 bg-[#0D0D0D] border border-white/20 rounded text-ivory"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-ivory/70 uppercase">Número do Processo / Ofício *</label>
+                    <label className="text-ivory/70 uppercase">{t('lgm_portal_process_number')}</label>
                     <input
                       type="text"
                       required
@@ -425,23 +400,23 @@ export default function PortalPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-ivory/70 uppercase">Autoridade Subscritora *</label>
+                    <label className="text-ivory/70 uppercase">{t('lgm_portal_authority')}</label>
                     <input
                       type="text"
                       required
                       value={authorityName}
                       onChange={(e) => setAuthorityName(e.target.value)}
-                      placeholder="Nome do Magistrado ou Delegado"
+                      placeholder={t('lgm_portal_authority_ph')}
                       className="w-full p-2.5 bg-[#0D0D0D] border border-white/20 rounded text-ivory"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-ivory/70 uppercase">Prazo Determinado</label>
+                    <label className="text-ivory/70 uppercase">{t('lgm_portal_deadline')}</label>
                     <input
                       type="text"
                       value={judicialDeadline}
                       onChange={(e) => setJudicialDeadline(e.target.value)}
-                      placeholder="Ex: 24 horas / Imediato"
+                      placeholder={t('lgm_portal_deadline_ph')}
                       className="w-full p-2.5 bg-[#0D0D0D] border border-white/20 rounded text-ivory"
                     />
                   </div>
@@ -453,12 +428,12 @@ export default function PortalPage() {
             <section className="space-y-4 pt-6 border-t border-white/10">
               <div className="flex items-center gap-2 text-[#C9A96B] text-xs uppercase tracking-widest font-semibold">
                 <span className="w-5 h-5 rounded-full bg-[#C9A96B]/20 border border-[#C9A96B] flex items-center justify-center text-[10px]">3</span>
-                <span>Identificação do Conteúdo Alvo</span>
+                <span>{t('lgm_portal_step3')}</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-xs text-ivory/80 uppercase tracking-wider">URL / Link Direto do Conteúdo ou Perfil *</label>
+                  <label className="text-xs text-ivory/80 uppercase tracking-wider">{t('lgm_portal_url_label')}</label>
                   <input
                     type="url"
                     required
@@ -470,12 +445,23 @@ export default function PortalPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs text-ivory/80 uppercase tracking-wider">ID ou Nome de Usuário</label>
+                  <label className="text-xs text-ivory/80 uppercase tracking-wider">{t('lgm_portal_username_label')}</label>
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="@usuario ou ID"
+                    placeholder={t('lgm_portal_username_ph')}
+                    className="w-full px-4 py-3 bg-[#0D0D0D] border border-white/15 text-ivory text-sm rounded focus:outline-none focus:border-[#C9A96B]"
+                  />
+                </div>
+
+                <div className="space-y-1.5 md:col-span-3">
+                  <label className="text-xs text-ivory/80 uppercase tracking-wider">{t('lgm_portal_approx_date_label')}</label>
+                  <input
+                    type="text"
+                    value={approxDate}
+                    onChange={(e) => setApproxDate(e.target.value)}
+                    placeholder={t('lgm_portal_approx_date_ph')}
                     className="w-full px-4 py-3 bg-[#0D0D0D] border border-white/15 text-ivory text-sm rounded focus:outline-none focus:border-[#C9A96B]"
                   />
                 </div>
@@ -483,14 +469,14 @@ export default function PortalPage() {
 
               <div className="space-y-1.5">
                 <label className="text-xs text-ivory/80 uppercase tracking-wider">
-                  Descrição Objetiva dos Fatos e Violação Alegada *
+                  {t('lgm_portal_description_label')}
                 </label>
                 <textarea
                   required
                   rows={5}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descreva com clareza a violação identificada, datas aproximadas, contexto da ausência de consentimento ou elementos que comprovem a titularidade dos direitos..."
+                  placeholder={t('lgm_portal_description_ph')}
                   className="w-full p-4 bg-[#0D0D0D] border border-white/15 text-ivory text-sm rounded focus:outline-none focus:border-[#C9A96B] leading-relaxed font-sans"
                 />
               </div>
@@ -500,17 +486,17 @@ export default function PortalPage() {
             <section className="space-y-4 pt-6 border-t border-white/10">
               <div className="flex items-center gap-2 text-[#C9A96B] text-xs uppercase tracking-widest font-semibold">
                 <span className="w-5 h-5 rounded-full bg-[#C9A96B]/20 border border-[#C9A96B] flex items-center justify-center text-[10px]">4</span>
-                <span>Diretrizes para Apresentação de Provas e Documentos</span>
+                <span>{t('lgm_portal_step4')}</span>
               </div>
 
               {/* Alerta Protetivo Obrigatório */}
               <div className="p-6 bg-amber-950/20 border border-amber-500/40 rounded-lg space-y-3 text-amber-200 text-xs md:text-sm">
                 <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-amber-300">
                   <FileWarning className="w-5 h-5 shrink-0" />
-                  <span>Regra Crítica Protetiva para Uploads</span>
+                  <span>{t('lgm_portal_upload_rule_title')}</span>
                 </div>
                 <p className="leading-relaxed">
-                  <strong>NÃO envie conteúdo sexual envolvendo menor de idade</strong> ou arquivos contendo material ilícito desnecessário à análise. Quando possível, forneça somente a URL, identificação do conteúdo, capturas de tela dos metadados e informações suficientes para localização técnica.
+                  <strong>{t('lgm_portal_upload_rule_strong')}</strong> {t('lgm_portal_upload_rule_text')}
                 </p>
               </div>
 
@@ -518,10 +504,10 @@ export default function PortalPage() {
                 <UploadCloud className="w-8 h-8 text-ivory/40 mx-auto" />
                 <div className="space-y-1">
                   <p className="text-xs text-ivory/80">
-                    Insira links para documentos comprobatórios, procurações ou titularidades no campo de descrição acima.
+                    {t('lgm_portal_upload_links')}
                   </p>
                   <p className="text-[11px] text-ivory/50">
-                    Formatos aceitos para análise documental complementar via e-mail: PDF, PNG, JPG até 15MB.
+                    {t('lgm_portal_upload_formats')}
                   </p>
                 </div>
               </div>
@@ -531,7 +517,7 @@ export default function PortalPage() {
             <section className="space-y-6 pt-6 border-t border-white/10">
               <div className="flex items-center gap-2 text-[#C9A96B] text-xs uppercase tracking-widest font-semibold">
                 <span className="w-5 h-5 rounded-full bg-[#C9A96B]/20 border border-[#C9A96B] flex items-center justify-center text-[10px]">5</span>
-                <span>Declaração Formal de Responsabilidade</span>
+                <span>{t('lgm_portal_step5')}</span>
               </div>
 
               <label className="p-4 bg-white/[0.02] border border-white/15 rounded-lg flex items-start gap-3.5 cursor-pointer hover:border-[#C9A96B]/50 transition-colors">
@@ -543,9 +529,29 @@ export default function PortalPage() {
                   className="mt-1 w-4 h-4 accent-[#C9A96B] rounded cursor-pointer"
                 />
                 <span className="text-xs md:text-sm text-ivory/90 leading-relaxed">
-                  <strong>Declaro, sob as penas da lei e sob minha responsabilidade</strong>, que as informações e documentos aqui fornecidos são verdadeiros segundo meu melhor conhecimento e que estou comunicando formalmente uma situação que considero relevante para a segurança, proteção de direitos ou cumprimento das regras e termos da plataforma Lumiardi.
+                  <strong>{t('lgm_portal_declaration_strong')}</strong>{t('lgm_portal_declaration_text')}
                 </span>
               </label>
+
+              {/* Honeypot invisível para bots */}
+              <div className="hidden" aria-hidden="true" style={{ display: 'none' }}>
+                <label htmlFor="portal_honeypot">Website</label>
+                <input
+                  id="portal_honeypot"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                />
+              </div>
+
+              {errorMessage && (
+                <div className="p-4 bg-red-950/40 border border-red-500/50 rounded-lg text-red-200 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -553,7 +559,7 @@ export default function PortalPage() {
                 className="w-full py-5 bg-[#C9A96B] text-[#0B0B0B] text-xs md:text-sm font-sans tracking-[0.25em] uppercase font-bold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-3 shadow-xl cursor-pointer disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
-                <span>{isSubmitting ? 'Gerando Protocolo Oficial...' : 'Enviar Denúncia Formal →'}</span>
+                <span>{isSubmitting ? t('lgm_portal_submitting') : t('lgm_portal_submit')}</span>
               </button>
             </section>
           </form>
@@ -562,58 +568,58 @@ export default function PortalPage() {
         {/* SEÇÕES DE GOVERNANÇA, SLA E TRANSPARÊNCIA */}
         <section className="pt-16 border-t border-white/10 space-y-10">
           <div className="text-center space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#C9A96B]">Governança & Compliance</span>
+            <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#C9A96B]">{t('lgm_portal_gov_tag')}</span>
             <h2 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-ivory">
-              Estrutura Operacional e Níveis de Serviço (SLA)
+              {t('lgm_portal_gov_title')}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
             <div className="p-5 bg-red-950/20 border border-red-500/30 rounded-lg space-y-2">
-              <span className="text-red-400 font-bold uppercase tracking-wider block">Crítico</span>
-              <p className="font-mono text-ivory font-medium">Priorização Imediata</p>
-              <p className="text-ivory/60 leading-relaxed">Casos de menor de idade (CSAM), risco físico iminente, coerção ou conteúdo íntimo grave.</p>
+              <span className="text-red-400 font-bold uppercase tracking-wider block">{t('lgm_portal_sla_critical')}</span>
+              <p className="font-mono text-ivory font-medium">{t('lgm_portal_sla_critical_time')}</p>
+              <p className="text-ivory/60 leading-relaxed">{t('lgm_portal_sla_critical_desc')}</p>
             </div>
 
             <div className="p-5 bg-amber-950/20 border border-amber-500/30 rounded-lg space-y-2">
-              <span className="text-amber-400 font-bold uppercase tracking-wider block">Alto</span>
-              <p className="font-mono text-ivory font-medium">Até 24 horas</p>
-              <p className="text-ivory/60 leading-relaxed">Direito de imagem da pessoa retratada, impersonação e fraudes financeiras ativas.</p>
+              <span className="text-amber-400 font-bold uppercase tracking-wider block">{t('lgm_portal_sla_high')}</span>
+              <p className="font-mono text-ivory font-medium">{t('lgm_portal_sla_high_time')}</p>
+              <p className="text-ivory/60 leading-relaxed">{t('lgm_portal_sla_high_desc')}</p>
             </div>
 
             <div className="p-5 bg-blue-950/20 border border-blue-500/30 rounded-lg space-y-2">
-              <span className="text-blue-400 font-bold uppercase tracking-wider block">Moderado</span>
-              <p className="font-mono text-ivory font-medium">Até 3 dias úteis</p>
-              <p className="text-ivory/60 leading-relaxed">Disputas de direito autoral (Copyright/DMCA) e violações operacionais de regras.</p>
+              <span className="text-blue-400 font-bold uppercase tracking-wider block">{t('lgm_portal_sla_moderate')}</span>
+              <p className="font-mono text-ivory font-medium">{t('lgm_portal_sla_moderate_time')}</p>
+              <p className="text-ivory/60 leading-relaxed">{t('lgm_portal_sla_moderate_desc')}</p>
             </div>
 
             <div className="p-5 bg-white/[0.02] border border-white/10 rounded-lg space-y-2">
-              <span className="text-ivory/60 font-bold uppercase tracking-wider block">Ordinário</span>
-              <p className="font-mono text-ivory font-medium">Até 5 dias úteis</p>
-              <p className="text-ivory/60 leading-relaxed">Dúvidas regulatórias gerais, pedidos de esclarecimento e recursos procedimentais.</p>
+              <span className="text-ivory/60 font-bold uppercase tracking-wider block">{t('lgm_portal_sla_ordinary')}</span>
+              <p className="font-mono text-ivory font-medium">{t('lgm_portal_sla_ordinary_time')}</p>
+              <p className="text-ivory/60 leading-relaxed">{t('lgm_portal_sla_ordinary_desc')}</p>
             </div>
           </div>
 
           {/* Princípio de Governança Documental */}
           <div className="p-6 bg-white/[0.02] border border-white/10 rounded-lg space-y-3 text-xs md:text-sm text-ivory/80 leading-relaxed">
             <h3 className="font-serif-lumiardi text-xl text-[#C9A96B] font-normal">
-              Princípio Fundamental de Notice-and-Action da Lumiardi
+              {t('lgm_portal_principle_title')}
             </h3>
             <p>
-              A Lumiardi opera com rastreabilidade integral em cadeia auditável:
+              {t('lgm_portal_principle_intro')}
             </p>
             <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-[#C9A96B] pt-2">
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">1. Recebimento</span>
+              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">{t('lgm_portal_flow_1')}</span>
               <span>→</span>
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">2. Triagem e Classificação</span>
+              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">{t('lgm_portal_flow_2')}</span>
               <span>→</span>
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">3. Preservação Probatória</span>
+              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">{t('lgm_portal_flow_3')}</span>
               <span>→</span>
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">4. Análise Legal/Técnica</span>
+              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">{t('lgm_portal_flow_4')}</span>
               <span>→</span>
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">5. Decisão e Medida Cautelar</span>
+              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">{t('lgm_portal_flow_5')}</span>
               <span>→</span>
-              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">6. Comunicação e Registro</span>
+              <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded">{t('lgm_portal_flow_6')}</span>
             </div>
           </div>
         </section>

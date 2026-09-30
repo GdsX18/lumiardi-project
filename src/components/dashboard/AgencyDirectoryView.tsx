@@ -40,18 +40,18 @@ export const AgencyDirectoryView: React.FC = () => {
           // Normaliza formato para exibição — sem valores mockados
           const formatted = data.agencies.map((a: any) => ({
             id: a.id,
-            name: a.basicInfo?.corporateName || a.name || 'Agência Cadastrada',
+            name: a.basicInfo?.corporateName || a.name || '',
             image: a.image || '',
             commission: a.qualitative?.commissionRate || a.commission || null,
+            // Rótulos padrão são traduzidos na renderização (sem localização fictícia)
             location: a.basicInfo?.address
-              ? `${a.basicInfo.address.city || 'São Paulo'}, ${a.basicInfo.address.state || 'SP'}`
-              : 'Brasil',
+              ? [a.basicInfo.address.city, a.basicInfo.address.state].filter(Boolean).join(', ')
+              : '',
             specialty: Array.isArray(a.qualitative?.specialties)
               ? a.qualitative.specialties.join(', ')
-              : a.qualitative?.category || 'Casting & Gestão de Modelos',
+              : a.qualitative?.category || '',
             verified: a.curationStatus === 'APROVADO',
-            description: a.qualitative?.bio || a.description || 'Agência de gestão e casting de talentos homologada na rede Lumiardi.',
-            contractStatus: 'Disponível para Candidatura',
+            description: a.qualitative?.bio || a.description || '',
           }));
           setAgencies(formatted);
         }
@@ -90,7 +90,7 @@ export const AgencyDirectoryView: React.FC = () => {
     } catch (err) {
       console.warn('Erro ao enviar mensagem de candidatura:', err);
     }
-    setProposalSent(selectedAgency.name || selectedAgency.id);
+    setProposalSent(selectedAgency.name || t('dsh_ad_registered_agency'));
     setSelectedAgency(null);
     setCustomPitch('');
   };
@@ -100,15 +100,15 @@ export const AgencyDirectoryView: React.FC = () => {
       {/* Barra de Contexto do Catálogo */}
       <div className="px-6 py-4 bg-[#0F0F0F] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-sm">
         <div className="flex items-center gap-3 flex-wrap">
-          <Badge variant="gold">{t('agency_verified_network') || 'REDE VERIFICADA'}</Badge>
+          <Badge variant="gold">{t('agency_verified_network')}</Badge>
           <span className="text-[11px] font-sans text-ivory/50 uppercase tracking-widest">
-            {t('agency_audited_compliance') || 'Apenas Agências Auditadas com Compliance Ativo'}
+            {t('agency_audited_compliance')}
           </span>
         </div>
 
         <div className="p-2.5 bg-[#161616] border border-gold/30 text-xs font-sans text-gold flex items-center gap-2 rounded-sm shrink-0">
           <ShieldCheck className="w-3.5 h-3.5 text-gold shrink-0" />
-          <span>Contratos Blindados pela Plataforma Lumiardi</span>
+          <span>{t('dsh_ad_shielded_contracts')}</span>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ export const AgencyDirectoryView: React.FC = () => {
         <div className="p-4 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-sans flex items-center justify-between rounded-sm animate-in fade-in">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            Candidatura e Portfólio enviados com sucesso para a diretoria da agência <strong>{proposalSent}</strong>! Eles entrarão em contato via Chat Criptografado.
+            {t('dsh_ad_sent_a')} <strong>{proposalSent}</strong>{t('dsh_ad_sent_b')}
           </span>
           <button
             onClick={() => setProposalSent(null)}
@@ -129,7 +129,7 @@ export const AgencyDirectoryView: React.FC = () => {
       {loading ? (
         <div className="p-12 text-center text-xs font-sans text-ivory/40 flex items-center justify-center gap-2">
           <RefreshCw className="w-4 h-4 animate-spin text-gold" />
-          <span>Sincronizando agências ativas na rede...</span>
+          <span>{t('dsh_ad_syncing')}</span>
         </div>
       ) : fetchError ? (
         <div className="p-12 bg-[#0B0B0B] border border-dashed border-red-900/30 rounded-sm text-center space-y-3">
@@ -138,10 +138,10 @@ export const AgencyDirectoryView: React.FC = () => {
           </div>
           <div className="max-w-sm mx-auto space-y-1">
             <h4 className="font-serif-lumiardi text-lg font-light text-ivory/80">
-              Falha na Sincronização
+              {t('dsh_ad_sync_failed')}
             </h4>
             <p className="text-xs text-ivory/40 font-sans leading-relaxed">
-              Não foi possível carregar o catálogo de agências. Verifique sua conexão e tente novamente.
+              {t('dsh_ad_sync_failed_desc')}
             </p>
           </div>
           <button
@@ -149,7 +149,7 @@ export const AgencyDirectoryView: React.FC = () => {
             className="mt-2 px-4 py-2 border border-white/10 text-xs font-sans text-ivory/60 hover:text-ivory hover:border-white/20 transition-colors rounded-xs flex items-center gap-1.5 mx-auto cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" />
-            Tentar novamente
+            {t('dsh_ad_retry')}
           </button>
         </div>
       ) : agencies.length === 0 ? (
@@ -159,10 +159,10 @@ export const AgencyDirectoryView: React.FC = () => {
           </div>
           <div className="max-w-md mx-auto space-y-1.5">
             <h4 className="font-serif-lumiardi text-xl font-light text-ivory">
-              Nenhuma Agência Parceira Disponível no Momento
+              {t('dsh_ad_empty_title')}
             </h4>
             <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-              As agências parceiras estão em processo de curadoria e validação jurídica contínua. Assim que novas agências forem homologadas pela Mesa de Curadoria, elas aparecerão aqui automaticamente.
+              {t('dsh_ad_empty_desc')}
             </p>
           </div>
         </div>
@@ -182,10 +182,10 @@ export const AgencyDirectoryView: React.FC = () => {
 
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-sans text-ivory/40 block">
-                      {t('agency_commission_rate') || 'Taxa Agência'}
+                      {t('agency_commission_rate')}
                     </span>
                     <span className={`font-serif-lumiardi text-2xl font-medium ${agency.commission ? 'text-gold' : 'text-ivory/40'}`}>
-                      {agency.commission || 'Sob Consulta'}
+                      {agency.commission || t('dsh_ov_on_request')}
                     </span>
                   </div>
                 </div>
@@ -193,31 +193,31 @@ export const AgencyDirectoryView: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
                     <h3 className="font-serif-lumiardi text-xl font-medium text-ivory group-hover:text-gold transition-colors">
-                      {agency.name}
+                      {agency.name || t('dsh_ad_registered_agency')}
                     </h3>
                     <ShieldCheck className="w-4 h-4 text-gold shrink-0" />
                   </div>
 
                   <p className="text-xs text-ivory/50 font-sans flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-bronze" />
-                    <span>{agency.location}</span>
+                    <span>{agency.location || t('dsh_ad_brazil')}</span>
                   </p>
 
                   <p className="text-xs font-sans text-ivory/70 leading-relaxed pt-2">
-                    {agency.description}
+                    {agency.description || t('dsh_ad_default_desc')}
                   </p>
                 </div>
 
                 {/* Tags de Especialidade */}
                 <div className="mt-4 pt-3 border-t border-white/5 space-y-2 text-[11px] font-sans">
                   <div className="flex items-center justify-between text-ivory/60">
-                    <span>Especialidade:</span>
-                    <span className="text-ivory font-medium text-right">{agency.specialty}</span>
+                    <span>{t('dsh_ad_specialty')}</span>
+                    <span className="text-ivory font-medium text-right">{agency.specialty || t('dsh_ad_default_specialty')}</span>
                   </div>
                   <div className="flex items-center justify-between text-ivory/60">
-                    <span>Compliance:</span>
+                    <span>{t('dsh_ad_compliance')}</span>
                     <span className="text-emerald-400 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Auditado Lumiardi
+                      <CheckCircle2 className="w-3 h-3" /> {t('dsh_ad_audited')}
                     </span>
                   </div>
                 </div>
@@ -226,7 +226,7 @@ export const AgencyDirectoryView: React.FC = () => {
               {/* Ação de Candidatura */}
               <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-3">
                 <span className="text-[10px] font-sans text-emerald-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {agency.contractStatus}
+                  <Clock className="w-3 h-3" /> {t('dsh_ad_open_for_application')}
                 </span>
 
                 <button
@@ -234,7 +234,7 @@ export const AgencyDirectoryView: React.FC = () => {
                   className="px-4 py-2 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer rounded-xs"
                 >
                   <Send className="w-3 h-3" />
-                  <span>Candidatar</span>
+                  <span>{t('dsh_ad_apply')}</span>
                 </button>
               </div>
             </div>
@@ -266,26 +266,26 @@ export const AgencyDirectoryView: React.FC = () => {
 
               <div>
                 <span className="text-[10px] uppercase tracking-[0.2em] text-gold font-sans font-semibold">
-                  Candidatura Direta de Modelo
+                  {t('dsh_ad_direct_application')}
                 </span>
                 <h3 className="font-serif-lumiardi text-2xl font-light text-ivory mt-1">
-                  Enviar Portfólio para {selectedAgency.name}
+                  {t('dsh_ad_send_portfolio_to').replace('{name}', selectedAgency.name || t('dsh_ad_registered_agency'))}
                 </h3>
                 <p className="text-xs text-ivory/60 font-sans mt-1">
-                  Seu Book fotográfico em alta resolução e a ficha técnica completa serão transmitidos com criptografia.
+                  {t('dsh_ad_modal_desc')}
                 </p>
               </div>
 
               <form onSubmit={handleConfirmApplication} className="space-y-4">
                 <div>
                   <label className="block text-xs font-sans text-ivory/80 uppercase tracking-wider mb-2">
-                    Mensagem de Apresentação / Pitch Pessoal
+                    {t('dsh_ad_pitch_label')}
                   </label>
                   <textarea
                     rows={4}
                     value={customPitch}
                     onChange={(e) => setCustomPitch(e.target.value)}
-                    placeholder={`Ex: Olá equipe ${selectedAgency.name}, tenho interesse em trabalhar com campanhas internacionais...`}
+                    placeholder={t('dsh_ad_pitch_placeholder').replace('{name}', selectedAgency.name || t('dsh_ad_registered_agency'))}
                     className="w-full bg-[#181818] border border-white/10 p-3 text-xs text-ivory focus:outline-none focus:border-gold font-sans rounded-xs"
                     required
                   />
@@ -294,13 +294,13 @@ export const AgencyDirectoryView: React.FC = () => {
                 <div className="p-3 bg-[#141414] border border-white/5 text-[11px] font-sans text-ivory/70 space-y-1 rounded-xs">
                   <div className="flex items-center gap-1.5 text-gold font-medium">
                     <FileText className="w-3.5 h-3.5" />
-                    <span>Itens incluídos no envio:</span>
+                    <span>{t('dsh_ad_items_included')}</span>
                   </div>
                   <ul className="list-disc pl-5 space-y-0.5 text-ivory/50 text-[10px]">
-                    <li>Book com ensaios oficiais cadastrados no seu perfil</li>
-                    <li>Showreel de vídeo (se cadastrado)</li>
-                    <li>Ficha técnica com biometria e medidas corporais</li>
-                    <li>Métricas de conversão e dados de contato</li>
+                    <li>{t('dsh_ad_item_book')}</li>
+                    <li>{t('dsh_ad_item_showreel')}</li>
+                    <li>{t('dsh_ad_item_specs')}</li>
+                    <li>{t('dsh_ad_item_metrics')}</li>
                   </ul>
                 </div>
 
@@ -310,14 +310,14 @@ export const AgencyDirectoryView: React.FC = () => {
                     onClick={() => setSelectedAgency(null)}
                     className="px-4 py-2.5 text-xs uppercase font-sans text-ivory/60 hover:text-ivory cursor-pointer"
                   >
-                    Cancelar
+                    {t('dsh_ts_cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md rounded-xs"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Transmitir Candidatura</span>
+                    <span>{t('dsh_ad_transmit')}</span>
                   </button>
                 </div>
               </form>

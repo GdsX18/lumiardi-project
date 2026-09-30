@@ -20,7 +20,7 @@ export interface TwoFactorModalProps {
 }
 
 export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { t } = useLanguage();
+  const { t, tApiError } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'loading' | 'qrcode' | 'success'>('loading');
   const [secret, setSecret] = useState('');
@@ -49,7 +49,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
         setCurrentOtp(data.currentOtp || '');
         setStep('qrcode');
       } else {
-        throw new Error(data.error || t('twofa_err_generate'));
+        throw new Error(tApiError(data, 'twofa_err_generate'));
       }
     } catch (e: any) {
       setErrorMessage(e.message || t('twofa_err_connect'));
@@ -89,7 +89,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
           onSuccess(secret);
         }
       } else {
-        throw new Error(data.error || t('twofa_err_incorrect'));
+        throw new Error(tApiError(data, 'twofa_err_incorrect'));
       }
     } catch (e: any) {
       setErrorMessage(e.message || t('twofa_err_invalid'));
@@ -136,7 +136,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
         <button
           onClick={onClose}
           className="absolute top-3 right-3 sm:top-4 sm:right-4 text-ivory/50 hover:text-[#C9A96B] p-2 cursor-pointer transition-colors"
-          aria-label="Fechar"
+          aria-label={t('dwg_2fa_close')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -172,7 +172,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                 {!imageError && qrCodeUrl ? (
                   <img
                     src={qrCodeUrl}
-                    alt="QR Code 2FA"
+                    alt={t('dwg_2fa_qr_alt')}
                     className="w-28 h-28 sm:w-32 sm:h-32 block object-contain"
                     onError={() => setImageError(true)}
                   />

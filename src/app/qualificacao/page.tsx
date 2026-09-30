@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
 import { QualificationSteps } from '@/components/sections/QualificationSteps';
-import { DocumentUploadField } from '@/components/ui/DocumentUploadField';
 import { LocationSelector } from '@/components/ui/LocationSelector';
 import { CurationScheduler } from '@/components/ui/CurationScheduler';
 import { Badge } from '@/components/ui/Badge';
@@ -26,27 +25,27 @@ import {
   KeyRound,
   ChevronDown,
 } from 'lucide-react';
-import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
+import { KYCVerificationModal, DocumentUploadPayload } from '@/components/dashboard/KYCVerificationModal';
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
+import { TermsAcceptanceModal } from '@/components/ui/TermsAcceptanceModal';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   CreatorCategory,
   GenderIdentity,
   AvailabilityPeriod,
-  CompleteCreatorProfile,
-  DocumentUploadData,
   CurationAppointment,
 } from '@/types';
 
-const LANGUAGE_OPTIONS = [
-  'Português',
-  'Inglês',
-  'Espanhol',
-  'Francês',
-  'Italiano',
-  'Alemão',
-  'Russo',
-  'Outro',
+// Valores enviados à API permanecem estáveis (em português); apenas o rótulo é traduzido
+const LANGUAGE_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'Português', labelKey: 'pub_qual_lang_pt' },
+  { value: 'Inglês', labelKey: 'pub_qual_lang_en' },
+  { value: 'Espanhol', labelKey: 'pub_qual_lang_es' },
+  { value: 'Francês', labelKey: 'pub_qual_lang_fr' },
+  { value: 'Italiano', labelKey: 'pub_qual_lang_it' },
+  { value: 'Alemão', labelKey: 'pub_qual_lang_de' },
+  { value: 'Russo', labelKey: 'pub_qual_lang_ru' },
+  { value: 'Outro', labelKey: 'pub_qual_lang_other' },
 ];
 
 function QualificacaoContent() {
@@ -54,9 +53,7 @@ function QualificacaoContent() {
   const searchParams = useSearchParams();
   const selectedPlan = searchParams.get('plan') || 'glow';
   const selectedBilling = searchParams.get('billing') || 'yearly';
-  const paramCurrency = searchParams.get('currency');
-  const { t, currency } = useLanguage();
-  const activeCurrency = paramCurrency || currency || 'BRL';
+  const { t, tApiError, formatDate } = useLanguage();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,6 +63,8 @@ function QualificacaoContent() {
   const [isKYCVerified, setIsKYCVerified] = useState(false);
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
   const [is2FAVerified, setIs2FAVerified] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Gêneros com labels traduzidos
   const genderOptionsList: { value: GenderIdentity; label: string }[] = [
@@ -148,7 +147,20 @@ function QualificacaoContent() {
   ];
 
   // ─── ETAPA 1: Cadastro Inicial & Documento ───────────────────────
-  const [basicData, setBasicData] = useState({
+  const [basicData, setBasicData] = useState<{
+    fullName: string;
+    cpf: string;
+    birthDate: string;
+    email: string;
+    whatsapp: string;
+    password: string;
+    address: {
+      country: string;
+      state: string;
+      city: string;
+    };
+    document: DocumentUploadPayload | null;
+  }>({
     fullName: '',
     cpf: '',
     birthDate: '',
@@ -160,7 +172,7 @@ function QualificacaoContent() {
       state: 'SP',
       city: '',
     },
-    document: null as any,
+    document: null,
   });
 
   // ─── ETAPA 2: Dados Qualitativos & Medidas ────────────────────────
@@ -252,7 +264,7 @@ function QualificacaoContent() {
 
     const cleanWhatsapp = basicData.whatsapp.replace(/\D/g, '');
     if (!cleanWhatsapp || cleanWhatsapp.length < 10) {
-      setSubmissionError('O WhatsApp com DDD é estritamente obrigatório para que a Mesa de Curadoria envie o link do Google Meet da sua entrevista.');
+      setSubmissionError(t('pub_qual_err_whatsapp_required'));
       return;
     }
 
@@ -267,12 +279,17 @@ function QualificacaoContent() {
     }
 
     if (!isKYCVerified) {
-      setSubmissionError('A validação biométrica facial 3D e comprovação de maioridade (+18) é obrigatória para cadastro na Lumiardi.');
+      setSubmissionError(t('pub_qual_err_kyc_required'));
       return;
     }
 
     if (!is2FAVerified) {
-      setSubmissionError('A ativação da Blindagem 2FA (Google Authenticator) é obrigatória para proteger sua conta.');
+      setSubmissionError(t('pub_qual_err_2fa_required'));
+      return;
+    }
+
+    if (!termsAccepted) {
+      setShowTerms(true);
       return;
     }
 
@@ -329,7 +346,7 @@ function QualificacaoContent() {
     setSubmissionError(null);
 
     if (!appointment.date || !appointment.timeSlot) {
-      setSubmissionError('A seleção de data e horário para a sua entrevista de curadoria prévia é estritamente obrigatória.');
+      setSubmissionError(t('pub_qual_err_schedule_required'));
       setIsSubmitting(false);
       return;
     }
@@ -345,7 +362,14 @@ function QualificacaoContent() {
           phone: basicData.whatsapp,
           password: basicData.password,
           address: basicData.address,
-          document: basicData.document!,
+          document: {
+            documentType: basicData.document?.type === 'passaporte' ? 'passaporte' : 'rg_cnh',
+            fileName: basicData.document?.fileName || 'documento.pdf',
+            fileSize: basicData.document?.fileSize,
+            fileUrl: basicData.document?.fileUrl,
+            uploadedAt: new Date().toISOString(),
+            verifiedStatus: 'verified',
+          },
           createdAt: new Date().toISOString(),
         },
         qualitative: {
@@ -373,7 +397,7 @@ function QualificacaoContent() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || t('err_submission_failed'));
+        throw new Error(tApiError(errorData, 'err_submission_failed'));
       }
 
       try {
@@ -442,14 +466,14 @@ function QualificacaoContent() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#C9A96B]/5 rounded-full blur-[140px] pointer-events-none" />
 
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 space-y-4 sm:space-y-6 relative z-10">
-          <Badge variant="gold">{t('qual_badge') || 'CANDIDATURA DE ELITE'}</Badge>
+          <Badge variant="gold">{t('qual_badge')}</Badge>
           
           <h1 className="font-serif-lumiardi text-3xl sm:text-5xl md:text-6xl font-light text-ivory tracking-tight leading-tight">
-            {t('qual_title') || 'A entrada começa com qualificação.'}
+            {t('qual_title')}
           </h1>
 
           <p className="text-sm sm:text-base md:text-lg text-ivory/70 font-sans max-w-2xl mx-auto font-light leading-relaxed">
-            {t('qual_desc') || 'Processo exclusivo para criadoras que desejam gestão internacional, sigilo absoluto e conexões com agências de alta performance.'}
+            {t('qual_desc')}
           </p>
 
           <QualificationSteps currentStep={currentStep} />
@@ -462,10 +486,10 @@ function QualificacaoContent() {
                 document.getElementById('qual-form-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
               className="group inline-flex flex-col items-center gap-1 text-ivory/60 hover:text-[#C9A96B] transition-colors cursor-pointer"
-              aria-label="Rolar até o formulário de cadastro"
+              aria-label={t('pub_qual_scroll_aria')}
             >
               <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#C9A96B]/80 group-hover:text-[#C9A96B] transition-colors">
-                Preencher Cadastro
+                {t('pub_qual_fill_form')}
               </span>
               <ChevronDown className="w-4 h-4 text-[#C9A96B]/70 group-hover:text-[#C9A96B] transition-colors stroke-[1.5]" />
             </button>
@@ -487,37 +511,37 @@ function QualificacaoContent() {
 
               <div className="space-y-2 sm:space-y-3">
                 <span className="text-[10px] uppercase tracking-[0.3em] text-[#8C6B2F] font-sans font-semibold">
-                  MESA DE CURADORIA LUMIARDI
+                  {t('pub_qual_curation_desk')}
                 </span>
                 <h2 className="font-serif-lumiardi text-2xl sm:text-3xl md:text-5xl font-light text-[#0B0B0B] leading-tight">
-                  Entrevista de Curadoria Agendada
+                  {t('pub_qual_success_title')}
                 </h2>
                 <p className="text-xs sm:text-sm md:text-base text-[#0B0B0B]/75 font-sans leading-relaxed max-w-xl mx-auto font-light">
-                  Sua candidatura preliminar e validação biométrica foram registradas com sucesso. A próxima etapa obrigatória é a reunião de alinhamento com nossa Mesa de Curadoria.
+                  {t('pub_qual_success_desc')}
                 </p>
               </div>
 
               {/* Card Resumo do Agendamento */}
               <div className="bg-[#FAF7F2] border border-[#C9A96B]/40 p-4 sm:p-6 max-w-md mx-auto text-left space-y-3">
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Candidata</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('pub_qual_summary_candidate')}</span>
                   <span className="font-serif-lumiardi text-base sm:text-lg font-medium text-[#0B0B0B] truncate max-w-[200px]">{qualitativeData.artisticName || basicData.fullName}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">WhatsApp Cadastrado</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('pub_qual_summary_whatsapp')}</span>
                   <span className="text-xs font-mono text-[#8C6B2F] font-bold truncate max-w-[200px]">{basicData.whatsapp}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Data da Entrevista</span>
-                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? appointment.date.split('-').reverse().join('/') : 'A definir'}</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('pub_qual_summary_date')}</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? formatDate(`${appointment.date}T00:00:00`) : t('qual_summary_tbd')}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Horário Agendado</span>
-                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.timeSlot} (Horário de Brasília)</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('pub_qual_summary_time')}</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.timeSlot} {t('pub_qual_summary_tz')}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">Plano Pretendido</span>
-                  <span className="text-xs font-mono uppercase tracking-wider text-[#8C6B2F] font-semibold">{selectedPlan.toUpperCase()} ({selectedBilling === 'yearly' ? 'Anual' : 'Mensal'})</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('pub_qual_summary_plan')}</span>
+                  <span className="text-xs font-mono uppercase tracking-wider text-[#8C6B2F] font-semibold">{selectedPlan.toUpperCase()} ({selectedBilling === 'yearly' ? t('sub_interval_yearly') : t('sub_interval_monthly')})</span>
                 </div>
               </div>
 
@@ -525,13 +549,13 @@ function QualificacaoContent() {
               <div className="p-4 bg-amber-50/80 border border-amber-300 text-[11px] sm:text-xs text-amber-900 font-sans text-left space-y-1.5 max-w-md mx-auto leading-relaxed">
                 <div className="flex items-center gap-2 font-semibold text-amber-950 uppercase tracking-wider text-[10px]">
                   <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>Protocolo de Entrada Lumiardi</span>
+                  <span>{t('pub_qual_protocol_title')}</span>
                 </div>
                 <p>
-                  No horário agendado, a Mesa de Curadoria enviará o link seguro da sala confidencial do Google Meet diretamente para o seu WhatsApp.
+                  {t('pub_qual_protocol_desc')}
                 </p>
                 <p className="text-[10px] text-amber-800/90 pt-1 border-t border-amber-200">
-                  ⚠️ <strong>Regra de Negócio:</strong> O pagamento da assinatura e a liberação de acesso à plataforma ocorrem exclusivamente após a conclusão desta reunião.
+                  ⚠️ <strong>{t('pub_qual_business_rule_label')}</strong> {t('pub_qual_business_rule_desc')}
                 </p>
               </div>
 
@@ -542,7 +566,7 @@ function QualificacaoContent() {
                   className="w-full py-4 px-6 text-xs sm:text-sm tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl leading-normal text-center cursor-pointer"
                 >
                   <CalendarCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                  <span>Acompanhar Status da Entrevista →</span>
+                  <span>{t('pub_qual_btn_track_interview')}</span>
                 </Button>
               </div>
             </div>
@@ -622,9 +646,9 @@ function QualificacaoContent() {
                       </div>
 
                       <div>
-                        <label className="block text-[#0B0B0B]/90 font-semibold mb-1 uppercase tracking-wider flex items-center justify-between">
-                          <span>WhatsApp com DDD (Link do Meet)</span>
-                          <span className="text-[10px] font-mono text-[#8C6B2F] font-bold">OBRIGATÓRIO</span>
+                        <label className="text-[#0B0B0B]/90 font-semibold mb-1 uppercase tracking-wider flex items-center justify-between">
+                          <span>{t('pub_qual_whatsapp_label')}</span>
+                          <span className="text-[10px] font-mono text-[#8C6B2F] font-bold">{t('pub_qual_required_tag')}</span>
                         </label>
                         <input
                           type="tel"
@@ -644,7 +668,7 @@ function QualificacaoContent() {
                           className="w-full px-4 py-3 border-2 border-[#C9A96B]/60 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B] font-medium"
                         />
                         <span className="text-[10px] text-[#0B0B0B]/60 mt-1 block">
-                          Número onde você receberá o convite confidencial do Google Meet no horário da reunião.
+                          {t('pub_qual_whatsapp_hint')}
                         </span>
                       </div>
                     </div>
@@ -906,14 +930,14 @@ function QualificacaoContent() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
                         <div>
-                          <label className="block text-[#0B0B0B]/90 font-semibold mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                          <label className="text-[#0B0B0B]/90 font-semibold mb-1 uppercase tracking-wider flex items-center gap-1.5">
                             <Camera className="w-3.5 h-3.5 text-[#8C6B2F]" />
                             <span>{t('qual_insta_label')}</span>
                           </label>
                           <input
                             type="text"
                             required
-                            placeholder="@seuusuario"
+                            placeholder={t('pub_qual_insta_placeholder')}
                             value={qualitativeData.platforms.instagram}
                             onChange={(e) => {
                               let val = e.target.value;
@@ -933,7 +957,7 @@ function QualificacaoContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="seu_usuario_privacy"
+                            placeholder={t('pub_qual_privacy_placeholder')}
                             value={qualitativeData.platforms.privacy}
                             onChange={(e) => setQualitativeData({
                               ...qualitativeData,
@@ -949,7 +973,7 @@ function QualificacaoContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="seu_onlyfans"
+                            placeholder={t('pub_qual_onlyfans_placeholder')}
                             value={qualitativeData.platforms.onlyfans}
                             onChange={(e) => setQualitativeData({
                               ...qualitativeData,
@@ -965,7 +989,7 @@ function QualificacaoContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="perfil fatal models"
+                            placeholder={t('pub_qual_fatal_models_placeholder')}
                             value={qualitativeData.platforms.fatalModels}
                             onChange={(e) => setQualitativeData({
                               ...qualitativeData,
@@ -981,7 +1005,7 @@ function QualificacaoContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="perfil fatal fans"
+                            placeholder={t('pub_qual_fatal_fans_placeholder')}
                             value={qualitativeData.platforms.fatalFans}
                             onChange={(e) => setQualitativeData({
                               ...qualitativeData,
@@ -997,7 +1021,7 @@ function QualificacaoContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="@seu_perfil_x"
+                            placeholder={t('pub_qual_twitter_placeholder')}
                             value={qualitativeData.platforms.twitter}
                             onChange={(e) => setQualitativeData({
                               ...qualitativeData,
@@ -1081,7 +1105,7 @@ function QualificacaoContent() {
                                   : 'bg-[#FAF7F2] text-[#0B0B0B]/70 border-[#0B0B0B]/15 hover:border-[#C9A96B]'
                               }`}
                             >
-                              {p.label} {isSelected && '(Selecionado)'}
+                              {p.label} {isSelected && t('pub_qual_selected')}
                             </button>
                           );
                         })}
@@ -1127,7 +1151,7 @@ function QualificacaoContent() {
                         {t('qual_languages_label')}
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {LANGUAGE_OPTIONS.map((lang) => {
+                        {LANGUAGE_OPTIONS.map(({ value: lang, labelKey }) => {
                           const isSelected = qualitativeData.languages.includes(lang);
                           return (
                             <button
@@ -1140,7 +1164,7 @@ function QualificacaoContent() {
                                   : 'bg-[#FAF7F2] text-[#0B0B0B]/70 border-[#0B0B0B]/15 hover:border-[#8C6B2F]'
                               }`}
                             >
-                              {lang} {isSelected && '(Selecionado)'}
+                              {t(labelKey)} {isSelected && t('pub_qual_selected')}
                             </button>
                           );
                         })}
@@ -1154,7 +1178,7 @@ function QualificacaoContent() {
                           <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/90">
                             {t('qual_exposure_label')}
                           </label>
-                          <span className={`text-[11px] font-sans font-mono ${
+                          <span className={`text-[11px] font-mono ${
                             qualitativeData.exposureOpinion.length === 50 ? 'text-amber-700 font-bold' : 'text-[#0B0B0B]/50'
                           }`}>
                             {qualitativeData.exposureOpinion.length}/50
@@ -1190,7 +1214,7 @@ function QualificacaoContent() {
                           <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#0B0B0B]/90">
                             {t('qual_maingoal_label')}
                           </label>
-                          <span className={`text-[11px] font-sans font-mono ${
+                          <span className={`text-[11px] font-mono ${
                             qualitativeData.mainGoal.length === 50 ? 'text-amber-700 font-bold' : 'text-[#0B0B0B]/50'
                           }`}>
                             {qualitativeData.mainGoal.length}/50
@@ -1411,7 +1435,7 @@ function QualificacaoContent() {
                   <CurationScheduler
                     userType="criadora"
                     selectedAppointment={appointment}
-                    onScheduleChange={(appt) => setAppointment(appt)}
+                    onScheduleChange={(appt: CurationAppointment) => setAppointment(appt)}
                   />
 
                   <div className="p-4 bg-[#FAF7F2] border border-[#0B0B0B]/10 text-xs text-[#0B0B0B]/75 font-sans space-y-2">
@@ -1443,7 +1467,7 @@ function QualificacaoContent() {
                       className="w-full sm:w-auto px-10 py-4 bg-[#C9A96B] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] sm:tracking-[0.25em] font-bold hover:bg-[#D4B87A] transition-all flex items-center justify-center gap-3 cursor-pointer shadow-xl disabled:opacity-50 text-center"
                     >
                       <Check className="w-4 h-4 shrink-0" />
-                      <span>{isSubmitting ? t('qual_btn_submitting') : 'Concluir Agendamento de Curadoria →'}</span>
+                      <span>{isSubmitting ? t('qual_btn_submitting') : t('pub_qual_btn_finish')}</span>
                     </button>
                   </div>
                 </div>
@@ -1481,14 +1505,27 @@ function QualificacaoContent() {
         }}
       />
 
+      <TermsAcceptanceModal
+        isOpen={showTerms}
+        onAccept={() => {
+          setTermsAccepted(true);
+          setShowTerms(false);
+          // User will continue to step 2 after manual click, or automatically if handled in useEffect
+          setCurrentStep(2);
+          window.scrollTo({ top: 300, behavior: 'smooth' });
+        }}
+        termsVersion="v2.1-2026-09"
+      />
+
       <Footer />
     </main>
   );
 }
 
 export default function QualificacaoPage() {
+  const { t } = useLanguage();
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center text-[#C9A96B] font-serif-lumiardi text-xl">Carregando formulário de qualificação...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center text-[#C9A96B] font-serif-lumiardi text-xl">{t('pub_qual_loading')}</div>}>
       <QualificacaoContent />
     </Suspense>
   );

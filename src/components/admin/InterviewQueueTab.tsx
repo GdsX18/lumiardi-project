@@ -15,8 +15,10 @@ import {
   ShieldCheck,
   User,
   AlertCircle,
+  Mail,
 } from 'lucide-react';
 import { CurationInterview, CurationRole } from '@/types';
+import { AdminNotice, AdminNoticeType } from './AdminNotice';
 
 interface InterviewQueueTabProps {
   currentCuratorRole?: CurationRole;
@@ -32,7 +34,9 @@ export function InterviewQueueTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('aguardando_reuniao');
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  // Um único aviso por vez: uma nova mensagem substitui a anterior (nada de alertas empilhados/duplicados)
+  const [notice, setNotice] = useState<{ type: AdminNoticeType; message: string } | null>(null);
+  const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
 
   // Modal de Recusa
   const [rejectingItem, setRejectingItem] = useState<CurationInterview | null>(null);
@@ -71,13 +75,16 @@ export function InterviewQueueTab({
       });
 
       if (res.ok) {
-        setActionSuccess(`Candidata ${item.fullName} aprovada para pagamento com sucesso!`);
-        setTimeout(() => setActionSuccess(null), 4000);
+        setNotice({ type: 'success', message: `Candidata ${item.fullName} aprovada para pagamento com sucesso!` });
         await loadInterviews();
         if (onRefreshMetrics) onRefreshMetrics();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNotice({ type: 'error', message: data.error || 'Não foi possível aprovar a candidata.' });
       }
     } catch (err) {
       console.error('Erro ao aprovar para pagamento:', err);
+      setNotice({ type: 'error', message: 'Erro de conexão ao aprovar a candidata. Tente novamente.' });
     } finally {
       setProcessingId(null);
     }
@@ -97,15 +104,18 @@ export function InterviewQueueTab({
       });
 
       if (res.ok) {
-        setActionSuccess(`Candidatura de ${rejectingItem.fullName} encerrada com justificativa protocolada.`);
+        setNotice({ type: 'success', message: `Candidatura de ${rejectingItem.fullName} encerrada com justificativa protocolada.` });
         setRejectingItem(null);
         setRejectReason('');
-        setTimeout(() => setActionSuccess(null), 4000);
         await loadInterviews();
         if (onRefreshMetrics) onRefreshMetrics();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNotice({ type: 'error', message: data.error || 'Não foi possível recusar a candidatura.' });
       }
     } catch (err) {
       console.error('Erro ao recusar candidatura:', err);
+      setNotice({ type: 'error', message: 'Erro de conexão ao recusar a candidatura. Tente novamente.' });
     } finally {
       setProcessingId(null);
     }
@@ -121,15 +131,69 @@ export function InterviewQueueTab({
     );
   });
 
-  const generateWhatsAppLink = (item: CurationInterview) => {
-    const rawNumber = item.whatsapp.replace(/\D/g, '');
-    const cleanNumber = rawNumber.startsWith('55') ? rawNumber : `55${rawNumber}`;
-    const candidateName = item.artisticName || item.fullName;
-    const dateFormatted = item.interviewDate.split('-').reverse().join('/');
-    const text = encodeURIComponent(
-      `Olá, ${candidateName}! Aqui é da Mesa de Curadoria Oficial da Lumiardi.\n\nConfirmamos a sua entrevista de curadoria prévia para hoje (${dateFormatted}) às ${item.interviewTime} (Horário de Brasília).\n\nAcesse a sala segura do Google Meet pelo link abaixo:\nhttps://meet.google.com/new\n\nAguardamos você para iniciarmos a reunião!`
-    );
-    return `https://wa.me/${cleanNumber}?text=${text}`;
+  const handleSendEmailInvite = async (item: CurationInterview) => {
+    if (sendingInviteId === item.id) return;
+    setSendingInviteId(item.id);
+    try {
+      let meetLink = '';
+      let roomPasscode: string | undefined;
+
+      try {
+        const roomRes = await fetch('/api/meet/room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customRoomName: `curation-${item.userId || item.id}`,
+          }),
+        });
+        if (roomRes.ok) {
+          const roomData = await roomRes.json();
+          meetLink = roomData.inviteUrl || roomData.dailyRoomUrl || `${window.location.origin}/dashboard/meet?room=${roomData.roomId}`;
+          roomPasscode = roomData.passcode;
+        }
+      } catch (roomErr) {
+        console.warn('[InterviewQueueTab] Falha ao pré-gerar sala Meet, fallback ativado:', roomErr);
+      }
+
+      if (!meetLink) {
+        meetLink = `${window.location.origin}/dashboard/meet?room=curation-${item.userId || item.id}`;
+      }
+
+      // Send the email invite
+      const res = await fetch('/api/admin/send-interview-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interviewId: item.id,
+          candidateId: item.userId || item.id,
+          userId: item.userId,
+          email: item.email,
+          interviewDate: item.interviewDate,
+          interviewTime: item.interviewTime,
+          meetLink,
+          roomPasscode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.simulated) {
+          setNotice({
+            type: 'warning',
+            message: data.message || 'Chaves de envio de e-mail não configuradas. Convite registrado localmente.',
+          });
+        } else {
+          setNotice({ type: 'success', message: `Convite de reunião enviado com sucesso para ${data.sentTo}!` });
+        }
+      } else {
+        const errorText = data.message || data.error || 'Falha ao enviar convite';
+        setNotice({ type: 'error', message: `Falha ao enviar convite: ${errorText}` });
+      }
+    } catch (err) {
+      console.error('[InterviewQueueTab] Erro ao enviar convite:', err);
+      setNotice({ type: 'error', message: 'Erro de conexão ao enviar convite de reunião. Tente novamente.' });
+    } finally {
+      setSendingInviteId(null);
+    }
   };
 
   return (
@@ -198,12 +262,14 @@ export function InterviewQueueTab({
         </div>
       </div>
 
-      {/* Alerta de Ação Bem Sucedida */}
-      {actionSuccess && (
-        <div className="p-3.5 bg-emerald-950/40 border border-emerald-500/50 text-emerald-400 text-xs font-sans rounded-xs flex items-center gap-2 animate-in fade-in duration-300">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{actionSuccess}</span>
-        </div>
+      {/* Aviso de ação (fecha em 5 s ou no X) */}
+      {notice && (
+        <AdminNotice
+          variant="inline"
+          type={notice.type}
+          message={notice.message}
+          onClose={() => setNotice(null)}
+        />
       )}
 
       {/* Lista de Entrevistas */}
@@ -306,16 +372,25 @@ export function InterviewQueueTab({
                 {/* Barra de Ações Operacionais */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                   <div className="flex items-center gap-2">
-                    {/* Botão de Atalho WhatsApp */}
-                    <a
-                      href={generateWhatsAppLink(item)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-xs transition-all flex items-center gap-2"
+                    {/* Botão de Envio de Convite por E-mail */}
+                    <button
+                      type="button"
+                      disabled={sendingInviteId === item.id}
+                      onClick={() => handleSendEmailInvite(item)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-ivory/10 hover:bg-ivory/20 text-ivory border border-ivory/20 rounded transition-colors disabled:opacity-50 cursor-pointer"
                     >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>Abrir WhatsApp & Enviar Meet</span>
-                    </a>
+                      {sendingInviteId === item.id ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Enviando Convite...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail size={13} />
+                          <span>Send Interview Invite</span>
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* Ações de Decisão da Curadoria */}

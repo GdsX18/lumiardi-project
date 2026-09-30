@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ShieldCheck,
   Camera,
   FileCheck2,
   CheckCircle2,
@@ -13,11 +12,9 @@ import {
   UserCheck,
   Lock,
   UploadCloud,
-  FileText,
   Trash2,
   Video,
   AlertTriangle,
-  Fingerprint,
 } from 'lucide-react';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -65,7 +62,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   // Estados da Câmera e Captura Real
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const [_isScanning, setIsScanning] = useState(false);
   const [livenessProgress, setLivenessProgress] = useState(0);
   const [scanPrompt, setScanPrompt] = useState(t('kyc_prompt_look_cam'));
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -193,7 +190,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
           video: true,
           audio: false,
         });
-      } catch (firstErr) {
+      } catch {
         // Fallback para pedido mínimo absoluto
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -222,7 +219,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         msg.includes('Could not start video source')
       ) {
         setCameraPermissionError(
-          'Não foi possível iniciar a fonte de vídeo (câmera ocupada por outro app ou indisponível). Você pode tentar novamente ou enviar uma foto do rosto abaixo.'
+          t('dwg_kyc_err_video_source')
         );
       } else if (name === 'NotAllowedError' || msg.includes('NotAllowedError') || msg.includes('Permission') || msg.includes('denied')) {
         setCameraPermissionError(t('kyc_err_permission_denied'));
@@ -361,7 +358,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       clearTimeout(timeoutId);
       const msg = e instanceof Error && e.name === 'AbortError'
         ? t('kyc_err_timeout')
-        : e instanceof Error ? e.message : t('kyc_err_processing');
+        : t('kyc_err_processing');
       setErrorMsg(msg);
       setStep('rejected');
     }
@@ -406,7 +403,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
             onClose();
           }}
           className="absolute top-3 right-3 sm:top-4 sm:right-4 text-ivory/50 hover:text-[#C9A96B] p-2 cursor-pointer transition-colors"
-          aria-label="Fechar"
+          aria-label={t('dwg_kyc_close_aria')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -429,7 +426,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         {step === 'intro' && (
           <div className="space-y-5">
             <div className="p-4 bg-[#141414] border border-white/5 space-y-3 text-xs">
-              <span className="text-ivory/90 font-semibold block uppercase tracking-wider text-[11px] text-[#C9A96B]">
+              <span className="font-semibold block uppercase tracking-wider text-[11px] text-[#C9A96B]">
                 {t('kyc_step1_doc_select_title')}
               </span>
 
@@ -543,7 +540,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                   {documentPreview && (
                     <img
                       src={documentPreview}
-                      alt="Preview do Documento"
+                      alt={t('dwg_kyc_doc_preview_alt')}
                       className="w-16 h-16 object-cover border border-[#C9A96B]/50 rounded-xs shrink-0"
                     />
                   )}
@@ -673,7 +670,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     className="flex-1 py-2.5 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-semibold uppercase tracking-wider font-sans transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
                   >
                     <UploadCloud className="w-3.5 h-3.5" />
-                    <span>Enviar Foto do Rosto</span>
+                    <span>{t('dwg_kyc_btn_send_face_photo')}</span>
                   </button>
                 </div>
               </div>
@@ -698,7 +695,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                   className="text-[11px] text-ivory/50 hover:text-[#C9A96B] transition-colors inline-flex items-center gap-1.5 pt-1 cursor-pointer"
                 >
                   <UploadCloud className="w-3.5 h-3.5" />
-                  <span>Problemas na câmera? Enviar foto do rosto</span>
+                  <span>{t('dwg_kyc_camera_problems')}</span>
                 </button>
               </div>
             ) : (
@@ -717,7 +714,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                   className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/15 text-ivory/90 hover:text-ivory text-xs uppercase tracking-wider font-semibold font-sans flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <UploadCloud className="w-4 h-4 text-[#C9A96B]" />
-                  <span>Enviar Foto do Rosto</span>
+                  <span>{t('dwg_kyc_btn_send_face_photo')}</span>
                 </button>
               </div>
             )}
@@ -733,7 +730,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 }}
                 className="text-[11px] text-ivory/40 hover:text-ivory transition-colors cursor-pointer"
               >
-                ← Voltar para seleção do documento
+                {t('dwg_kyc_back_to_doc_select')}
               </button>
             </div>
           </div>
@@ -781,7 +778,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 className="px-6 py-3 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs uppercase tracking-wider font-semibold transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Tentar Câmera Novamente</span>
+                <span>{t('dwg_kyc_btn_retry_camera')}</span>
               </button>
               <button
                 type="button"
@@ -793,7 +790,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                 className="px-6 py-3 bg-white/10 text-ivory hover:bg-white/20 text-xs uppercase tracking-wider font-semibold transition-all cursor-pointer border border-white/20 flex items-center justify-center gap-2"
               >
                 <UploadCloud className="w-3.5 h-3.5 text-[#C9A96B]" />
-                <span>Enviar Foto do Rosto</span>
+                <span>{t('dwg_kyc_btn_send_face_photo')}</span>
               </button>
             </div>
 
@@ -805,7 +802,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
               }}
               className="text-[11px] text-ivory/40 hover:text-ivory transition-colors cursor-pointer block mx-auto pt-2"
             >
-              {t('kyc_btn_try_upload_again')} (Trocar Documento)
+              {t('kyc_btn_try_upload_again')} {t('dwg_kyc_change_doc_suffix')}
             </button>
           </div>
         )}

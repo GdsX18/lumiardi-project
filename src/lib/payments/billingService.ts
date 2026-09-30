@@ -395,6 +395,60 @@ export const BillingService = {
   },
 
   /**
+   * Obtém uma fatura específica pelo ID
+   */
+  async getInvoiceById(invoiceId: string): Promise<InvoiceRecord | null> {
+    await initDatabase();
+
+    try {
+      const res = await pool.query(
+        'SELECT * FROM invoices WHERE id = $1 LIMIT 1',
+        [invoiceId]
+      );
+
+      if (res.rows.length > 0) {
+        const r = res.rows[0];
+        return {
+          id: r.id,
+          userId: r.user_id,
+          subscriptionId: r.subscription_id,
+          invoiceNumber: r.invoice_number,
+          amount: Number(r.amount),
+          currency: r.currency,
+          status: r.status,
+          billingReason: r.billing_reason,
+          dueDate: r.due_date,
+          paidAt: r.paid_at,
+          receiptNumber: r.receipt_number,
+          pdfUrl: r.pdf_url,
+          createdAt: r.created_at,
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    const raw = fallbackStore.invoices.get(invoiceId);
+    if (!raw) return null;
+    const inv = raw as Record<string, any>;
+    return {
+      id: inv.id,
+      userId: inv.user_id || inv.userId,
+      subscriptionId: inv.subscription_id || inv.subscriptionId,
+      invoiceNumber: inv.invoice_number || inv.invoiceNumber,
+      amount: Number(inv.amount),
+      currency: inv.currency,
+      status: inv.status,
+      billingReason: inv.billing_reason || inv.billingReason,
+      dueDate: inv.due_date || inv.dueDate,
+      paidAt: inv.paid_at || inv.paidAt,
+      receiptNumber: inv.receipt_number || inv.receiptNumber,
+      pdfUrl: inv.pdf_url || inv.pdfUrl,
+      createdAt: inv.created_at || inv.createdAt,
+    };
+  },
+
+  /**
    * Obtém histórico de repasses/payouts
    */
   async getUserPayouts(userId: string): Promise<PayoutRecord[]> {
@@ -501,7 +555,9 @@ export const BillingService = {
   },
 
   /**
-   * Processa o estorno/reembolso automático de pagamentos quando a curadoria recusa a aplicação
+   * Estorna no gateway as cobranças pagas da usuária quando a curadoria recusa a credencial.
+   * Só reporta `refunded: true` para valores efetivamente estornados pelo Asaas; cobranças que não
+   * puderam ser estornadas automaticamente (ex.: cripto) ficam registradas para tratamento manual.
    */
   async processAutomatedRefund(params: {
     userId: string;
@@ -513,75 +569,62 @@ export const BillingService = {
     amount?: number;
     currency?: string;
     refundedAt?: string;
+    manualReviewRequired?: boolean;
     message: string;
   }> {
     await initDatabase();
     const now = new Date().toISOString();
     const refundCode = `REFUND-LUM-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    const paidRes = await pool.query(
+      `SELECT DISTINCT ON (gateway_transaction_id) gateway_transaction_id, gateway, amount, currency
+       FROM payment_transactions
+       WHERE user_id = $1 AND status = 'success'
+       ORDER BY gateway_transaction_id, created_at DESC`,
+      [params.userId]
+    );
+
+    const { asaasClient } = await import('@/lib/payments/asaasClient');
     let totalRefundAmount = 0;
     let refundCurrency = 'BRL';
-    let hasFoundPayment = false;
+    let manualReviewRequired = false;
 
-    // 1. Busca todas as faturas do usuário
-    const userInvoices = await this.getUserInvoices(params.userId);
-    const paidInvoices = userInvoices.filter((inv) => inv.status === 'paid');
-
-    if (paidInvoices.length > 0) {
-      hasFoundPayment = true;
-      for (const inv of paidInvoices) {
-        totalRefundAmount += inv.amount;
-        refundCurrency = inv.currency || 'BRL';
-
-        // Atualiza a fatura no PostgreSQL
+    for (const tx of paidRes.rows) {
+      const paymentId = String(tx.gateway_transaction_id);
+      if (tx.gateway === 'asaas' && paymentId.startsWith('pay_')) {
         try {
+          await asaasClient.refundPayment(paymentId, `Lumiardi — ${params.reason}`);
+          totalRefundAmount += Number(tx.amount) || 0;
+          refundCurrency = tx.currency || 'BRL';
           await pool.query(
-            `UPDATE invoices SET status = 'refunded' WHERE id = $1`,
-            [inv.id]
+            "UPDATE payment_transactions SET status = 'refund_requested' WHERE gateway_transaction_id = $1 AND status = 'success'",
+            [paymentId]
           );
-        } catch {
-          // Fallback
+        } catch (err) {
+          console.error('[BillingService] Falha ao estornar no Asaas:', paymentId, err);
+          manualReviewRequired = true;
         }
-
-        // Atualiza no fallbackStore
-        const storeInv = fallbackStore.invoices.get(inv.id) as Record<string, any> | undefined;
-        if (storeInv) {
-          storeInv.status = 'refunded';
-          storeInv.refundedAt = now;
-          storeInv.refundCode = refundCode;
-          storeInv.refundReason = params.reason;
-        }
-      }
-    } else {
-      // Se não encontrou faturas com status 'paid', verifica assinatura ativa
-      const sub = await this.getUserSubscription(params.userId);
-      if (sub && sub.amount > 0) {
-        hasFoundPayment = true;
-        totalRefundAmount = sub.amount;
-        refundCurrency = sub.currency || 'BRL';
+      } else {
+        // Cripto e outros meios exigem estorno manual pela equipe financeira
+        manualReviewRequired = true;
       }
     }
 
-    // 2. Cancela a assinatura ativa
-    try {
-      await pool.query(
-        `UPDATE subscriptions SET status = 'cancelled', updated_at = NOW() WHERE user_id = $1`,
-        [params.userId]
-      );
-    } catch {
-      // Fallback
-    }
-    const storeSub = fallbackStore.subscriptions.get(params.userId) as Record<string, any> | undefined;
-    if (storeSub) {
-      storeSub.status = 'cancelled';
-      storeSub.updated_at = now;
-    }
+    // Cancela a assinatura ativa (o acesso é removido pela mudança de status da curadoria)
+    await pool.query(
+      `UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE user_id = $1 AND status = 'active'`,
+      [params.userId]
+    );
 
-    // 3. Registra transação de estorno
     if (totalRefundAmount > 0) {
+      await pool.query(
+        `UPDATE invoices SET status = 'refunded' WHERE user_id = $1 AND status = 'paid'`,
+        [params.userId]
+      ).catch((err) => console.error('[BillingService] Falha ao atualizar faturas estornadas:', err));
+
       await this.recordTransaction({
         userId: params.userId,
-        gateway: 'pix',
+        gateway: 'asaas',
         gatewayTransactionId: refundCode,
         amount: totalRefundAmount,
         currency: refundCurrency,
@@ -592,29 +635,33 @@ export const BillingService = {
           reason: params.reason,
           curatorId: params.curatorId || 'curadoria',
           refundedAt: now,
+          manualReviewRequired,
           type: 'AUTOMATIC_CURATION_REJECTION_REFUND',
         },
         idempotencyKey: `refund_${refundCode}`,
       });
     }
 
-    // 4. Limpa cache
     await cache.delete(`sub:${params.userId}`);
 
-    if (hasFoundPayment && totalRefundAmount > 0) {
+    if (totalRefundAmount > 0) {
       return {
         refunded: true,
         refundCode,
         amount: totalRefundAmount,
         currency: refundCurrency,
         refundedAt: now,
-        message: `Reembolso automático de ${refundCurrency === 'BRL' ? 'R$ ' : '$'}${totalRefundAmount.toFixed(2)} processado com sucesso. Código: ${refundCode}`,
+        manualReviewRequired,
+        message: `Estorno de ${refundCurrency === 'BRL' ? 'R$ ' : '$'}${totalRefundAmount.toFixed(2)} solicitado ao gateway. Código: ${refundCode}`,
       };
     }
 
     return {
       refunded: false,
-      message: 'Nenhum pagamento liquidado pendente de estorno.',
+      manualReviewRequired,
+      message: manualReviewRequired
+        ? 'Há pagamentos que exigem estorno manual pela equipe financeira.'
+        : 'Nenhum pagamento liquidado pendente de estorno.',
     };
   },
 };

@@ -21,7 +21,7 @@ export const HeroSection: React.FC = () => {
         mediaSrc="/hero-video.mp4"
         useShaderBg={true}
         title="LUMIARDI ECOSYSTEM"
-        date="PLATAFORMA GLOBAL & EXCLUSIVA"
+        date={t('footer_platform_tag').toUpperCase()}
         textBlend={false}
       >
         {/* Conteúdo revelado após expansão completa */}

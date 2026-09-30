@@ -1,3 +1,4 @@
+import { safeEqual } from '@/lib/security/secureCompare';
 /**
  * LUMIARDI — ASAAS API v3 CLIENT
  * Integração oficial com a API v3 do Asaas (https://www.asaas.com/)
@@ -162,15 +163,9 @@ export class AsaasClient {
 
       return await createRes.json();
     } catch (err: unknown) {
-      console.warn('[AsaasClient getOrCreateCustomer] Fallback ativado:', err);
-      return {
-        id: `cus_${Date.now()}`,
-        name: params.name,
-        email: params.email,
-        cpfCnpj: cleanCpfCnpj,
-        phone: cleanPhone,
-        externalReference: params.externalReference,
-      };
+      // Sem cliente real no Asaas não há como cobrar: propaga o erro em vez de inventar um ID
+      console.error('[AsaasClient getOrCreateCustomer] Falha:', err);
+      throw err instanceof Error ? err : new Error('Falha ao criar cliente no Asaas');
     }
   }
 
@@ -197,21 +192,24 @@ export class AsaasClient {
         ccv: params.creditCard.ccv,
       };
       const holderInfo = params.creditCardHolderInfo;
-      const holderPhone = (holderInfo.phone || holderInfo.mobilePhone || '11999998888').replace(/\D/g, '');
+      const holderPhone = (holderInfo.phone || holderInfo.mobilePhone || '').replace(/\D/g, '');
 
       payload.creditCardHolderInfo = {
         name: holderInfo.name,
         email: holderInfo.email,
         cpfCnpj: holderInfo.cpfCnpj.replace(/\D/g, ''),
-        postalCode: (holderInfo.postalCode || '01310100').replace(/\D/g, ''),
-        addressNumber: holderInfo.addressNumber || '100',
+        postalCode: (holderInfo.postalCode || '').replace(/\D/g, ''),
+        addressNumber: holderInfo.addressNumber || '',
         phone: holderPhone,
         mobilePhone: holderPhone,
       };
 
-      if (params.installmentCount && params.installmentCount > 1) {
-        payload.installmentCount = params.installmentCount;
-        payload.installmentValue = Number((params.value / params.installmentCount).toFixed(2));
+      const installments = Math.floor(Number(params.installmentCount) || 1);
+      if (installments > 1 && installments <= 12) {
+        // totalValue: o Asaas distribui os centavos entre as parcelas (sem cobrar a menos por arredondamento)
+        delete payload.value;
+        payload.installmentCount = installments;
+        payload.totalValue = params.value;
       }
     }
 
@@ -278,22 +276,36 @@ export class AsaasClient {
   }
 
   /**
+   * Estorno total de uma cobrança (/v3/payments/{id}/refund).
+   * O webhook PAYMENT_REFUNDED confirma a conclusão do estorno.
+   */
+  async refundPayment(paymentId: string, description?: string): Promise<{ id: string; status: string }> {
+    const res = await fetch(`${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/refund`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(description ? { description: description.slice(0, 500) } : {}),
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      const msg = errJson.errors?.[0]?.description || `Falha ao estornar cobrança no Asaas: HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    return await res.json();
+  }
+
+  /**
    * Valida o token de segurança enviado no header do Webhook Asaas
    * Asaas envia o token no header: 'asaas-access-token'
    */
   verifyWebhookToken(receivedToken: string | null | undefined): boolean {
     const secret = this.getWebhookSecret();
 
-    if (!secret) {
-      // Se não configurou segredo ainda, permite em ambiente não produtivo
-      return process.env.NODE_ENV !== 'production';
-    }
-
-    if (!receivedToken) {
+    // Fail-closed em qualquer ambiente: sem segredo configurado, nenhum webhook é aceito
+    if (!secret || !receivedToken) {
       return false;
     }
 
-    return receivedToken.trim() === secret;
+    return safeEqual(receivedToken.trim(), secret);
   }
 }
 

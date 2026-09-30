@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { AuditLogService } from '@/lib/audit/auditService';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getVerifiedAdminSession } from '@/lib/apiAuth';
+import { checkTransition, isCurationStatus } from '@/lib/curation/statusTransitions';
+import { getClientIp } from '@/lib/security/rateLimiter';
+import { pool } from '@/lib/db';
 import { sanitizeInput } from '@/lib/security';
 import { EmailService } from '@/lib/email';
 
@@ -10,10 +13,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getVerifiedAdminSession();
 
-    if (!session || session.role !== 'admin') {
+    if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
@@ -32,15 +34,12 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const status = body.status === 'APROVADO'
-      ? 'APROVADO'
-      : body.status === 'APROVADA_PAGAMENTO'
-      ? 'APROVADA_PAGAMENTO'
-      : body.status === 'AGUARDANDO_REUNIAO'
-      ? 'AGUARDANDO_REUNIAO'
-      : body.status === 'EM_CURATORIA'
-      ? 'EM_CURATORIA'
-      : 'REJEITADO';
+
+    // Status desconhecido é erro — nunca cai para REJEITADO (que dispara reembolso automático)
+    if (!isCurationStatus(body.status)) {
+      return NextResponse.json({ error: 'Status inválido.', code: 'invalid_input' }, { status: 400 });
+    }
+    const status = body.status;
     const rejectionReason = body.rejectionReason ? sanitizeInput(body.rejectionReason) : undefined;
 
     if (status === 'REJEITADO' && !rejectionReason) {
@@ -50,10 +49,23 @@ export async function POST(
       );
     }
 
+    const currentRes = await pool.query('SELECT curation_status FROM users WHERE id = $1', [id]);
+    if (currentRes.rows.length === 0) {
+      return NextResponse.json({ error: 'Candidatura não encontrada.', code: 'not_found' }, { status: 404 });
+    }
+    const previousStatus = String(currentRes.rows[0].curation_status || '').toUpperCase();
+    const transition = checkTransition(previousStatus, status, curationRole);
+    if (!transition.ok) {
+      return NextResponse.json({ error: transition.error, code: transition.code }, { status: transition.status });
+    }
+
     const targetUserRecord = (await StorageService.getUserById(id)) as any;
     const targetName = targetUserRecord?.fullName || targetUserRecord?.user?.name || targetUserRecord?.basicInfo?.fullName || id;
 
     const success = await StorageService.updateApplicationStatus(id, status, rejectionReason);
+    if (!success) {
+      return NextResponse.json({ error: 'Candidatura não encontrada.', code: 'not_found' }, { status: 404 });
+    }
 
     // Sincroniza tabela curation_interviews
     if (status === 'APROVADA_PAGAMENTO') {
@@ -75,9 +87,10 @@ export async function POST(
       await StorageService.updateInterviewStatus(id, 'recusada', rejectionReason, session.id);
     }
 
-    let refundInfo: { refunded: boolean; refundCode?: string; amount?: number; currency?: string; message: string } | null = null;
+    let refundInfo: { refunded: boolean; refundCode?: string; amount?: number; currency?: string; manualReviewRequired?: boolean; message: string } | null = null;
 
-    if (status === 'REJEITADO') {
+    // Reembolso automático só faz sentido para quem pagou (estava APROVADO)
+    if (status === 'REJEITADO' && previousStatus === 'APROVADO') {
       try {
         const { BillingService } = await import('@/lib/payments/billingService');
         refundInfo = await BillingService.processAutomatedRefund({
@@ -90,8 +103,8 @@ export async function POST(
           // Cria notificação formal de estorno para o usuário
           await StorageService.createNotification({
             userId: id,
-            title: 'Reembolso Automático Integral Processado',
-            desc: `Sua candidatura não foi aceita pelos critérios editoriais da Curadoria. O reembolso integral de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} foi efetuado com sucesso para sua forma original de pagamento (Código de Estorno: ${refundInfo.refundCode}).`,
+            title: 'Estorno Solicitado',
+            desc: `Sua credencial não foi mantida pela Curadoria. O estorno de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} foi solicitado para a sua forma original de pagamento e pode levar alguns dias úteis para aparecer (Código: ${refundInfo.refundCode}).`,
             category: 'Financeiro',
             type: 'info',
             link: '/dashboard/pendente',
@@ -104,7 +117,7 @@ export async function POST(
     }
 
     // Registro no Histórico de Auditoria Imutável
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const ip = getClientIp(request.headers);
     await AuditLogService.logAction({
       userId: session.id,
       userName: session.name,
@@ -122,6 +135,7 @@ export async function POST(
       targetType: 'MODELO',
       details: {
         status,
+        previousStatus,
         rejectionReason: rejectionReason || null,
         refund: refundInfo || null,
         decidedAt: new Date().toISOString(),
@@ -154,11 +168,29 @@ export async function POST(
     // Verificação de idempotência: checa se já existe uma mensagem de boas-vindas
     // para este utilizador no canal 'curation', evitando duplicação em re-aprovações.
     if (status === 'APROVADO') {
+      // Notificar a utilizadora da aprovação
       try {
-        const existingMessages = await StorageService.listMessages('curation');
-        const alreadySentWelcome = existingMessages.some(
-          (m) => m.receiverId === id && m.senderRole === 'curadoria' && m.text.includes('canal oficial da Curadoria Lumiardi')
+        await StorageService.createNotification({
+          userId: id,
+          title: 'Credencial Lumiardi Aprovada',
+          desc: 'A sua candidatura foi homologada pela Mesa de Curadoria. Bem-vinda ao ecossistema Lumiardi. Aceda ao seu painel para começar.',
+          category: 'Curadoria',
+          type: 'success',
+          link: '/dashboard',
+          linkText: 'Acessar Painel',
+        });
+      } catch (notifErr) {
+        console.error('[status/APROVADO] Failed to create notification (non-fatal):', notifErr);
+      }
+      try {
+        const welcomeRes = await pool.query(
+          `SELECT 1 FROM messages
+           WHERE conversation_id = 'curation' AND receiver_id = $1 AND sender_role = 'curadoria'
+             AND text LIKE '%canal oficial da Curadoria Lumiardi%'
+           LIMIT 1`,
+          [id]
         );
+        const alreadySentWelcome = welcomeRes.rows.length > 0;
 
         if (!alreadySentWelcome) {
           const auditorFirstName = session.name?.split(' ')[0] || 'Curadoria';
@@ -185,12 +217,12 @@ export async function POST(
         : status === 'EM_CURATORIA'
           ? 'Credencial reaberta e reencaminhada para a Mesa de Curadoria.'
           : refundInfo?.refunded
-            ? `Credencial recusada. Reembolso integral de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} estornado automaticamente (Código: ${refundInfo.refundCode}).`
+            ? `Credencial recusada. Estorno de ${refundInfo.currency === 'BRL' ? 'R$ ' : '$'}${refundInfo.amount?.toFixed(2).replace('.', ',')} solicitado ao gateway (Código: ${refundInfo.refundCode}).${refundInfo.manualReviewRequired ? ' Há pagamentos que exigem estorno manual.' : ''}`
             : 'Credencial recusada com justificativa formal registrada.',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao atualizar status';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[admin/status] Erro ao atualizar status:', err);
+    return NextResponse.json({ error: 'Erro ao atualizar status.', code: 'generic' }, { status: 500 });
   }
 }
 

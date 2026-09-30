@@ -39,7 +39,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   userRole,
   onSuccess,
 }) => {
-  const { t } = useLanguage();
+  const { t, tApiError, formatPrice } = useLanguage();
   const [interval, setInterval] = useState<BillingInterval>('monthly');
 
   // Planos disponíveis conforme o papel
@@ -69,6 +69,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   const selectedPlan = getPlan(selectedPlanId);
   const isYearly = interval === 'yearly';
   const priceBRL = isYearly ? selectedPlan.priceBRL.yearly * 12 : selectedPlan.priceBRL.monthly;
+  const priceLabel = isYearly
+    ? formatPrice(selectedPlan.priceBRL.yearly * 12, selectedPlan.priceUSD.yearly * 12, selectedPlan.priceEUR.yearly * 12)
+    : formatPrice(selectedPlan.priceBRL.monthly, selectedPlan.priceUSD.monthly, selectedPlan.priceEUR.monthly);
 
   // Pix Dados
   const pixCopiaECola = `00020126580014br.gov.bcb.pix0136noreply@lumiardi.com520400005303986540${priceBRL.toFixed(2)}5802BR5918LUMIARDI CLUB6009SAO PAULO62070503***6304`;
@@ -88,7 +91,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       // Simula validação de gateway de pagamento
       if (paymentMethod === 'card') {
         if (!cardData.number || !cardData.name || !cardData.expiry || !cardData.cvv) {
-          throw new Error('Por favor, preencha todos os dados do cartão de crédito.');
+          throw new Error(t('dwg_upg_err_card_fields'));
         }
       }
 
@@ -104,13 +107,13 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Falha ao processar upgrade.');
+        throw new Error(tApiError(data, 'dwg_upg_err_process_failed'));
       }
 
       await onSuccess();
       setStep('success');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao processar o upgrade de plano.';
+      const msg = err instanceof Error ? err.message : t('dwg_upg_err_upgrade_generic');
       setErrorMsg(msg);
     } finally {
       setIsProcessing(false);
@@ -195,7 +198,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     const p = LUMIARDI_PLANS[pId];
                     const isCurrent = currentPlanId === pId;
                     const isSelected = selectedPlanId === pId;
-                    const pPrice = isYearly ? p.priceBRL.yearly : p.priceBRL.monthly;
+                    const pPrice = isYearly
+                      ? formatPrice(p.priceBRL.yearly, p.priceUSD.yearly, p.priceEUR.yearly)
+                      : formatPrice(p.priceBRL.monthly, p.priceUSD.monthly, p.priceEUR.monthly);
 
                     return (
                       <div
@@ -211,7 +216,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       >
                         {p.badge && (
                           <div className="absolute -top-2.5 right-4 px-2 py-0.5 bg-gold text-black-matte text-[9px] font-sans font-bold uppercase tracking-wider">
-                            {p.badge}
+                            {t(`dwg_upg_badge_${pId}`)}
                           </div>
                         )}
 
@@ -226,22 +231,22 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                           </div>
 
                           <div className="text-2xl font-serif-lumiardi text-gold">
-                            R$ {pPrice.toFixed(2)}
+                            {pPrice}
                             <span className="text-[10px] text-ivory/50 font-sans ml-1">/{t('sub_per_month')}</span>
                           </div>
 
                           <div className="pt-2 border-t border-white/10 space-y-2 text-[11px] font-sans text-ivory/70">
                             <div className="flex items-center gap-1.5 text-ivory">
                               <HardDrive className="w-3.5 h-3.5 text-gold shrink-0" />
-                              <span>{p.limits.maxDriveStorageGB} GB Drive</span>
+                              <span>{t('dwg_upg_drive_gb').replace('{gb}', String(p.limits.maxDriveStorageGB))}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-ivory">
                               <Search className="w-3.5 h-3.5 text-gold shrink-0" />
-                              <span>{p.limits.maxScoutSearchesPerMonth === 'unlimited' ? 'Scout Ilimitado' : `${p.limits.maxScoutSearchesPerMonth} Scout/${t('sub_per_month')}`}</span>
+                              <span>{p.limits.maxScoutSearchesPerMonth === 'unlimited' ? t('dwg_upg_scout_unlimited') : `${p.limits.maxScoutSearchesPerMonth} Scout/${t('sub_per_month')}`}</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-ivory/80">
                               <ShieldCheck className="w-3.5 h-3.5 text-gold shrink-0" />
-                              <span>Blindagem & NDA</span>
+                              <span>{t('dwg_upg_shield_nda')}</span>
                             </div>
                           </div>
                         </div>
@@ -276,7 +281,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <div className="flex items-center justify-between pt-4 border-t border-white/10">
                   <span className="text-xs text-ivory/50 font-sans">
-                    {t('sub_selected_plan')} <strong className="text-gold">{selectedPlan.name}</strong> (R$ {priceBRL.toFixed(2)} / {isYearly ? t('sub_per_year') : t('sub_per_month')})
+                    {t('sub_selected_plan')} <strong className="text-gold">{selectedPlan.name}</strong> ({priceLabel} / {isYearly ? t('sub_per_year') : t('sub_per_month')})
                   </span>
                   <button
                     onClick={() => setStep('pay')}
@@ -315,7 +320,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   <div>
                     <span className="text-xs text-ivory/70 font-sans block">{t('sub_total_to_pay')}</span>
                     <span className="text-2xl font-serif-lumiardi text-gold font-bold">
-                      R$ {priceBRL.toFixed(2)}
+                      {priceLabel}
                     </span>
                     <span className="text-[10px] text-ivory/50 font-sans ml-1">
                       ({isYearly ? t('sub_yearly_discount_note') : t('sub_monthly_cycle_note')})
@@ -383,9 +388,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     <div className="w-44 h-44 mx-auto bg-white p-2 border-2 border-gold rounded-xs flex items-center justify-center">
                       {pixQrCodeUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={pixQrCodeUrl} alt="Pix QR Code" className="w-full h-full object-contain" />
+                        <img src={pixQrCodeUrl} alt={t('dwg_upg_pix_qr_alt')} className="w-full h-full object-contain" />
                       ) : (
-                        <div className="text-xs text-neutral-600 font-sans">Carregando Pix...</div>
+                        <div className="text-xs text-neutral-600 font-sans">{t('dwg_upg_pix_loading')}</div>
                       )}
                     </div>
 
@@ -421,7 +426,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        placeholder="NOME COMO NO CARTÃO"
+                        placeholder={t('dwg_upg_card_name_placeholder')}
                         value={cardData.name}
                         onChange={(e) => setCardData({ ...cardData, name: e.target.value })}
                         className="w-full bg-[#181818] border border-white/10 p-2.5 text-xs text-ivory focus:outline-none focus:border-gold font-sans rounded-xs uppercase"
@@ -531,19 +536,19 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
                 <div className="p-4 bg-[#141414] border border-gold/30 rounded-xs max-w-sm mx-auto text-left space-y-2 text-xs font-sans">
                   <div className="flex justify-between">
-                    <span className="text-ivory/60">Novo Armazenamento Drive:</span>
+                    <span className="text-ivory/60">{t('dwg_upg_new_drive_storage')}</span>
                     <strong className="text-gold">{selectedPlan.limits.maxDriveStorageGB} GB</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ivory/60">Consultas de Scouting:</span>
+                    <span className="text-ivory/60">{t('dwg_upg_scouting_queries')}</span>
                     <strong className="text-gold">
-                      {selectedPlan.limits.maxScoutSearchesPerMonth === 'unlimited' ? 'Ilimitadas' : `${selectedPlan.limits.maxScoutSearchesPerMonth} /mês`}
+                      {selectedPlan.limits.maxScoutSearchesPerMonth === 'unlimited' ? t('dwg_upg_unlimited') : t('dwg_upg_count_per_month').replace('{count}', String(selectedPlan.limits.maxScoutSearchesPerMonth))}
                     </strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ivory/60">Recibo & Fatura Oficial:</span>
+                    <span className="text-ivory/60">{t('dwg_upg_receipt_invoice')}</span>
                     <span className="text-emerald-400 font-mono flex items-center gap-1">
-                      <Check className="w-3 h-3 text-emerald-400" /> Emitido
+                      <Check className="w-3 h-3 text-emerald-400" /> {t('dwg_upg_issued')}
                     </span>
                   </div>
                 </div>

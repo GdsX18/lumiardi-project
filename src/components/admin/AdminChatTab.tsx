@@ -92,8 +92,11 @@ export function AdminChatTab({ currentCuratorName }: AdminChatTabProps) {
   // ─── REFS DE ALTA VELOCIDADE & CACHE DE MENSAGENS (0ms Flash) ──────────────
   const messagesCacheRef = useRef<Map<string, { messages: ChatMessage[]; lastMsgTime?: string }>>(new Map());
   const selectedUserIdRef = useRef<string | null>(null);
-  selectedUserIdRef.current = selectedConv?.userId || null;
   const lastMsgTimeRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    selectedUserIdRef.current = selectedConv?.userId || null;
+  }, [selectedConv?.userId]);
 
   // Debounce na busca de conversas para evitar sobrecarga no servidor
   useEffect(() => {

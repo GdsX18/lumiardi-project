@@ -50,6 +50,7 @@ import { CurationTeamTab } from '@/components/admin/CurationTeamTab';
 import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
 import { AdminChatTab } from '@/components/admin/AdminChatTab';
 import { InterviewQueueTab } from '@/components/admin/InterviewQueueTab';
+import { AdminNotice } from '@/components/admin/AdminNotice';
 import { CurationRole } from '@/types';
 
 interface Application {
@@ -142,6 +143,98 @@ export default function AdminDashboardPage() {
   const [newNoteText, setNewNoteText] = useState('');
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+
+  // Estados de Envio de Convite e Notificações
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
+  const [inviteFeedback, setInviteFeedback] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+    detail?: string;
+  } | null>(null);
+
+  // Fecha o resultado do convite sozinho em 5 s; o cleanup evita timers de mensagens anteriores
+  useEffect(() => {
+    if (!inviteFeedback) return;
+    const timer = setTimeout(() => setInviteFeedback(null), 5000);
+    return () => clearTimeout(timer);
+  }, [inviteFeedback]);
+
+  const handleSendEmailInviteFromAdmin = async (candidate: any) => {
+    if (!candidate?.id || sendingInvite) return;
+    setSendingInvite(true);
+    setInviteFeedback(null);
+    try {
+      let meetLink = '';
+      let roomPasscode: string | undefined;
+
+      try {
+        const roomRes = await fetch('/api/meet/room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customRoomName: `curation-${candidate.userId || candidate.id}` }),
+        });
+        if (roomRes.ok) {
+          const roomData = await roomRes.json();
+          meetLink = roomData.inviteUrl || roomData.dailyRoomUrl || `${window.location.origin}/dashboard/meet?room=${roomData.roomId}`;
+          roomPasscode = roomData.passcode;
+        }
+      } catch (roomErr) {
+        console.warn('[handleSendEmailInviteFromAdmin] Falha ao pré-gerar sala Meet, fallback ativado:', roomErr);
+      }
+
+      if (!meetLink) {
+        meetLink = `${window.location.origin}/dashboard/meet?room=curation-${candidate.userId || candidate.id}`;
+      }
+
+      const res = await fetch('/api/admin/send-interview-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interviewId: candidate.interviewId || candidate.id,
+          candidateId: candidate.id,
+          userId: candidate.userId || candidate.id,
+          email: candidate.email,
+          interviewDate: candidate.interviewDate,
+          interviewTime: candidate.interviewTime,
+          meetLink,
+          roomPasscode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.simulated) {
+          setInviteFeedback({
+            type: 'warning',
+            message: 'Aviso: Envio em Modo de Simulação Local',
+            detail: data.message || 'Chaves de envio de e-mail não configuradas no .env. Convite registrado localmente.',
+          });
+        } else {
+          setInviteFeedback({
+            type: 'success',
+            message: `Convite enviado com sucesso para ${data.sentTo}!`,
+            detail: `E-mail transacional em inglês disparado com link da sala segura do Meet. Horário: ${data.interviewDate} às ${data.interviewTime}.`,
+          });
+        }
+      } else {
+        const errorText = data.message || data.error || 'Falha no processamento do envio';
+        setInviteFeedback({
+          type: 'error',
+          message: 'Erro ao enviar convite de reunião',
+          detail: errorText,
+        });
+      }
+    } catch (err) {
+      console.error('[handleSendEmailInviteFromAdmin] Erro:', err);
+      setInviteFeedback({
+        type: 'error',
+        message: 'Falha de comunicação com o servidor',
+        detail: 'Erro de rede ou conexão ao disparar convite. Tente novamente.',
+      });
+    } finally {
+      setSendingInvite(false);
+    }
+  };
 
   // Estados de Ação de Decisão
   const [processingDecision, setProcessingDecision] = useState(false);
@@ -273,7 +366,6 @@ export default function AdminDashboardPage() {
 
       if (res.ok) {
         setActionSuccessMsg('Credencial aprovada com sucesso! Notificação e e-mail disparados.');
-        setTimeout(() => setActionSuccessMsg(null), 4000);
         await loadData();
         if (selectedApp?.id === appId) {
           setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'APROVADO' } : null));
@@ -297,7 +389,6 @@ export default function AdminDashboardPage() {
 
       if (res.ok) {
         setActionSuccessMsg('Candidata homologada para pagamento com sucesso!');
-        setTimeout(() => setActionSuccessMsg(null), 4000);
         await loadData();
         if (selectedApp?.id === appId) {
           setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'APROVADA_PAGAMENTO' } : null));
@@ -329,7 +420,6 @@ export default function AdminDashboardPage() {
         setActionSuccessMsg(`Credencial recusada com justificativa formal.${refundNote}`);
         setShowRejectModal(false);
         setRejectionReason('');
-        setTimeout(() => setActionSuccessMsg(null), 6000);
         await loadData();
         setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'REJEITADO', rejectionReason } : null));
       }
@@ -440,11 +530,15 @@ export default function AdminDashboardPage() {
         </div>
       </header>
 
-      {/* Notificação Toast de Sucesso */}
-      {actionSuccessMsg && (
-        <div className="fixed top-20 right-8 z-50 bg-[#111827] border border-emerald-500 text-emerald-300 px-4 py-3 text-xs font-sans shadow-2xl flex items-center gap-2 rounded-sm animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{actionSuccessMsg}</span>
+      {/* Avisos flutuantes: fecham sozinhos em 5 s ou no X; um de cada tipo por vez */}
+      {(actionSuccessMsg || actionErrorMsg) && (
+        <div className="fixed top-20 right-4 sm:right-8 z-[9999] flex flex-col gap-2 pointer-events-none">
+          {actionSuccessMsg && (
+            <AdminNotice type="success" message={actionSuccessMsg} onClose={() => setActionSuccessMsg(null)} />
+          )}
+          {actionErrorMsg && (
+            <AdminNotice type="error" message={actionErrorMsg} onClose={() => setActionErrorMsg(null)} />
+          )}
         </div>
       )}
 
@@ -936,7 +1030,10 @@ export default function AdminDashboardPage() {
                 </span>
 
                 <button
-                  onClick={() => setSelectedApp(null)}
+                  onClick={() => {
+                    setSelectedApp(null);
+                    setInviteFeedback(null);
+                  }}
                   className="p-1.5 text-ivory/40 hover:text-ivory hover:bg-white/[0.06] transition-colors rounded-sm cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -946,6 +1043,36 @@ export default function AdminDashboardPage() {
 
             {/* Conteúdo com Scroll */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Alerta de Feedback de Envio de Convite Dentro do Próprio Modal */}
+              {inviteFeedback && (
+                <div
+                  className={`p-4 rounded-sm border text-xs font-sans flex items-start gap-3 shadow-xl transition-all animate-in fade-in duration-300 ${
+                    inviteFeedback.type === 'success'
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200'
+                      : inviteFeedback.type === 'warning'
+                      ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                      : 'bg-rose-950/80 border-rose-500 text-rose-200'
+                  }`}
+                >
+                  {inviteFeedback.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
+                  {inviteFeedback.type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />}
+                  {inviteFeedback.type === 'error' && <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />}
+                  <div className="flex-1 space-y-0.5">
+                    <p className="font-semibold text-sm">{inviteFeedback.message}</p>
+                    {inviteFeedback.detail && (
+                      <p className="text-xs opacity-90 leading-relaxed">{inviteFeedback.detail}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setInviteFeedback(null)}
+                    aria-label="Fechar aviso"
+                    className="text-ivory/50 hover:text-ivory p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Card de Alinhamento da Entrevista / Reunião (quando agendada) */}
               {(selectedApp.curationStatus === 'AGUARDANDO_REUNIAO' || selectedApp.interviewDate) && (
                 <div className="p-4 bg-gradient-to-r from-sky-950/40 via-[#0f172a]/60 to-black/60 border border-sky-500/40 rounded-sm space-y-3">
@@ -964,30 +1091,23 @@ export default function AdminDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {(() => {
-                        const rawPhone = (selectedApp.whatsapp || selectedApp.phone || '').replace(/\D/g, '');
-                        const cleanPhone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
-                        const meetMsg = encodeURIComponent(
-                          `Olá ${selectedApp.fullName}! Aqui é da Mesa de Curadoria da Lumiardi.\n\nConfirmamos a sua reunião de curadoria prévia para o dia ${selectedApp.interviewDate ? new Date(selectedApp.interviewDate).toLocaleDateString('pt-BR') : ''} às ${selectedApp.interviewTime || ''} (Horário de Brasília).\n\nSegue o link da sala virtual no Google Meet:\nhttps://meet.google.com/new\n\nPodemos confirmar sua presença?`
-                        );
-                        return (
-                          <a
-                            href={rawPhone ? `https://wa.me/${cleanPhone}?text=${meetMsg}` : '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => {
-                              if (!rawPhone) {
-                                e.preventDefault();
-                                alert('Número de WhatsApp não informado pelo candidato.');
-                              }
-                            }}
-                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-sm transition-colors flex items-center gap-2 shadow-sm"
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            <span>Enviar Google Meet via WhatsApp</span>
-                          </a>
-                        );
-                      })()}
+                      <button
+                        onClick={() => handleSendEmailInviteFromAdmin(selectedApp)}
+                        disabled={sendingInvite}
+                        className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-sm transition-colors flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sendingInvite ? (
+                          <>
+                            <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Enviando Convite...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>Send Interview Invite</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1472,10 +1592,11 @@ export default function AdminDashboardPage() {
                         href={`https://wa.me/${(selectedApp.whatsapp || selectedApp.phone || '').replace(/\D/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
+                        title="Canal de contingência manual"
                         className="px-3.5 py-2.5 bg-[#1C1C1C] hover:bg-white/[0.08] border border-white/[0.12] text-ivory text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm"
                       >
                         <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>WhatsApp</span>
+                        <span>WhatsApp (backup)</span>
                       </a>
                     )}
 
@@ -1527,7 +1648,6 @@ export default function AdminDashboardPage() {
                             });
                             if (res.ok) {
                               setActionSuccessMsg('Candidatura reaberta para a fila de reunião!');
-                              setTimeout(() => setActionSuccessMsg(null), 4000);
                               await loadData();
                               setSelectedApp((prev) => (prev ? { ...prev, curationStatus: 'AGUARDANDO_REUNIAO' } : null));
                             }

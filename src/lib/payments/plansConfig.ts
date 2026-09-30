@@ -23,10 +23,9 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       yearly: 3.29,
     },
     badge: 'Essencial',
-    description: 'Entrada no ecossistema Lumiardi com Book digital seguro e presença no catálogo oficial.',
+    description: 'Entrada no ecossistema Lumiardi com presença no catálogo oficial.',
     features: [
       'Presença no Catálogo Oficial de Modelos',
-      'Book Digital com até 15 Fotos em Alta Resolução',
       'Lumiardi Drive com 5 GB de Armazenamento Criptografado',
       'Recebimento de Propostas Diretas de Agências Credenciadas',
       'Proteção Anti-Vazamento e Criptografia AES-256',
@@ -75,7 +74,6 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
     description: 'Visibilidade prioritária, armazenamento expandido e suporte jurídico padrão.',
     features: [
       'Destaque no Radar de Scouting para Agências Globais',
-      'Book Ilimitado de Fotos + Reels em Alta Fidelidade',
       'Lumiardi Drive com 25 GB de Armazenamento Seguro',
       'Marca d’água Dinâmica Tokenizada em Todos os Módulos',
       'Assessoria e Modelos de NDA de Blindagem de Imagem',
@@ -226,7 +224,7 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
       'Scout Ilimitado de Modelos e Novos Talentos',
       'Blindagem & NDA com Assessoria Jurídica de Imagem',
       'Espaços de Organização e Kanban de Campanhas Ilimitados',
-      'Gerente de Conta Exclusivo e Suporte VIP 24/7',
+      'Gerente de Conta Exclusivo e Suporte VIP',
       '500 GB de Armazenamento Seguro no Lumiardi Drive',
       'Roster Ilimitado de Criadoras e Modelos Representadas',
       'Multi-Usuários com Controle de Acesso por Permissões (RBAC)',

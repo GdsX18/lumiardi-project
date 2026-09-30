@@ -34,12 +34,24 @@ interface LanguageContextType {
   currency: CurrencyCode;
   setCurrency: (curr: CurrencyCode) => void;
   formatPrice: (brl: number, usd: number, eur?: number) => string;
+  /** Locale BCP 47 do idioma atual (ex.: 'pt-BR'), para Intl/toLocale*. */
+  locale: string;
+  formatDate: (value: string | number | Date, options?: Intl.DateTimeFormatOptions) => string;
+  formatDateTime: (value: string | number | Date, options?: Intl.DateTimeFormatOptions) => string;
+  formatTime: (value: string | number | Date) => string;
   t: (key: string, fallback?: string) => string;
+  /**
+   * Traduz o erro retornado por uma rota de API.
+   * Usa `data.code` (chave `api_err_<code>`) quando existir; em português exibe `data.error`;
+   * nos demais idiomas cai para a chave genérica informada.
+   */
+  tApiError: (data: unknown, fallbackKey?: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 const LANG_STORAGE_KEY = 'lumiardi_lang_v2';
+const LANG_COOKIE = 'lumiardi_lang';
 const CURRENCY_STORAGE_KEY = 'lumiardi_currency';
 
 const localeMap: Record<LanguageCode, string> = {
@@ -51,6 +63,24 @@ const localeMap: Record<LanguageCode, string> = {
   ru: 'ru-RU',
 };
 
+const SUPPORTED: LanguageCode[] = ['pt', 'en', 'es', 'fr', 'it', 'ru'];
+
+/** Detecta o idioma preferido do navegador entre os suportados. */
+function detectBrowserLanguage(): LanguageCode | null {
+  try {
+    const prefs = navigator.languages?.length ? navigator.languages : [navigator.language];
+    for (const pref of prefs) {
+      const code = pref?.slice(0, 2).toLowerCase() as LanguageCode;
+      if (SUPPORTED.includes(code)) return code;
+    }
+  } catch {
+    // navigator indisponível
+  }
+  return null;
+}
+
+const toDate = (value: string | number | Date) => (value instanceof Date ? value : new Date(value));
+
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<LanguageCode>('en');
   const [currency, setCurrencyState] = useState<CurrencyCode>('BRL');
@@ -58,19 +88,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     try {
       // Only restore if the user explicitly chose a language in this version (v2 key)
-      const savedLang = localStorage.getItem(LANG_STORAGE_KEY) as LanguageCode;
-      if (savedLang && translations[savedLang]) {
-        queueMicrotask(() => setLanguageState(savedLang));
+      const storedLang = localStorage.getItem(LANG_STORAGE_KEY) as LanguageCode;
+      const savedLang = storedLang && translations[storedLang] ? storedLang : null;
+      const initialLang = savedLang || detectBrowserLanguage();
+      if (initialLang && initialLang !== 'en') {
+        queueMicrotask(() => setLanguageState(initialLang));
       }
       const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY) as CurrencyCode;
       if (savedCurrency === 'BRL' || savedCurrency === 'USD' || savedCurrency === 'EUR') {
         queueMicrotask(() => setCurrencyState(savedCurrency));
-      } else if (savedLang) {
+      } else if (initialLang) {
         queueMicrotask(() =>
           setCurrencyState(
-            savedLang === 'pt'
+            initialLang === 'pt'
               ? 'BRL'
-              : savedLang === 'fr' || savedLang === 'it' || savedLang === 'es'
+              : initialLang === 'fr' || initialLang === 'it' || initialLang === 'es'
               ? 'EUR'
               : 'USD'
           )
@@ -80,6 +112,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Ignore storage access errors
     }
   }, []);
+
+  // Mantém <html lang> e o cookie de idioma (lido pelo servidor em e-mails/cadastro) sincronizados
+  useEffect(() => {
+    try {
+      document.documentElement.lang = localeMap[language] || 'en-US';
+      document.cookie = `${LANG_COOKIE}=${language}; path=/; max-age=31536000; samesite=lax`;
+    } catch {
+      // Ignora ambientes sem DOM
+    }
+  }, [language]);
 
   const setLanguage = (lang: LanguageCode) => {
     setLanguageState(lang);
@@ -116,20 +158,39 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } else if (currency === 'EUR') {
       amount = eur ?? Math.round(usd * 0.92 * 100) / 100;
     }
-    const locale = localeMap[language] || 'pt-BR';
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat(localeMap[language] || 'pt-BR', {
       style: 'currency',
       currency,
       minimumFractionDigits: 2,
     }).format(amount);
   };
 
+  const locale = localeMap[language] || 'pt-BR';
+
+  const formatDate = (value: string | number | Date, options?: Intl.DateTimeFormatOptions): string => {
+    const d = toDate(value);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(locale, options);
+  };
+
+  const formatDateTime = (value: string | number | Date, options?: Intl.DateTimeFormatOptions): string => {
+    const d = toDate(value);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString(locale, options ?? { dateStyle: 'short', timeStyle: 'short' });
+  };
+
+  const formatTime = (value: string | number | Date): string => {
+    const d = toDate(value);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  };
+
   const t = (key: string, fallback?: string): string => {
     // Camada 0: Traduções de checkout customizadas (prioridade máxima)
     const custom =
       CHECKOUT_TRANSLATIONS[language]?.[key] ||
-      CHECKOUT_TRANSLATIONS['en']?.[key] ||
-      CHECKOUT_TRANSLATIONS['pt']?.[key];
+      CHECKOUT_TRANSLATIONS['pt']?.[key] ||
+      CHECKOUT_TRANSLATIONS['en']?.[key];
     if (custom) return custom;
 
     // Camada 1: Idioma selecionado pelo usuário
@@ -149,15 +210,25 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (process.env.NODE_ENV === 'development') {
       console.warn(`[i18n] Chave ausente: "${key}" (idioma: ${language})`);
     }
-    const TECHNICAL_PREFIX = /^(dash_|nav_|btn_|page_|modal_|kyc_|drive_|chat_|meet_|kanban_|agency_|doc_|err_|pending_|billing_|book_|header_|plan_|plans_|pillar_|eco_|ds_|mo_|lim_|cs_|pos_|hero_|pinned_|drawer_|footer_|portal_|login_|avail_|day_|month_|eye_|hair_|gender_|loc_|banner_|kyc_)/;
+    const TECHNICAL_PREFIX = /^(dash_|nav_|btn_|page_|modal_|kyc_|drive_|chat_|meet_|kanban_|agency_|doc_|err_|pending_|billing_|book_|header_|plan_|plans_|pillar_|eco_|ds_|mo_|lim_|cs_|pos_|hero_|pinned_|drawer_|footer_|portal_|login_|avail_|day_|month_|eye_|hair_|gender_|loc_|banner_)/;
     return key
       .replace(TECHNICAL_PREFIX, '')
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
+  const tApiError = (data: unknown, fallbackKey = 'api_err_generic'): string => {
+    const payload = (data && typeof data === 'object' ? data : {}) as { code?: unknown; error?: unknown };
+    if (typeof payload.code === 'string') {
+      const codeKey = `api_err_${payload.code}`;
+      if (translations[language]?.[codeKey] || translations['pt']?.[codeKey]) return t(codeKey);
+    }
+    if (language === 'pt' && typeof payload.error === 'string' && payload.error) return payload.error;
+    return t(fallbackKey);
+  };
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, currency, setCurrency, formatPrice, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, currency, setCurrency, formatPrice, locale, formatDate, formatDateTime, formatTime, t, tApiError }}>
       {children}
     </LanguageContext.Provider>
   );

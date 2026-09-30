@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuditLogService } from '@/lib/audit/auditService';
 import { getSessionFromCookie } from '@/lib/auth';
+import { getVerifiedAdminSession } from '@/lib/apiAuth';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
-    if (!session || session.role !== 'admin') {
+    const session = await getVerifiedAdminSession();
+    if (!session) {
       return NextResponse.json({ error: 'Acesso restrito à Mesa de Curadoria.' }, { status: 401 });
     }
 

@@ -47,7 +47,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     clearNotifications,
     refreshData,
   } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, formatTime } = useLanguage();
   const router = useRouter();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -57,56 +57,19 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const isCriadora = role === 'criadora';
   const isApproved = curationStatus === 'APROVADO' || curationStatus === 'approved';
 
-  const displayName = currentUser?.name || (isCriadora ? (activeCreator?.qualitative?.artisticName || 'Sua Conta Modelo') : (activeAgency?.basicInfo?.responsibleName || 'Sua Agência'));
+  const displayName = currentUser?.name || (isCriadora ? (activeCreator?.qualitative?.artisticName || t('dsh_ov_your_model_account')) : (activeAgency?.basicInfo?.responsibleName || t('dsh_ov_your_agency')));
   const initials = displayName.substring(0, 2).toUpperCase();
 
-  const activeNotificationsList = notifications && notifications.length > 0
-    ? notifications.map((n) => ({
-        id: n.id,
-        title: n.title,
-        desc: n.desc,
-        time: n.createdAt ? new Date(n.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Recente',
-        category: n.category || 'Geral',
-        link: n.link,
-        linkText: n.linkText || 'Ver Detalhes',
-        isRead: n.isRead,
-      }))
-    : [
-        {
-          id: '1',
-          title: isApproved ? 'Credencial Aprovada' : 'Curadoria em Andamento',
-          desc: isApproved
-            ? 'Sua conta foi homologada com sucesso sob o protocolo 18 U.S.C. § 2257. Todos os recursos estão liberados.'
-            : 'Sua solicitação está sendo avaliada pela mesa de curadoria e compliance.',
-          time: 'Recente',
-          category: 'Curadoria',
-          link: isApproved ? '/dashboard/book' : '/dashboard/pendente',
-          linkText: isApproved ? 'Ver Meu Book' : 'Ver Status',
-          isRead: false,
-        },
-        {
-          id: '2',
-          title: 'Portfólio & Book Digital',
-          desc: isCriadora
-            ? 'Mantenha suas fotos em alta resolução atualizadas para atrair agências internacionais parceiras.'
-            : 'Explore o catálogo de novas criadoras de elite aprovadas nesta semana.',
-          time: 'Hoje',
-          category: 'Talentos',
-          link: isCriadora ? '/dashboard/book' : '/dashboard/agencias',
-          linkText: isCriadora ? 'Gerenciar Book' : 'Explorar Roster',
-          isRead: false,
-        },
-        {
-          id: '3',
-          title: 'Criptografia Militar E2E',
-          desc: 'Todas as mensagens no Chat e arquivos no Drive Lumiardi são protegidos por AES-256 e SHA-512.',
-          time: 'Ativo',
-          category: 'Segurança',
-          link: '/dashboard/drive',
-          linkText: 'Acessar Drive',
-          isRead: false,
-        },
-      ];
+  const activeNotificationsList = (notifications || []).map((n) => ({
+    id: n.id,
+    title: n.title,
+    desc: n.desc,
+    time: (n.createdAt && formatTime(n.createdAt)) || t('dsh_hd_recent'),
+    category: n.category || t('dsh_hd_general'),
+    link: n.link,
+    linkText: n.linkText || t('dsh_hd_view_details'),
+    isRead: n.isRead,
+  }));
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#080808]/95 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-8 py-3.5 flex items-center justify-between">
@@ -116,7 +79,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <button
             onClick={onToggleMobileMenu}
             className="lg:hidden p-2 text-ivory hover:text-gold transition-colors cursor-pointer"
-            aria-label="Abrir Menu Lateral"
+            aria-label={mobileMenuOpen ? t('dsh_hd_close_menu') : t('dsh_hd_open_menu')}
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -126,7 +89,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <div className="relative w-6 h-6 md:w-7 md:h-7 transition-transform duration-300 group-hover:scale-105">
             <Image
               src="/Lumiardi logo2-Trasparente.png"
-              alt="Lumiardi Emblem"
+              alt={t('dsh_hd_emblem_alt')}
               fill
               className="object-contain"
               priority
@@ -136,7 +99,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             LUMIARDI
           </span>
           <span className="text-[9px] font-sans tracking-widest uppercase px-2 py-0.5 bg-gold/10 text-gold border border-gold/30 hidden md:inline font-semibold">
-            {isCriadora ? (t('portal_model') || 'PORTAL MODELO') : (t('portal_agency') || 'PORTAL AGÊNCIA')}
+            {isCriadora ? t('portal_model') : t('portal_agency')}
           </span>
         </Link>
       </div>
@@ -151,7 +114,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               setShowProfileMenu(false);
             }}
             className="relative p-2 bg-[#121212] border border-white/10 text-ivory/80 hover:text-gold hover:border-gold/40 transition-colors cursor-pointer"
-            aria-label="Notificações"
+            aria-label={t('header_notifications')}
           >
             <Bell className="w-4 h-4" />
             {notificationsCount > 0 && (
@@ -183,6 +146,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 </div>
 
                 <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                  {activeNotificationsList.length === 0 && (
+                    <p className="text-center text-sm text-[#8E8E93] py-8 px-4">
+                      {t('dsh_hd_no_notifications')}
+                    </p>
+                  )}
                   {activeNotificationsList.map((n) => (
                     <div
                       key={n.id}
@@ -256,7 +224,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 suppressHydrationWarning
                 className="text-[9px] font-sans uppercase tracking-widest text-emerald-400 mt-0.5"
               >
-                {isApproved ? (t('header_verified') || 'Verificado') : (t('header_in_review') || 'Em Análise')}
+                {isApproved ? t('header_verified') : t('header_in_review')}
               </span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-ivory/50" />
@@ -272,13 +240,13 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               >
                 <div className="p-2 border-b border-white/10 mb-2">
                   <span className="text-[10px] font-sans text-ivory/50 uppercase tracking-widest block">
-                    {t('header_connected_as') || 'Conectado como'}
+                    {t('header_connected_as')}
                   </span>
                   <span className="font-serif-lumiardi text-base text-gold block font-medium">
                     {displayName}
                   </span>
                   <span className="text-[10px] text-ivory/60 font-sans truncate block">
-                    {currentUser?.email || (isCriadora ? 'elena@lumiardi.com' : 'aura@lumiardi.com')}
+                    {currentUser?.email || '—'}
                   </span>
                 </div>
 
@@ -290,7 +258,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     }}
                     className="w-full flex items-center justify-between p-2 hover:bg-white/5 hover:text-gold transition-colors text-left text-gold font-medium cursor-pointer"
                   >
-                    <span>{isCriadora ? (t('header_edit_profile') || 'Editar Book & Perfil') : (t('header_edit_agency') || 'Editar Dados da Agência')}</span>
+                    <span>{isCriadora ? t('header_edit_profile') : t('header_edit_agency')}</span>
                     <Check className="w-3.5 h-3.5" />
                   </button>
 
@@ -299,7 +267,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center justify-between p-2 hover:bg-white/5 hover:text-gold transition-colors text-left"
                     onClick={() => setShowProfileMenu(false)}
                   >
-                    <span>{t('header_back_to_site') || 'Voltar ao Site Principal'}</span>
+                    <span>{t('header_back_to_site')}</span>
                     <ExternalLink className="w-3.5 h-3.5 opacity-60" />
                   </Link>
 
@@ -311,7 +279,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2 p-2 text-rose-400 hover:bg-rose-950/30 transition-colors text-left cursor-pointer pt-2 border-t border-white/10"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>{t('header_logout_secure') || 'Encerrar Sessão Segura'}</span>
+                    <span>{t('header_logout_secure')}</span>
                   </button>
                 </div>
               </motion.div>

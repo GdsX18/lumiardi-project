@@ -37,7 +37,7 @@ export const Footer: React.FC = () => {
           <Link
             href="/"
             className="relative w-52 sm:w-64 md:w-72 h-16 sm:h-20 mb-6 block transition-transform duration-300 hover:scale-[1.02]"
-            aria-label="LUMIARDI Home"
+            aria-label={t('lgm_footer_home_aria')}
           >
             <Image
               src="/LUMIARDI - Logo Combinada trasparente.png"

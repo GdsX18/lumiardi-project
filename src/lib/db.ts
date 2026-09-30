@@ -1,6 +1,10 @@
 import { Pool } from 'pg';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  console.error('[DB] DATABASE_URL não está definido em produção.');
+}
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 
 declare global {
@@ -11,7 +15,12 @@ const isSupabase = connectionString.includes('supabase.com') || connectionString
 
 export const pool = globalThis.__pgPool || new Pool({
   connectionString,
-  ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
+  // Com DATABASE_CA_CERT (CA do Supabase, PEM) o certificado do servidor é verificado.
+  ssl: isSupabase
+    ? process.env.DATABASE_CA_CERT
+      ? { ca: process.env.DATABASE_CA_CERT.replace(/\\n/g, '\n'), rejectUnauthorized: true }
+      : { rejectUnauthorized: false }
+    : undefined,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
@@ -44,92 +53,30 @@ export const fallbackStore = {
   meet_signals: new Map<string, Record<string, unknown>>(),
   curation_interviews: new Map<string, Record<string, unknown>>(),
   coupons: new Map<string, Record<string, unknown>>(),
+  contact_inquiries: new Map<string, Record<string, unknown>>(),
+  compliance_reports: new Map<string, Record<string, unknown>>(),
 };
 
-// Inicialização imediata síncrona/assíncrona do fallback
-(async () => {
-  const hashPassword = await bcrypt.hash('lumiardi2026', 10);
-
-  // ─── Contas Oficiais de Produção ─────────────────────────────────────────
-  // Apenas a Mesa de Curadoria Oficial é mantida no seed.
-  // Candidaturas e cadastros são criados estritamente pelas usuárias reais.
-  const defaultUsers = [
-    {
-      id: 'admin-curadoria-1',
-      email: 'curadoria@lumiardi.com',
-      password_hash: hashPassword,
-      role: 'ADMIN',
-      curation_status: 'APROVADO',
-      full_name: 'Mesa de Curadoria Lumiardi',
-      created_at: new Date().toISOString(),
-      last_seen_at: new Date().toISOString(),
-    },
-    {
-      id: 'cur-admin-1',
-      email: 'curadoria-exec@lumiardi.com',
-      password_hash: hashPassword,
-      role: 'ADMIN',
-      curation_status: 'APROVADO',
-      full_name: 'Mesa de Curadoria Lumiardi',
-      created_at: new Date().toISOString(),
-      last_seen_at: new Date().toISOString(),
-    },
-  ];
-
-  defaultUsers.forEach((u) => fallbackStore.users.set(u.email.toLowerCase(), u));
-
-  // ─── Equipe de Curadoria (RBAC) em Memória ───────────────────────────────────
-  // Apenas o Admin Master Oficial é mantido.
-  const defaultAdminUsers = [
-    {
-      id: 'cur-admin-1',
-      email: 'curadoria@lumiardi.com',
-      password_hash: hashPassword,
-      full_name: 'Mesa de Curadoria Lumiardi',
-      role: 'admin',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    },
-  ];
-
-  defaultAdminUsers.forEach((au) => {
-    fallbackStore.admin_users.set(au.id, au);
-    if (!fallbackStore.users.has(au.email.toLowerCase())) {
-      fallbackStore.users.set(au.email.toLowerCase(), {
-        id: au.id,
-        email: au.email,
-        password_hash: au.password_hash,
-        role: 'ADMIN',
-        curation_status: 'APROVADO',
-        full_name: au.full_name,
-        created_at: au.created_at,
-      });
-    }
-  });
-
-  // Drive Compartilhado Inicial 100% Limpo (Sem arquivos mockados)
-  // Toda nova parceria inicia vazia para upload real
-
-  // ─── Cupão Oficial Modelo LUMIARDI10 ─────────────────────────────────────
-  fallbackStore.coupons.set('LUMIARDI10', {
-    id: 'coupon-lumiardi10',
-    code: 'LUMIARDI10',
-    discount_type: 'percentage',
-    discount_value: 10,
-    active: true,
-    max_uses: null,
-    times_used: 0,
-    expires_at: null,
-    created_at: new Date().toISOString(),
-  });
-})();
+// Nenhum dado é semeado em memória: contas, cupons e cadastros existem apenas no PostgreSQL.
 
 let isInitialized = false;
+let initPromise: Promise<boolean> | null = null;
 
 /**
  * Inicialização DDL automática do banco de dados PostgreSQL com tabelas financeiras, RBAC, Audit e Drive Compartilhado
  */
 export async function initDatabase(): Promise<boolean> {
+  if (isInitialized) return true;
+  // Evita DDL concorrente quando várias requisições chegam no cold start
+  if (!initPromise) {
+    initPromise = runInitDatabase().finally(() => {
+      initPromise = null;
+    });
+  }
+  return initPromise;
+}
+
+async function runInitDatabase(): Promise<boolean> {
   if (isInitialized) return true;
 
   try {
@@ -191,6 +138,8 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_curation_interviews_user ON curation_interviews(user_id);
         CREATE INDEX IF NOT EXISTS idx_curation_interviews_status ON curation_interviews(status);
         CREATE INDEX IF NOT EXISTS idx_curation_interviews_date ON curation_interviews(interview_date, interview_time);
+        ALTER TABLE curation_interviews ADD COLUMN IF NOT EXISTS candidate_id VARCHAR(100);
+        CREATE INDEX IF NOT EXISTS idx_curation_interviews_candidate ON curation_interviews(candidate_id);
       `);
 
       // 2. Tabela PROFILES
@@ -489,6 +438,13 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
+      // Migração: bancos criados por versões antigas do schema não têm creator_id/agency_id
+      // em payouts (CREATE TABLE IF NOT EXISTS não adiciona colunas a tabelas existentes).
+      await client.query(`
+        ALTER TABLE payouts ADD COLUMN IF NOT EXISTS creator_id VARCHAR(100) REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE payouts ADD COLUMN IF NOT EXISTS agency_id VARCHAR(100) REFERENCES users(id) ON DELETE SET NULL;
+      `);
+
       // 15. Tabela de NOTIFICATIONS
       await client.query(`
         CREATE TABLE IF NOT EXISTS notifications (
@@ -505,34 +461,67 @@ export async function initDatabase(): Promise<boolean> {
         );
       `);
 
-      // 16. Índices de Alta Performance
       await client.query(`
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-        CREATE INDEX IF NOT EXISTS idx_users_curation_status ON users(curation_status);
-        CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
-        CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_id ON kanban_tasks(user_id);
-        CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
-        CREATE INDEX IF NOT EXISTS idx_drive_files_user_id ON drive_files(user_id);
-        CREATE INDEX IF NOT EXISTS idx_shared_drive_files_rel ON shared_drive_files(agency_id, model_id);
-        CREATE INDEX IF NOT EXISTS idx_agency_contracts ON agency_model_contracts(agency_id, model_id);
-        CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_time ON curation_audit_logs(created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_action ON curation_audit_logs(action_type);
-        CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_user ON curation_audit_logs(user_id);
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
-        CREATE INDEX IF NOT EXISTS idx_payment_transactions_user ON payment_transactions(user_id);
-        CREATE INDEX IF NOT EXISTS idx_payment_transactions_idemp ON payment_transactions(idempotency_key);
-        CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
-        CREATE INDEX IF NOT EXISTS idx_payouts_creator_id ON payouts(creator_id);
-        CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-        CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
-        CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_messages_conv_created_asc ON messages(conversation_id, created_at ASC);
-        CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);
-        CREATE INDEX IF NOT EXISTS idx_messages_curation_sender ON messages(conversation_id, sender_id, receiver_id);
-        CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at DESC NULLS LAST);
+        CREATE TABLE IF NOT EXISTS terms_acceptances (
+          id VARCHAR(100) PRIMARY KEY,
+          user_id VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          terms_version VARCHAR(50) NOT NULL,
+          accepted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          client_ip VARCHAR(45),
+          user_agent TEXT,
+          UNIQUE(user_id, terms_version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_terms_acceptances_user_id
+          ON terms_acceptances(user_id);
+      `);
 
+      // 16. Índices de Alta Performance
+      // Cada índice roda isolado: uma tabela legada sem a coluna esperada (ex.: 42703) gera aviso
+      // mas não derruba a inicialização nem a criação das demais tabelas.
+      const performanceIndexes: string[] = [
+        `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`,
+        `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
+        `CREATE INDEX IF NOT EXISTS idx_users_curation_status ON users(curation_status);`,
+        `CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_id ON kanban_tasks(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_drive_files_user_id ON drive_files(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_shared_drive_files_rel ON shared_drive_files(agency_id, model_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_agency_contracts ON agency_model_contracts(agency_id, model_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_time ON curation_audit_logs(created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_action ON curation_audit_logs(action_type);`,
+        `CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_user ON curation_audit_logs(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);`,
+        `CREATE INDEX IF NOT EXISTS idx_payment_transactions_user ON payment_transactions(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_payment_transactions_idemp ON payment_transactions(idempotency_key);`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;`,
+        `CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);`,
+        `CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_messages_conv_created_asc ON messages(conversation_id, created_at ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_messages_curation_sender ON messages(conversation_id, sender_id, receiver_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at DESC NULLS LAST);`,
+        `DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = 'payouts' AND column_name = 'creator_id'
+          ) THEN
+            CREATE INDEX IF NOT EXISTS idx_payouts_creator_id ON payouts(creator_id);
+          END IF;
+        END $$;`,
+      ];
+      for (const indexSql of performanceIndexes) {
+        try {
+          await client.query(indexSql);
+        } catch (idxErr) {
+          console.warn('[DB] Índice ignorado:', (idxErr as Error).message);
+        }
+      }
+
+      await client.query(`
         -- 17. Tabelas Lumiardi Meet (WebRTC & Sinalização Multi-Nó Persistente)
         CREATE TABLE IF NOT EXISTS meet_rooms (
           id VARCHAR(100) PRIMARY KEY,
@@ -573,50 +562,47 @@ export async function initDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_meet_signals_created ON meet_signals(created_at ASC);
       `);
 
-      const hashPassword = await bcrypt.hash('lumiardi2026', 10);
-
-      // ─── Purga de Contas Fictícias (idempotente) ──────────────────────────────
-      // Remove todos os registros de contas fictícias que possam existir de seeds anteriores.
-      // As FKs com ON DELETE CASCADE eliminam automaticamente profiles, subscriptions, etc.
-      await client.query(`
-        DELETE FROM admin_users WHERE email IN (
-          'admin@lumiardi.com',
-          'supervisor@lumiardi.com',
-          'curador.senior@lumiardi.com',
-          'curador.junior@lumiardi.com'
-        );
-        DELETE FROM users WHERE email IN (
-          'modelo@lumiardi.com',
-          'agencia@lumiardi.com',
-          'isabella.fontana.curadoria@lumiardi.com',
-          'admin@lumiardi.com',
-          'candidata.teste@lumiardi.com',
-          'valentina.rossi@lumiardi.com',
-          'candidatura.pendente42@gmail.com',
-          'contato@elitemanagement.com.br',
-          'casting@agenciaglobalfake.net',
-          'supervisor@lumiardi.com',
-          'curador.senior@lumiardi.com',
-          'curador.junior@lumiardi.com'
-        ) OR id IN ('user-model-1', 'user-agency-1', 'creator-1790693146761-6efvo');
-        DELETE FROM messages WHERE sender_name IN ('Lumiardi Member') AND text = '';
-      `);
-
-      // ─── Seed Oficial da Mesa de Curadoria (idempotente via ON CONFLICT) ─────
+      // ─── Identidade da Mesa de Curadoria no chat (idempotente) ────────────────
+      // A linha em `users` só representa a curadoria nas conversas; a senha é aleatória e
+      // inutilizável. Login administrativo acontece exclusivamente via `admin_users`
+      // (crie contas com `npm run admin:create`).
+      const unusableHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
       await client.query(`
         INSERT INTO users (id, email, password_hash, role, curation_status, full_name, document_name)
-        VALUES
-          ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL),
-          ('cur-admin-1', 'curadoria-exec@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL)
-        ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, role = 'ADMIN', curation_status = 'APROVADO';
-      `, [hashPassword]);
+        VALUES ('admin-curadoria-1', 'curadoria@lumiardi.com', $1, 'ADMIN', 'APROVADO', 'Mesa de Curadoria Lumiardi', NULL)
+        ON CONFLICT DO NOTHING;
+      `, [unusableHash]);
 
+      // ─── Notas internas da Curadoria ───────────────────────────────────────
       await client.query(`
-        INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
-        VALUES
-          ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria Lumiardi', 'admin', 'active')
-        ON CONFLICT (email) DO NOTHING;
-      `, [hashPassword]);
+        CREATE TABLE IF NOT EXISTS application_notes (
+          id VARCHAR(100) PRIMARY KEY,
+          user_id VARCHAR(100) NOT NULL,
+          author VARCHAR(255) NOT NULL,
+          text TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_application_notes_user ON application_notes(user_id, created_at DESC);
+      `);
+
+      // ─── Idempotência de webhooks (claim atômico por evento) ─────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS webhook_events (
+          id TEXT PRIMARY KEY,
+          provider TEXT NOT NULL,
+          received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+
+      // ─── Rate limiting persistente (login, cupons, formulários) ──────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS rate_limits (
+          key TEXT PRIMARY KEY,
+          hits INTEGER NOT NULL DEFAULT 0,
+          window_start TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_start);
+      `);
 
       // ─── 18. Tabela COUPONS (Sistema de Descontos & Promoções) ───────────────────
       await client.query(`
@@ -638,6 +624,56 @@ export async function initDatabase(): Promise<boolean> {
         INSERT INTO coupons (id, code, discount_type, discount_value, active, max_uses, times_used, expires_at)
         VALUES ('coupon-lumiardi10', 'LUMIARDI10', 'percentage', 10, true, NULL, 0, NULL)
         ON CONFLICT (code) DO NOTHING;
+      `);
+
+      // ─── 19. Tabelas CONTACT_INQUIRIES e COMPLIANCE_REPORTS ───────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS contact_inquiries (
+          id              VARCHAR(100) PRIMARY KEY,
+          contact_type    VARCHAR(100) NOT NULL,
+          full_name       VARCHAR(255) NOT NULL,
+          email           VARCHAR(255) NOT NULL,
+          subject         VARCHAR(300) NOT NULL,
+          message         TEXT NOT NULL,
+          ip_address      VARCHAR(100),
+          user_agent      TEXT,
+          email_sent      BOOLEAN DEFAULT FALSE,
+          email_sent_at   TIMESTAMP WITH TIME ZONE,
+          created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_contact_inquiries_email ON contact_inquiries(email);
+        CREATE INDEX IF NOT EXISTS idx_contact_inquiries_created ON contact_inquiries(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS compliance_reports (
+          id                   VARCHAR(100) PRIMARY KEY,
+          protocol_number      VARCHAR(50) UNIQUE NOT NULL,
+          category             VARCHAR(100) NOT NULL,
+          priority             VARCHAR(30) NOT NULL,
+          reporter_name        VARCHAR(255) NOT NULL,
+          reporter_email       VARCHAR(255) NOT NULL,
+          reporter_phone       VARCHAR(50),
+          reporter_relation    VARCHAR(50) NOT NULL,
+          target_url           TEXT NOT NULL,
+          target_username      VARCHAR(200),
+          approx_date          VARCHAR(100),
+          description          TEXT NOT NULL,
+          judicial_body        VARCHAR(300),
+          process_number       VARCHAR(100),
+          authority_name       VARCHAR(200),
+          judicial_deadline    VARCHAR(100),
+          declaration_accepted BOOLEAN NOT NULL DEFAULT TRUE,
+          ip_address           VARCHAR(100),
+          user_agent           TEXT,
+          email_sent           BOOLEAN DEFAULT FALSE,
+          email_sent_at        TIMESTAMP WITH TIME ZONE,
+          status               VARCHAR(50) NOT NULL DEFAULT 'received',
+          created_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at           TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_compliance_reports_protocol ON compliance_reports(protocol_number);
+        CREATE INDEX IF NOT EXISTS idx_compliance_reports_category ON compliance_reports(category);
+        CREATE INDEX IF NOT EXISTS idx_compliance_reports_status ON compliance_reports(status);
+        CREATE INDEX IF NOT EXISTS idx_compliance_reports_created ON compliance_reports(created_at DESC);
       `);
 
       isInitialized = true;

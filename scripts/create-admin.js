@@ -53,10 +53,16 @@ Cargos RBAC válidos:
   process.exit(0);
 }
 
-const email = process.argv[2] || 'curadoria@lumiardi.com';
-const password = process.argv[3] || 'lumiardi2026';
+const email = process.argv[2] || process.env.ADMIN_SEED_EMAIL;
+const password = process.argv[3] || process.env.ADMIN_SEED_PASSWORD;
 const fullName = process.argv[4] || 'Mesa de Curadoria Lumiardi';
 const rbacRole = process.argv[5] || 'admin'; // 'admin', 'supervisor', 'curador_senior', 'curador_junior'
+
+if (!email || !password) {
+  console.error('❌ Erro: email e senha são obrigatórios.');
+  console.error('Uso: node scripts/create-admin.js <email> <senha> [nome_completo] [cargo_rbac]');
+  process.exit(1);
+}
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/lumiardi_db';
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { AuditLogService } from '@/lib/audit/auditService';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getVerifiedAdminSession } from '@/lib/apiAuth';
 import { sanitizeInput } from '@/lib/security';
 
 export async function GET(
@@ -9,10 +10,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getVerifiedAdminSession();
 
-    if (!session || session.role !== 'admin') {
+    if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
@@ -31,10 +31,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getVerifiedAdminSession();
 
-    if (!session || session.role !== 'admin') {
+    if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 

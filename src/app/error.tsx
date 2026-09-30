@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function ErrorPage({
   error,
@@ -12,6 +13,8 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useLanguage();
+
   useEffect(() => {
     console.error('[Lumiardi Error Boundary]:', error);
   }, [error]);
@@ -33,15 +36,15 @@ export default function ErrorPage({
 
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-red-400 text-xs font-mono uppercase tracking-widest">
           <AlertTriangle className="w-3.5 h-3.5" />
-          <span>Interrupção Temporária</span>
+          <span>{t('lgm_err_tag')}</span>
         </div>
 
         <h1 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-ivory leading-tight">
-          Instabilidade <span className="text-gold italic">Detectada</span>
+          {t('lgm_err_title_1')} <span className="text-gold italic">{t('lgm_err_title_2')}</span>
         </h1>
 
         <p className="text-sm font-sans text-ivory/60 leading-relaxed">
-          Ocorreu um erro inesperado ao carregar este módulo. O sistema isolou a falha com segurança para preservar a integridade dos seus dados.
+          {t('lgm_err_desc')}
         </p>
 
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -50,7 +53,7 @@ export default function ErrorPage({
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-gold hover:bg-gold-light text-black-matte font-sans font-semibold text-xs uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(201,169,107,0.2)] cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
-            <span>Tentar Novamente</span>
+            <span>{t('lgm_err_retry')}</span>
           </button>
 
           <Link
@@ -58,7 +61,7 @@ export default function ErrorPage({
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#141414] hover:bg-[#1A1A1A] text-ivory border border-white/10 hover:border-gold/40 font-sans font-medium text-xs uppercase tracking-widest transition-all duration-300"
           >
             <Home className="w-4 h-4" />
-            <span>Ir ao Início</span>
+            <span>{t('lgm_err_home')}</span>
           </Link>
         </div>
       </div>

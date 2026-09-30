@@ -46,7 +46,7 @@ export const KanbanBoard: React.FC = () => {
   const [newTaskAgency, setNewTaskAgency] = useState('Lumiardi Onboarding');
   const [newTaskPriority, setNewTaskPriority] = useState<'Alta' | 'Média' | 'Normal'>('Alta');
   const [newTaskColumn, setNewTaskColumn] = useState<'todo' | 'inProgress'>('todo');
-  const [newTaskDate, setNewTaskDate] = useState('Esta Semana');
+  const [newTaskDate, setNewTaskDate] = useState(() => t('dwg_kanban_default_due_date'));
 
   useEffect(() => {
     setMounted(true);
@@ -184,16 +184,16 @@ export const KanbanBoard: React.FC = () => {
     switch (priority) {
       case 'Alta':
       case 'High':
-        return t('kanban_priority_high') || 'Alta';
+        return t('kanban_priority_high');
       case 'Média':
       case 'Media':
       case 'Medium':
-        return t('kanban_priority_medium') || 'Média';
+        return t('kanban_priority_medium');
       case 'Normal':
       case 'Baixa':
       case 'Low':
       default:
-        return t('kanban_priority_normal') || 'Normal';
+        return t('kanban_priority_normal');
     }
   };
 
@@ -207,17 +207,17 @@ export const KanbanBoard: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 sm:pb-5 border-b border-white/[0.08]">
         <div>
           <span className="text-[10px] uppercase tracking-[0.25em] text-gold font-semibold font-sans">
-            {t('kanban_campaigns') || 'Campanhas & Entregas'}
+            {t('kanban_campaigns')}
           </span>
           <p className="text-xs text-ivory/50 font-sans mt-0.5">
-            {tasks.length} {tasks.length === 1 ? 'entrega gerenciada' : 'entregas gerenciadas'}
+            {tasks.length} {tasks.length === 1 ? t('dwg_kanban_managed_one') : t('dwg_kanban_managed_other')}
           </p>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5">
           <button
             onClick={fetchTasks}
-            title={t('kanban_campaigns') || 'Atualizar quadro'}
+            title={t('dwg_kanban_refresh_board')}
             className="p-2.5 bg-[#141414] hover:bg-[#1E1E1E] border border-white/10 text-ivory/70 hover:text-gold transition-colors rounded-xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-gold' : ''}`} />
@@ -228,7 +228,7 @@ export const KanbanBoard: React.FC = () => {
             className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-gold to-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md rounded-xs"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>{t('kanban_new_task') || 'Nova Tarefa'}</span>
+            <span>{t('kanban_new_task')}</span>
           </button>
         </div>
       </div>
@@ -241,7 +241,7 @@ export const KanbanBoard: React.FC = () => {
             mobileTab === 'all' ? 'bg-gold text-black-matte font-bold shadow-sm' : 'text-ivory/60 hover:text-ivory'
           }`}
         >
-          {t('kanban_all_tasks') || 'Todas'} ({tasks.length})
+          {t('kanban_all_tasks')} ({tasks.length})
         </button>
         <button
           onClick={() => setMobileTab('todo')}
@@ -249,7 +249,7 @@ export const KanbanBoard: React.FC = () => {
             mobileTab === 'todo' ? 'bg-gold text-black-matte font-bold shadow-sm' : 'text-ivory/60 hover:text-ivory'
           }`}
         >
-          {t('dash_kanban_col_todo') || t('kanban_col_todo') || 'A Fazer'} ({todoTasks.length})
+          {t('dash_kanban_col_todo')} ({todoTasks.length})
         </button>
         <button
           onClick={() => setMobileTab('inProgress')}
@@ -257,7 +257,7 @@ export const KanbanBoard: React.FC = () => {
             mobileTab === 'inProgress' ? 'bg-gold text-black-matte font-bold shadow-sm' : 'text-ivory/60 hover:text-ivory'
           }`}
         >
-          {t('dash_kanban_col_in_progress') || t('kanban_col_in_progress') || 'Em Andamento'} ({inProgressTasks.length})
+          {t('dash_kanban_col_in_progress')} ({inProgressTasks.length})
         </button>
         <button
           onClick={() => setMobileTab('done')}
@@ -265,7 +265,7 @@ export const KanbanBoard: React.FC = () => {
             mobileTab === 'done' ? 'bg-gold text-black-matte font-bold shadow-sm' : 'text-ivory/60 hover:text-ivory'
           }`}
         >
-          {t('dash_kanban_col_done') || t('kanban_col_done') || 'Concluído'} ({doneTasks.length})
+          {t('dash_kanban_col_done')} ({doneTasks.length})
         </button>
       </div>
 
@@ -280,10 +280,10 @@ export const KanbanBoard: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <span className="font-serif-lumiardi font-medium text-base tracking-wider uppercase text-ivory flex items-center gap-2">
               <Clock className="w-4 h-4 text-gold" />
-              {t('dash_kanban_col_todo') || t('kanban_col_todo') || 'A Fazer'} ({todoTasks.length})
+              {t('dash_kanban_col_todo')} ({todoTasks.length})
             </span>
             <span className="text-[10px] font-sans text-ivory/40 uppercase tracking-wider">
-              {t('kanban_col_pending_label') || 'Pendentes'}
+              {t('kanban_col_pending_label')}
             </span>
           </div>
 
@@ -301,16 +301,16 @@ export const KanbanBoard: React.FC = () => {
                     <button
                       onClick={() => setTaskToDelete(task)}
                       className="p-1 text-ivory/30 hover:text-rose-400 transition-colors cursor-pointer"
-                      title={t('kanban_confirm_delete_title') || 'Excluir Tarefa'}
+                      title={t('kanban_confirm_delete_title')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => moveTask(task.id, 'next')}
                       className="p-1.5 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte transition-all text-xs flex items-center gap-1 cursor-pointer font-bold rounded-xs"
-                      title={t('kanban_start_task') || 'Iniciar Tarefa'}
+                      title={t('dwg_kanban_start_task_title')}
                     >
-                      <span className="text-[10px]">{t('kanban_start_task') || 'Iniciar'}</span>
+                      <span className="text-[10px]">{t('kanban_start_task')}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -332,7 +332,7 @@ export const KanbanBoard: React.FC = () => {
             {todoTasks.length === 0 && (
               <div className="py-8 px-4 text-center border border-dashed border-white/5 rounded-xs space-y-1">
                 <p className="text-xs text-ivory/40 font-sans font-light">
-                  {t('kanban_empty_todo') || 'Nenhuma tarefa pendente no momento.'}
+                  {t('kanban_empty_todo')}
                 </p>
               </div>
             )}
@@ -348,10 +348,10 @@ export const KanbanBoard: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-[#C9A96B]/30">
             <span className="font-serif-lumiardi font-medium text-base tracking-wider uppercase text-gold flex items-center gap-2">
               <Clock className="w-4 h-4 text-gold animate-spin" />
-              {t('dash_kanban_col_in_progress') || t('kanban_col_in_progress') || 'Em Andamento'} ({inProgressTasks.length})
+              {t('dash_kanban_col_in_progress')} ({inProgressTasks.length})
             </span>
             <span className="text-[10px] font-sans text-gold uppercase tracking-wider">
-              {t('kanban_col_active_prod') || 'Produção Ativa'}
+              {t('kanban_col_active_prod')}
             </span>
           </div>
 
@@ -367,23 +367,23 @@ export const KanbanBoard: React.FC = () => {
                     <button
                       onClick={() => setTaskToDelete(task)}
                       className="p-1 text-ivory/30 hover:text-rose-400 transition-colors cursor-pointer"
-                      title={t('kanban_confirm_delete_title') || 'Excluir Tarefa'}
+                      title={t('kanban_confirm_delete_title')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => moveTask(task.id, 'prev')}
                       className="p-1.5 bg-white/5 hover:bg-white/10 text-ivory/60 hover:text-white transition-colors cursor-pointer rounded-xs"
-                      title={t('dash_kanban_col_todo') || 'Voltar para A Fazer'}
+                      title={t('dwg_kanban_back_to_todo')}
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => moveTask(task.id, 'next')}
                       className="p-1.5 bg-gold hover:bg-gold-light text-black-matte transition-colors text-xs flex items-center gap-1 cursor-pointer font-bold rounded-xs shadow-sm"
-                      title={t('kanban_complete_task') || 'Concluir Tarefa'}
+                      title={t('dwg_kanban_complete_task_title')}
                     >
-                      <span className="text-[10px]">{t('kanban_complete_task') || 'Concluir'}</span>
+                      <span className="text-[10px]">{t('kanban_complete_task')}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -405,7 +405,7 @@ export const KanbanBoard: React.FC = () => {
             {inProgressTasks.length === 0 && (
               <div className="py-8 px-4 text-center border border-dashed border-white/5 rounded-xs space-y-1">
                 <p className="text-xs text-ivory/40 font-sans font-light">
-                  {t('kanban_empty_inprogress') || 'Nenhuma tarefa em produção.'}
+                  {t('kanban_empty_inprogress')}
                 </p>
               </div>
             )}
@@ -421,10 +421,10 @@ export const KanbanBoard: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-white/10">
             <span className="font-serif-lumiardi font-medium text-base tracking-wider uppercase text-emerald-400 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              {t('dash_kanban_col_done') || t('kanban_col_done') || 'Concluído'} ({doneTasks.length})
+              {t('dash_kanban_col_done')} ({doneTasks.length})
             </span>
             <span className="text-[10px] font-sans text-emerald-400 uppercase tracking-wider">
-              {t('kanban_col_done_label') || 'Finalizado'}
+              {t('kanban_col_done_label')}
             </span>
           </div>
 
@@ -436,20 +436,20 @@ export const KanbanBoard: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[9px] font-sans uppercase tracking-widest font-semibold rounded-xs">
-                    {t('kanban_task_delivered') || 'Entregue'}
+                    {t('kanban_task_delivered')}
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setTaskToDelete(task)}
                       className="p-1 text-ivory/30 hover:text-rose-400 transition-colors cursor-pointer"
-                      title={t('kanban_confirm_delete_title') || 'Excluir Tarefa'}
+                      title={t('kanban_confirm_delete_title')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => moveTask(task.id, 'prev')}
                       className="p-1.5 bg-white/5 hover:bg-white/10 text-ivory/60 hover:text-white transition-colors cursor-pointer rounded-xs"
-                      title={t('kanban_reopen_task') || 'Reabrir Tarefa'}
+                      title={t('dwg_kanban_reopen_task_title')}
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
                     </button>
@@ -469,7 +469,7 @@ export const KanbanBoard: React.FC = () => {
             {doneTasks.length === 0 && (
               <div className="py-8 px-4 text-center border border-dashed border-white/5 rounded-xs space-y-1">
                 <p className="text-xs text-ivory/40 font-sans font-light">
-                  {t('kanban_empty_done') || 'Nenhuma entrega concluída.'}
+                  {t('kanban_empty_done')}
                 </p>
               </div>
             )}
@@ -503,15 +503,14 @@ export const KanbanBoard: React.FC = () => {
                         Lumiardi Standard
                       </span>
                       <h3 className="font-serif-lumiardi text-xl md:text-2xl font-light text-ivory mt-0.5">
-                        {t('kanban_confirm_delete_title') || 'Excluir Tarefa'}
+                        {t('kanban_confirm_delete_title')}
                       </h3>
                     </div>
                   </div>
 
                   <div className="space-y-2 text-xs font-sans text-ivory/70 leading-relaxed">
                     <p>
-                      {t('kanban_confirm_delete_body') ||
-                        'Esta ação removerá permanentemente a tarefa do quadro. Não poderá ser desfeita.'}
+                      {t('kanban_confirm_delete_body')}
                     </p>
                     <div className="p-3 bg-[#161616] border border-white/5 rounded-xs text-ivory/90 font-medium truncate">
                       &ldquo;{taskToDelete.title}&rdquo;
@@ -524,7 +523,7 @@ export const KanbanBoard: React.FC = () => {
                       onClick={() => setTaskToDelete(null)}
                       className="px-4 py-2.5 text-xs font-sans uppercase tracking-wider text-ivory/60 hover:text-ivory border border-white/10 hover:border-white/20 transition-colors rounded-xs cursor-pointer"
                     >
-                      {t('kanban_cancel') || 'Cancelar'}
+                      {t('kanban_cancel')}
                     </button>
                     <button
                       type="button"
@@ -532,7 +531,7 @@ export const KanbanBoard: React.FC = () => {
                       className="px-5 py-2.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800/40 text-rose-200 font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer rounded-xs shadow-md"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>{t('kanban_confirm_delete_btn') || 'Confirmar Exclusão'}</span>
+                      <span>{t('kanban_confirm_delete_btn')}</span>
                     </button>
                   </div>
                 </motion.div>
@@ -562,29 +561,29 @@ export const KanbanBoard: React.FC = () => {
                   <button
                     onClick={() => setIsModalOpen(false)}
                     className="absolute top-4 right-4 text-ivory/50 hover:text-gold cursor-pointer"
-                    title={t('kanban_cancel') || 'Fechar'}
+                    title={t('dwg_kanban_close')}
                   >
                     <X className="w-5 h-5" />
                   </button>
 
                   <div>
                     <span className="text-[10px] uppercase tracking-[0.2em] text-gold font-sans font-semibold">
-                      {t('kanban_modal_tag') || 'Gerenciamento de Entregas'}
+                      {t('kanban_modal_tag')}
                     </span>
                     <h3 className="font-serif-lumiardi text-2xl font-light text-ivory mt-1">
-                      {t('kanban_modal_title') || 'Nova Tarefa / Entrega'}
+                      {t('kanban_modal_title')}
                     </h3>
                   </div>
 
                   <form onSubmit={handleCreateTask} className="space-y-4">
                     <div>
                       <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
-                        {t('kanban_task_title_label') || 'Título da Tarefa / Entrega'}
+                        {t('kanban_task_title_label')}
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="Ex: Ensaio de Fotos para Campanha de Verão"
+                        placeholder={t('dwg_kanban_title_placeholder')}
                         value={newTaskTitle}
                         onChange={(e) => setNewTaskTitle(e.target.value)}
                         className="w-full bg-[#181818] border border-white/10 p-3 text-xs text-ivory focus:outline-none focus:border-gold font-sans rounded-xs"
@@ -594,22 +593,22 @@ export const KanbanBoard: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
-                          {t('kanban_priority_label') || 'Prioridade'}
+                          {t('kanban_priority_label')}
                         </label>
                         <select
                           value={newTaskPriority}
                           onChange={(e) => setNewTaskPriority(e.target.value as any)}
                           className="w-full bg-[#181818] border border-white/10 p-2.5 text-xs text-ivory focus:outline-none focus:border-gold font-sans cursor-pointer rounded-xs"
                         >
-                          <option value="Alta">{t('kanban_priority_high') || 'Alta'}</option>
-                          <option value="Média">{t('kanban_priority_medium') || 'Média'}</option>
-                          <option value="Normal">{t('kanban_priority_normal') || 'Normal'}</option>
+                          <option value="Alta">{t('kanban_priority_high')}</option>
+                          <option value="Média">{t('kanban_priority_medium')}</option>
+                          <option value="Normal">{t('kanban_priority_normal')}</option>
                         </select>
                       </div>
 
                       <div>
                         <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
-                          {t('kanban_col_initial') || 'Coluna Inicial'}
+                          {t('kanban_col_initial')}
                         </label>
                         <select
                           value={newTaskColumn}
@@ -617,10 +616,10 @@ export const KanbanBoard: React.FC = () => {
                           className="w-full bg-[#181818] border border-white/10 p-2.5 text-xs text-ivory focus:outline-none focus:border-gold font-sans cursor-pointer rounded-xs"
                         >
                           <option value="todo">
-                            {t('dash_kanban_col_todo') || t('kanban_col_todo') || 'A Fazer'}
+                            {t('dash_kanban_col_todo')}
                           </option>
                           <option value="inProgress">
-                            {t('dash_kanban_col_in_progress') || t('kanban_col_in_progress') || 'Em Andamento'}
+                            {t('dash_kanban_col_in_progress')}
                           </option>
                         </select>
                       </div>
@@ -628,7 +627,7 @@ export const KanbanBoard: React.FC = () => {
 
                     <div>
                       <label className="block text-xs font-sans text-ivory/70 uppercase tracking-wider mb-1.5 font-medium">
-                        {t('kanban_due_date_label') || 'Prazo Limite'}
+                        {t('kanban_due_date_label')}
                       </label>
                       <input
                         type="text"
@@ -644,14 +643,14 @@ export const KanbanBoard: React.FC = () => {
                         onClick={() => setIsModalOpen(false)}
                         className="px-4 py-2 text-xs font-sans uppercase text-ivory/60 hover:text-ivory cursor-pointer"
                       >
-                        {t('kanban_cancel') || 'Cancelar'}
+                        {t('kanban_cancel')}
                       </button>
                       <button
                         type="submit"
                         className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer shadow-md rounded-xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>{t('kanban_create_task') || 'Criar Tarefa'}</span>
+                        <span>{t('kanban_create_task')}</span>
                       </button>
                     </div>
                   </form>

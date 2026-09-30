@@ -63,7 +63,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
   targetAgencyId,
 }) => {
   const { currentUser } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, tApiError } = useLanguage();
 
   const [driveMode, setDriveMode] = useState<'private' | 'shared'>(initialDriveMode);
   const [files, setFiles] = useState<DriveItem[]>([]);
@@ -172,7 +172,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [driveMode, selectedPartnerId, targetModelId, targetAgencyId, currentUser?.role]);
+  }, [driveMode, selectedPartnerId, targetModelId, targetAgencyId, currentUser]);
 
   useEffect(() => {
     fetchFiles();
@@ -187,7 +187,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
     // Se estiver no modo compartilhado e não houver parceiro selecionado
     if (driveMode === 'shared' && !selectedPartnerId) {
-      setUploadError('Selecione uma agência ou modelo parceira no seletor acima antes de enviar.');
+      setUploadError(t('dwg_drive_err_select_partner'));
       setTimeout(() => setUploadError(null), 5000);
       return;
     }
@@ -238,7 +238,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
         if (!urlRes.ok) {
           const errData = await urlRes.json().catch(() => ({}));
-          throw new Error(errData.error || 'Falha ao solicitar autorização de upload.');
+          throw new Error(tApiError(errData, 'dwg_drive_err_upload_auth'));
         }
 
         const { uploadUrl, fileKey, fileUrl } = await urlRes.json();
@@ -277,19 +277,28 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           console.warn('Falha no upload direto via presigned PUT (tentando fallback seguro):', r2Err);
         }
 
-        // Fallback resiliente caso o upload direto falhe por CORS ou bloqueio local
+        // Fallback caso o upload direto falhe por CORS ou bloqueio local.
+        // Só para o drive privado: o espaço compartilhado exige a chave emitida para o par agência/modelo.
         let finalFileUrl = fileUrl;
+        let finalFileKey = fileKey;
         if (!directUploadSucceeded) {
+          if (driveMode === 'shared') {
+            throw new Error(t('dwg_drive_err_register_file'));
+          }
           const formData = new FormData();
           formData.append('file', file);
+          formData.append('category', category);
           const fbRes = await fetch('/api/upload', {
             method: 'POST',
             body: formData,
           });
-          if (fbRes.ok) {
-            const fbData = await fbRes.json();
-            finalFileUrl = fbData.url || finalFileUrl;
+          if (!fbRes.ok) {
+            const fbErr = await fbRes.json().catch(() => ({}));
+            throw new Error(tApiError(fbErr, 'dwg_drive_err_register_file'));
           }
+          const fbData = await fbRes.json();
+          finalFileUrl = fbData.url || finalFileUrl;
+          finalFileKey = fbData.r2Key || finalFileKey;
         }
 
         setUploadProgress(95);
@@ -299,7 +308,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fileKey,
+            fileKey: finalFileKey,
             fileUrl: finalFileUrl,
             fileName: file.name,
             fileSize: file.size,
@@ -314,7 +323,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
         if (!confirmRes.ok) {
           const confErr = await confirmRes.json().catch(() => ({}));
-          throw new Error(confErr.error || 'Falha ao registrar arquivo no banco de dados.');
+          throw new Error(tApiError(confErr, 'dwg_drive_err_register_file'));
         }
 
         setUploadProgress(100);
@@ -322,14 +331,14 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
       setUploadSuccess(
         filesToUpload.length === 1
-          ? `Arquivo "${filesToUpload[0].name}" enviado com sucesso!`
-          : `${filesToUpload.length} arquivos enviados com sucesso!`
+          ? t('dwg_drive_upload_success_one').replace('{name}', filesToUpload[0].name)
+          : t('dwg_drive_upload_success_many').replace('{count}', String(filesToUpload.length))
       );
       setTimeout(() => setUploadSuccess(null), 4000);
       await fetchFiles();
     } catch (err: any) {
       console.error('[SharedDrivePanel] Erro durante upload:', err);
-      setUploadError(err.message || 'Erro inesperado ao realizar upload.');
+      setUploadError(err.message || t('dwg_drive_err_upload_unexpected'));
       setTimeout(() => setUploadError(null), 6000);
     } finally {
       setIsUploading(false);
@@ -378,7 +387,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
         });
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || 'Não foi possível renomear o arquivo compartilhado.');
+          throw new Error(tApiError(d, 'dwg_drive_err_rename_shared'));
         }
       } else {
         setFiles((prev) =>
@@ -389,7 +398,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
       setNewFileName('');
       await fetchFiles();
     } catch (err: any) {
-      alert(err.message || 'Erro ao renomear arquivo.');
+      alert(err.message || t('dwg_drive_err_rename'));
     } finally {
       setIsRenaming(false);
     }
@@ -444,14 +453,14 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
       const res = await fetch(url, { method: 'DELETE' });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || 'Não foi possível excluir o arquivo.');
+        throw new Error(tApiError(d, 'dwg_drive_err_delete_failed'));
       }
 
       setFiles((prev) => prev.filter((f) => f.id !== fileToDelete.id));
       setFileToDelete(null);
       await fetchFiles();
     } catch (err: any) {
-      alert(err.message || 'Erro ao excluir arquivo.');
+      alert(err.message || t('dwg_drive_err_delete'));
     } finally {
       setIsDeleting(false);
     }
@@ -466,6 +475,16 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
     setCopiedUrl(false);
 
     try {
+      // A URL assinada é emitida para a chave real do objeto no R2 (derivada de /api/media/<chave>)
+      const mediaPrefix = '/api/media/';
+      const fileKey = file.fileUrl?.startsWith(mediaPrefix)
+        ? file.fileUrl.slice(mediaPrefix.length).split('/').map(decodeURIComponent).join('/')
+        : null;
+      if (!fileKey) {
+        setSignedUrlData(null);
+        return;
+      }
+
       const res = await fetch('/api/drive/signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -473,7 +492,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           fileName: file.name,
           fileType: file.type === 'video' ? 'video/mp4' : file.type === 'document' ? 'application/pdf' : 'image/jpeg',
           category: file.category || 'raw-photos',
-          userId: currentUser?.id || 'lumiardi-user',
+          fileKey,
           operation: 'download',
         }),
       });
@@ -511,7 +530,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>Meu Drive Pessoal</span>
+            <span>{t('dwg_drive_my_drive')}</span>
           </button>
 
           <button
@@ -524,7 +543,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Drive Compartilhado</span>
+            <span>{t('dwg_drive_shared_drive')}</span>
           </button>
         </div>
 
@@ -532,8 +551,8 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
           <span>
             {driveMode === 'shared'
-              ? 'Ambiente de Parceria Criptografado'
-              : 'Cofre Pessoal Privado (Cloudflare R2)'}
+              ? t('dwg_drive_env_shared')
+              : t('dwg_drive_env_private')}
           </span>
         </div>
       </div>
@@ -547,12 +566,12 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             </div>
             <div>
               <span className="text-[10px] uppercase font-mono tracking-widest text-gold block font-semibold">
-                {currentUser?.role === 'agencia' ? 'Elenco / Modelo Selecionada' : 'Agência Parceira Selecionada'}
+                {currentUser?.role === 'agencia' ? t('dwg_drive_selected_model') : t('dwg_drive_selected_agency')}
               </span>
               <p className="text-xs text-[#F5F2EB]/60 font-sans">
                 {currentUser?.role === 'agencia'
-                  ? 'Alterne entre as criadoras do seu casting para visualizar suas respectivas pastas de mídia.'
-                  : 'Selecione a agência com a qual deseja compartilhar mídias RAW, contratos ou briefings.'}
+                  ? t('dwg_drive_switch_model_desc')
+                  : t('dwg_drive_switch_agency_desc')}
               </p>
             </div>
           </div>
@@ -560,7 +579,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           <div className="flex items-center gap-3">
             {partners.length === 0 ? (
               <div className="px-3 py-1.5 text-xs text-[#F5F2EB]/40 bg-[#161616] border border-[#262626] rounded-xs font-sans">
-                Nenhuma parceria ativa vinculada
+                {t('dwg_drive_no_partners')}
               </div>
             ) : (
               <div className="relative">
@@ -581,7 +600,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
             {activeContract && (
               <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-mono uppercase bg-emerald-950/60 border border-emerald-600/40 text-emerald-300 rounded-xs">
-                Contrato Ativo ({activeContract.commissionRate || '20%'})
+                {t('dwg_drive_active_contract').replace('{rate}', activeContract.commissionRate || '20%')}
               </span>
             )}
           </div>
@@ -592,19 +611,19 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#222222]">
         <div>
           <h2 className="font-serif-lumiardi text-2xl md:text-3xl font-light text-[#F5F2EB]">
-            {driveMode === 'shared' ? 'Drive Compartilhado' : 'Meu Drive Pessoal'}
+            {driveMode === 'shared' ? t('dwg_drive_shared_drive') : t('dwg_drive_my_drive')}
           </h2>
           <p className="text-xs md:text-sm text-[#F5F2EB]/60 font-sans mt-0.5">
             {driveMode === 'shared'
-              ? 'Armazenamento colaborativo de fotos RAW, contratos e briefings. Os arquivos são debitados da cota da agência.'
-              : 'Upload direto e sem compressão para o Cloudflare R2 com URLs assinadas e proteção de integridade.'}
+              ? t('dwg_drive_shared_desc')
+              : t('dwg_drive_private_desc')}
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <label className="px-4 py-2 bg-gold hover:bg-gold-light text-[#0A0A0A] text-xs font-sans font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer rounded-xs shadow-md">
             <Upload className="w-3.5 h-3.5" />
-            <span>{isUploading ? 'Enviando...' : 'Enviar Arquivo'}</span>
+            <span>{isUploading ? t('dwg_drive_uploading') : t('dwg_drive_upload_file')}</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -617,7 +636,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
           <button
             onClick={fetchFiles}
-            title="Atualizar lista de arquivos"
+            title={t('dwg_drive_refresh_list')}
             className="p-2 bg-[#141414] hover:bg-[#1E1E1E] border border-[#222222] text-[#F5F2EB]/70 hover:text-gold transition-colors rounded-xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -632,7 +651,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             <div className="flex items-center gap-2 truncate pr-2">
               <Upload className="w-3.5 h-3.5 text-gold animate-bounce shrink-0" />
               <span className="text-[#F5F2EB] truncate font-medium">
-                Enviando {currentUploadingName}...
+                {t('dwg_drive_uploading_name').replace('{name}', currentUploadingName)}
               </span>
             </div>
             <span className="font-mono text-gold font-semibold shrink-0">
@@ -647,7 +666,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             />
           </div>
           <p className="text-[10px] text-[#F5F2EB]/50 font-sans">
-            Upload direto cliente-para-Cloudflare R2 sem sobrecarga de servidor.
+            {t('dwg_drive_direct_upload_note')}
           </p>
         </div>
       )}
@@ -682,15 +701,15 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-gold font-semibold uppercase tracking-wider text-[10px] font-mono">
               {driveMode === 'shared'
-                ? `Cota da Agência (${storageInfo.agencyName || 'Agência Vinculada'} — Plano ${storageInfo.planName})`
-                : `Cota Pessoal — Plano ${storageInfo.planName}`}
+                ? t('dwg_drive_quota_agency').replace('{agency}', storageInfo.agencyName || t('dwg_drive_linked_agency')).replace('{plan}', storageInfo.planName)
+                : t('dwg_drive_quota_personal').replace('{plan}', storageInfo.planName)}
             </span>
             <span className="text-[#F5F2EB]/30">•</span>
-            <span className="text-[#F5F2EB]/60">{storageInfo.fileCount} arquivo(s)</span>
+            <span className="text-[#F5F2EB]/60">{t('dwg_drive_file_count').replace('{count}', String(storageInfo.fileCount))}</span>
           </div>
 
           <span className="text-[#F5F2EB] font-mono text-[11px]">
-            <strong>{storageInfo.usedGB.toFixed(2)} GB</strong> de {storageInfo.maxGB} GB ({storageInfo.percentage}%)
+            <strong>{storageInfo.usedGB.toFixed(2)} GB</strong> {t('dwg_drive_of')} {storageInfo.maxGB} GB ({storageInfo.percentage}%)
           </span>
         </div>
 
@@ -709,7 +728,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
 
         {driveMode === 'shared' && (
           <p className="text-[10px] text-[#F5F2EB]/50 font-sans">
-            * O consumo deste espaço é debitado exclusivamente da capacidade da agência parceira. Sua cota pessoal permanece intacta.
+            {t('dwg_drive_shared_quota_note')}
           </p>
         )}
       </div>
@@ -729,10 +748,10 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
         <Upload className={`w-6 h-6 transition-transform ${isDragOver ? 'scale-110 text-gold' : 'text-[#F5F2EB]/40'}`} />
         <div className="space-y-0.5">
           <p className="text-xs font-sans text-[#F5F2EB]/90 font-medium">
-            Arraste e solte arquivos aqui para envio direto
+            {t('dwg_drive_drop_title')}
           </p>
           <p className="text-[11px] text-[#F5F2EB]/50 font-sans">
-            Suporta fotos RAW, vídeos e contratos em PDF sem compressão
+            {t('dwg_drive_drop_desc')}
           </p>
         </div>
       </div>
@@ -742,11 +761,11 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
         {/* Abas de Categorias */}
         <div className="flex flex-wrap items-center gap-1.5 p-1 bg-[#111111] border border-[#1F1F1F] rounded-xs text-xs font-sans">
           {[
-            { id: 'all', label: 'Todos os Arquivos' },
-            { id: 'raw-photos', label: 'Fotos RAW' },
-            { id: 'videos', label: 'Vídeos' },
-            { id: 'contracts', label: 'Contratos & NDAs' },
-            { id: 'briefings', label: 'Briefings' },
+            { id: 'all', label: t('dwg_drive_cat_all') },
+            { id: 'raw-photos', label: t('dwg_drive_cat_raw') },
+            { id: 'videos', label: t('dwg_drive_cat_videos') },
+            { id: 'contracts', label: t('dwg_drive_cat_contracts') },
+            { id: 'briefings', label: t('dwg_drive_cat_briefings') },
           ].map((cat) => (
             <button
               key={cat.id}
@@ -767,7 +786,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#F5F2EB]/40" />
           <input
             type="text"
-            placeholder="Buscar arquivo..."
+            placeholder={t('dwg_drive_search_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs font-sans bg-[#121212] border border-[#222222] text-[#F5F2EB] focus:outline-none focus:border-gold rounded-xs"
@@ -783,12 +802,12 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           </div>
           <div className="max-w-md mx-auto space-y-1">
             <h3 className="font-serif-lumiardi text-lg font-light text-[#F5F2EB]">
-              Nenhum arquivo nesta categoria
+              {t('dwg_drive_empty_title')}
             </h3>
             <p className="text-xs text-[#F5F2EB]/50 font-sans">
               {driveMode === 'shared'
-                ? 'Nenhum documento ou mídia foi enviado nesta pasta de parceria.'
-                : 'Seu drive pessoal está limpo. Novos arquivos enviados aparecerão aqui com segurança.'}
+                ? t('dwg_drive_empty_shared')
+                : t('dwg_drive_empty_private')}
             </p>
           </div>
           <button
@@ -796,7 +815,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2 bg-gold hover:bg-gold-light text-[#0A0A0A] text-xs font-sans font-bold uppercase tracking-wider rounded-xs cursor-pointer shadow-md transition-all"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Fazer Upload</span>
+            <span>{t('dwg_drive_do_upload')}</span>
           </button>
         </div>
       ) : (
@@ -820,7 +839,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                 <div className="flex items-center gap-1.5">
                   {file.isOfficial ? (
                     <span className="text-[9px] uppercase font-mono tracking-wider px-2 py-0.5 bg-gold/15 text-gold border border-gold/30 rounded-xs font-semibold">
-                      Oficial Lumiardi
+                      {t('dwg_drive_official')}
                     </span>
                   ) : (
                     <>
@@ -830,7 +849,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                           setNewFileName(file.name);
                         }}
                         className="p-1 text-[#F5F2EB]/40 hover:text-gold transition-colors cursor-pointer"
-                        title="Renomear"
+                        title={t('dwg_drive_rename')}
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -838,7 +857,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                       <button
                         onClick={() => setFileToDelete(file)}
                         className="p-1 text-[#F5F2EB]/40 hover:text-rose-400 transition-colors cursor-pointer"
-                        title="Excluir"
+                        title={t('dwg_drive_delete')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -854,7 +873,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                 <div className="flex items-center gap-2 text-[10px] text-[#F5F2EB]/50 font-sans">
                   <span>{file.size}</span>
                   <span>•</span>
-                  <span>{file.uploadedByName || file.uploadedBy || 'Sistema'}</span>
+                  <span>{file.uploadedByName || file.uploadedBy || t('dwg_drive_system')}</span>
                 </div>
               </div>
 
@@ -865,7 +884,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                   className="px-2.5 py-1.5 bg-[#161616] hover:bg-white/10 text-[#F5F2EB]/80 hover:text-gold text-xs font-sans transition-all flex items-center gap-1.5 rounded-xs cursor-pointer border border-[#222222]"
                 >
                   <Eye className="w-3.5 h-3.5 text-gold" />
-                  <span>Inspecionar</span>
+                  <span>{t('dwg_drive_inspect')}</span>
                 </button>
 
                 <button
@@ -874,7 +893,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                   className="px-3 py-1.5 bg-[#161616] hover:bg-gold hover:text-[#0A0A0A] border border-gold/30 text-gold text-xs font-sans font-medium transition-all flex items-center gap-1.5 rounded-xs cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Baixar</span>
+                  <span>{t('dwg_drive_download')}</span>
                 </button>
               </div>
             </div>
@@ -893,7 +912,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#222222] pb-3">
-              <h3 className="font-serif-lumiardi text-lg text-[#F5F2EB]">Renomear Arquivo</h3>
+              <h3 className="font-serif-lumiardi text-lg text-[#F5F2EB]">{t('dwg_drive_rename_title')}</h3>
               <button onClick={() => setRenamingFile(null)} className="text-[#F5F2EB]/50 hover:text-gold cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
@@ -902,7 +921,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             <form onSubmit={handleRenameSubmit} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-sans text-[#F5F2EB]/70 uppercase tracking-wider mb-1">
-                  Nome do Arquivo
+                  {t('dwg_drive_file_name_label')}
                 </label>
                 <input
                   type="text"
@@ -919,14 +938,14 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                   onClick={() => setRenamingFile(null)}
                   className="px-3 py-1.5 text-xs font-sans text-[#F5F2EB]/60 hover:text-[#F5F2EB] cursor-pointer"
                 >
-                  Cancelar
+                  {t('dwg_drive_cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={isRenaming || !newFileName.trim()}
                   className="px-4 py-2 bg-gold hover:bg-gold-light text-[#0A0A0A] font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer rounded-xs disabled:opacity-50"
                 >
-                  {isRenaming ? 'Salvando...' : 'Salvar'}
+                  {isRenaming ? t('dwg_drive_saving') : t('dwg_drive_save')}
                 </button>
               </div>
             </form>
@@ -945,14 +964,14 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#222222] pb-3">
-              <h3 className="font-serif-lumiardi text-lg text-rose-400">Excluir Arquivo</h3>
+              <h3 className="font-serif-lumiardi text-lg text-rose-400">{t('dwg_drive_delete_title')}</h3>
               <button onClick={() => setFileToDelete(null)} className="text-[#F5F2EB]/50 hover:text-[#F5F2EB] cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <p className="text-xs font-sans text-[#F5F2EB]/80 leading-relaxed">
-              Tem certeza que deseja remover o arquivo <strong className="text-[#F5F2EB]">"{fileToDelete.name}"</strong>? Esta ação não poderá ser revertida.
+              {t('dwg_drive_delete_confirm_pre')} <strong className="text-[#F5F2EB]">"{fileToDelete.name}"</strong>{t('dwg_drive_delete_confirm_post')}
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#222222]">
@@ -961,7 +980,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                 onClick={() => setFileToDelete(null)}
                 className="px-3 py-1.5 text-xs font-sans text-[#F5F2EB]/60 hover:text-[#F5F2EB] cursor-pointer"
               >
-                Cancelar
+                {t('dwg_drive_cancel')}
               </button>
               <button
                 type="button"
@@ -969,7 +988,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                 disabled={isDeleting}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer rounded-xs disabled:opacity-50"
               >
-                {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
+                {isDeleting ? t('dwg_drive_deleting') : t('dwg_drive_confirm_delete')}
               </button>
             </div>
           </div>
@@ -996,7 +1015,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
             <div className="space-y-1 border-b border-[#222222] pb-3 pr-8">
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-gold/10 border border-gold/30 text-gold text-[10px] uppercase font-mono tracking-wider font-semibold">
                 <ShieldCheck className="w-3 h-3" />
-                <span>Cloudflare R2 Vault · Watermark Dinâmica</span>
+                <span>{t('dwg_drive_vault_badge')}</span>
               </div>
               <h3 className="font-serif-lumiardi text-xl text-[#F5F2EB]">
                 {previewFile.name}
@@ -1014,7 +1033,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
               ) : (
                 <div className="text-center space-y-2 p-6">
                   <FileText className="w-16 h-16 text-gold mx-auto stroke-[1.2]" />
-                  <p className="text-xs font-sans text-[#F5F2EB]/70">Documento / Mídia Protegida</p>
+                  <p className="text-xs font-sans text-[#F5F2EB]/70">{t('dwg_drive_protected_media')}</p>
                 </div>
               )}
 
@@ -1038,16 +1057,16 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-mono uppercase tracking-wider text-gold font-semibold flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5" />
-                  Presigned URL de Inspeção (5 Minutos)
+                  {t('dwg_drive_presigned_title')}
                 </span>
                 <span className="text-[10px] font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-600/40 px-2 py-0.5 uppercase">
-                  Válida: 300s
+                  {t('dwg_drive_valid_300s')}
                 </span>
               </div>
 
               <div className="p-2 bg-[#090909] border border-[#1A1A1A] font-mono text-[11px] text-[#F5F2EB]/70 break-all select-all flex items-center justify-between gap-2">
                 <span className="truncate">
-                  {signedUrlData?.signedUrl || 'Gerando link assinado temporário...'}
+                  {signedUrlData?.signedUrl || t('dwg_drive_generating_link')}
                 </span>
                 {signedUrlData?.signedUrl && (
                   <button
@@ -1058,7 +1077,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                       setTimeout(() => setCopiedUrl(false), 2000);
                     }}
                     className="p-1 text-gold hover:text-gold-light shrink-0 cursor-pointer"
-                    title="Copiar link assinado"
+                    title={t('dwg_drive_copy_link')}
                   >
                     {copiedUrl ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
@@ -1072,7 +1091,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                 onClick={() => setPreviewFile(null)}
                 className="px-4 py-2 bg-white/5 hover:bg-white/10 text-[#F5F2EB] text-xs uppercase tracking-wider font-sans cursor-pointer transition-colors rounded-xs"
               >
-                Fechar
+                {t('dwg_drive_close')}
               </button>
 
               <button
@@ -1081,7 +1100,7 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
                 className="px-5 py-2 bg-gold hover:bg-gold-light text-[#0A0A0A] text-xs uppercase tracking-widest font-bold font-sans transition-all flex items-center gap-2 cursor-pointer rounded-xs"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Baixar</span>
+                <span>{t('dwg_drive_download')}</span>
               </button>
             </div>
           </div>

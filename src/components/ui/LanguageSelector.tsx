@@ -15,7 +15,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   direction = 'down',
   className = '',
 }) => {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +40,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             ? 'border-[#0B0B0B]/20 text-[#0B0B0B]/80 hover:border-[#C9A96B] hover:text-[#A97745] bg-white/50'
             : 'border-white/20 text-ivory/80 hover:border-gold hover:text-gold bg-black/40'
         }`}
-        aria-label="Selecionar idioma"
+        aria-label={t('lgm_lang_select_aria')}
       >
         <span className="font-semibold px-1 py-0.5 bg-[#C9A96B]/20 text-[#C9A96B] text-[10px] rounded-[2px]">
           {selectedLang.shortLabel}
@@ -62,7 +62,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           }`}
         >
           <div className="px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-[#C9A96B] font-sans font-semibold border-b border-white/10 mb-1">
-            Idioma / Language
+            {t('lgm_lang_header')}
           </div>
           {LANGUAGES.map((lang) => (
             <button

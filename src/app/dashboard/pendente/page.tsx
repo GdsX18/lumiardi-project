@@ -28,7 +28,7 @@ import { VIPWelcomeCelebrationModal } from '@/components/dashboard/VIPWelcomeCel
 export default function CuradoriaPendentePage() {
   const router = useRouter();
   const { refreshData } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, formatDate } = useLanguage();
 
   const [userData, setUserData] = useState<any>(null);
   const [billingData, setBillingData] = useState<{ invoices: any[]; latestInvoice: any; subscription: any }>({
@@ -124,10 +124,10 @@ export default function CuradoriaPendentePage() {
       <VIPWelcomeCelebrationModal
         isOpen={showCelebrationModal}
         onClose={handleCelebrationClose}
-        userName={userData?.name || 'Membro VIP'}
+        userName={userData?.name || t('dsh_pend_vip_member')}
         userRole={userData?.role || 'criadora'}
         memberId={`LUM-${(userData?.id || '8842').substring(0, 6).toUpperCase()}`}
-        category={userData?.category || 'Criadora de Elite'}
+        category={userData?.category || t('dsh_pend_elite_creator')}
       />
 
       <section className="pt-36 pb-20 px-4 md:px-8 max-w-4xl mx-auto w-full flex-1 flex flex-col justify-center">
@@ -146,34 +146,34 @@ export default function CuradoriaPendentePage() {
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 text-[10px] font-sans uppercase tracking-[0.25em] font-semibold border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37]">
                   {userData?.curationStatus === 'REJEITADO' || userData?.curationStatus === 'RECUSADO'
-                    ? 'CANDIDATURA NÃO HOMOLOGADA'
+                    ? t('dsh_pend_badge_rejected')
                     : userData?.curationStatus === 'APROVADA_PAGAMENTO'
-                    ? 'APROVADA NA CURADORIA'
+                    ? t('dsh_pend_badge_approved')
                     : userData?.curationStatus === 'AGUARDANDO_REUNIAO'
-                    ? 'ENTREVISTA AGENDADA'
-                    : 'EM ANÁLISE DE CURADORIA'}
+                    ? t('dsh_pend_badge_interview')
+                    : t('dsh_pend_badge_review')}
                 </span>
                 <span className="text-[10px] font-mono text-[#D4AF37] uppercase tracking-widest bg-[#D4AF37]/10 px-2 py-0.5 border border-[#D4AF37]/30">
-                  {userData?.id ? `ID: ${userData.id.substring(0, 8).toUpperCase()}` : 'ID PENDENTE'}
+                  {userData?.id ? `ID: ${userData.id.substring(0, 8).toUpperCase()}` : t('dsh_pend_id_pending')}
                 </span>
               </div>
               <h1 className="font-serif-lumiardi text-2xl md:text-4xl text-ivory font-light pt-2">
                 {userData?.curationStatus === 'REJEITADO' || userData?.curationStatus === 'RECUSADO' ? (
-                  <span className="text-red-400">Candidatura Não Aprovada</span>
+                  <span className="text-red-400">{t('dsh_pend_title_rejected')}</span>
                 ) : userData?.curationStatus === 'APROVADA_PAGAMENTO' ? (
                   <>
-                    Aprovada pela Curadoria!{' '}
-                    <span className="italic text-[#F5D77F]">Libere seu Acesso</span>
+                    {t('dsh_pend_title_approved_a')}{' '}
+                    <span className="italic text-[#F5D77F]">{t('dsh_pend_title_approved_b')}</span>
                   </>
                 ) : userData?.curationStatus === 'AGUARDANDO_REUNIAO' ? (
                   <>
-                    Entrevista Prévia{' '}
-                    <span className="italic text-[#F5D77F]">Agendada</span>
+                    {t('dsh_pend_title_interview_a')}{' '}
+                    <span className="italic text-[#F5D77F]">{t('dsh_pend_title_interview_b')}</span>
                   </>
                 ) : (
                   <>
-                    Candidatura em{' '}
-                    <span className="italic text-[#F5D77F]">Análise Prévia</span>
+                    {t('dsh_pend_title_review_a')}{' '}
+                    <span className="italic text-[#F5D77F]">{t('dsh_pend_title_review_b')}</span>
                   </>
                 )}
               </h1>
@@ -185,7 +185,7 @@ export default function CuradoriaPendentePage() {
               className="self-start md:self-auto flex items-center gap-2 px-4 py-2 bg-transparent border border-white/10 hover:border-red-500/40 text-ivory/60 hover:text-red-400 text-xs font-mono uppercase tracking-widest transition-all cursor-pointer rounded-sm"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>{loggingOut ? 'Saindo...' : 'Sair da Conta'}</span>
+              <span>{loggingOut ? t('dsh_pend_logging_out') : t('dsh_pend_logout')}</span>
             </button>
           </div>
 
@@ -197,14 +197,14 @@ export default function CuradoriaPendentePage() {
               <div className="p-6 bg-red-950/20 border border-red-500/40 rounded-lg space-y-4">
                 <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
                   <XCircle className="w-5 h-5" />
-                  <span>Candidatura Encerrada com Justificativa Protocolada</span>
+                  <span>{t('dsh_pend_rejected_heading')}</span>
                 </div>
                 <p className="text-xs text-ivory/70 leading-relaxed font-light">
-                  Agradecemos seu interesse em integrar a plataforma Lumiardi. Após análise da equipe de curadoria, sua candidatura não pôde ser homologada neste momento.
+                  {t('dsh_pend_rejected_desc')}
                 </p>
                 {userData?.rejectionReason && (
                   <div className="p-3.5 bg-black/50 border border-red-500/20 text-xs text-red-300 font-mono rounded">
-                    <span className="text-ivory/40 block text-[10px] uppercase font-sans mb-1">Motivo Registrado:</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase font-sans mb-1">{t('dsh_pend_reason_label')}</span>
                     {userData.rejectionReason}
                   </div>
                 )}
@@ -212,13 +212,13 @@ export default function CuradoriaPendentePage() {
 
               <div className="text-center pt-2">
                 <Link
-                  href={`https://wa.me/5511999999999?text=Olá,%20sou%20a%20candidata%20${encodeURIComponent(userData?.name || 'Membro')}%20(ID:%20${userData?.id || 'VIP'})%20e%20gostaria%20de%20esclarecimentos%20sobre%20o%20processo%20de%20curadoria.`}
+                  href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || '5521951011616'}?text=${encodeURIComponent(t('dsh_pend_wa_rejected_msg'))}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Falar com a Equipe de Curadoria</span>
+                  <span>{t('dsh_pend_talk_curation')}</span>
                 </Link>
               </div>
             </div>
@@ -235,39 +235,42 @@ export default function CuradoriaPendentePage() {
                 </div>
                 <div className="space-y-2">
                   <span className="text-[10px] uppercase tracking-[0.3em] text-[#D4AF37] font-semibold">
-                    ENTREVISTA DE ALINHAMENTO CONCLUÍDA
+                    {t('dsh_pend_interview_done')}
                   </span>
                   <h3 className="font-serif-lumiardi text-2xl md:text-3xl text-ivory">
-                    Parabéns, {userData?.name || 'Criadora'}!
+                    {t('dsh_pend_congrats').replace('{name}', userData?.name || t('dsh_pend_creator_fallback'))}
                   </h3>
                   <p className="text-xs text-ivory/80 max-w-lg mx-auto leading-relaxed font-light">
-                    Sua reunião com a Mesa de Curadoria foi um sucesso. O seu perfil foi aprovado com louvor e seu acesso ao ecossistema exclusivo Lumiardi foi liberado para ativação de pagamento.
+                    {t('dsh_pend_approved_desc')}
                   </p>
                 </div>
 
                 <div className="p-4 bg-black/40 border border-[#D4AF37]/30 rounded-lg max-w-md mx-auto text-left space-y-2">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-ivory/60">Plano Selecionado:</span>
+                    <span className="text-ivory/60">{t('dsh_pend_selected_plan')}</span>
                     <span className="font-bold text-[#F5D77F] uppercase tracking-wider">
-                      {userData?.planId ? userData.planId.toUpperCase() : 'GLOW'} ({userData?.planBillingInterval === 'yearly' ? 'Anual' : 'Mensal'})
+                      {userData?.planId ? userData.planId.toUpperCase() : 'GLOW'} ({userData?.planBillingInterval === 'yearly' ? t('dsh_pend_yearly') : t('dsh_pend_monthly')})
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-ivory/60">Status de Liberação:</span>
+                    <span className="text-ivory/60">{t('dsh_pend_release_status')}</span>
                     <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Aprovada para Pagamento
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {t('dsh_pend_approved_for_payment')}
                     </span>
                   </div>
                 </div>
 
                 <div className="pt-2 max-w-md mx-auto">
-                  <Link
-                    href={`/checkout?plan=${userData?.planId || 'glow'}&billing=${userData?.planBillingInterval || 'yearly'}`}
+                  <button
+                    onClick={async () => {
+                      if (typeof refreshData === 'function') await refreshData();
+                      router.push(`/checkout?plan=${userData?.planId || 'glow'}&billing=${userData?.planBillingInterval || 'yearly'}`);
+                    }}
                     className="w-full py-4 px-6 bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#AA820A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer rounded-sm shadow-xl"
                   >
                     <CreditCard className="w-4 h-4" />
-                    <span>Efetuar Pagamento e Ativar Minha Conta →</span>
-                  </Link>
+                    <span>{t('dsh_pend_pay_activate')}</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -283,41 +286,41 @@ export default function CuradoriaPendentePage() {
                 {/* 1: Biometria */}
                 <div className="p-4 bg-black/40 border border-emerald-500/40 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-emerald-400 font-bold">ETAPA 1</span>
+                    <span className="text-[9px] font-mono uppercase tracking-widest text-emerald-400 font-bold">{t('dsh_pend_step').replace('{n}', '1')}</span>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   </div>
-                  <h4 className="text-xs font-semibold text-ivory">Biometria & KYC</h4>
-                  <p className="text-[11px] text-ivory/60 leading-tight">Documentação 18+ validada com sucesso.</p>
+                  <h4 className="text-xs font-semibold text-ivory">{t('dsh_pend_step1_title')}</h4>
+                  <p className="text-[11px] text-ivory/60 leading-tight">{t('dsh_pend_step1_desc')}</p>
                 </div>
 
                 {/* 2: Entrevista Agendada (Ativa) */}
                 <div className="p-4 bg-[#D4AF37]/15 border-2 border-[#D4AF37] rounded-lg space-y-1 relative">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-[#F5D77F] font-bold">ETAPA 2 · ATIVA</span>
+                    <span className="text-[9px] font-mono uppercase tracking-widest text-[#F5D77F] font-bold">{t('dsh_pend_step_active').replace('{n}', '2')}</span>
                     <Clock className="w-3.5 h-3.5 text-[#F5D77F] animate-spin" />
                   </div>
-                  <h4 className="text-xs font-semibold text-[#F5D77F]">Reunião de Curadoria</h4>
-                  <p className="text-[11px] text-ivory/70 leading-tight">Aguardando entrevista via Google Meet.</p>
+                  <h4 className="text-xs font-semibold text-[#F5D77F]">{t('dsh_pend_step2_title')}</h4>
+                  <p className="text-[11px] text-ivory/70 leading-tight">{t('dsh_pend_step2_desc')}</p>
                 </div>
 
                 {/* 3: Aprovação */}
                 <div className="p-4 bg-black/30 border border-white/10 rounded-lg space-y-1 opacity-70">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-ivory/40">ETAPA 3</span>
+                    <span className="text-[9px] font-mono uppercase tracking-widest text-ivory/40">{t('dsh_pend_step').replace('{n}', '3')}</span>
                     <Lock className="w-3.5 h-3.5 text-ivory/40" />
                   </div>
-                  <h4 className="text-xs font-semibold text-ivory/70">Aprovação Final</h4>
-                  <p className="text-[11px] text-ivory/50 leading-tight">Mesa decide sobre a homologação.</p>
+                  <h4 className="text-xs font-semibold text-ivory/70">{t('dsh_pend_step3_title')}</h4>
+                  <p className="text-[11px] text-ivory/50 leading-tight">{t('dsh_pend_step3_desc')}</p>
                 </div>
 
                 {/* 4: Pagamento */}
                 <div className="p-4 bg-black/30 border border-white/10 rounded-lg space-y-1 opacity-70">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-ivory/40">ETAPA 4</span>
+                    <span className="text-[9px] font-mono uppercase tracking-widest text-ivory/40">{t('dsh_pend_step').replace('{n}', '4')}</span>
                     <Lock className="w-3.5 h-3.5 text-ivory/40" />
                   </div>
-                  <h4 className="text-xs font-semibold text-ivory/70">Pagamento & Acesso</h4>
-                  <p className="text-[11px] text-ivory/50 leading-tight">Checkout do plano e ativação.</p>
+                  <h4 className="text-xs font-semibold text-ivory/70">{t('dsh_pend_step4_title')}</h4>
+                  <p className="text-[11px] text-ivory/50 leading-tight">{t('dsh_pend_step4_desc')}</p>
                 </div>
               </div>
 
@@ -328,32 +331,32 @@ export default function CuradoriaPendentePage() {
                     <Calendar className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-serif-lumiardi text-xl text-ivory">Sua Entrevista Está Confirmada</h3>
-                    <p className="text-xs text-ivory/60 font-light">Confira os dados do seu agendamento abaixo</p>
+                    <h3 className="font-serif-lumiardi text-xl text-ivory">{t('dsh_pend_interview_confirmed')}</h3>
+                    <p className="text-xs text-ivory/60 font-light">{t('dsh_pend_interview_check')}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div className="p-3.5 bg-black/40 border border-white/10 rounded-sm">
-                    <span className="text-[10px] uppercase tracking-wider text-ivory/40 block mb-1">Data da Reunião</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ivory/40 block mb-1">{t('dsh_pend_meeting_date')}</span>
                     <span className="font-mono text-sm text-[#F5D77F] font-semibold">
                       {userData?.interviewDate
-                        ? userData.interviewDate.split('-').reverse().join('/')
-                        : 'Aguardando Data'}
+                        ? formatDate(`${userData.interviewDate}T12:00:00`) || userData.interviewDate
+                        : t('dsh_pend_awaiting_date')}
                     </span>
                   </div>
 
                   <div className="p-3.5 bg-black/40 border border-white/10 rounded-sm">
-                    <span className="text-[10px] uppercase tracking-wider text-ivory/40 block mb-1">Horário Agendado</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ivory/40 block mb-1">{t('dsh_pend_scheduled_time')}</span>
                     <span className="font-mono text-sm text-[#F5D77F] font-semibold">
-                      {userData?.interviewTime || '15:00'} (Horário de Brasília)
+                      {userData?.interviewTime || '15:00'} ({t('dsh_pend_brasilia_time')})
                     </span>
                   </div>
 
                   <div className="p-3.5 bg-black/40 border border-white/10 rounded-sm">
-                    <span className="text-[10px] uppercase tracking-wider text-ivory/40 block mb-1">WhatsApp de Contato</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ivory/40 block mb-1">{t('dsh_pend_contact_whatsapp')}</span>
                     <span className="font-mono text-sm text-emerald-400 font-semibold truncate block">
-                      {userData?.whatsapp || userData?.phone || 'Cadastrado'}
+                      {userData?.whatsapp || userData?.phone || t('dsh_pend_registered')}
                     </span>
                   </div>
                 </div>
@@ -362,16 +365,16 @@ export default function CuradoriaPendentePage() {
                 <div className="p-4 bg-[#181611] border border-[#D4AF37]/30 rounded-lg space-y-2 text-xs leading-relaxed font-light text-ivory/80">
                   <div className="flex items-center gap-2 text-[#F5D77F] font-semibold text-xs uppercase tracking-wider">
                     <ShieldCheck className="w-4 h-4 shrink-0" />
-                    <span>Como funcionará a sua entrevista de alinhamento</span>
+                    <span>{t('dsh_pend_how_title')}</span>
                   </div>
                   <p>
-                    1. No dia e horário agendados, um membro da <strong>Mesa de Curadoria Lumiardi</strong> enviará o link seguro do <strong>Google Meet</strong> diretamente para o seu WhatsApp.
+                    {t('dsh_pend_how_1a')} <strong>{t('dsh_pend_how_1_board')}</strong> {t('dsh_pend_how_1b')} <strong>Google Meet</strong> {t('dsh_pend_how_1c')}
                   </p>
                   <p>
-                    2. A reunião tem duração de 10 a 15 minutos e tem como objetivo o alinhamento de diretrizes, orientações de privacidade e conformidade de imagem.
+                    {t('dsh_pend_how_2')}
                   </p>
                   <p>
-                    3. Assim que a curadoria concluir a reunião, sua conta será homologada e o botão para pagamento da assinatura será liberado aqui nesta tela.
+                    {t('dsh_pend_how_3')}
                   </p>
                 </div>
               </div>
@@ -379,17 +382,17 @@ export default function CuradoriaPendentePage() {
               {/* Botão de Suporte via WhatsApp */}
               <div className="p-5 bg-black/40 border border-white/10 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-center sm:text-left">
-                  <span className="text-xs text-ivory font-semibold block">Precisa alterar o horário ou falar com a Curadoria?</span>
-                  <span className="text-[11px] text-ivory/60">Nossa equipe atende candidatas com prioridade e discrição.</span>
+                  <span className="text-xs text-ivory font-semibold block">{t('dsh_pend_need_change')}</span>
+                  <span className="text-[11px] text-ivory/60">{t('dsh_pend_team_priority')}</span>
                 </div>
                 <Link
-                  href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || '5521951011616'}?text=Olá,%20sou%20a%20candidata%20${encodeURIComponent(userData?.name || 'Criadora')}%20(ID:%20${userData?.id || 'VIP'})%20e%20gostaria%20de%20informações%20sobre%20minha%20reunião%20de%20curadoria.`}
+                  href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || '5521951011616'}?text=${encodeURIComponent(t('dsh_pend_wa_interview_msg').replace('{name}', userData?.name || t('dsh_pend_creator_fallback')).replace('{id}', userData?.id || 'VIP'))}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-5 py-2.5 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 text-[#25D366] text-xs font-bold uppercase tracking-wider rounded-sm transition-all flex items-center gap-2 shrink-0"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Suporte Curadoria</span>
+                  <span>{t('dsh_pend_curation_support')}</span>
                 </Link>
               </div>
             </div>

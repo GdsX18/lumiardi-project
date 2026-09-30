@@ -25,7 +25,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect');
   const { refreshData } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, tApiError } = useLanguage();
 
   const [role, setRole] = useState<'criadora' | 'agencia'>('criadora');
   const [email, setEmail] = useState('');
@@ -49,7 +49,7 @@ function LoginForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Falha ao autenticar credencial.');
+        throw new Error(tApiError(data, 'pub_login_auth_failed'));
       }
 
       await refreshData();
@@ -63,7 +63,7 @@ function LoginForm() {
         router.push('/dashboard/pendente');
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro na autenticação';
+      const message = err instanceof Error ? err.message : t('pub_login_auth_failed');
       setErrorMsg(message);
     } finally {
       setLoading(false);
@@ -78,13 +78,13 @@ function LoginForm() {
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/40 text-gold text-[10px] font-sans uppercase tracking-[0.25em]">
             <Lock className="w-3 h-3" />
-            <span>{t('login_secure_title') || 'Acesso Seguro Criptografado'}</span>
+            <span>{t('login_secure_title')}</span>
           </div>
           <h1 className="font-serif-lumiardi text-3xl md:text-4xl font-light text-ivory tracking-wide">
-            {t('login_portal_title') || 'Portal Lumiardi'}
+            {t('login_portal_title')}
           </h1>
           <p className="text-xs text-ivory/60 font-sans leading-relaxed">
-            {t('login_portal_desc') || 'Informe suas credenciais para acessar os módulos e recursos da plataforma.'}
+            {t('login_portal_desc')}
           </p>
         </div>
 
@@ -103,7 +103,7 @@ function LoginForm() {
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>{t('login_role_creator') || 'Acesso Modelo'}</span>
+            <span>{t('login_role_creator')}</span>
           </button>
 
           <button
@@ -119,7 +119,7 @@ function LoginForm() {
             }`}
           >
             <Building2 className="w-4 h-4" />
-            <span>{t('login_role_agency') || 'Acesso Agência'}</span>
+            <span>{t('login_role_agency')}</span>
           </button>
         </div>
 
@@ -135,7 +135,7 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-sans uppercase tracking-wider text-ivory/70 mb-1.5">
-              {t('login_email_label') || (role === 'criadora' ? 'E-mail Cadastrado' : 'E-mail Corporativo')}
+              {t('login_email_label')}
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
@@ -144,7 +144,7 @@ function LoginForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={role === 'criadora' ? 'seu.email@exclusivo.com' : 'contato@suaagencia.com'}
+                placeholder={role === 'criadora' ? t('pub_login_email_placeholder_creator') : t('pub_login_email_placeholder_agency')}
                 className="w-full pl-9 pr-4 py-3 bg-[#161616] border border-white/10 text-xs md:text-sm text-ivory placeholder:text-ivory/30 focus:outline-none focus:border-gold font-sans"
               />
             </div>
@@ -153,10 +153,10 @@ function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-sans uppercase tracking-wider text-ivory/70">
-                {t('login_pass_label') || 'Senha de Acesso'}
+                {t('login_pass_label')}
               </label>
               <span className="text-[10px] text-bronze uppercase tracking-wider">
-                {t('chat_e2e_shield') || 'Criptografada'}
+                {t('chat_e2e_shield')}
               </span>
             </div>
             <div className="relative">
@@ -185,7 +185,7 @@ function LoginForm() {
               disabled={loading}
               className="w-full py-3.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
             >
-              <span>{loading ? (t('login_logging_in') || 'Validando Credenciais...') : (t('login_submit_btn') || 'Acessar Ambiente Seguro')}</span>
+              <span>{loading ? (t('login_logging_in')) : (t('login_submit_btn'))}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -194,21 +194,21 @@ function LoginForm() {
         {/* Links de Criação de Conta */}
         <div className="pt-4 border-t border-white/10 text-center space-y-2">
           <span className="text-xs font-sans text-ivory/50 block">
-            {t('login_no_account') || 'Ainda não possui credencial verificada?'}
+            {t('login_no_account')}
           </span>
           <div className="flex items-center justify-center gap-4 text-xs font-sans">
             <Link
               href={searchParams.get('plan') ? `/qualificacao?plan=${searchParams.get('plan')}&billing=${searchParams.get('billing') || 'yearly'}` : '/qualificacao'}
               className="text-gold hover:underline uppercase tracking-wider font-medium"
             >
-              {t('login_register_creator') || 'Cadastrar como Modelo'} →
+              {t('login_register_creator')} →
             </Link>
             <span className="text-ivory/30">•</span>
             <Link
               href={searchParams.get('plan') ? `/qualificacao/agencia?plan=${searchParams.get('plan')}&billing=${searchParams.get('billing') || 'yearly'}` : '/qualificacao/agencia'}
               className="text-gold hover:underline uppercase tracking-wider font-medium"
             >
-              {t('login_register_agency') || 'Credenciar Agência'} →
+              {t('login_register_agency')} →
             </Link>
           </div>
         </div>
@@ -218,12 +218,13 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   return (
     <main className="min-h-screen bg-[#070707] text-ivory font-sans flex flex-col justify-between selection:bg-gold selection:text-black-matte">
       <Header />
 
       <section className="pt-32 pb-16 px-4 md:px-8 max-w-5xl mx-auto w-full flex-1 flex flex-col justify-center">
-        <Suspense fallback={<div className="text-center py-20 text-gold font-serif-lumiardi">Carregando portal seguro...</div>}>
+        <Suspense fallback={<div className="text-center py-20 text-gold font-serif-lumiardi">{t('pub_login_loading')}</div>}>
           <LoginForm />
         </Suspense>
       </section>

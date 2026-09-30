@@ -104,7 +104,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   onClose,
   counterpartyName: propCounterparty,
 }) => {
-  const { t } = useLanguage();
+  const { t, formatTime } = useLanguage();
   const { currentUser, activeCreator, activeAgency } = useAuthPortal();
   const searchParams = useSearchParams();
 
@@ -167,7 +167,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const signalingPollRef = useRef<NodeJS.Timeout | null>(null);
-  const participantIdRef = useRef<string>(`part-${Math.random().toString(36).substring(2, 8)}`);
+  const [initialParticipantId] = useState(() => `part-${Math.random().toString(36).substring(2, 8)}`);
+  const participantIdRef = useRef<string>(initialParticipantId);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -394,7 +395,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
         setCamOn(false);
         setMicOn(false);
         setPermissionError(
-          'Câmera ou microfone não detectados ou bloqueados. Verifique as permissões do seu navegador.'
+          t('dwg_video_perm_error')
         );
         return emptyStream;
       }
@@ -715,9 +716,9 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 ...prev,
                 {
                   id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-                  sender: participant?.name || 'Interlocutor',
+                  sender: participant?.name || t('dwg_video_participant'),
                   text: msg.text,
-                  time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                  time: formatTime(new Date()),
                   isMe: false,
                 },
               ]);
@@ -850,7 +851,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
         setInCall(true);
       }
     } catch {
-      setPermissionError('Falha de conexão ao criar sala de reunião.');
+      setPermissionError(t('dwg_video_create_room_failed'));
     } finally {
       setIsCreatingRoom(false);
     }
@@ -1007,7 +1008,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
     const newMsg = {
       id: `msg-${Date.now()}`,
-      sender: 'Você',
+      sender: t('dwg_video_you'),
       text: messageText,
       time: timeString,
       isMe: true,
@@ -1067,12 +1068,12 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
   const isPresentationActive = Boolean(screenShare || hasRemoteScreenShare);
 
   // Nome do Interlocutor para Exibição
-  const interlocutorName = remoteParticipant?.name || propCounterparty || 'Interlocutor VIP';
+  const interlocutorName = remoteParticipant?.name || propCounterparty || t('dwg_video_interlocutor_vip');
   const myDisplayName =
     activeCreator?.qualitative?.artisticName ||
     activeAgency?.basicInfo?.responsibleName ||
     currentUser?.name ||
-    'Você';
+    t('dwg_video_you');
 
   // Conteúdo Principal
   const content = (
@@ -1106,7 +1107,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-ivory/60 font-mono">
                   <span>
-                    Sala: <strong className="text-gold">{activeRoomId}</strong>
+                    {t('dwg_video_room_label')} <strong className="text-gold">{activeRoomId}</strong>
                   </span>
                   <span>·</span>
                   <CallTimer active={inCall} />
@@ -1120,10 +1121,10 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 <button
                   onClick={() => setLayoutMode(layoutMode === 'grid' ? 'spotlight' : 'grid')}
                   className="px-3 py-1.5 bg-[#18181c] hover:bg-[#222228] text-ivory/80 hover:text-gold border border-white/10 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title={layoutMode === 'grid' ? 'Mudar para modo Destaque' : 'Mudar para modo Mosaico'}
+                  title={layoutMode === 'grid' ? t('dwg_video_switch_to_spotlight_mode') : t('dwg_video_switch_to_grid_mode')}
                 >
                   {layoutMode === 'grid' ? <Square className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
-                  <span className="hidden md:inline">{layoutMode === 'grid' ? 'Foco' : 'Mosaico'}</span>
+                  <span className="hidden md:inline">{layoutMode === 'grid' ? t('dwg_video_focus') : t('dwg_video_grid')}</span>
                 </button>
               )}
 
@@ -1133,14 +1134,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 className="px-3 py-1.5 bg-black/60 hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-medium rounded-full transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
               >
                 {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{copiedLink ? 'Link Copiado' : 'Copiar Convite'}</span>
+                <span className="hidden sm:inline">{copiedLink ? t('dwg_video_link_copied') : t('dwg_video_copy_invite')}</span>
               </button>
 
               {/* Tela Cheia */}
               <button
                 onClick={toggleFullscreen}
                 className="p-2 bg-[#18181c] hover:bg-[#222228] text-ivory/70 hover:text-gold border border-white/10 rounded-full transition-colors cursor-pointer"
-                title={isFullscreen ? 'Sair da Tela Cheia' : 'Modo Tela Cheia'}
+                title={isFullscreen ? t('dwg_video_exit_fullscreen') : t('dwg_video_fullscreen_mode')}
               >
                 {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
               </button>
@@ -1150,7 +1151,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 <button
                   onClick={handleEndCall}
                   className="p-2 bg-[#18181c] hover:bg-rose-500/20 text-ivory/70 hover:text-rose-400 border border-white/10 rounded-full transition-colors cursor-pointer"
-                  title="Fechar Janela"
+                  title={t('dwg_video_close_window')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1165,14 +1166,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               <div className="flex-1 space-y-1">
                 <p className="font-medium text-gold">{permissionError}</p>
                 <p className="text-[11px] text-ivory/60">
-                  Verifique se a câmera e microfone estão permitidos nas configurações do navegador.
+                  {t('dwg_video_perm_hint')}
                 </p>
               </div>
               <button
                 onClick={startCamera}
                 className="px-2.5 py-1 bg-gold text-black-matte text-[11px] font-semibold rounded-md hover:bg-gold-light transition-colors shrink-0 cursor-pointer"
               >
-                Tentar Novamente
+                {t('dwg_video_retry')}
               </button>
               <button onClick={() => setPermissionError(null)} className="text-ivory/40 hover:text-ivory p-1 cursor-pointer">
                 <X className="w-3.5 h-3.5" />
@@ -1217,14 +1218,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-gold/40 flex items-center gap-2 text-xs">
                       <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
                       <span className="text-gold font-medium">
-                        {screenShare ? 'Você está compartilhando a tela' : `${interlocutorName} está apresentando a tela`}
+                        {screenShare ? t('dwg_video_you_are_sharing') : t('dwg_video_presenting').replace('{name}', interlocutorName)}
                       </span>
                       {screenShare && (
                         <button
                           onClick={toggleScreenShare}
                           className="ml-2 px-2 py-0.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-full text-[10px] cursor-pointer"
                         >
-                          Parar
+                          {t('dwg_video_stop')}
                         </button>
                       )}
                     </div>
@@ -1260,11 +1261,11 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-ivory/40">
                           <VideoOff className="w-5 h-5 mb-1" />
-                          <span className="text-[9px]">Câmera Desligada</span>
+                          <span className="text-[9px]">{t('dwg_video_camera_off')}</span>
                         </div>
                       )}
                       <div className="absolute bottom-1.5 left-2 bg-black/70 px-2 py-0.5 rounded-md text-[10px] text-gold font-medium">
-                        Você
+                        {t('dwg_video_you')}
                       </div>
                     </div>
                   </div>
@@ -1308,13 +1309,13 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                           <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold">
                             <User className="w-7 h-7" />
                           </div>
-                          <span className="text-xs text-ivory/60 font-medium">Sua câmera está desligada</span>
+                          <span className="text-xs text-ivory/60 font-medium">{t('dwg_video_your_camera_off')}</span>
                         </div>
                       )}
                       {/* Chip de Identificação */}
                       <div className="absolute bottom-3 left-3 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2 shadow-lg">
                         <span className={`w-2 h-2 rounded-full ${micOn ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                        <span className="text-xs font-serif-lumiardi font-medium text-ivory">Você ({myDisplayName})</span>
+                        <span className="text-xs font-serif-lumiardi font-medium text-ivory">{t('dwg_video_you_with_name').replace('{name}', myDisplayName)}</span>
                       </div>
                     </div>
                   </div>
@@ -1343,14 +1344,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-ivory/50">
                           <VideoOff className="w-8 h-8 text-rose-400 mb-2" />
-                          <span className="text-xs">Sua câmera está desligada</span>
+                          <span className="text-xs">{t('dwg_video_your_camera_off')}</span>
                         </div>
                       )}
 
                       <div className="absolute top-4 left-4 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-400" />
                         <span className="text-xs font-serif-lumiardi font-medium text-gold">
-                          {!swappedViews ? interlocutorName : 'Você (Palco Invertido)'}
+                          {!swappedViews ? interlocutorName : t('dwg_video_you_swapped')}
                         </span>
                       </div>
                     </div>
@@ -1359,7 +1360,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     <div
                       onClick={() => setSwappedViews(!swappedViews)}
                       className="absolute bottom-4 right-4 w-36 sm:w-56 aspect-video rounded-xl bg-black/90 border border-gold/40 shadow-2xl overflow-hidden cursor-pointer z-20 group hover:scale-105 hover:border-gold transition-all"
-                      title="Clique para alternar o palco principal"
+                      title={t('dwg_video_swap_stage_hint')}
                     >
                       {swappedViews ? (
                         <video
@@ -1381,13 +1382,13 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-[#101012] text-ivory/50">
                           <VideoOff className="w-5 h-5 text-rose-400 mb-1" />
-                          <span className="text-[9px]">Câmera Desligada</span>
+                          <span className="text-[9px]">{t('dwg_video_camera_off')}</span>
                         </div>
                       )}
 
                       <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between text-[9px] font-mono pointer-events-none">
                         <span className="bg-black/80 px-1.5 py-0.5 rounded-xs text-gold border border-white/10 truncate max-w-[70%]">
-                          {swappedViews ? interlocutorName : 'Você'}
+                          {swappedViews ? interlocutorName : t('dwg_video_you')}
                         </span>
                         <span className="p-1 bg-black/80 rounded-full border border-white/10">
                           {micOn ? <Mic className="w-2.5 h-2.5 text-emerald-400" /> : <MicOff className="w-2.5 h-2.5 text-rose-400" />}
@@ -1411,13 +1412,13 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                   <div className="max-w-md space-y-2">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-[10px] uppercase font-mono tracking-widest text-gold">
                       <Lock className="w-3 h-3 text-gold" />
-                      <span>Conexão Criptografada E2E</span>
+                      <span>{t('dwg_video_e2e_encrypted')}</span>
                     </div>
                     <h3 className="font-serif-lumiardi text-2xl sm:text-3xl font-light text-ivory">
-                      Aguardando Interlocutor...
+                      {t('dwg_video_waiting')}
                     </h3>
                     <p className="text-xs text-ivory/60 leading-relaxed font-sans">
-                      A sala VIP está pronta. Copie o convite abaixo e envie para o participante conectar imediatamente.
+                      {t('dwg_video_waiting_desc')}
                     </p>
                   </div>
 
@@ -1427,7 +1428,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                       className="px-6 py-3 bg-gradient-to-r from-gold to-gold-light hover:brightness-110 text-black-matte font-semibold text-xs uppercase tracking-wider rounded-full shadow-xl shadow-gold/15 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                     >
                       {copiedLink ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
-                      <span>{copiedLink ? 'Link Copiado!' : 'Copiar Convite VIP'}</span>
+                      <span>{copiedLink ? t('dwg_video_link_copied_excl') : t('dwg_video_copy_invite_vip')}</span>
                     </button>
                   </div>
 
@@ -1445,11 +1446,11 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-ivory/40">
                         <VideoOff className="w-5 h-5 mb-1 text-rose-400" />
-                        <span className="text-[9px]">Câmera Desligada</span>
+                        <span className="text-[9px]">{t('dwg_video_camera_off')}</span>
                       </div>
                     )}
                     <span className="absolute bottom-1.5 left-2 bg-black/80 px-2 py-0.5 rounded-md text-[9px] text-ivory/80 font-mono">
-                      Prévia Local
+                      {t('dwg_video_local_preview')}
                     </span>
                   </div>
                 </div>
@@ -1464,7 +1465,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 <div className="h-14 px-4 border-b border-white/10 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-gold" />
-                    <span className="font-serif-lumiardi text-sm text-ivory font-medium">Chat da Reunião</span>
+                    <span className="font-serif-lumiardi text-sm text-ivory font-medium">{t('dwg_video_meeting_chat')}</span>
                     <span className="text-[10px] font-mono text-gold bg-gold/10 px-2 py-0.5 rounded-full">
                       {inMeetingMessages.length}
                     </span>
@@ -1482,8 +1483,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                   {inMeetingMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-ivory/40 space-y-2 p-4">
                       <MessageSquare className="w-8 h-8 text-gold/30" />
-                      <p className="text-xs font-medium">Nenhuma mensagem ainda.</p>
-                      <p className="text-[11px]">Mensagens enviadas aqui são visíveis para todos na chamada.</p>
+                      <p className="text-xs font-medium">{t('dwg_video_no_messages_yet')}</p>
+                      <p className="text-[11px]">{t('dwg_video_messages_visible_all')}</p>
                     </div>
                   ) : (
                     inMeetingMessages.map((m) => (
@@ -1510,7 +1511,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 <form onSubmit={handleSendMessage} className="p-3 bg-[#121216] border-t border-white/10 flex gap-2 shrink-0">
                   <input
                     type="text"
-                    placeholder="Enviar mensagem na chamada..."
+                    placeholder={t('dwg_video_send_placeholder')}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     className="flex-1 bg-[#1a1a20] border border-white/15 focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-xl placeholder:text-ivory/30"
@@ -1535,12 +1536,12 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               <div className="h-14 px-4 bg-[#141418] border-b border-white/10 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-gold" />
-                  <span className="font-serif-lumiardi text-sm text-ivory font-medium">Mensagens da Reunião</span>
+                  <span className="font-serif-lumiardi text-sm text-ivory font-medium">{t('dwg_video_meeting_messages')}</span>
                 </div>
                 <button
                   onClick={() => setShowChat(false)}
                   className="p-2 text-ivory/60 hover:text-gold transition-colors cursor-pointer"
-                  title="Voltar para a chamada"
+                  title={t('dwg_video_back_to_call')}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1551,8 +1552,8 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 {inMeetingMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center text-ivory/40 space-y-2 p-6">
                     <MessageSquare className="w-8 h-8 text-gold/30" />
-                    <p className="text-xs font-medium">Nenhuma mensagem no chat.</p>
-                    <p className="text-[11px]">Converse por texto diretamente com o interlocutor durante a chamada.</p>
+                    <p className="text-xs font-medium">{t('dwg_video_no_messages_chat')}</p>
+                    <p className="text-[11px]">{t('dwg_video_chat_hint')}</p>
                   </div>
                 ) : (
                   inMeetingMessages.map((m) => (
@@ -1582,7 +1583,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               >
                 <input
                   type="text"
-                  placeholder="Escreva sua mensagem..."
+                  placeholder={t('dwg_video_write_placeholder')}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   autoFocus={true}
@@ -1619,7 +1620,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     ? 'bg-[#222226] hover:bg-[#2d2d32] text-white border border-white/10'
                     : 'bg-rose-600 hover:bg-rose-700 text-white'
                 }`}
-                title={micOn ? 'Desativar Microfone' : 'Ativar Microfone'}
+                title={micOn ? t('dwg_video_mic_off_action') : t('dwg_video_mic_on_action')}
               >
                 {micOn ? <Mic className="w-5 h-5 text-emerald-400" /> : <MicOff className="w-5 h-5 text-white" />}
               </button>
@@ -1632,7 +1633,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     ? 'bg-[#222226] hover:bg-[#2d2d32] text-white border border-white/10'
                     : 'bg-rose-600 hover:bg-rose-700 text-white'
                 }`}
-                title={camOn ? 'Desligar Câmera' : 'Ligar Câmera'}
+                title={camOn ? t('dwg_video_cam_off_action') : t('dwg_video_cam_on_action')}
               >
                 {camOn ? <VideoIcon className="w-5 h-5 text-emerald-400" /> : <VideoOff className="w-5 h-5 text-white" />}
               </button>
@@ -1645,7 +1646,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     ? 'bg-gold text-black-matte font-bold shadow-gold/30'
                     : 'bg-[#222226] hover:bg-[#2d2d32] text-white border border-white/10'
                 }`}
-                title={screenShare ? 'Interromper Apresentação' : 'Apresentar Tela Agora'}
+                title={screenShare ? t('dwg_video_stop_presenting') : t('dwg_video_present_now')}
               >
                 <MonitorUp className="w-5 h-5" />
               </button>
@@ -1655,7 +1656,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 <button
                   onClick={() => setLayoutMode(layoutMode === 'grid' ? 'spotlight' : 'grid')}
                   className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#222226] hover:bg-[#2d2d32] text-white border border-white/10 transition-all cursor-pointer flex items-center justify-center shadow-md active:scale-95"
-                  title={layoutMode === 'grid' ? 'Mudar para Destaque' : 'Mudar para Mosaico'}
+                  title={layoutMode === 'grid' ? t('dwg_video_switch_to_spotlight') : t('dwg_video_switch_to_grid')}
                 >
                   {layoutMode === 'grid' ? <Square className="w-5 h-5 text-gold" /> : <LayoutGrid className="w-5 h-5 text-white" />}
                 </button>
@@ -1672,7 +1673,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                     ? 'bg-gold text-black-matte font-bold'
                     : 'bg-[#222226] hover:bg-[#2d2d32] text-white border border-white/10'
                 }`}
-                title="Abrir Chat da Reunião"
+                title={t('dwg_video_open_chat')}
               >
                 <MessageSquare className="w-5 h-5" />
                 {unreadChatCount > 0 && !showChat && (
@@ -1687,10 +1688,10 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 onClick={handleEndCall}
                 disabled={isEnding}
                 className="h-11 sm:h-12 px-5 sm:px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-rose-950/40 active:scale-95 ml-1"
-                title="Sair da chamada"
+                title={t('dwg_video_leave_call')}
               >
                 <PhoneOff className="w-4 h-4" />
-                <span className="hidden sm:inline text-xs font-semibold">Sair da chamada</span>
+                <span className="hidden sm:inline text-xs font-semibold">{t('dwg_video_leave_call')}</span>
               </button>
             </div>
 
@@ -1699,14 +1700,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               <button
                 onClick={handleCopyLink}
                 className="p-2 text-ivory/60 hover:text-gold hover:bg-[#222226] rounded-full transition-colors cursor-pointer"
-                title="Copiar Link da Reunião"
+                title={t('dwg_video_copy_meeting_link')}
               >
                 <Copy className="w-4 h-4" />
               </button>
               <button
                 onClick={toggleFullscreen}
                 className="p-2 text-ivory/60 hover:text-gold hover:bg-[#222226] rounded-full transition-colors cursor-pointer"
-                title="Tela Cheia"
+                title={t('dwg_video_fullscreen')}
               >
                 <Maximize className="w-4 h-4" />
               </button>
@@ -1735,13 +1736,13 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-gold/10 border border-gold/30 rounded-full text-[10px] uppercase font-mono tracking-widest text-gold">
                 <Sparkles className="w-3 h-3 text-gold" />
-                <span>Videoconferência Executiva VIP</span>
+                <span>{t('dwg_video_lobby_badge')}</span>
               </div>
               <h2 className="font-serif-lumiardi text-3xl sm:text-4xl font-light text-ivory">
-                {t('dash_page_meet_title') || 'Lumiardi Meet'}
+                {t('dash_page_meet_title')}
               </h2>
               <p className="text-xs sm:text-sm text-ivory/60 font-sans leading-relaxed">
-                Ambiente de videoconferência privada criptografada E2E para alinhamentos contratuais, audições de casting e curadoria exclusiva.
+                {t('dwg_video_lobby_desc')}
               </p>
             </div>
 
@@ -1755,12 +1756,12 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                 {isCreatingRoom ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-black-matte" />
-                    <span>Gerando Conexão Segura...</span>
+                    <span>{t('dwg_video_generating')}</span>
                   </>
                 ) : (
                   <>
                     <Plus className="w-4 h-4 text-black-matte" />
-                    <span>Iniciar Nova Reunião VIP</span>
+                    <span>{t('dwg_video_start_new')}</span>
                   </>
                 )}
               </button>
@@ -1768,14 +1769,14 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
               <div className="relative flex items-center justify-center my-4">
                 <div className="border-t border-white/10 w-full" />
                 <span className="bg-[#0b0b0e] px-3 text-[11px] text-ivory/40 uppercase font-mono tracking-wider">
-                  ou aceder por código
+                  {t('dwg_video_or_join_code')}
                 </span>
               </div>
 
               <form onSubmit={handleJoinExistingRoom} className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Ex: LM-9A4B2C-VIP"
+                  placeholder={t('dwg_video_join_placeholder')}
                   value={joinInputId}
                   onChange={(e) => setJoinInputId(e.target.value)}
                   className="flex-1 bg-[#141418] border border-white/15 focus:border-gold px-4 py-3 text-xs font-mono text-ivory outline-none rounded-full placeholder:text-ivory/30"
@@ -1785,7 +1786,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
                   disabled={!joinInputId.trim()}
                   className="px-5 py-3 bg-[#1e1e24] hover:bg-gold hover:text-black-matte text-gold border border-gold/30 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
                 >
-                  <span>Entrar</span>
+                  <span>{t('dwg_video_join')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </form>

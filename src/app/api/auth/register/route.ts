@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { sanitizeObject } from '@/lib/security';
-import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { CompleteCreatorProfile, CompleteAgencyProfile } from '@/types';
 import { EmailService } from '@/lib/email';
 
@@ -64,14 +64,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Define o cookie de sessão httpOnly
-      response.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: encodeSession(sessionUser),
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 dias
-      });
+      setSessionCookie(response, sessionUser);
 
       return response;
     } else {
@@ -124,14 +117,7 @@ export async function POST(request: NextRequest) {
         message: 'Cadastro de agência recebido com sucesso. Status: EM_CURATORIA.',
       });
 
-      response.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: encodeSession(sessionUser),
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7,
-      });
+      setSessionCookie(response, sessionUser);
 
       return response;
     }

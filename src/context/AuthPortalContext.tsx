@@ -220,8 +220,27 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     loadInitialSession();
 
+    // Polling periódico de notificações (a cada 30s quando a janela está activa)
+    const notifPollInterval = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        try {
+          const res = await fetch('/api/notifications', { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && isMounted) {
+              setNotifications(data.notifications);
+              setNotificationsCount(data.unreadCount);
+            }
+          }
+        } catch {
+          // Silent fail — não interromper UX
+        }
+      }
+    }, 30_000);
+
     return () => {
       isMounted = false;
+      clearInterval(notifPollInterval);
     };
   }, []);
 

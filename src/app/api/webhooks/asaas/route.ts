@@ -3,7 +3,7 @@ import { paymentFactory } from '@/lib/payments/gatewayFactory';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval } from '@/lib/payments/types';
-import { pool, initDatabase, fallbackStore } from '@/lib/db';
+import { pool, initDatabase } from '@/lib/db';
 import { StorageService } from '@/services/storageService';
 import { CouponService } from '@/services/couponService';
 
@@ -46,17 +46,50 @@ export async function POST(request: NextRequest) {
     const idempotencyKey = `asaas_${paymentId}_${event.toLowerCase()}`;
     await initDatabase();
 
-    try {
-      const existing = await pool.query(
-        'SELECT id, status FROM payment_transactions WHERE idempotency_key = $1 LIMIT 1',
-        [idempotencyKey]
-      );
-      if (existing.rows.length > 0) {
-        return NextResponse.json({ received: true, action: 'already_processed' });
-      }
-    } catch {
-      // Se a consulta falhar, prossegue e confia na constraint UNIQUE da coluna
+    // Claim atômico do evento ANTES de qualquer efeito: reenvios concorrentes do Asaas
+    // não podem criar assinaturas, notificações ou usos de cupom duplicados.
+    const claim = await pool.query(
+      'INSERT INTO webhook_events (id, provider) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING RETURNING id',
+      [idempotencyKey, 'asaas']
+    );
+    if (claim.rowCount === 0) {
+      return NextResponse.json({ received: true, action: 'already_processed' });
     }
+
+    try {
+      return await handleEvent(event, payment, payload, paymentId, idempotencyKey);
+    } catch (err) {
+      // Libera o claim para que o Asaas possa reenviar o evento
+      await pool.query('DELETE FROM webhook_events WHERE id = $1', [idempotencyKey]).catch(() => {});
+      throw err;
+    }
+  } catch (err: unknown) {
+    console.error('[Asaas Webhook CRITICAL ERROR]:', err);
+    return NextResponse.json({ error: 'Erro interno no webhook Asaas' }, { status: 500 });
+  }
+}
+
+/**
+ * Remove o acesso ao dashboard quando não resta nenhuma assinatura ativa
+ * (reembolso, chargeback, cancelamento). A usuária volta ao estado "aprovada para pagamento".
+ */
+async function revokeAccessIfNoActiveSubscription(userId: string) {
+  await pool.query(
+    `UPDATE users SET curation_status = 'APROVADA_PAGAMENTO', updated_at = NOW()
+     WHERE id = $1 AND curation_status = 'APROVADO'
+       AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active')`,
+    [userId]
+  );
+}
+
+async function handleEvent(
+  event: string,
+  payment: Record<string, any>,
+  payload: Record<string, any>,
+  paymentId: string,
+  idempotencyKey: string
+): Promise<NextResponse> {
+  {
 
     // 2. Extração de metadados da transação (externalReference: userId:planId:interval)
     let userId = '';
@@ -97,15 +130,8 @@ export async function POST(request: NextRequest) {
         if (txRes.rows.length > 0) {
           userId = txRes.rows[0].user_id;
         }
-      } catch {
-        // Fallback em memória
-        for (const tx of fallbackStore.payment_transactions.values()) {
-          const t = tx as Record<string, any>;
-          if (t.gateway_transaction_id === paymentId && t.user_id) {
-            userId = t.user_id;
-            break;
-          }
-        }
+      } catch (err) {
+        console.error('[Asaas Webhook] Falha ao localizar transação:', err);
       }
     }
 
@@ -208,10 +234,16 @@ export async function POST(request: NextRequest) {
         }
 
         // Promove o status de curadoria para APROVADO (Acesso Oficial Liberado)
+        // Só promove quem já foi aprovada pela curadoria para pagamento (nunca pula a curadoria)
         try {
-          await StorageService.updateCurationStatus(userId, 'APROVADO');
+          await pool.query(
+            `UPDATE users SET curation_status = 'APROVADO', updated_at = NOW()
+             WHERE id = $1 AND curation_status IN ('APROVADA_PAGAMENTO', 'APROVADO')`,
+            [userId]
+          );
         } catch (curationErr) {
           console.error('[Asaas Webhook] Erro ao promover status para APROVADO:', curationErr);
+          throw curationErr;
         }
 
         // Notifica o usuário na plataforma com celebração de boas-vindas
@@ -246,19 +278,14 @@ export async function POST(request: NextRequest) {
         if (userId) {
           try {
             await pool.query(
-              "UPDATE subscriptions SET status = 'past_due', updated_at = NOW() WHERE user_id = $1 AND (gateway_subscription_id = $2 OR gateway = 'asaas') AND status != 'past_due'",
+              "UPDATE subscriptions SET status = 'past_due', updated_at = NOW() WHERE user_id = $1 AND gateway_subscription_id = $2 AND status = 'active'",
               [userId, paymentId]
             );
           } catch {
             // Fallback
           }
 
-          const fallbackSub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
-          if (fallbackSub && fallbackSub.status !== 'past_due') {
-            fallbackSub.status = 'past_due';
-            fallbackSub.updated_at = new Date().toISOString();
-            fallbackStore.subscriptions.set(userId, fallbackSub);
-          }
+          await revokeAccessIfNoActiveSubscription(userId);
 
           try {
             await StorageService.createNotification({
@@ -278,7 +305,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true, action: 'marked_overdue' });
       }
 
-      case 'PAYMENT_REFUNDED': {
+      case 'PAYMENT_REFUNDED':
+      case 'PAYMENT_PARTIALLY_REFUNDED':
+      case 'PAYMENT_CHARGEBACK_REQUESTED':
+      case 'PAYMENT_CHARGEBACK_DISPUTE':
+      case 'PAYMENT_DELETED': {
         // Só atualiza status — sem criar registros novos
         try {
           await pool.query(
@@ -292,19 +323,14 @@ export async function POST(request: NextRequest) {
         if (userId) {
           try {
             await pool.query(
-              "UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE user_id = $1 AND (gateway_subscription_id = $2 OR gateway = 'asaas') AND status != 'canceled'",
+              "UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE user_id = $1 AND gateway_subscription_id = $2 AND status != 'canceled'",
               [userId, paymentId]
             );
           } catch {
             // Fallback
           }
 
-          const fallbackSub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
-          if (fallbackSub) {
-            fallbackSub.status = 'canceled';
-            fallbackSub.updated_at = new Date().toISOString();
-            fallbackStore.subscriptions.set(userId, fallbackSub);
-          }
+          await revokeAccessIfNoActiveSubscription(userId);
 
           try {
             await StorageService.createNotification({
@@ -321,16 +347,12 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        return NextResponse.json({ received: true, action: 'marked_refunded' });
+        return NextResponse.json({ received: true, action: event === 'PAYMENT_DELETED' ? 'marked_deleted' : 'marked_refunded' });
       }
 
       default: {
         return NextResponse.json({ received: true, action: 'ignored', event });
       }
     }
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Erro interno no webhook Asaas';
-    console.error('[Asaas Webhook CRITICAL ERROR]:', err);
-    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

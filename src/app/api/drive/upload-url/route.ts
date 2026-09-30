@@ -5,6 +5,13 @@ import { StorageService } from '@/services/storageService';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { sanitizeInput } from '@/lib/security';
+import { checkUpload, normalizeCategory } from '@/lib/storage/uploadPolicy';
+
+/** Existe vínculo (contrato não encerrado) entre a agência e a modelo? */
+async function hasPartnership(agencyId: string, modelId: string): Promise<boolean> {
+  const contracts = await StorageService.listAgencyContracts(agencyId);
+  return contracts.some((c) => c.modelId === modelId && c.status !== 'terminated');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,14 +23,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const rawFileName = body.fileName || 'arquivo_lumiardi';
     const fileName = sanitizeInput(rawFileName);
-    const fileType = body.fileType || 'application/octet-stream';
-    const fileSizeStr = typeof body.fileSize === 'number' 
-      ? `${(body.fileSize / (1024 * 1024)).toFixed(2)} MB` 
-      : (body.fileSize || '1.0 MB');
-    const category = (body.category || 'raw-photos') as 'raw-photos' | 'videos' | 'contracts' | 'briefings' | 'avatars' | 'uploads';
+    const fileType = String(body.fileType || 'application/octet-stream');
+    const fileSizeBytes = Number(body.fileSize);
+    const category = normalizeCategory(body.category, 'raw-photos');
     const context = body.context === 'shared' ? 'shared' : 'private';
 
-    const newFileBytes = StorageService.parseSizeToBytes(fileSizeStr);
+    // Tipo e tamanho reais (em bytes) são obrigatórios; o tamanho é assinado na URL de PUT
+    const check = checkUpload(fileType, fileSizeBytes);
+    if (!check.ok) {
+      return NextResponse.json({ error: check.error, code: check.code }, { status: check.code === 'upload_type' ? 415 : 413 });
+    }
+
+    const newFileBytes = fileSizeBytes;
     const newFileGB = newFileBytes / (1024 * 1024 * 1024);
 
     let finalAgencyId = body.agencyId;
@@ -51,10 +62,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (!finalAgencyId || !finalModelId) {
+      if (!finalAgencyId || !finalModelId || (session.role !== 'criadora' && session.role !== 'agencia')) {
         return NextResponse.json(
           { error: 'Vínculo de agenciamento não identificado para o espaço compartilhado.' },
           { status: 400 }
+        );
+      }
+
+      if (!(await hasPartnership(String(finalAgencyId), String(finalModelId)))) {
+        return NextResponse.json(
+          { error: 'Não há vínculo ativo de agenciamento entre agência e modelo.', code: 'forbidden' },
+          { status: 403 }
         );
       }
 
@@ -111,16 +129,19 @@ export async function POST(req: NextRequest) {
       category,
       userId: session.id,
       operation: 'upload',
+      contentLength: fileSizeBytes,
       expiresInSeconds: 300,
       context,
       agencyId: finalAgencyId,
       modelId: finalModelId,
     });
 
-    const publicCdn = process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
-    const finalFileUrl = presigned.publicCdnUrl || (publicCdn 
-      ? `https://${publicCdn.replace(/^https?:\/\//, '').replace(/\/$/, '')}/${presigned.fileKey}`
-      : `/api/media/${presigned.fileKey}`);
+    if (!presigned.success) {
+      return NextResponse.json({ error: 'Armazenamento temporariamente indisponível.', code: 'service_unavailable' }, { status: 503 });
+    }
+
+    // Arquivos do vault são sempre servidos pela rota autenticada
+    const finalFileUrl = `/api/media/${presigned.fileKey}`;
 
     return NextResponse.json({
       success: true,
@@ -133,9 +154,8 @@ export async function POST(req: NextRequest) {
       modelId: finalModelId,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao emitir URL pré-assinada';
     console.error('[UploadUrl Error]:', err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao emitir URL pré-assinada.', code: 'generic' }, { status: 500 });
   }
 }
 

@@ -55,9 +55,9 @@ export const AuditLogService = {
     // Salva no fallbackStore em memória
     fallbackStore.curation_audit_logs.set(id, logEntry as unknown as Record<string, unknown>);
 
-    await initDatabase();
-
+    // Nunca lança: falha de auditoria não pode abortar a ação que está sendo registrada
     try {
+      await initDatabase();
       await pool.query(
         `INSERT INTO curation_audit_logs (
           id, user_id, user_name, user_email, user_role, action_type,

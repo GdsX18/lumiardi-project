@@ -17,6 +17,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface EditAgencyModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
   initialData,
   onSaved,
 }) => {
+  const { t, tApiError } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -95,14 +97,14 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Falha ao enviar logo para o Cloudflare R2.');
+        throw new Error(tApiError(errData, 'dwg_agency_err_upload'));
       }
       const data = await res.json();
       if (data.url) {
         setLogoUrl(data.url);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao enviar para o Cloudflare R2';
+      const msg = err instanceof Error ? err.message : t('dwg_agency_err_upload_generic');
       console.error('[UPLOAD ERROR]:', err);
       setErrorMsg(msg);
     } finally {
@@ -138,7 +140,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Erro ao salvar alterações da agência.');
+        throw new Error(tApiError(data, 'dwg_agency_err_save'));
       }
 
       setSaveSuccess(true);
@@ -148,7 +150,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
         onClose();
       }, 1200);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro ao processar atualização';
+      const message = err instanceof Error ? err.message : t('dwg_agency_err_process');
       setErrorMsg(message);
     } finally {
       setSaving(false);
@@ -176,10 +178,10 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
             </div>
             <div>
               <h2 className="font-serif-lumiardi text-lg md:text-xl text-ivory font-medium">
-                Editar Dados da Agência Parceira
+                {t('dwg_agency_title')}
               </h2>
               <span className="text-[11px] font-sans text-ivory/50">
-                Gerencie sua razão social, equipe de casting e modelo de comissão.
+                {t('dwg_agency_subtitle')}
               </span>
             </div>
           </div>
@@ -201,7 +203,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
         {saveSuccess && (
           <div className="mx-6 mt-4 p-3 bg-emerald-950/50 border border-emerald-500/50 text-emerald-300 text-xs font-sans flex items-center gap-2 rounded-sm">
             <Check className="w-4 h-4 text-emerald-400" />
-            <span>Dados da agência salvos com sucesso!</span>
+            <span>{t('dwg_agency_save_success')}</span>
           </div>
         )}
 
@@ -213,13 +215,13 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
                 logoUrl.startsWith('data:') ? (
                   <img
                     src={logoUrl}
-                    alt="Logo da Agência"
+                    alt={t('dwg_agency_logo_alt')}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 ) : (
                   <Image
                     src={logoUrl}
-                    alt="Logo da Agência"
+                    alt={t('dwg_agency_logo_alt')}
                     fill
                     className="object-cover"
                     unoptimized
@@ -228,12 +230,12 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-[#181818] text-gold font-serif-lumiardi text-lg font-bold">
                   <Building2 className="w-6 h-6 mb-1 opacity-70" />
-                  <span className="text-[9px] font-sans font-normal text-gold/80">+ Logo</span>
+                  <span className="text-[9px] font-sans font-normal text-gold/80">{t('dwg_agency_add_logo')}</span>
                 </div>
               )}
               <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-gold cursor-pointer transition-opacity">
                 <Camera className="w-4 h-4 mb-1" />
-                <span>Trocar Logo</span>
+                <span>{t('dwg_agency_change_logo')}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -244,13 +246,13 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
             </div>
 
             <div className="space-y-2 flex-1 text-center sm:text-left">
-              <h4 className="text-sm font-medium text-ivory">Logo / Emblema Corporativo</h4>
+              <h4 className="text-sm font-medium text-ivory">{t('dwg_agency_logo_title')}</h4>
               <p className="text-xs text-ivory/60 font-sans leading-relaxed">
-                Utilizado na sua credencial pública, convites de casting e contratos enviados aos talentos.
+                {t('dwg_agency_logo_desc')}
               </p>
               <label className="inline-flex px-3 py-1.5 bg-[#1E1E1E] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans font-medium transition-colors items-center gap-1.5 rounded-sm cursor-pointer">
                 <Upload className="w-3.5 h-3.5" />
-                <span>Upload de Nova Logo</span>
+                <span>{t('dwg_agency_upload_new_logo')}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -264,7 +266,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                Nome da Agência / Razão Social
+                {t('dwg_agency_name')}
               </label>
               <input
                 type="text"
@@ -277,7 +279,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                Responsável de Casting / Contato
+                {t('dwg_agency_responsible')}
               </label>
               <input
                 type="text"
@@ -290,7 +292,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                CNPJ / Identificação Fiscal
+                {t('dwg_agency_cnpj')}
               </label>
               <input
                 type="text"
@@ -302,7 +304,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                WhatsApp / Telefone Corporativo
+                {t('dwg_agency_phone')}
               </label>
               <input
                 type="text"
@@ -314,7 +316,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                Instagram Institucional (@)
+                {t('dwg_agency_instagram')}
               </label>
               <input
                 type="text"
@@ -326,39 +328,39 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                Taxa de Comissão Padrão
+                {t('dwg_agency_commission')}
               </label>
               <input
                 type="text"
                 value={commissionRate}
                 onChange={(e) => setCommissionRate(e.target.value)}
-                placeholder="Ex: 20%"
+                placeholder={t('dwg_agency_commission_placeholder')}
                 className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
               />
             </div>
 
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                Especialidades (separadas por vírgula)
+                {t('dwg_agency_specialties')}
               </label>
               <input
                 type="text"
                 value={specialties}
                 onChange={(e) => setSpecialties(e.target.value)}
-                placeholder="Ex: Fashion Week, Editorial Internacional, Publicidade de Luxo"
+                placeholder={t('dwg_agency_specialties_placeholder')}
                 className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
               />
             </div>
 
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
-                Apresentação Institucional da Agência
+                {t('dwg_agency_bio')}
               </label>
               <textarea
                 rows={3}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="Apresente sua agência, mercado de atuação e histórico de elenco..."
+                placeholder={t('dwg_agency_bio_placeholder')}
                 className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold p-3 text-xs text-ivory outline-none rounded-sm"
               />
             </div>
@@ -371,7 +373,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 text-xs font-sans text-ivory/60 hover:text-ivory transition-colors cursor-pointer"
             >
-              Cancelar
+              {t('dwg_agency_cancel')}
             </button>
 
             <Button
@@ -381,11 +383,11 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
               className="text-xs uppercase font-bold tracking-wider py-2.5 px-6 cursor-pointer shadow-lg shadow-gold/20 flex items-center gap-2"
             >
               {saving ? (
-                'Salvando alterações...'
+                t('dwg_agency_saving')
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Salvar Dados Corporativos</span>
+                  <span>{t('dwg_agency_save')}</span>
                 </>
               )}
             </Button>

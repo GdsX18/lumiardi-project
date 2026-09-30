@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
-import { decodeSession, SESSION_COOKIE_NAME, encodeSession } from '@/lib/auth';
+import { decodeSession, SESSION_COOKIE_NAME, encodeSession, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 
 export async function POST(request: NextRequest) {
@@ -100,14 +100,7 @@ export async function POST(request: NextRequest) {
       message: 'Perfil e book atualizados com sucesso.',
     });
 
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: encodeSession(session),
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    setSessionCookie(response, session);
 
     return response;
   } catch (err: unknown) {

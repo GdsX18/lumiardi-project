@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
-import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { decodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
+import { pool, initDatabase } from '@/lib/db';
+
+/** Só candidatas em análise podem (re)agendar; aprovadas/reprovadas não voltam para a fila. */
+const SCHEDULABLE_STATUSES = ['EM_CURATORIA', 'AGUARDANDO_REUNIAO'];
 
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
+    if (!session) {
+      return NextResponse.json({ error: 'Faça login para agendar a entrevista.', code: 'unauthorized' }, { status: 401 });
+    }
 
     const body = await request.json();
     const { date, timeSlot, whatsapp, planId, billingInterval } = body;
@@ -17,10 +24,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = session?.id || body.userId;
-    const userEmail = session?.email || body.email;
-    const userName = session?.name || body.fullName || 'Candidata';
-    const effectiveWhatsapp = whatsapp || session?.whatsapp || body.phone;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !/^\d{2}:\d{2}$/.test(String(timeSlot))) {
+      return NextResponse.json({ error: 'Data ou horário inválidos.', code: 'invalid_input' }, { status: 400 });
+    }
+
+    // Identidade exclusivamente da sessão assinada
+    const userId = session.id;
+    const userEmail = session.email;
+    const userName = session.name || 'Candidata';
+    const effectiveWhatsapp = whatsapp || session.whatsapp || body.phone;
+
+    await initDatabase();
+    const statusRes = await pool.query('SELECT curation_status FROM users WHERE id = $1', [userId]);
+    const currentStatus = String(statusRes.rows[0]?.curation_status || '').toUpperCase();
+    if (!SCHEDULABLE_STATUSES.includes(currentStatus)) {
+      return NextResponse.json(
+        { error: 'O agendamento não está disponível para o status atual da sua candidatura.', code: 'forbidden' },
+        { status: 409 }
+      );
+    }
 
     if (!effectiveWhatsapp) {
       return NextResponse.json(
@@ -31,18 +53,18 @@ export async function POST(request: NextRequest) {
 
     // Salva ou atualiza a entrevista
     const interview = await StorageService.saveInterview({
-      userId: userId || `user-${Date.now()}`,
+      userId,
       fullName: userName,
-      email: userEmail || 'candidata@lumiardi.com',
+      email: userEmail,
       whatsapp: effectiveWhatsapp,
-      planId: planId || session?.planId || 'glow',
-      billingInterval: billingInterval || session?.planBillingInterval || 'yearly',
+      planId: planId || session.planId || 'glow',
+      billingInterval: billingInterval || session.planBillingInterval || 'yearly',
       interviewDate: date,
       interviewTime: timeSlot,
       status: 'aguardando_reuniao',
     });
 
-    if (userId) {
+    {
       await StorageService.updateCurationStatus(userId, 'AGUARDANDO_REUNIAO');
       try {
         await StorageService.createNotification({
@@ -60,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     let updatedSession: SessionUser | null = null;
-    if (session) {
+    {
       updatedSession = {
         ...session,
         curationStatus: 'AGUARDANDO_REUNIAO',
@@ -79,19 +101,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (updatedSession) {
-      response.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: encodeSession(updatedSession),
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7,
-      });
+      setSessionCookie(response, updatedSession);
     }
 
     return response;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro ao agendar entrevista';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[curation/schedule] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao agendar entrevista.', code: 'generic' }, { status: 500 });
   }
 }

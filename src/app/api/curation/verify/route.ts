@@ -9,10 +9,14 @@ export async function POST(request: NextRequest) {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = decodeSession(cookie);
 
-    const userId = session?.id || rawBody.userId || `user_${Date.now()}`;
-    const userEmail = session?.email || rawBody.email || 'candidata@lumiardi.com';
-    const fullName = session?.name || rawBody.fullName || 'Candidata VIP';
-    const role: 'criadora' | 'agencia' = (session?.role === 'agencia' || rawBody.role === 'agencia') ? 'agencia' : 'criadora';
+    if (!session) {
+      return NextResponse.json({ error: 'Faça login para iniciar a verificação.', code: 'unauthorized' }, { status: 401 });
+    }
+
+    const userId = session.id;
+    const userEmail = session.email;
+    const fullName = session.name;
+    const role: 'criadora' | 'agencia' = session.role === 'agencia' ? 'agencia' : 'criadora';
     const documentType = sanitizeInput(rawBody.documentType);
 
     const verificationSession = await KYCService.createVerificationSession({
@@ -25,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(verificationSession);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro ao iniciar verificação KYC';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[curation/verify] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao iniciar verificação KYC.', code: 'generic' }, { status: 500 });
   }
 }

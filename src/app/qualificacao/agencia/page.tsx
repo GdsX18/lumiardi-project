@@ -6,7 +6,6 @@ import { Header } from '@/components/ui/Header';
 import { Footer } from '@/components/ui/Footer';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { DocumentUploadField } from '@/components/ui/DocumentUploadField';
 import { CurationScheduler } from '@/components/ui/CurationScheduler';
 import {
   ShieldCheck,
@@ -23,14 +22,18 @@ import {
   Percent,
   ChevronDown,
 } from 'lucide-react';
-import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
+import { KYCVerificationModal, DocumentUploadPayload } from '@/components/dashboard/KYCVerificationModal';
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
+import { TermsAcceptanceModal } from '@/components/ui/TermsAcceptanceModal';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   CompleteAgencyProfile,
-  DocumentUploadData,
   CurationAppointment,
 } from '@/types';
+
+/** Renderiza trechos entre `**` em negrito. */
+const rich = (text: string) =>
+  text.split('**').map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <React.Fragment key={i}>{part}</React.Fragment>));
 
 const COMMISSION_PRESETS = [
   '10%',
@@ -50,7 +53,7 @@ function AgenciaQualificacaoContent() {
   const selectedPlan = searchParams.get('plan') || 'select';
   const selectedBilling = searchParams.get('billing') || 'yearly';
   const paramCurrency = searchParams.get('currency');
-  const { t, currency } = useLanguage();
+  const { t, tApiError, currency, formatDate } = useLanguage();
   const activeCurrency = paramCurrency || currency || 'BRL';
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -61,14 +64,22 @@ function AgenciaQualificacaoContent() {
   const [isKYCVerified, setIsKYCVerified] = useState(false);
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
   const [is2FAVerified, setIs2FAVerified] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // ─── ETAPA 1: Cadastro Inicial & Documento ───────────────────────
-  const [basicData, setBasicData] = useState({
+  const [basicData, setBasicData] = useState<{
+    responsibleName: string;
+    taxId: string;
+    corporateEmail: string;
+    password: string;
+    document: DocumentUploadPayload | null;
+  }>({
     responsibleName: '',
     taxId: '', // CPF ou CNPJ
     corporateEmail: '',
     password: '',
-    document: null as any,
+    document: null,
   });
 
   // ─── ETAPA 2: Sobre a Agência (Pré-Entrevista) ───────────────────
@@ -138,12 +149,17 @@ function AgenciaQualificacaoContent() {
     }
 
     if (!isKYCVerified) {
-      setSubmissionError('A validação biométrica do responsável legal da agência é obrigatória para cadastro.');
+      setSubmissionError(t('pub_qual_agency_err_kyc_required'));
       return;
     }
 
     if (!is2FAVerified) {
-      setSubmissionError('A ativação da Blindagem 2FA (Google Authenticator) é obrigatória para proteger a conta corporativa.');
+      setSubmissionError(t('pub_qual_agency_err_2fa_required'));
+      return;
+    }
+
+    if (!termsAccepted) {
+      setShowTerms(true);
       return;
     }
 
@@ -192,7 +208,14 @@ function AgenciaQualificacaoContent() {
           responsibleName: basicData.responsibleName,
           taxId: basicData.taxId,
           corporateEmail: basicData.corporateEmail,
-          document: basicData.document!,
+          document: {
+            documentType: basicData.document?.type === 'passaporte' ? 'passaporte' : 'rg_cnh',
+            fileName: basicData.document?.fileName || 'documento.pdf',
+            fileSize: basicData.document?.fileSize,
+            fileUrl: basicData.document?.fileUrl,
+            uploadedAt: new Date().toISOString(),
+            verifiedStatus: 'verified',
+          },
           createdAt: new Date().toISOString(),
         },
         qualitative: {
@@ -214,7 +237,8 @@ function AgenciaQualificacaoContent() {
       });
 
       if (!res.ok) {
-        throw new Error(t('err_submission_failed'));
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(tApiError(errorData, 'err_submission_failed'));
       }
 
       try {
@@ -286,10 +310,10 @@ function AgenciaQualificacaoContent() {
                 document.getElementById('qual-agency-form-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
               className="group inline-flex flex-col items-center gap-1 text-ivory/60 hover:text-[#C9A96B] transition-colors cursor-pointer"
-              aria-label="Rolar até o formulário de cadastro corporativo"
+              aria-label={t('pub_qual_agency_scroll_aria')}
             >
               <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#C9A96B]/80 group-hover:text-[#C9A96B] transition-colors">
-                Preencher Cadastro
+                {t('pub_qual_fill_form')}
               </span>
               <ChevronDown className="w-4 h-4 text-[#C9A96B]/70 group-hover:text-[#C9A96B] transition-colors stroke-[1.5]" />
             </button>
@@ -333,7 +357,7 @@ function AgenciaQualificacaoContent() {
                 </div>
                 <div className="flex items-center justify-between border-b border-[#0B0B0B]/10 pb-2.5">
                   <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_date_label')}</span>
-                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? appointment.date.split('-').reverse().join('/') : t('qual_summary_tbd')}</span>
+                  <span className="text-xs font-sans text-[#0B0B0B] font-medium">{appointment.date ? formatDate(`${appointment.date}T00:00:00`) : t('qual_summary_tbd')}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] sm:text-xs uppercase tracking-wider text-[#0B0B0B]/60 font-sans">{t('qual_summary_time_label')}</span>
@@ -353,14 +377,14 @@ function AgenciaQualificacaoContent() {
                   className="w-full py-3.5 sm:py-4 px-4 text-xs sm:text-sm tracking-[0.15em] sm:tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-[#0B0B0B] hover:bg-[#8C6B2F] text-ivory shadow-xl leading-normal text-center"
                 >
                   <ShieldCheck className="w-4 h-4 text-[#C9A96B] shrink-0" />
-                  <span>Prosseguir para Pagamento do Plano ({selectedPlan.toUpperCase()}) →</span>
+                  <span>{t('pub_qual_agency_btn_pay').replace('{plan}', selectedPlan.toUpperCase())}</span>
                 </Button>
                 <button
                   type="button"
                   onClick={() => router.push('/dashboard/pendente')}
                   className="text-xs font-mono uppercase tracking-wider text-[#0B0B0B]/60 hover:text-[#8C6B2F] py-2 transition-colors cursor-pointer text-center"
                 >
-                  Ver Status da Minha Curadoria
+                  {t('pub_qual_agency_btn_status')}
                 </button>
               </div>
             </div>
@@ -460,30 +484,30 @@ function AgenciaQualificacaoContent() {
                           <div className="flex items-center gap-2 text-[#8C6B2F]">
                             <ScanFace className="w-5 h-5 shrink-0" />
                             <span className="text-xs font-semibold uppercase tracking-wider font-sans">
-                              Documento Oficial do Responsável Legal & Biometria 3D
+                              {t('pub_qual_agency_kyc_title')}
                             </span>
                           </div>
 
                           {isKYCVerified ? (
                             <span className="w-fit inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
                               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                              <span>Documento & Biometria Homologados</span>
+                              <span>{t('pub_qual_agency_kyc_approved')}</span>
                             </span>
                           ) : (
                             <span className="w-fit text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
-                              Pendente de Validação
+                              {t('qual_kyc_status_pending')}
                             </span>
                           )}
                         </div>
 
                         <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
-                          Conformidade institucional com os padrões de prevenção a fraudes (KYB/KYC) e legislação <strong>18 U.S.C. § 2257</strong>. Anexe a foto do documento oficial do diretor responsável e realize a biometria 3D na câmera.
+                          {rich(t('pub_qual_agency_kyc_desc'))}
                         </p>
 
                         {basicData.document && (
                           <div className="p-2.5 bg-white border border-[#C9A96B]/40 text-xs font-sans text-[#0B0B0B]/80 flex items-center justify-between">
-                            <span className="truncate max-w-[200px] sm:max-w-xs"><strong>Arquivo:</strong> {basicData.document.fileName}</span>
-                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">Anexado</span>
+                            <span className="truncate max-w-[200px] sm:max-w-xs"><strong>{t('qual_kyc_file_label')}:</strong> {basicData.document.fileName}</span>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold uppercase shrink-0">{t('qual_kyc_file_attached')}</span>
                           </div>
                         )}
 
@@ -497,7 +521,7 @@ function AgenciaQualificacaoContent() {
                           }`}
                         >
                           <ScanFace className="w-4 h-4 shrink-0" />
-                          <span>{isKYCVerified ? 'Refazer Leitura do Documento & Biometria' : 'Anexar Documento & Iniciar Biometria 3D →'}</span>
+                          <span>{isKYCVerified ? t('pub_qual_agency_kyc_btn_redo') : t('pub_qual_agency_kyc_btn_start')}</span>
                         </button>
                       </div>
                     </div>
@@ -508,24 +532,24 @@ function AgenciaQualificacaoContent() {
                         <div className="flex items-center gap-2 text-[#8C6B2F]">
                           <KeyRound className="w-5 h-5 shrink-0" />
                           <span className="text-xs font-semibold uppercase tracking-wider font-sans">
-                            Blindagem 2FA Corporativa Obrigatória
+                            {t('pub_qual_agency_2fa_title')}
                           </span>
                         </div>
 
                         {is2FAVerified ? (
                           <span className="w-fit inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2.5 py-1 font-bold border border-emerald-300">
                             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                            <span>2FA Ativado</span>
+                            <span>{t('qual_2fa_status_active')}</span>
                           </span>
                         ) : (
                           <span className="w-fit text-[10px] font-mono uppercase tracking-wider bg-amber-100 text-amber-900 px-2 py-0.5 font-semibold">
-                            Pendente de Configuração
+                            {t('qual_2fa_status_pending')}
                           </span>
                         )}
                       </div>
 
                       <p className="text-xs text-[#0B0B0B]/70 font-sans leading-relaxed">
-                        Para proteção das faturas corporativas, contratos com criadoras e repasses em escrow, ative a autenticação em dois fatores no <strong>Google Authenticator</strong> ou <strong>Authy</strong>.
+                        {rich(t('pub_qual_agency_2fa_desc'))}
                       </p>
 
                       <button
@@ -538,7 +562,7 @@ function AgenciaQualificacaoContent() {
                         }`}
                       >
                         <KeyRound className="w-4 h-4 shrink-0" />
-                        <span>{is2FAVerified ? '2FA Concluído com Sucesso' : 'Escanear QR Code & Ativar 2FA Corporativo →'}</span>
+                        <span>{is2FAVerified ? t('pub_qual_agency_2fa_btn_done') : t('pub_qual_agency_2fa_btn_start')}</span>
                       </button>
                     </div>
                   </div>
@@ -621,7 +645,7 @@ function AgenciaQualificacaoContent() {
 
                     {/* O que estamos buscando */}
                     <div>
-                      <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider flex items-center gap-1.5">
+                      <label className="text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider flex items-center gap-1.5">
                         <Target className="w-3.5 h-3.5 text-[#8C6B2F]" />
                         <span>{t('qual_agency_lookingfor_label')}</span>
                       </label>
@@ -637,7 +661,7 @@ function AgenciaQualificacaoContent() {
 
                     {/* Porcentagem */}
                     <div className="space-y-3 pt-2">
-                      <label className="block text-[#0B0B0B]/80 font-medium uppercase tracking-wider flex items-center gap-1.5">
+                      <label className="text-[#0B0B0B]/80 font-medium uppercase tracking-wider flex items-center gap-1.5">
                         <Percent className="w-3.5 h-3.5 text-[#8C6B2F]" />
                         <span>{t('qual_agency_commission_label')}</span>
                       </label>
@@ -680,14 +704,14 @@ function AgenciaQualificacaoContent() {
                     {/* Instagram da Agência & Localização */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                       <div>
-                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider flex items-center gap-1">
+                        <label className="text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider flex items-center gap-1">
                           <Camera className="w-3.5 h-3.5 text-[#8C6B2F]" />
                           <span>{t('qual_agency_insta_label')}</span>
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="@agenciaoficial"
+                          placeholder={t('pub_qual_agency_insta_placeholder')}
                           value={qualitativeData.instagram}
                           onChange={(e) => {
                             let val = e.target.value;
@@ -770,7 +794,7 @@ function AgenciaQualificacaoContent() {
                   <CurationScheduler
                     userType="agencia"
                     selectedAppointment={appointment}
-                    onScheduleChange={(appt) => setAppointment(appt)}
+                    onScheduleChange={(appt: CurationAppointment) => setAppointment(appt)}
                   />
 
                   <div className="p-4 bg-[#FAF7F2] border border-[#0B0B0B]/10 text-xs text-[#0B0B0B]/75 font-sans space-y-2">
@@ -835,14 +859,26 @@ function AgenciaQualificacaoContent() {
         }}
       />
 
+      <TermsAcceptanceModal
+        isOpen={showTerms}
+        onAccept={() => {
+          setTermsAccepted(true);
+          setShowTerms(false);
+          setCurrentStep(2);
+          window.scrollTo({ top: 300, behavior: 'smooth' });
+        }}
+        termsVersion="v2.1-2026-09"
+      />
+
       <Footer />
     </main>
   );
 }
 
 export default function AgenciaQualificacaoPage() {
+  const { t } = useLanguage();
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center text-[#C9A96B] font-serif-lumiardi text-xl">Carregando formulário de agência...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center text-[#C9A96B] font-serif-lumiardi text-xl">{t('pub_qual_agency_loading')}</div>}>
       <AgenciaQualificacaoContent />
     </Suspense>
   );

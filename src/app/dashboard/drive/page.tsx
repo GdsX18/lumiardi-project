@@ -30,7 +30,7 @@ export default function DrivePage() {
       pageTitle={t('dash_page_drive_title')}
       pageSubtitle={t('dash_page_drive_sub')}
     >
-      <Suspense fallback={<div className="p-8 text-center text-[#F5F2EB]/50">Carregando Lumiardi Drive...</div>}>
+      <Suspense fallback={<div className="p-8 text-center text-[#F5F2EB]/50">{t('dsh_drive_loading')}</div>}>
         <DrivePageContent />
       </Suspense>
     </DashboardLayout>

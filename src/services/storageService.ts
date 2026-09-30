@@ -19,6 +19,18 @@ import {
   CurationInterview,
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
+import crypto from 'crypto';
+
+/** Política mínima de senha: 8+ caracteres, com letras e números. */
+export function isStrongPassword(password: unknown): password is string {
+  return (
+    typeof password === 'string' &&
+    password.length >= 8 &&
+    password.length <= 128 &&
+    /[A-Za-z]/.test(password) &&
+    /\d/.test(password)
+  );
+}
 
 export function getDirectConversationId(id1: string, id2: string): string {
   return ['conv', ...[id1, id2].sort()].join('_');
@@ -68,28 +80,9 @@ export const StorageService = {
           };
         }
       }
-    } catch {
-      // Fallback
-    }
-
-    // 2. Fallback de memória caso PostgreSQL esteja offline
-    const userFallback = fallbackStore.users.get(normEmail) as Record<string, unknown> | undefined;
-    if (userFallback && userFallback.role === targetRole) {
-      const match = await bcrypt.compare(cleanPass, (userFallback.password_hash as string) || '');
-      if (match) {
-        const prof = fallbackStore.profiles.get((userFallback.id as string) || '');
-        return {
-          user: {
-            id: String(userFallback.id),
-            email: String(userFallback.email),
-            name: String(userFallback.full_name),
-            role: userFallback.role === 'MODELO' ? 'criadora' : 'agencia',
-            curationStatus: userFallback.curation_status as 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO',
-            createdAt: String(userFallback.created_at),
-          },
-          profile: prof || null,
-        };
-      }
+    } catch (err) {
+      console.error('[StorageService.authenticate] Falha ao consultar o banco:', err);
+      throw new Error('DATABASE_UNAVAILABLE');
     }
 
     return null;
@@ -132,74 +125,9 @@ export const StorageService = {
           };
         }
       }
-
-      // 2. Tenta na tabela users caso ainda não migrado
-      const res = await pool.query(
-        'SELECT * FROM users WHERE LOWER(email) = $1 AND (role = $2 OR email = $3)',
-        [normEmail, 'ADMIN', 'curadoria@lumiardi.com']
-      );
-
-      if (res.rows.length > 0) {
-        const user = res.rows[0];
-        const match = await bcrypt.compare(cleanPass, user.password_hash);
-        if (match) {
-          return {
-            user: {
-              id: user.id,
-              email: user.email,
-              name: user.full_name,
-              role: 'admin',
-              curationRole: normEmail.includes('supervisor') ? 'supervisor' : normEmail.includes('senior') ? 'curador_senior' : normEmail.includes('junior') ? 'curador_junior' : 'admin',
-              curationStatus: 'APROVADO',
-              createdAt: user.created_at,
-            },
-          };
-        }
-      }
-    } catch {
-      // Fallback
-    }
-
-    // 3. Fallback store para admin_users
-    for (const au of fallbackStore.admin_users.values()) {
-      if (String(au.email).toLowerCase() === normEmail && au.status !== 'inactive') {
-        const match = await bcrypt.compare(cleanPass, (au.password_hash as string) || '');
-        if (match) {
-          return {
-            user: {
-              id: String(au.id),
-              email: String(au.email),
-              name: String(au.full_name),
-              role: 'admin',
-              curationRole: (au.role as any) || 'admin',
-              curationStatus: 'APROVADO',
-              createdAt: String(au.created_at),
-            },
-          };
-        }
-      }
-    }
-
-    // 4. Fallback store para users
-    const userFallback = fallbackStore.users.get(normEmail) as Record<string, unknown> | undefined;
-    if (
-      userFallback &&
-      (userFallback.role === 'ADMIN' || normEmail === 'curadoria@lumiardi.com')
-    ) {
-      const match = await bcrypt.compare(cleanPass, (userFallback.password_hash as string) || '');
-      if (match) {
-        return {
-          user: {
-            id: String(userFallback.id),
-            email: String(userFallback.email),
-            name: String(userFallback.full_name),
-            role: 'admin',
-            curationRole: 'admin',
-            curationStatus: 'APROVADO',
-            createdAt: String(userFallback.created_at),
-          },
-        };
-      }
+    } catch (err) {
+      console.error('[StorageService.authenticateAdmin] Falha ao consultar o banco:', err);
+      throw new Error('DATABASE_UNAVAILABLE');
     }
 
     return null;
@@ -210,20 +138,6 @@ export const StorageService = {
    */
   async getAdminMetrics() {
     await initDatabase();
-
-    // Compute from fallback store
-    let fbPending = 0;
-    let fbApprovedModels = 0;
-    let fbApprovedAgencies = 0;
-    let fbRejected = 0;
-
-    for (const u of fallbackStore.users.values()) {
-      if (u.role === 'ADMIN') continue;
-      if (u.curation_status === 'EM_CURATORIA') fbPending++;
-      else if (u.curation_status === 'APROVADO' && u.role === 'MODELO') fbApprovedModels++;
-      else if (u.curation_status === 'APROVADO' && u.role === 'AGENCIA') fbApprovedAgencies++;
-      else if (u.curation_status === 'REJEITADO') fbRejected++;
-    }
 
     try {
       const res = await pool.query(`
@@ -245,16 +159,12 @@ export const StorageService = {
           rejected: Number(row.rejected) || 0,
         };
       }
-    } catch {
-      // Fallback resiliente apenas em caso de indisponibilidade temporária do banco
+    } catch (err) {
+      console.error('[StorageService.getAdminMetrics] Falha ao consultar o banco:', err);
+      throw new Error('DATABASE_UNAVAILABLE');
     }
 
-    return {
-      pending: fbPending,
-      approvedModels: fbApprovedModels,
-      approvedAgencies: fbApprovedAgencies,
-      rejected: fbRejected,
-    };
+    return { pending: 0, approvedModels: 0, approvedAgencies: 0, rejected: 0 };
   },
 
   /**
@@ -563,48 +473,49 @@ export const StorageService = {
   ): Promise<boolean> {
     await initDatabase();
 
-    try {
-      await pool.query(
-        `UPDATE users SET curation_status = $1, rejection_reason = $2, updated_at = NOW() WHERE id = $3`,
-        [status, rejectionReason || null, id]
-      );
-    } catch {
-      // Fallback
-    }
-
-    // Fallback store
-    for (const u of fallbackStore.users.values()) {
-      if (u.id === id) {
-        u.curation_status = status;
-        u.rejection_reason = rejectionReason || null;
-        break;
-      }
-    }
-
-    return true;
+    // Falhas de banco são propagadas: quem chama não pode registrar auditoria/e-mails
+    // de uma mudança que não aconteceu.
+    const res = await pool.query(
+      `UPDATE users SET curation_status = $1, rejection_reason = $2, updated_at = NOW() WHERE id = $3`,
+      [status, rejectionReason || null, id]
+    );
+    return (res.rowCount ?? 0) > 0;
   },
 
   /**
-   * Anotações internas e registros de auditoria da Curadoria
+   * Anotações internas da Curadoria (persistidas em `application_notes`)
    */
   async addApplicationNote(userId: string, note: { author: string; text: string }) {
+    await initDatabase();
     const noteObj = {
-      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `note-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
       userId,
       author: note.author || 'curadoria@lumiardi.com',
       text: note.text.trim(),
       createdAt: new Date().toISOString(),
     };
 
-    const current = fallbackStore.application_notes.get(userId) || [];
-    current.unshift(noteObj);
-    fallbackStore.application_notes.set(userId, current);
+    await pool.query(
+      'INSERT INTO application_notes (id, user_id, author, text, created_at) VALUES ($1, $2, $3, $4, NOW())',
+      [noteObj.id, userId, noteObj.author, noteObj.text]
+    );
 
     return noteObj;
   },
 
   async getApplicationNotes(userId: string) {
-    return fallbackStore.application_notes.get(userId) || [];
+    await initDatabase();
+    const res = await pool.query(
+      'SELECT id, user_id, author, text, created_at FROM application_notes WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    return res.rows.map((r) => ({
+      id: String(r.id),
+      userId: String(r.user_id),
+      author: String(r.author),
+      text: String(r.text),
+      createdAt: new Date(r.created_at).toISOString(),
+    }));
   },
 
   /**
@@ -634,7 +545,10 @@ export const StorageService = {
     cpf?: string;
   }) {
     const normEmail = data.email.trim().toLowerCase();
-    const hash = await bcrypt.hash(data.password || 'lumiardi2026', 10);
+    if (!isStrongPassword(data.password)) {
+      throw new Error('WEAK_PASSWORD');
+    }
+    const hash = await bcrypt.hash(data.password as string, 10);
     const id = data.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const roleDb = data.role === 'criadora' ? 'MODELO' : 'AGENCIA';
     const now = new Date().toISOString();
@@ -661,8 +575,12 @@ export const StorageService = {
       interview_scheduled_at: data.interviewDate ? now : null,
       created_at: now,
     };
-    fallbackStore.users.set(normEmail, userObj);
-    fallbackStore.users.set(id, userObj);
+    void userObj;
+
+    const existing = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [normEmail]);
+    if (existing.rows.length > 0) {
+      throw new Error('EMAIL_IN_USE');
+    }
 
     const profileObj = {
       user_id: id,
@@ -681,7 +599,7 @@ export const StorageService = {
       monthly_revenue_estimate: data.qualitative?.monthlyRevenueEstimate || null,
       created_at: now,
     };
-    fallbackStore.profiles.set(id, profileObj);
+    void profileObj;
 
     try {
       await pool.query(
@@ -691,17 +609,7 @@ export const StorageService = {
            plan_billing_interval, interview_date, interview_time,
            interview_scheduled_at, created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
-         ON CONFLICT (id) DO UPDATE SET 
-           curation_status = EXCLUDED.curation_status,
-           whatsapp = COALESCE(EXCLUDED.whatsapp, users.whatsapp),
-           phone = COALESCE(EXCLUDED.phone, users.phone),
-           document_name = COALESCE(EXCLUDED.document_name, users.document_name),
-           document_url = COALESCE(EXCLUDED.document_url, users.document_url),
-           plan_id = COALESCE(EXCLUDED.plan_id, users.plan_id),
-           plan_billing_interval = COALESCE(EXCLUDED.plan_billing_interval, users.plan_billing_interval),
-           interview_date = COALESCE(EXCLUDED.interview_date, users.interview_date),
-           interview_time = COALESCE(EXCLUDED.interview_time, users.interview_time)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())`,
         [
           id,
           normEmail,
@@ -757,7 +665,11 @@ export const StorageService = {
         ]
       );
     } catch (err) {
+      if ((err as { code?: string })?.code === '23505') {
+        throw new Error('EMAIL_IN_USE');
+      }
       console.error('[StorageService registerUser DB ERROR]:', err);
+      throw new Error('DATABASE_UNAVAILABLE');
     }
 
     return { id, email: normEmail, role: roleDb, curation_status: statusDb, full_name: data.fullName };
@@ -2289,7 +2201,8 @@ export const StorageService = {
   },
 
   async saveCreator(creatorData: Partial<CompleteCreatorProfile> & { planId?: string; billingInterval?: string }): Promise<CompleteCreatorProfile> {
-    const id = creatorData.id || `creator-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    // O id é sempre gerado no servidor: nunca aceitar id vindo do cliente (evita sobrescrever contas)
+    const id = `creator-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     const now = new Date().toISOString();
 
     const fullProfile: CompleteCreatorProfile = {
@@ -2353,7 +2266,7 @@ export const StorageService = {
   },
 
   async saveAgency(agencyData: Partial<CompleteAgencyProfile>): Promise<CompleteAgencyProfile> {
-    const id = agencyData.id || `agency-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const id = `agency-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     const now = new Date().toISOString();
 
     const fullProfile: CompleteAgencyProfile = {
@@ -2592,14 +2505,19 @@ export const StorageService = {
     return true;
   },
 
+  /** Verifica se já existe conta (de qualquer tipo) com o e-mail informado. */
+  async emailExists(email: string): Promise<boolean> {
+    await initDatabase();
+    const res = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [email.trim().toLowerCase()]);
+    return res.rows.length > 0;
+  },
+
   async findCreatorByEmail(email: string) {
-    const data = await this.authenticate(email, 'lumiardi2026', 'criadora');
-    return data?.profile || null;
+    return (await this.emailExists(email)) ? { email } : null;
   },
 
   async findAgencyByEmail(email: string) {
-    const data = await this.authenticate(email, 'lumiardi2026', 'agencia');
-    return data?.profile || null;
+    return (await this.emailExists(email)) ? { email } : null;
   },
 
   async filterCreators(_query?: CreatorFilterQuery): Promise<CompleteCreatorProfile[]> {
@@ -3133,7 +3051,10 @@ export const StorageService = {
   }): Promise<AdminUser> {
     await initDatabase();
     const id = `cur-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const hash = await bcrypt.hash(data.password || 'lumiardi2026', 10);
+    if (!isStrongPassword(data.password)) {
+      throw new Error('WEAK_PASSWORD');
+    }
+    const hash = await bcrypt.hash(data.password as string, 10);
     const normEmail = data.email.trim().toLowerCase();
     const now = new Date().toISOString();
 
@@ -3150,11 +3071,6 @@ export const StorageService = {
       updatedAt: now,
     };
 
-    fallbackStore.admin_users.set(id, {
-      ...adminUser,
-      password_hash: hash,
-    });
-
     try {
       await pool.query(
         `INSERT INTO admin_users (id, email, password_hash, full_name, role, status, created_at, updated_at)
@@ -3162,7 +3078,11 @@ export const StorageService = {
         [id, normEmail, hash, data.fullName.trim(), data.role]
       );
     } catch (err) {
-      console.warn('Erro ao inserir admin_user no PostgreSQL:', err);
+      if ((err as { code?: string })?.code === '23505') {
+        throw new Error('EMAIL_IN_USE');
+      }
+      console.error('Erro ao inserir admin_user no PostgreSQL:', err);
+      throw new Error('DATABASE_UNAVAILABLE');
     }
 
     return adminUser;

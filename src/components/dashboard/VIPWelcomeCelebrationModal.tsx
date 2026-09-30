@@ -18,12 +18,14 @@ interface VIPWelcomeCelebrationModalProps {
 export function VIPWelcomeCelebrationModal({
   isOpen,
   onClose,
-  userName = 'Membro VIP',
+  userName: userNameProp,
   userRole = 'criadora',
   memberId = 'LUM-8842',
-  category = 'Criadora de Elite',
+  category: categoryProp,
 }: VIPWelcomeCelebrationModalProps) {
   const { t } = useLanguage();
+  const userName = userNameProp ?? t('dwg_vip_default_name');
+  const category = categoryProp ?? t('dwg_vip_default_category');
   useEffect(() => {
     if (isOpen) {
       // Dispara confetes dourados e brancos de luxo

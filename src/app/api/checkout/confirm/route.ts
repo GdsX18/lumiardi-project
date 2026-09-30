@@ -3,328 +3,318 @@ import { BillingService } from '@/lib/payments/billingService';
 import { StorageService } from '@/services/storageService';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType } from '@/lib/payments/types';
-import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 import { asaasClient } from '@/lib/payments/asaasClient';
-import { pool, initDatabase } from '@/lib/db';
-import { CouponService } from '@/services/couponService';
-
-/** Traduz erros técnicos da API Asaas em mensagens amigáveis para o usuário final */
-function normalizeAsaasError(raw: string): string {
-  const r = raw.toLowerCase();
-  if (r.includes('invalid number') || r.includes('card_number_invalid') || r.includes('número do cartão'))
-    return 'O número do cartão informado é inválido. Verifique os dados e tente novamente.';
-  if (r.includes('invalid expiry') || r.includes('expirymonth') || r.includes('expiryyear') || r.includes('validade'))
-    return 'A data de validade do cartão está incorreta. Verifique e tente novamente.';
-  if (r.includes('invalid cvv') || r.includes('ccv') || r.includes('código de segurança'))
-    return 'O código de segurança (CVV) do cartão é inválido.';
-  if (r.includes('insufficient') || r.includes('saldo insuficiente'))
-    return 'Transação recusada por saldo insuficiente. Tente outro cartão ou pague via Pix.';
-  if (r.includes('not authorized') || r.includes('não autorizado') || r.includes('declined'))
-    return 'Transação não autorizada pela emissora do cartão. Verifique os dados ou tente outro cartão.';
-  if (r.includes('stolen') || r.includes('lost') || r.includes('furtado') || r.includes('perdido'))
-    return 'Transação recusada pela emissora do cartão. Entre em contato com seu banco.';
-  if (r.includes('cpf') || r.includes('cnpj') || r.includes('document'))
-    return 'O CPF/CNPJ informado não é válido. Verifique os dados do titular do cartão.';
-  if (r.includes('phone') || r.includes('contato') || r.includes('telefone'))
-    return 'O número de telefone do titular é obrigatório. Tente novamente.';
-  if (r.includes('timeout') || r.includes('network') || r.includes('econnreset'))
-    return 'Erro de conexão com a operadora. Aguarde alguns instantes e tente novamente.';
-  if (r.includes('http 401') || r.includes('unauthorized') || r.includes('api key'))
-    return 'Erro interno de configuração do gateway. Por favor, contate o suporte.';
-  // Mensagem genérica de fallback — não expõe detalhes técnicos
-  return 'Transação não autorizada pela emissora do cartão. Verifique os dados ou tente outro cartão / Pix.';
-}
+import { normalizeAsaasError } from '@/lib/payments/asaasErrors';
+import { CouponService, MIN_CHARGE_BRL } from '@/services/couponService';
+import { requirePayableUser, ASAAS_PAID_STATUSES, ASAAS_PROCESSING_STATUSES } from '@/lib/payments/checkoutGuard';
 
 export async function POST(request: NextRequest) {
+  let reservedCoupon: string | null = null;
   try {
-    const rawBody = await request.clone().json();
-    // Log sanitized or removed for PCI-DSS compliance
+    const rawBody = await request.json().catch(() => ({}));
 
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    // 1. Identidade SEMPRE da sessão assinada + status de curadoria lido do banco
+    const guard = await requirePayableUser(request);
+    if (!guard.ok) return guard.response;
+    const { id: userId, email: userEmail, name: userName, session } = guard.user;
 
     const planId = (sanitizeInput(rawBody.planId) || 'glow') as PlanId;
     const billingInterval = (rawBody.billingInterval === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
     const requestedGateway = (rawBody.gateway as string) || 'pix';
     const gateway: PaymentGatewayType =
-      requestedGateway === 'nowpayments'
-        ? 'nowpayments'
-        : requestedGateway === 'pix'
-        ? 'pix'
-        : 'asaas';
+      requestedGateway === 'nowpayments' ? 'nowpayments' : requestedGateway === 'pix' ? 'pix' : 'asaas';
 
     const paymentMethod: 'credit_card' | 'crypto' | 'pix' =
-      rawBody.paymentMethod || (rawBody.cardData ? 'credit_card' : gateway === 'pix' ? 'pix' : gateway === 'nowpayments' ? 'crypto' : 'credit_card');
+      rawBody.paymentMethod === 'credit_card' || rawBody.paymentMethod === 'crypto' || rawBody.paymentMethod === 'pix'
+        ? rawBody.paymentMethod
+        : rawBody.cardData
+        ? 'credit_card'
+        : gateway === 'nowpayments'
+        ? 'crypto'
+        : 'pix';
 
     const plan = getPlan(planId);
     const isYearly = billingInterval === 'yearly';
-    const currency = (rawBody.currency === 'USD' ? 'USD' : 'BRL') as 'BRL' | 'USD';
     const couponCode = rawBody.couponCode ? (sanitizeInput(rawBody.couponCode) as string).trim().toUpperCase() : undefined;
-    let couponValidation: {
-      code: string;
-      discountType: 'percentage' | 'fixed';
-      discountValue: number;
-      discountAmount: number;
-      finalPrice: number;
-    } | null = null;
 
-    const baseAmount = currency === 'USD'
-      ? (isYearly ? plan.priceUSD.yearly * 12 : plan.priceUSD.monthly)
-      : (isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly);
+    // O cartão é sempre liquidado em BRL no Asaas; Pix/cripto seguem a moeda exibida
+    const currency: 'BRL' | 'USD' = paymentMethod === 'credit_card' ? 'BRL' : rawBody.currency === 'USD' ? 'USD' : 'BRL';
+    const baseAmount =
+      currency === 'USD'
+        ? isYearly
+          ? plan.priceUSD.yearly * 12
+          : plan.priceUSD.monthly
+        : isYearly
+        ? plan.priceBRL.yearly * 12
+        : plan.priceBRL.monthly;
 
     let finalAmount = baseAmount;
+    let couponValidation: { code: string; discountAmount: number; finalPrice: number } | null = null;
 
     if (couponCode) {
       const v = await CouponService.validateCoupon(couponCode, baseAmount);
-      if (v.valid) {
-        couponValidation = v;
-        finalAmount = v.finalPrice;
-      } else {
-        return NextResponse.json(
-          { error: 'Cupom de desconto inválido ou expirado.' },
-          { status: 400 }
-        );
+      if (!v.valid) {
+        return NextResponse.json({ error: 'Cupom de desconto inválido ou expirado.', code: 'coupon_invalid' }, { status: 400 });
       }
+      couponValidation = v;
+      finalAmount = v.finalPrice;
     }
 
-    // Caso não haja sessão (testes sandbox / visitante), gera um ID anônimo temporário
-    const userId = session?.id || rawBody.userId || `guest_${Date.now()}`;
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Usuário não identificado. Por favor, complete o cadastro antes do pagamento.' },
-        { status: 401 }
-      );
-    }
-
-    const userEmail = session?.email || rawBody.userEmail || 'membro@lumiardi.com';
-    const userName = session?.name || rawBody.userName || 'Membro Lumiardi';
-
-    let asaasPaymentId = '';
-
-    // 1. Processamento via Asaas quando for Cartão de Crédito em BRL ou Cartão Internacional (forçado BRL no Asaas)
-    if (paymentMethod === 'credit_card' && rawBody.cardData) {
-      const card = rawBody.cardData;
-      const today = new Date();
-      const dueDate = today.toISOString().split('T')[0];
-
-      // O Asaas só aceita Reais (BRL) e com valor mínimo de R$ 5,00.
-      // Abate o desconto do cupom diretamente no valor faturado no Asaas
-      const baseAsaasValue = isYearly ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
-      let asaasValue = baseAsaasValue;
-      if (couponValidation) {
-        if (couponValidation.discountType === 'percentage') {
-          const disc = (baseAsaasValue * couponValidation.discountValue) / 100;
-          asaasValue = Math.max(0, Math.round((baseAsaasValue - disc) * 100) / 100);
-        } else {
-          const disc = currency === 'BRL' ? couponValidation.discountAmount : Math.min(baseAsaasValue, couponValidation.discountAmount);
-          asaasValue = Math.max(0, Math.round((baseAsaasValue - disc) * 100) / 100);
-        }
-      }
-
-      if (asaasValue < 5.00) {
-        return NextResponse.json(
-          { error: 'O valor mínimo exigido pela operadora do cartão é R$ 5,00.' },
-          { status: 400 }
-        );
-      }
-
-      // Validação explícita de Documento (CPF/CNPJ) obrigatória pelo Asaas
-      const cpfCnpjRaw = card.cpf || rawBody.taxId;
-      if (!cpfCnpjRaw) {
-        return NextResponse.json(
-          { error: 'CPF/CNPJ/Passaporte ausente. É obrigatório informar um documento válido.' },
-          { status: 400 }
-        );
-      }
-      
-      // Limpa para números. Se o taxId internacional não tiver números suficientes, faremos padding com 0.
-      let cpfCnpj = cpfCnpjRaw.replace(/\D/g, '');
-      if (cpfCnpj.length < 11 && currency !== 'BRL') {
-        cpfCnpj = cpfCnpj.padStart(11, '0'); // Padronização para internacional passar no Asaas Sandbox
-      } else if (cpfCnpj.length < 11) {
-        return NextResponse.json(
-          { error: 'O CPF/CNPJ informado é inválido. Por favor, verifique os números digitados.' },
-          { status: 400 }
-        );
-      }
+    // 2. Pix / cripto: a liquidação é confirmada exclusivamente pelo webhook do gateway
+    if (paymentMethod !== 'credit_card') {
+      const txId = `${gateway}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      await BillingService.recordTransaction({
+        userId,
+        gateway: gateway === 'pix' ? 'asaas' : gateway,
+        gatewayTransactionId: txId,
+        amount: finalAmount,
+        currency,
+        status: 'pending',
+        paymentMethod,
+        rawPayload: {
+          planId: plan.id,
+          planName: plan.name,
+          billingInterval,
+          couponCode: couponValidation?.code || null,
+          discountAmount: couponValidation?.discountAmount || 0,
+          note: 'Confirmação manual da usuária — aguardando webhook do gateway',
+        },
+        idempotencyKey: `confirm_${txId}`,
+      });
 
       try {
-        const customer = await asaasClient.getOrCreateCustomer({
-          name: userName,
-          email: userEmail,
-          cpfCnpj,
-          phone: rawBody.phone,
-          externalReference: userId,
+        const formattedTotal =
+          currency === 'USD' ? `$ ${finalAmount.toFixed(2)}` : `R$ ${finalAmount.toFixed(2).replace('.', ',')}`;
+        await StorageService.createNotification({
+          userId,
+          title: 'Aguardando Compensação',
+          desc: `Aguardando a confirmação do pagamento do Plano ${plan.name} de ${formattedTotal} via ${paymentMethod === 'pix' ? 'Pix' : 'Cripto'}. Seu acesso oficial será liberado assim que o pagamento for compensado.`,
+          category: 'Pagamentos',
+          type: 'info',
+          link: '/dashboard/pendente',
+          linkText: 'Ver Status',
         });
-
-        const asaasResponse = await asaasClient.createPayment({
-          customerId: customer.id,
-          billingType: 'CREDIT_CARD',
-          value: asaasValue,
-          dueDate,
-          description: couponValidation
-            ? `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) [Cupom ${couponValidation.code}]`
-            : `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
-          externalReference: `${userId}:${plan.id}:${billingInterval}${couponValidation ? `:${couponValidation.code}` : ''}`,
-          creditCard: {
-            holderName: card.holderName || userName,
-            number: card.number.replace(/\D/g, ''),
-            expiryMonth: card.expiryMonth,
-            expiryYear: card.expiryYear,
-            ccv: card.ccv || card.cvv || '123',
-          },
-          creditCardHolderInfo: {
-            name: card.holderName || userName,
-            email: userEmail,
-            cpfCnpj,
-            postalCode: card.postalCode, // Será tratado pelo fallback seguro ou enviado se existir
-            addressNumber: card.addressNumber,
-            phone: rawBody.phone,
-          },
-          installmentCount: card.installments ? Number(card.installments) : 1,
-        });
-
-        asaasPaymentId = asaasResponse.id;
-
-        if (asaasResponse.status === 'OVERDUE' || asaasResponse.status === 'REFUNDED') {
-          return NextResponse.json(
-            { error: 'Pagamento não aprovado pela operadora do cartão.' },
-            { status: 400 }
-          );
-        }
-      } catch (err: unknown) {
-        // Normaliza erros do Asaas em mensagens amigáveis — sem vazar stack trace ou dados internos
-        const rawMsg = err instanceof Error ? err.message : '';
-        console.error('[Checkout Confirm Asaas Error]:', rawMsg);
-
-        const friendlyMessage = normalizeAsaasError(rawMsg);
-        return NextResponse.json({ error: friendlyMessage }, { status: 400 });
+      } catch (e) {
+        console.warn('[Checkout Confirm] Erro ao criar notificação:', e);
       }
-    } else if (paymentMethod === 'credit_card' && !rawBody.cardData) {
+
+      return NextResponse.json({
+        success: true,
+        pending: true,
+        code: 'payment_processing',
+        amountPaid: finalAmount,
+        originalAmount: baseAmount,
+        discountAmount: couponValidation?.discountAmount || 0,
+        couponCode: couponValidation?.code || null,
+        currency,
+        planName: plan.name,
+        message: 'Aguardando compensação do pagamento. A assinatura será ativada automaticamente assim que liquidada.',
+      });
+    }
+
+    // 3. Cartão de crédito via Asaas
+    const card = rawBody.cardData;
+    if (!card || typeof card.number !== 'string') {
+      return NextResponse.json({ error: 'Dados do cartão de crédito ausentes no payload.', code: 'invalid_input' }, { status: 400 });
+    }
+
+    const cvvCode = card.ccv || card.cvv;
+    if (!cvvCode) {
+      return NextResponse.json({ error: 'O código de segurança (CVV) do cartão é obrigatório.', code: 'invalid_input' }, { status: 400 });
+    }
+
+    if (finalAmount < MIN_CHARGE_BRL) {
+      return NextResponse.json({ error: 'O valor mínimo exigido pela operadora do cartão é R$ 5,00.', code: 'invalid_input' }, { status: 400 });
+    }
+
+    let cpfCnpj = String(card.cpf || rawBody.taxId || '').replace(/\D/g, '');
+    if (!cpfCnpj) {
       return NextResponse.json(
-        { error: 'Dados do cartão de crédito ausentes no payload.' },
+        { error: 'CPF/CNPJ/Passaporte ausente. É obrigatório informar um documento válido.', code: 'invalid_input' },
         { status: 400 }
       );
     }
-
-    const txId = asaasPaymentId || `${gateway}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const effectiveGateway: PaymentGatewayType = gateway === 'pix' ? 'asaas' : gateway;
-
-    // 2. Garante que o userId existe na tabela `users` antes de criar invoices/subscriptions
-    //    (evita violação de FK: Key (user_id)=(...) is not present in table "users")
-    try {
-      await initDatabase();
-      await pool.query(`
-        INSERT INTO users (id, email, password_hash, role, curation_status, full_name)
-        VALUES ($1, $2, '$2b$10$placeholderhashinvalidnotusedforlogin000000000000000000', 'MODELO', 'EM_CURATORIA', $3)
-        ON CONFLICT (id) DO UPDATE SET
-          email = EXCLUDED.email,
-          full_name = EXCLUDED.full_name,
-          updated_at = NOW();
-      `, [userId, userEmail, userName]);
-    } catch (err) {
-      console.warn('[Checkout Confirm] UPSERT de usuário falhou (prosseguindo com fallbackStore):', err);
-    }
-
-    // 3. Processa assinatura e transação dependendo do método de pagamento
-    const isInstantPayment = paymentMethod === 'credit_card';
-    let subscription = null;
-
-    if (isInstantPayment) {
-      subscription = await BillingService.createOrRenewSubscription({
-        userId,
-        gateway: effectiveGateway,
-        gatewaySubscriptionId: txId,
-        planId: plan.id,
-        planCategory: plan.category,
-        billingInterval,
-        amount: finalAmount,
-        currency,
-        metadata: {
-          paymentMethod,
-          cardLast4: rawBody.cardLast4 || (rawBody.cardData?.number ? rawBody.cardData.number.slice(-4) : undefined),
-          paidAt: new Date().toISOString(),
-          userEmail,
-          userName,
-          asaasPaymentId: asaasPaymentId || undefined,
-          couponCode: couponValidation?.code || undefined,
-          discountAmount: couponValidation?.discountAmount || undefined,
-        },
-      });
-
-      if (!subscription) {
+    if (cpfCnpj.length < 11) {
+      if (rawBody.currency === 'USD') {
+        cpfCnpj = cpfCnpj.padStart(11, '0'); // documento internacional
+      } else {
         return NextResponse.json(
-          { error: 'Falha ao provisionar assinatura do usuário.' },
-          { status: 500 }
+          { error: 'O CPF/CNPJ informado é inválido. Por favor, verifique os números digitados.', code: 'invalid_input' },
+          { status: 400 }
         );
       }
     }
 
-    // Registra a transação de pagamento
+    // Reserva atômica do cupom antes de cobrar (respeita max_uses com checkouts concorrentes)
+    if (couponValidation) {
+      const reserved = await CouponService.reserveCouponUse(couponValidation.code);
+      if (!reserved) {
+        return NextResponse.json({ error: 'Cupom de desconto inválido ou esgotado.', code: 'coupon_invalid' }, { status: 400 });
+      }
+      reservedCoupon = couponValidation.code;
+    }
+
+    const installments = Math.min(12, Math.max(1, Math.floor(Number(card.installments) || 1)));
+    let asaasPaymentId = '';
+    let asaasStatus = '';
+
+    try {
+      const customer = await asaasClient.getOrCreateCustomer({
+        name: userName,
+        email: userEmail,
+        cpfCnpj,
+        phone: rawBody.phone,
+        externalReference: userId,
+      });
+
+      const asaasResponse = await asaasClient.createPayment({
+        customerId: customer.id,
+        billingType: 'CREDIT_CARD',
+        value: finalAmount,
+        dueDate: new Date().toISOString().split('T')[0],
+        description: couponValidation
+          ? `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) [Cupom ${couponValidation.code}]`
+          : `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
+        externalReference: `${userId}:${plan.id}:${billingInterval}${couponValidation ? `:${couponValidation.code}` : ''}`,
+        creditCard: {
+          holderName: card.holderName || userName,
+          number: card.number.replace(/\D/g, ''),
+          expiryMonth: card.expiryMonth,
+          expiryYear: card.expiryYear,
+          ccv: cvvCode,
+        },
+        creditCardHolderInfo: {
+          name: card.holderName || userName,
+          email: userEmail,
+          cpfCnpj,
+          postalCode: card.postalCode,
+          addressNumber: card.addressNumber,
+          phone: rawBody.phone,
+        },
+        installmentCount: installments,
+      });
+
+      asaasPaymentId = asaasResponse.id;
+      asaasStatus = String(asaasResponse.status || '').toUpperCase();
+    } catch (err: unknown) {
+      const rawMsg = err instanceof Error ? err.message : '';
+      console.error('[Checkout Confirm Asaas Error]:', rawMsg);
+      if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
+      reservedCoupon = null;
+      return NextResponse.json({ error: normalizeAsaasError(rawMsg), code: 'payment_declined' }, { status: 400 });
+    }
+
+    const isPaid = ASAAS_PAID_STATUSES.has(asaasStatus);
+    const isProcessing = ASAAS_PROCESSING_STATUSES.has(asaasStatus);
+
+    if (!isPaid && !isProcessing) {
+      if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
+      reservedCoupon = null;
+      return NextResponse.json({ error: 'Pagamento não aprovado pela operadora do cartão.', code: 'payment_declined' }, { status: 400 });
+    }
+
+    const cardLast4 = card.number.replace(/\D/g, '').slice(-4);
+
+    // 3a. Em análise: registra como pendente; o webhook PAYMENT_CONFIRMED ativa a assinatura
+    //     e contabiliza o cupom, por isso a reserva é devolvida (evita contagem dupla).
+    if (!isPaid) {
+      if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
+      reservedCoupon = null;
+      await BillingService.recordTransaction({
+        userId,
+        gateway: 'asaas',
+        gatewayTransactionId: asaasPaymentId,
+        amount: finalAmount,
+        currency: 'BRL',
+        status: 'pending',
+        paymentMethod: 'credit_card',
+        rawPayload: {
+          planId: plan.id,
+          billingInterval,
+          asaasPaymentId,
+          asaasStatus,
+          cardLast4,
+          couponCode: couponValidation?.code || null,
+        },
+        idempotencyKey: `confirm_${asaasPaymentId}`,
+      });
+      return NextResponse.json(
+        {
+          success: true,
+          pending: true,
+          code: 'payment_processing',
+          paymentId: asaasPaymentId,
+          amountPaid: finalAmount,
+          currency: 'BRL',
+          planName: plan.name,
+          message: 'Pagamento em análise pela operadora. Seu acesso será liberado assim que for confirmado.',
+        },
+        { status: 202 }
+      );
+    }
+
+    // 3b. Pago: ativa assinatura, registra transação e libera o acesso
+    reservedCoupon = null; // uso do cupom efetivado
+    const subscription = await BillingService.createOrRenewSubscription({
+      userId,
+      gateway: 'asaas',
+      gatewaySubscriptionId: asaasPaymentId,
+      planId: plan.id,
+      planCategory: plan.category,
+      billingInterval,
+      amount: finalAmount,
+      currency: 'BRL',
+      metadata: {
+        paymentMethod: 'credit_card',
+        cardLast4,
+        paidAt: new Date().toISOString(),
+        asaasPaymentId,
+        couponCode: couponValidation?.code || undefined,
+        discountAmount: couponValidation?.discountAmount || undefined,
+      },
+    });
+
     await BillingService.recordTransaction({
       userId,
       subscriptionId: subscription?.id,
-      gateway: effectiveGateway,
-      gatewayTransactionId: txId,
+      gateway: 'asaas',
+      gatewayTransactionId: asaasPaymentId,
       amount: finalAmount,
-      currency,
-      status: isInstantPayment ? 'success' : 'pending',
-      paymentMethod,
+      currency: 'BRL',
+      status: 'success',
+      paymentMethod: 'credit_card',
       rawPayload: {
         planId: plan.id,
         planName: plan.name,
         billingInterval,
-        gateway: effectiveGateway,
-        paidAt: isInstantPayment ? new Date().toISOString() : null,
+        paidAt: new Date().toISOString(),
         asaasPaymentId,
         couponCode: couponValidation?.code || null,
         discountAmount: couponValidation?.discountAmount || 0,
+        originalAmount: baseAmount,
       },
-      idempotencyKey: `confirm_${txId}`,
+      idempotencyKey: `confirm_${asaasPaymentId}`,
     });
 
-    // Incrementa contagem de utilizações do cupom no banco após confirmação da transação
-    if (couponValidation && (isInstantPayment || rawBody.paymentConfirmed)) {
-      try {
-        await CouponService.incrementCouponUses(couponValidation.code);
-      } catch (couponErr) {
-        console.warn('[Checkout Confirm] Erro ao incrementar times_used do cupom:', couponErr);
-      }
-    }
-
-    // 4. Se for pagamento instantâneo confirmado, promove o status para APROVADO
     let updatedSession: SessionUser | null = null;
-    if (isInstantPayment) {
-      try {
-        await StorageService.updateCurationStatus(userId, 'APROVADO');
-        if (session) {
-          updatedSession = {
-            ...session,
-            curationStatus: 'APROVADO',
-          };
-        }
-      } catch (err) {
-        console.error('[Checkout Confirm] Erro ao promover status para APROVADO:', err);
-      }
+    try {
+      await StorageService.updateCurationStatus(userId, 'APROVADO');
+      updatedSession = { ...session, curationStatus: 'APROVADO' };
+    } catch (err) {
+      console.error('[Checkout Confirm] Erro ao promover status para APROVADO:', err);
     }
 
-    // 5. Cria notificação para o usuário
     try {
-      const formattedTotal = currency === 'USD' ? `$ ${finalAmount.toFixed(2)}` : `R$ ${finalAmount.toFixed(2).replace('.', ',')}`;
-      const title = isInstantPayment ? 'Acesso Oficial Liberado — Bem-vinda à Lumiardi!' : 'Aguardando Compensação';
-      const desc = isInstantPayment 
-        ? `O pagamento do Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) de ${formattedTotal} foi confirmado com sucesso. Sua credencial foi ativada e o seu acesso ao ecossistema Lumiardi está 100% liberado!`
-        : `Aguardando a confirmação do pagamento do Plano ${plan.name} de ${formattedTotal} via ${paymentMethod === 'pix' ? 'Pix' : 'Cripto'}. Seu acesso oficial será liberado assim que o pagamento for compensado.`;
-        
       await StorageService.createNotification({
         userId,
-        title,
-        desc,
+        title: 'Acesso Oficial Liberado — Bem-vinda à Lumiardi!',
+        desc: `O pagamento do Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'}) de R$ ${finalAmount.toFixed(2).replace('.', ',')} foi confirmado com sucesso. Sua credencial foi ativada e o seu acesso ao ecossistema Lumiardi está liberado!`,
         category: 'Pagamentos',
-        type: isInstantPayment ? 'success' : 'info',
-        link: isInstantPayment ? '/dashboard' : '/dashboard/pendente',
-        linkText: isInstantPayment ? 'Acessar Meu Painel' : 'Ver Status da Curadoria',
+        type: 'success',
+        link: '/dashboard',
+        linkText: 'Acessar Meu Painel',
       });
     } catch (e) {
       console.warn('[Checkout Confirm] Erro ao criar notificação:', e);
@@ -333,33 +323,24 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       subscription,
+      paymentId: asaasPaymentId,
       amountPaid: finalAmount,
       originalAmount: baseAmount,
-      discountAmount: couponValidation ? couponValidation.discountAmount : 0,
-      couponCode: couponValidation ? couponValidation.code : null,
-      currency,
+      discountAmount: couponValidation?.discountAmount || 0,
+      couponCode: couponValidation?.code || null,
+      currency: 'BRL',
       planName: plan.name,
-      message: isInstantPayment
-        ? 'Pagamento confirmado com sucesso via Asaas. Seu acesso ao ecossistema Lumiardi está 100% liberado!'
-        : 'Aguardando compensação do pagamento. A assinatura será ativada automaticamente assim que liquidada.',
+      message: 'Pagamento confirmado com sucesso. Seu acesso ao ecossistema Lumiardi está liberado!',
     });
 
     if (updatedSession) {
-      response.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: encodeSession(updatedSession),
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 7,
-      });
+      setSessionCookie(response, updatedSession);
     }
 
     return response;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro ao processar confirmação de pagamento';
+    if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
     console.error('[Checkout Confirm] Erro:', err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao processar o pagamento.', code: 'generic' }, { status: 500 });
   }
 }

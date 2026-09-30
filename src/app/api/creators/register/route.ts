@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { sanitizeObject } from '@/lib/security';
-import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { CompleteCreatorProfile } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -100,14 +100,7 @@ export async function POST(request: NextRequest) {
       message: 'Candidatura submetida com sucesso. Status: AGUARDANDO_REUNIAO.',
     });
 
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: encodeSession(sessionUser),
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    setSessionCookie(response, sessionUser);
 
     return response;
   } catch (err: unknown) {

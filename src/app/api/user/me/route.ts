@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 
 export async function GET(request: NextRequest) {
@@ -61,15 +61,7 @@ export async function GET(request: NextRequest) {
 
     // Se o status ou nome mudou no banco (ex: curadoria aprovou), atualiza o cookie assinado
     if (hasStatusChanged || hasNameChanged) {
-      response.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: encodeSession(updatedSession),
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 7,
-      });
+      setSessionCookie(response, updatedSession);
     }
 
     return response;

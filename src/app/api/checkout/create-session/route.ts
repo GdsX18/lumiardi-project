@@ -3,7 +3,7 @@ import { paymentFactory } from '@/lib/payments/gatewayFactory';
 import { BillingService } from '@/lib/payments/billingService';
 import { CreateCheckoutSessionRequest, PaymentGatewayType, PlanId, BillingInterval, CryptoCurrency } from '@/lib/payments/types';
 import { sanitizeInput } from '@/lib/security';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { requirePayableUser } from '@/lib/payments/checkoutGuard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,14 +29,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verifica sessão do usuário logado se existir
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
-
-    const userId = session?.id || rawBody.userId || `guest_${Date.now()}`;
-    const userEmail = session?.email || rawBody.userEmail || 'membro@lumiardi.com';
-    const userName = session?.name || rawBody.userName || 'Membro Lumiardi';
-    const userRole = session?.role === 'agencia' ? 'agencia' : 'criadora';
+    // Identidade exclusivamente da sessão assinada; só quem foi aprovada pela curadoria pode gerar cobrança
+    const guard = await requirePayableUser(request);
+    if (!guard.ok) return guard.response;
+    const { id: userId, email: userEmail, name: userName } = guard.user;
+    const userRole = guard.user.role === 'agencia' ? 'agencia' : 'criadora';
 
     const checkoutReq: CreateCheckoutSessionRequest = {
       userId,
@@ -84,10 +81,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(sessionResult);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao inicializar checkout';
     console.error('[API Checkout] Erro:', err);
     return NextResponse.json(
-      { error: 'Não foi possível gerar a sessão de pagamento.', details: message },
+      { error: 'Não foi possível gerar a sessão de pagamento.', code: 'payment_unavailable' },
       { status: 500 }
     );
   }

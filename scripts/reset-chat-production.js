@@ -86,7 +86,12 @@ async function runReset() {
     console.log(`✅ Contas excluídas de users: ${deletedUsers.rows.map(r => r.email).join(', ') || 'Nenhuma pendente'}`);
 
     // 3. Garantir que curadoria@lumiardi.com seja o único Master Root
-    const hash = await bcrypt.hash('lumiardi2026', 10);
+    const adminPassword = process.argv[2] || process.env.ADMIN_PASSWORD || process.env.ADMIN_SEED_PASSWORD;
+    if (!adminPassword) {
+      console.error('ERRO: Defina a senha do admin master via argumento ou ADMIN_PASSWORD.');
+      process.exit(1);
+    }
+    const hash = await bcrypt.hash(adminPassword, 10);
     await client.query(`
       INSERT INTO admin_users (id, email, password_hash, full_name, role, status)
       VALUES ('cur-admin-1', 'curadoria@lumiardi.com', $1, 'Mesa de Curadoria Lumiardi', 'admin', 'active')

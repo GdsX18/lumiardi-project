@@ -1,14 +1,16 @@
 import crypto from 'crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export interface PresignedUrlRequest {
   fileName: string;
   fileType: string;
-  category: 'raw-photos' | 'videos' | 'contracts' | 'briefings' | 'avatars' | 'uploads';
+  category: string;
   userId: string;
   operation: 'upload' | 'download';
   expiresInSeconds?: number;
+  /** Tamanho exato do arquivo em bytes (assinado no PUT) */
+  contentLength?: number;
   context?: 'private' | 'shared';
   agencyId?: string;
   modelId?: string;
@@ -87,6 +89,20 @@ export const R2StorageService = {
   },
 
   /**
+   * Metadados reais do objeto (tamanho e tipo) — fonte confiável para cotas; null se não existir.
+   */
+  async headObject(fileKey: string): Promise<{ size: number; contentType?: string } | null> {
+    const client = getR2Client();
+    if (!client || !fileKey) return null;
+    try {
+      const res = await client.send(new HeadObjectCommand({ Bucket: this.getBucketName(), Key: fileKey }));
+      return { size: Number(res.ContentLength || 0), contentType: res.ContentType };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Remove objeto diretamente do Cloudflare R2
    */
   async deleteObject(fileKey: string): Promise<boolean> {
@@ -134,15 +150,7 @@ export const R2StorageService = {
         })
       );
 
-      const publicDomain = process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
-      let url = `/api/media/${params.key}`;
-      if (publicDomain && publicDomain.trim() !== '') {
-        const cleanDomain = publicDomain.trim().replace(/\/+$/, '');
-        const base = cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')
-          ? cleanDomain
-          : `https://${cleanDomain}`;
-        url = `${base}/${params.key.replace(/^\/+/, '')}`;
-      }
+      const url = this.getPublicUrl(params.key) || `/api/media/${params.key}`;
 
       return {
         success: true,
@@ -160,6 +168,8 @@ export const R2StorageService = {
    * Retorna a URL pública formatada com CDN ativa ou undefined se não configurado
    */
   getPublicUrl(fileKey: string): string | undefined {
+    // Conteúdo do vault é privado: sempre servido por /api/media (que aplica autorização por chave)
+    if (fileKey.replace(/^\/+/, '').startsWith('vault/')) return undefined;
     const publicDomain = process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN;
     if (!publicDomain || publicDomain.trim() === '') return undefined;
     const cleanDomain = publicDomain.trim().replace(/\/+$/, '');
@@ -186,6 +196,8 @@ export const R2StorageService = {
               Bucket: bucketName,
               Key: fileKey,
               ContentType: req.fileType,
+              // Tamanho assinado: o R2 rejeita um PUT com Content-Length diferente do declarado
+              ...(req.contentLength ? { ContentLength: req.contentLength } : {}),
             })
           : new GetObjectCommand({
               Bucket: bucketName,
@@ -202,19 +214,14 @@ export const R2StorageService = {
           expiresAt,
         };
       } catch (err) {
-        console.warn('Erro gerando presigned URL AWS SDK, usando fallback assinado:', err);
+        console.error('Erro gerando presigned URL no R2:', err);
       }
     }
 
-    // Fallback assinado local HMAC
-    const localToken = crypto.randomBytes(16).toString('hex');
-    const signedUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/drive/signed-url/stream?key=${encodeURIComponent(
-      fileKey
-    )}&token=${localToken}`;
-
+    // Sem R2 configurado não há URL válida: o chamador deve tratar a falha
     return {
-      success: true,
-      signedUrl,
+      success: false,
+      signedUrl: '',
       fileKey,
       expiresAt,
     };

@@ -115,7 +115,7 @@ async function runTests() {
   // 3. Teste de Assinaturas, Hash e Criptografia
   console.log('\n🔒 3. Testes de Criptografia, 2FA e Hash:');
   await testAsync('Geração e verificação de hash bcrypt para senhas seguras', async () => {
-    const password = 'lumiardi2026';
+    const password = 'TestRandomPassword#2026!';
     const hash = await bcrypt.hash(password, 10);
     const isValid = await bcrypt.compare(password, hash);
     assert.strictEqual(isValid, true, 'O hash deve validar a senha original');

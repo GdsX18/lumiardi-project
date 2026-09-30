@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
-import { encodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 
-import { checkRateLimit } from '@/lib/security/rateLimiter';
+import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
+
+const LOGIN_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('remote-addr') || 'unknown';
-    if (!checkRateLimit(ip)) {
-      return NextResponse.json({ error: 'Muitas tentativas de login. Aguarde e tente novamente.' }, { status: 429 });
+    const ip = getClientIp(request.headers);
+    const ipLimit = await checkRateLimitPersistent(`admin-login:ip:${ip}`, LOGIN_WINDOW);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas de login. Aguarde e tente novamente.', code: 'rate_limited' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(ipLimit.resetTimeMs / 1000)) } }
+      );
     }
 
     const rawBody = await request.json();
@@ -20,6 +26,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Por favor, informe suas credenciais de administrador.' },
         { status: 400 }
+      );
+    }
+
+    // Limite por conta: bloqueia força bruta distribuída em vários IPs
+    const accountLimit = await checkRateLimitPersistent(`admin-login:email:${email.toLowerCase()}`, LOGIN_WINDOW);
+    if (!accountLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas de login. Aguarde e tente novamente.', code: 'rate_limited' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(accountLimit.resetTimeMs / 1000)) } }
       );
     }
 
@@ -50,23 +65,15 @@ export async function POST(request: NextRequest) {
       message: 'Autenticação administrativa realizada com sucesso.',
     });
 
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: encodeSession(sessionUser),
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    setSessionCookie(response, sessionUser);
 
     return response;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro interno';
     console.error('Erro no login admin:', err);
+    const unavailable = err instanceof Error && err.message === 'DATABASE_UNAVAILABLE';
     return NextResponse.json(
-      { error: 'Falha interna durante a autenticação administrativa.', details: message },
-      { status: 500 }
+      { error: 'Falha interna durante a autenticação administrativa.', code: unavailable ? 'service_unavailable' : 'generic' },
+      { status: unavailable ? 503 : 500 }
     );
   }
 }

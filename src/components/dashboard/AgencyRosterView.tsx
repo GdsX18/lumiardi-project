@@ -26,17 +26,18 @@ export const AgencyRosterView: React.FC = () => {
   const { t } = useLanguage();
   const [selectedModelDrive, setSelectedModelDrive] = useState<any | null>(null);
 
-  const roster = allCreators.map((c, index) => ({
+  const roster = allCreators.map((c) => ({
     id: c.id,
-    name: c?.qualitative?.artisticName || c?.basicInfo?.fullName || 'Modelo Lumiardi',
-    image: (c as any)?.avatarUrl || (c as any)?.photos?.[0]?.url || (index % 2 === 0 ? '/api/media/assets/images/creator_elena.jpg' : '/api/media/assets/images/creator_sophia.jpg'),
-    category: c?.qualitative?.category || 'Modelo Editorial',
-    monthlyGross: c?.qualitative?.monthlyRevenueEstimate || 'Sob Consulta',
-    agencyNet: 'Comissão 20%',
-    contractType: 'Exclusividade 80/20',
+    name: c?.qualitative?.artisticName || c?.basicInfo?.fullName || t('dsh_ro_model_fallback'),
+    // Sem foto real, exibe a inicial do nome (sem imagens de banco de demonstração)
+    image: (c as any)?.avatarUrl || (c as any)?.photos?.[0]?.url || '',
+    category: c?.qualitative?.category || t('dsh_ro_editorial_model'),
+    monthlyGross: c?.qualitative?.monthlyRevenueEstimate || t('dsh_ov_on_request'),
+    agencyNet: t('dsh_ro_commission').replace('{pct}', '20%'),
+    contractType: t('dsh_ro_exclusivity').replace('{split}', '80/20'),
     activeCampaigns: 0,
-    status: 'Contrato Ativo',
-    nextDeliverable: 'Próxima entrega sob demanda',
+    status: t('dsh_ro_contract_active'),
+    nextDeliverable: t('dsh_ro_next_on_demand'),
   }));
 
   return (
@@ -78,10 +79,10 @@ export const AgencyRosterView: React.FC = () => {
           </div>
           <div className="max-w-md mx-auto space-y-1.5">
             <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-              Nenhuma Modelo no Elenco
+              {t('dsh_ro_empty_title')}
             </h3>
             <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-              Explore o catálogo de talentos aprovados pela curadoria no <strong>Scout de Modelos</strong> e envie propostas contratuais para compor seu elenco exclusivo.
+              {t('dsh_ro_empty_a')} <strong>{t('dsh_ro_empty_scout')}</strong> {t('dsh_ro_empty_b')}
             </p>
           </div>
         </div>
@@ -131,7 +132,7 @@ export const AgencyRosterView: React.FC = () => {
               <div className="space-y-3 pt-4 text-xs font-sans">
                 <div className="flex items-center justify-between">
                   <span className="text-ivory/50 flex items-center gap-1.5">
-                    <DollarSign className="w-3.5 h-3.5 text-gold" /> Faturamento Estimado:
+                    <DollarSign className="w-3.5 h-3.5 text-gold" /> {t('dsh_ro_est_revenue')}
                   </span>
                   <span className="font-serif-lumiardi text-sm text-ivory font-medium">
                     {model.monthlyGross}
@@ -140,14 +141,14 @@ export const AgencyRosterView: React.FC = () => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-ivory/50 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Repasse Agência:
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> {t('dsh_ro_agency_share')}
                   </span>
                   <span className="text-emerald-400 font-medium">{model.agencyNet}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-ivory/50 flex items-center gap-1.5">
-                    <FileCheck className="w-3.5 h-3.5 text-bronze" /> Contrato:
+                    <FileCheck className="w-3.5 h-3.5 text-bronze" /> {t('dsh_ro_contract')}
                   </span>
                   <span className="text-ivory/80 text-[11px] truncate max-w-[150px]">
                     {model.contractType}
@@ -156,7 +157,7 @@ export const AgencyRosterView: React.FC = () => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-ivory/50 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-ivory/50" /> Próxima Produção:
+                    <Calendar className="w-3.5 h-3.5 text-ivory/50" /> {t('dsh_ro_next_production')}
                   </span>
                   <span className="text-gold text-[11px] truncate max-w-[140px]">
                     {model.nextDeliverable}
@@ -173,7 +174,7 @@ export const AgencyRosterView: React.FC = () => {
                 className="flex-1 py-2 bg-[#151515] hover:bg-gold hover:text-black-matte text-ivory/80 border border-white/10 text-[11px] font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
-                <span>Mensagem</span>
+                <span>{t('dsh_ro_message')}</span>
               </button>
 
               <button
@@ -189,7 +190,7 @@ export const AgencyRosterView: React.FC = () => {
                 type="button"
                 onClick={() => setSelectedModelDrive(model)}
                 className="p-2 bg-[#151515] hover:bg-gold hover:text-black-matte text-ivory/60 transition-colors cursor-pointer border border-white/10"
-                title={`Abrir Drive Compartilhado de ${model.name}`}
+                title={t('dsh_ro_open_shared_drive').replace('{name}', model.name)}
               >
                 <HardDrive className="w-4 h-4" />
               </button>
@@ -226,7 +227,7 @@ export const AgencyRosterView: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-[10px] font-sans uppercase tracking-widest text-gold block">
-                    Drive Compartilhado Modelo ↔ Agência
+                    {t('dsh_ro_shared_drive_label')}
                   </span>
                   <h3 className="font-serif-lumiardi text-xl text-ivory font-medium">
                     {selectedModelDrive.name}
@@ -237,6 +238,7 @@ export const AgencyRosterView: React.FC = () => {
               <button
                 onClick={() => setSelectedModelDrive(null)}
                 className="p-2 text-ivory/60 hover:text-gold cursor-pointer transition-colors"
+                aria-label={t('dsh_ts_close')}
               >
                 <X className="w-5 h-5" />
               </button>

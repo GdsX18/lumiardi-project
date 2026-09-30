@@ -10,6 +10,7 @@ type FormState = {
   type: string;
   subject: string;
   message: string;
+  honeypot?: string;
 };
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
@@ -22,7 +23,7 @@ const CONTACT_TYPES_ICONS: Record<string, React.ElementType> = {
 };
 
 export default function ContatoPage() {
-  const { t } = useLanguage();
+  const { t, tApiError } = useLanguage();
 
   const CONTACT_TYPES = [
     { key: 'contact_form_type_general', icon: HelpCircle },
@@ -31,9 +32,10 @@ export default function ContatoPage() {
     { key: 'contact_form_type_press', icon: Newspaper },
   ];
 
-  const [form, setForm] = useState<FormState>({ name: '', email: '', type: '', subject: '', message: '' });
+  const [form, setForm] = useState<FormState>({ name: '', email: '', type: '', subject: '', message: '', honeypot: '' });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const validate = (): boolean => {
     const next: FieldErrors = {};
@@ -49,21 +51,28 @@ export default function ContatoPage() {
   const handleChange = (field: keyof FormState, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }));
+    if (serverError) setServerError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     setStatus('sending');
+    setServerError(null);
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, type: t(form.type) }),
+        // Envia o identificador estável do tipo (ex.: 'general'), nunca o rótulo traduzido
+        body: JSON.stringify({ ...form, type: form.type.replace('contact_form_type_', '') }),
       });
-      if (!res.ok) throw new Error('server error');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setServerError(tApiError(data, 'contact_form_error'));
+        throw new Error('server error');
+      }
       setStatus('success');
-      setForm({ name: '', email: '', type: '', subject: '', message: '' });
+      setForm({ name: '', email: '', type: '', subject: '', message: '', honeypot: '' });
     } catch {
       setStatus('error');
     }
@@ -73,9 +82,9 @@ export default function ContatoPage() {
     `w-full bg-white/5 border ${errors[field] ? 'border-red-500/70' : 'border-white/10'} text-ivory placeholder-ivory/30 font-sans text-sm px-4 py-3 focus:outline-none focus:border-[#C9A96B]/60 transition-colors`;
 
   const directContacts = [
-    { labelKey: 'contact_info_general_label', email: 'contato@lumiardi.com', Icon: HelpCircle },
-    { labelKey: 'contact_info_partnership_label', email: 'parcerias@lumiardi.com', Icon: Building2 },
-    { labelKey: 'contact_info_support_label', email: 'suporte@lumiardi.com', Icon: Headphones },
+    { labelKey: 'contact_info_general_label', email: 'contact@lumiardi.com', Icon: HelpCircle },
+    { labelKey: 'contact_info_partnership_label', email: 'contact@lumiardi.com', Icon: Building2 },
+    { labelKey: 'contact_info_support_label', email: 'contact@lumiardi.com', Icon: Headphones },
   ];
 
   return (
@@ -197,10 +206,23 @@ export default function ContatoPage() {
                     {errors.message && <p className="text-red-400 text-xs font-sans">{errors.message}</p>}
                   </div>
 
+                  {/* Honeypot anti-spam invisível */}
+                  <div className="hidden" aria-hidden="true" style={{ display: 'none' }}>
+                    <label htmlFor="website">Website</label>
+                    <input
+                      id="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={form.honeypot || ''}
+                      onChange={e => handleChange('honeypot', e.target.value)}
+                    />
+                  </div>
+
                   {status === 'error' && (
                     <div className="flex items-start gap-3 border border-red-500/30 bg-red-500/5 px-4 py-3">
                       <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                      <p className="text-red-400 text-sm font-sans">{t('contact_form_error')}</p>
+                      <p className="text-red-400 text-sm font-sans">{serverError || t('contact_form_error')}</p>
                     </div>
                   )}
 

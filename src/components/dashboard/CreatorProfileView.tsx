@@ -47,14 +47,23 @@ function getMonogram(name: string): string {
   return clean.substring(0, 2).toUpperCase();
 }
 
-function formatPhotoTitle(title?: string, index: number = 0): string {
-  if (!title || typeof title !== 'string') return `Ensaio Editorial ${index + 1}`;
+function formatPhotoTitle(title: string | undefined, fallback: string): string {
+  if (!title || typeof title !== 'string') return fallback;
   const trimmed = title.trim();
   if (/^[a-f0-9]{16,}$/i.test(trimmed)) {
-    return `Ensaio Editorial ${index + 1}`;
+    return fallback;
   }
   return trimmed;
 }
+
+/** Disponibilidade é salva com valores fixos em português; aqui só traduzimos o rótulo exibido. */
+const AVAILABILITY_KEYS: Record<string, string> = {
+  'Manhã': 'avail_morning',
+  'Tarde': 'avail_afternoon',
+  'Noite': 'avail_evening',
+  'Madrugada': 'avail_dawn',
+  'Total': 'avail_full',
+};
 
 export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialCreator }) => {
   const { activeCreator: contextCreator, isLoading, refreshData } = useAuthPortal();
@@ -87,13 +96,14 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
     return <CreatorProfileSkeleton />;
   }
 
-  // Fallback seguro e limpo para conta recém-criada
+  // Fallback seguro e limpo para conta recém-criada (sem medidas/dados fictícios;
+  // campos vazios são exibidos com rótulos traduzidos de "não informado")
   const defaultProfile = {
     avatarUrl: '',
     videoUrl: '',
     qualitative: {
-      artisticName: 'Minha Conta Modelo',
-      category: 'Modelo Editorial & Criadora VIP',
+      artisticName: '',
+      category: '',
       gender: 'Feminino',
       hobbies: '',
       platforms: {
@@ -101,32 +111,32 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
         privacy: '',
         onlyfans: '',
       },
-      monthlyRevenueEstimate: 'Sob Consulta',
+      monthlyRevenueEstimate: '',
       conversionRateEstimate: '0.0%',
-      availability: ['Tarde', 'Noite'],
+      availability: [] as string[],
       hasChildren: false,
-      languages: ['Português'],
-      exposureOpinion: 'Posicionamento exclusivo e elegante.',
-      personalLimits: 'Preservação de imagem e contratos sob curadoria.',
-      mainGoal: 'Conectar com agências internacionais de prestígio.',
+      languages: [] as string[],
+      exposureOpinion: '',
+      personalLimits: '',
+      mainGoal: '',
       measurements: {
-        height: '175',
-        weight: '55',
-        waist: '60',
-        bust: '88',
-        hips: '90',
+        height: '',
+        weight: '',
+        waist: '',
+        bust: '',
+        hips: '',
       },
       physiognomy: {
-        hairColor: 'Natural',
-        eyeColor: 'Castanhos',
-        skinTone: 'Natural',
+        hairColor: '',
+        eyeColor: '',
+        skinTone: '',
       },
     },
     basicInfo: {
       address: {
-        country: 'Brasil',
-        state: 'SP',
-        city: 'São Paulo',
+        country: '',
+        state: '',
+        city: '',
       },
     },
     photos: [] as Array<{ id: string; url: string; title: string; tag?: string }>,
@@ -178,6 +188,20 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
     representedAgencyName: (activeCreator as any)?.representedAgencyName || (activeCreator as any)?.represented_agency_name || '',
   };
 
+  const notInformed = t('dsh_cp_not_informed');
+  const withUnit = (value: unknown, unit: string) =>
+    value !== undefined && value !== null && String(value).trim() !== '' ? `${value} ${unit}` : '—';
+  const orDash = (value: unknown) =>
+    value !== undefined && value !== null && String(value).trim() !== '' ? String(value) : '—';
+  const displayName = creator.qualitative.artisticName || t('dsh_cp_my_model_account');
+  const addr = creator.basicInfo.address || {};
+  const cityState = [addr.city, addr.state].filter(Boolean).join(', ');
+  const locationLabel = cityState
+    ? addr.country ? `${cityState} — ${addr.country}` : cityState
+    : addr.country || t('dsh_cp_location_not_set');
+  const availabilityList: string[] = Array.isArray(creator.qualitative.availability) ? creator.qualitative.availability : [];
+  const languagesList: string[] = Array.isArray(creator.qualitative.languages) ? creator.qualitative.languages : [];
+
   const bookPhotos = (Array.isArray(creator.photos) ? creator.photos : []).filter(
     (photo: any) => photo && typeof photo.url === 'string' && photo.url.trim() !== ''
   );
@@ -197,14 +221,14 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                   {creator.avatarUrl.startsWith('data:') ? (
                     <img
                       src={creator.avatarUrl}
-                      alt={creator.qualitative?.artisticName || 'Modelo'}
+                      alt={displayName}
                       className="absolute inset-0 w-full h-full object-cover"
                       onError={() => setAvatarError(true)}
                     />
                   ) : (
                     <Image
                       src={creator.avatarUrl}
-                      alt={creator.qualitative?.artisticName || 'Modelo'}
+                      alt={displayName}
                       fill
                       className="object-cover"
                       unoptimized
@@ -218,7 +242,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                     {getMonogram(creator.qualitative?.artisticName || 'Lumiardi')}
                   </span>
                   <span className="text-[8px] font-sans font-medium tracking-[0.2em] text-gold/70 uppercase mt-0.5">
-                    Oficial
+                    {t('dsh_ov_official')}
                   </span>
                 </div>
               )}
@@ -230,10 +254,10 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                   openEditModal('basic');
                 }}
                 className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-gold cursor-pointer transition-opacity font-sans"
-                title="Trocar Foto de Perfil"
+                title={t('dsh_cp_change_profile_photo')}
               >
                 <Camera className="w-4 h-4 mb-0.5" />
-                <span>Trocar Foto</span>
+                <span>{t('dsh_cp_change_photo')}</span>
               </button>
 
               <span className="absolute -bottom-2 -right-2 p-1 bg-black border border-gold text-gold rounded-full">
@@ -244,24 +268,24 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
                 <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider font-semibold font-sans bg-gold/15 text-gold border border-gold/30 rounded-xs">
-                  {creator.qualitative.category}
+                  {creator.qualitative.category || t('dsh_cp_default_category')}
                 </span>
 
                 <span className="text-[9px] font-sans text-emerald-400 bg-emerald-950/30 border border-emerald-500/30 px-2 py-0.5 rounded-xs flex items-center gap-1 font-medium">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span>Curadoria Verificada</span>
+                  <span>{t('dsh_cp_curation_verified')}</span>
                 </span>
 
                 {/* Badge de Representação por Agência */}
                 {creator.isRepresented ? (
                   <span className="text-[9px] font-mono px-2 py-0.5 rounded-xs border border-purple-500/30 bg-purple-950/30 text-purple-300 font-medium inline-flex items-center gap-1">
                     <Building2 className="w-3 h-3 text-purple-300 shrink-0" />
-                    <span className="truncate max-w-[140px] sm:max-w-none">{creator.representedAgencyName || 'Em Agência'}</span>
+                    <span className="truncate max-w-[140px] sm:max-w-none">{creator.representedAgencyName || t('dsh_cp_with_agency')}</span>
                   </span>
                 ) : (
                   <span className="text-[9px] font-mono px-2 py-0.5 rounded-xs border border-white/15 bg-white/5 text-ivory/70 inline-flex items-center gap-1">
                     <UserCheck className="w-3 h-3 text-gold/80 shrink-0" />
-                    <span>Independente</span>
+                    <span>{t('dsh_cp_independent')}</span>
                   </span>
                 )}
 
@@ -273,18 +297,18 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                       : 'border-amber-500/30 bg-amber-950/30 text-amber-300'
                   }`}
                 >
-                  {creator.acceptsOffers !== false ? 'Scout: Aberta a Propostas' : 'Scout: Propostas Pausadas'}
+                  {creator.acceptsOffers !== false ? t('dsh_cp_scout_open') : t('dsh_cp_scout_paused')}
                 </span>
               </div>
 
               <h2 className="font-serif-lumiardi text-2xl md:text-4xl font-light text-ivory tracking-wide">
-                {creator.qualitative.artisticName}
+                {displayName}
               </h2>
 
               <p className="text-xs md:text-sm text-ivory/60 font-sans mt-1 flex items-center gap-3">
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-gold" />
-                  {creator.basicInfo.address.city}, {creator.basicInfo.address.state} — {creator.basicInfo.address.country}
+                  {locationLabel}
                 </span>
                 <span>•</span>
                 <span className="text-gold font-medium">{creator.qualitative.platforms.instagram}</span>
@@ -299,18 +323,18 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
               className="px-4 py-2.5 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/15 text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer rounded-sm hover:border-gold/40"
             >
               <Edit3 className="w-3.5 h-3.5 text-gold" />
-              <span>{t('header_edit_profile') || 'Editar Perfil'}</span>
+              <span>{t('header_edit_profile')}</span>
             </button>
 
             <button
               onClick={() => {
                 navigator.clipboard?.writeText(window.location.href);
-                alert('Link confidencial do Book copiado com sucesso!');
+                alert(t('dsh_cp_link_copied'));
               }}
               className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md rounded-sm"
             >
               <Share2 className="w-3.5 h-3.5" />
-              <span>{t('book_share_book') || 'Compartilhar Book'}</span>
+              <span>{t('book_share_book')}</span>
             </button>
           </div>
         </div>
@@ -326,7 +350,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
             }`}
           >
             <Camera className="w-3.5 h-3.5 text-gold" />
-            <span>{t('book_subtab_photos') || 'Fotos do Book'}</span>
+            <span>{t('book_subtab_photos')}</span>
           </button>
           <button
             onClick={() => setActiveSubTab('tech-sheet')}
@@ -337,7 +361,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
             }`}
           >
             <ClipboardList className="w-3.5 h-3.5 text-gold" />
-            <span>{t('book_subtab_tech') || 'Ficha Técnica'}</span>
+            <span>{t('book_subtab_tech')}</span>
           </button>
           <button
             onClick={() => setActiveSubTab('limits')}
@@ -348,7 +372,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-gold" />
-            <span>{t('book_subtab_guidelines') || 'Diretrizes'}</span>
+            <span>{t('book_subtab_guidelines')}</span>
           </button>
         </div>
       </div>
@@ -370,7 +394,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="flex items-center gap-2">
                   <Play className="w-4 h-4 text-gold" />
                   <h3 className="font-serif-lumiardi text-lg md:text-xl font-light text-ivory">
-                    Showreel de Apresentação Oficial
+                    {t('dsh_cp_showreel_title')}
                   </h3>
                 </div>
                 <div className="flex items-center gap-3">
@@ -380,7 +404,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                       className="px-3 py-1.5 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
                     >
                       <Edit3 className="w-3 h-3" />
-                      <span>Alterar Vídeo Showreel</span>
+                      <span>{t('dsh_cp_change_showreel')}</span>
                     </button>
                   )}
                 </div>
@@ -405,20 +429,20 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                         <button
                           onClick={() => setIsVideoPlaying(true)}
                           className="w-16 h-16 rounded-full bg-gold/90 text-black-matte flex items-center justify-center hover:scale-110 transition-transform shadow-2xl cursor-pointer"
-                          aria-label="Assistir Showreel"
+                          aria-label={t('dsh_cp_watch_showreel')}
                         >
                           <Play className="w-7 h-7 fill-black-matte ml-1" />
                         </button>
                         <span className="text-xs font-sans uppercase tracking-widest text-ivory/80">
-                          Clique para reproduzir showreel cadastrado
+                          {t('dsh_cp_click_to_play')}
                         </span>
                       </div>
                     </>
                   )}
 
                   <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs font-sans text-ivory/70">
-                    <span>Showreel Oficial · Perfil Verificado</span>
-                    <span>Áudio Estéreo Masterizado</span>
+                    <span>{t('dsh_cp_showreel_verified')}</span>
+                    <span>{t('dsh_cp_stereo_audio')}</span>
                   </div>
                 </div>
               ) : (
@@ -428,10 +452,10 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                   </div>
                   <div className="max-w-md mx-auto space-y-1">
                     <h4 className="font-serif-lumiardi text-lg font-light text-ivory">
-                      Nenhum Vídeo Showreel Cadastrado
+                      {t('dsh_cp_no_showreel')}
                     </h4>
                     <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-                      Adicione um vídeo de apresentação ou link MP4 para aumentar o interesse de agências parceiras na contratação do seu casting.
+                      {t('dsh_cp_no_showreel_desc')}
                     </p>
                   </div>
                   <button
@@ -439,7 +463,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                     className="px-4 py-2 bg-[#141414] hover:bg-gold hover:text-black-matte border border-gold/40 text-gold text-xs font-sans uppercase tracking-wider transition-colors inline-flex items-center gap-1.5 rounded-sm cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Cadastrar Vídeo Showreel</span>
+                    <span>{t('dsh_cp_add_showreel')}</span>
                   </button>
                 </div>
               )}
@@ -450,10 +474,10 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase tracking-[0.25em] text-bronze font-semibold font-sans">
-                    Galeria de Alta Resolução
+                    {t('dsh_cp_hires_gallery')}
                   </span>
                   <h3 className="font-serif-lumiardi text-2xl font-light text-ivory">
-                    Book Editorial Padronizado
+                    {t('dsh_cp_standard_book')}
                   </h3>
                 </div>
                 <div className="flex items-center gap-3">
@@ -462,10 +486,10 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                     className="px-3.5 py-1.5 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Gerenciar Fotos do Book</span>
+                    <span>{t('dsh_cp_manage_photos')}</span>
                   </button>
                   <span className="text-xs font-sans text-ivory/50">
-                    {bookPhotos.length > 0 ? `Exibindo ${bookPhotos.length} foto(s) oficial(is)` : 'Nenhuma foto cadastrada'}
+                    {bookPhotos.length > 0 ? t('dsh_cp_showing_photos').replace('{count}', String(bookPhotos.length)) : t('dsh_cp_no_photos')}
                   </span>
                 </div>
               </div>
@@ -474,7 +498,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {bookPhotos.map((photo: any, idx: number) => {
                     const isFailed = failedPhotoIds.has(photo.id);
-                    const displayTitle = formatPhotoTitle(photo.title, idx);
+                    const displayTitle = formatPhotoTitle(photo.title, t('dsh_cp_photo_title').replace('{n}', String(idx + 1)));
 
                     return (
                       <div
@@ -511,7 +535,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                               Lumiardi Editorial · RAW
                             </span>
                             <span className="text-xs text-ivory/60 font-sans">
-                              Sincronizando arquivo do cofre
+                              {t('dsh_cp_syncing_vault')}
                             </span>
                           </div>
                         )}
@@ -525,7 +549,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
 
                         <div className="absolute bottom-0 left-0 right-0 p-4 pt-10 bg-gradient-to-t from-black via-black/70 to-transparent">
                           <span className="text-[9px] uppercase tracking-widest text-gold font-sans font-semibold block mb-1">
-                            {photo.tag || 'Ensaio Oficial'}
+                            {photo.tag || t('dsh_cp_official_shoot')}
                           </span>
                           <h4 className="font-serif-lumiardi text-lg font-light text-ivory group-hover:text-gold transition-colors truncate">
                             {displayTitle}
@@ -542,10 +566,10 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                   </div>
                   <div className="max-w-md mx-auto space-y-1.5">
                     <h4 className="font-serif-lumiardi text-xl font-light text-ivory">
-                      Seu Book Editorial está aguardando suas fotos
+                      {t('dsh_cp_book_waiting')}
                     </h4>
                     <p className="text-xs text-ivory/50 font-sans leading-relaxed">
-                      Adicione seus ensaios fotográficos profissionais em alta definição para compor seu portfólio oficial. Agências parceiras utilizam essas fotos para aprovar propostas de casting.
+                      {t('dsh_cp_book_waiting_desc')}
                     </p>
                   </div>
                   <button
@@ -553,7 +577,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                     className="px-5 py-2.5 bg-gold hover:bg-gold-light text-black-matte text-xs font-sans font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-2 rounded-sm cursor-pointer shadow-md"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Adicionar Primeira Foto do Book</span>
+                    <span>{t('dsh_cp_add_first_photo')}</span>
                   </button>
                 </div>
               )}
@@ -577,7 +601,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
               >
                 <Sliders className="w-3.5 h-3.5" />
-                <span>Editar Medidas & Biometria</span>
+                <span>{t('dsh_cp_edit_measurements')}</span>
               </button>
             </div>
 
@@ -587,43 +611,43 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="flex items-center gap-2 pb-3 border-b border-white/10">
                   <Sliders className="w-4 h-4 text-gold" />
                   <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                    Medidas Corporais (Biometria)
+                    {t('dsh_cp_body_measurements')}
                   </h4>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs font-sans">
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Altura</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_height')}</span>
                     <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                      {creator.qualitative.measurements.height} cm
+                      {withUnit(creator.qualitative.measurements.height, 'cm')}
                     </span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Peso</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_cp_weight')}</span>
                     <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                      {creator.qualitative.measurements.weight} kg
+                      {withUnit(creator.qualitative.measurements.weight, 'kg')}
                     </span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Cintura</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_cp_waist')}</span>
                     <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                      {creator.qualitative.measurements.waist} cm
+                      {withUnit(creator.qualitative.measurements.waist, 'cm')}
                     </span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Busto</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_cp_bust')}</span>
                     <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                      {creator.qualitative.measurements.bust} cm
+                      {withUnit(creator.qualitative.measurements.bust, 'cm')}
                     </span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 col-span-2 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Quadril</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_cp_hips')}</span>
                     <span className="font-serif-lumiardi text-lg text-gold font-medium">
-                      {creator.qualitative.measurements.hips} cm
+                      {withUnit(creator.qualitative.measurements.hips, 'cm')}
                     </span>
                   </div>
                 </div>
@@ -634,30 +658,31 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="flex items-center gap-2 pb-3 border-b border-white/10">
                   <Eye className="w-4 h-4 text-gold" />
                   <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                    Fisiognomia & Idiomas
+                    {t('dsh_cp_physiognomy_languages')}
                   </h4>
                 </div>
 
                 <div className="space-y-3 text-xs font-sans">
                   <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
-                    <span className="text-ivory/50">Cor dos Olhos</span>
-                    <span className="text-ivory font-medium">{creator.qualitative.physiognomy.eyeColor}</span>
+                    <span className="text-ivory/50">{t('dsh_ts_eye_color')}</span>
+                    <span className="text-ivory font-medium">{orDash(creator.qualitative.physiognomy.eyeColor)}</span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
-                    <span className="text-ivory/50">Cor do Cabelo</span>
-                    <span className="text-ivory font-medium">{creator.qualitative.physiognomy.hairColor}</span>
+                    <span className="text-ivory/50">{t('dsh_ts_hair_color')}</span>
+                    <span className="text-ivory font-medium">{orDash(creator.qualitative.physiognomy.hairColor)}</span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 flex items-center justify-between rounded-xs">
-                    <span className="text-ivory/50">Tom de Pele</span>
-                    <span className="text-ivory font-medium">{creator.qualitative.physiognomy.skinTone}</span>
+                    <span className="text-ivory/50">{t('dsh_cp_skin_tone')}</span>
+                    <span className="text-ivory font-medium">{orDash(creator.qualitative.physiognomy.skinTone)}</span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/50 block mb-1">Idiomas Fluentes</span>
+                    <span className="text-ivory/50 block mb-1">{t('dsh_cp_fluent_languages')}</span>
                     <div className="flex flex-wrap gap-1">
-                      {creator.qualitative.languages.map((lang: string) => (
+                      {languagesList.length === 0 && <span className="text-ivory/40 text-[10px]">{notInformed}</span>}
+                      {languagesList.map((lang: string) => (
                         <span key={lang} className="px-2 py-0.5 bg-gold/15 text-gold text-[10px] font-medium border border-gold/30 rounded-xs">
                           {lang}
                         </span>
@@ -672,27 +697,27 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="flex items-center gap-2 pb-3 border-b border-white/10">
                   <DollarSign className="w-4 h-4 text-gold" />
                   <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                    Métricas & Presença
+                    {t('dsh_cp_metrics_presence')}
                   </h4>
                 </div>
 
                 <div className="space-y-3 text-xs font-sans">
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Faturamento Mensal Estimado</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_cp_monthly_revenue')}</span>
                     <span className="font-serif-lumiardi text-lg text-emerald-400 font-medium">
-                      {creator.qualitative.monthlyRevenueEstimate}
+                      {creator.qualitative.monthlyRevenueEstimate || t('dsh_ov_on_request')}
                     </span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase">Taxa de Conversão</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_cp_conversion_rate')}</span>
                     <span className="font-serif-lumiardi text-lg text-gold font-medium">
                       {creator.qualitative.conversionRateEstimate}
                     </span>
                   </div>
 
                   <div className="p-3 bg-[#151515] border border-white/5 rounded-xs">
-                    <span className="text-ivory/40 block text-[10px] uppercase mb-1">Plataformas Ativas</span>
+                    <span className="text-ivory/40 block text-[10px] uppercase mb-1">{t('dsh_cp_active_platforms')}</span>
                     <div className="flex items-center gap-2 flex-wrap text-[11px] text-ivory/80">
                       <span className="text-pink-400 font-medium">IG: {creator.qualitative.platforms.instagram}</span>
                       {creator.qualitative.platforms.onlyfans && (
@@ -722,7 +747,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans font-medium transition-colors flex items-center gap-2 rounded-sm cursor-pointer"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Editar Diretrizes & Limites</span>
+                <span>{t('dsh_cp_edit_guidelines')}</span>
               </button>
             </div>
 
@@ -731,16 +756,16 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="flex items-center gap-2 pb-3 border-b border-white/10">
                   <ShieldCheck className="w-4 h-4 text-gold" />
                   <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                    Limites Pessoais & Preservação de Imagem
+                    {t('dsh_cp_limits_title')}
                   </h4>
                 </div>
                 <p className="text-xs text-ivory/70 font-sans leading-relaxed italic">
-                  &quot;{creator.qualitative.personalLimits}&quot;
+                  {creator.qualitative.personalLimits ? <>&quot;{creator.qualitative.personalLimits}&quot;</> : notInformed}
                 </p>
                 <div className="pt-2">
-                  <span className="text-[10px] text-ivory/40 block uppercase">Posicionamento de Imagem</span>
+                  <span className="text-[10px] text-ivory/40 block uppercase">{t('dsh_cp_image_positioning')}</span>
                   <p className="text-xs text-ivory/80 font-sans mt-0.5">
-                    {creator.qualitative.exposureOpinion}
+                    {creator.qualitative.exposureOpinion || notInformed}
                   </p>
                 </div>
               </div>
@@ -749,18 +774,19 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 <div className="flex items-center gap-2 pb-3 border-b border-white/10">
                   <Target className="w-4 h-4 text-gold" />
                   <h4 className="font-serif-lumiardi text-lg font-medium text-ivory">
-                    Objetivo Principal com as Agências
+                    {t('dsh_cp_main_goal_title')}
                   </h4>
                 </div>
                 <p className="text-xs text-ivory/70 font-sans leading-relaxed italic">
-                  &quot;{creator.qualitative.mainGoal}&quot;
+                  {creator.qualitative.mainGoal ? <>&quot;{creator.qualitative.mainGoal}&quot;</> : notInformed}
                 </p>
                 <div className="pt-2">
-                  <span className="text-[10px] text-ivory/40 block uppercase">Disponibilidade de Casting</span>
+                  <span className="text-[10px] text-ivory/40 block uppercase">{t('dsh_cp_casting_availability')}</span>
                   <div className="flex gap-2 mt-1">
-                    {creator.qualitative.availability.map((av: string) => (
+                    {availabilityList.length === 0 && <span className="text-ivory/40 text-[10px] font-sans">{notInformed}</span>}
+                    {availabilityList.map((av: string) => (
                       <span key={av} className="px-2.5 py-1 bg-gold/15 text-gold text-[10px] font-sans border border-gold/30 rounded-xs">
-                        {av}
+                        {AVAILABILITY_KEYS[av] ? t(AVAILABILITY_KEYS[av]) : av}
                       </span>
                     ))}
                   </div>
@@ -786,13 +812,13 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
                 selectedPhoto.startsWith('data:') ? (
                   <img
                     src={selectedPhoto}
-                    alt="Book Zoom"
+                    alt={t('dsh_cp_book_zoom')}
                     className="absolute inset-0 w-full h-full object-contain"
                   />
                 ) : (
                   <Image
                     src={selectedPhoto}
-                    alt="Book Zoom"
+                    alt={t('dsh_cp_book_zoom')}
                     fill
                     className="object-contain"
                     unoptimized
@@ -802,6 +828,7 @@ export const CreatorProfileView: React.FC<CreatorProfileViewProps> = ({ initialC
               <button
                 onClick={() => setSelectedPhoto(null)}
                 className="absolute top-4 right-4 p-2 bg-black/80 text-ivory hover:text-gold transition-colors rounded-full"
+                aria-label={t('dsh_ts_close')}
               >
                 <X className="w-6 h-6" />
               </button>

@@ -28,7 +28,7 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { currentUser, refreshData } = useAuthPortal();
-  const { currency, setCurrency, formatPrice, t } = useLanguage();
+  const { currency, setCurrency, formatPrice, t, tApiError, language } = useLanguage();
 
   const initialPlanId = (searchParams.get('plan') || 'glow') as PlanId;
   const initialInterval = (searchParams.get('billing') === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
@@ -188,7 +188,7 @@ function CheckoutContent() {
     if (!cleanCode) {
       setCouponFeedback({
         type: 'error',
-        message: 'Por favor, digite o código do cupom.',
+        message: t('pub_checkout_coupon_enter_code'),
       });
       return;
     }
@@ -219,20 +219,20 @@ function CheckoutContent() {
         });
         setCouponFeedback({
           type: 'success',
-          message: data.message || 'Cupom aplicado com sucesso!',
+          message: language === 'pt' && data.message ? data.message : t('pub_checkout_coupon_applied'),
         });
       } else {
         setAppliedCoupon(null);
         setCouponFeedback({
           type: 'error',
-          message: data.message || 'Cupom inválido ou expirado.',
+          message: tApiError({ code: data.code, error: data.message }, 'pub_checkout_coupon_invalid'),
         });
       }
     } catch {
       setAppliedCoupon(null);
       setCouponFeedback({
         type: 'error',
-        message: 'Não foi possível validar o cupom no momento. Tente novamente.',
+        message: t('pub_checkout_coupon_validate_failed'),
       });
     } finally {
       setIsValidatingCoupon(false);
@@ -337,19 +337,19 @@ function CheckoutContent() {
     setErrorMessage(null);
 
     if (!cardData.number || cardData.number.replace(/\s/g, '').length < 15) {
-      setErrorMessage(currency === 'BRL' ? 'Por favor, informe o número completo do seu cartão.' : 'Please enter your complete card number.');
+      setErrorMessage(t('pub_checkout_card_number_required'));
       return;
     }
     if (!cardData.holderName.trim()) {
-      setErrorMessage(currency === 'BRL' ? 'Por favor, informe o nome impresso no cartão.' : 'Please enter the name printed on the card.');
+      setErrorMessage(t('pub_checkout_card_holder_required'));
       return;
     }
     if (!cardData.expiry || cardData.expiry.length < 5) {
-      setErrorMessage(currency === 'BRL' ? 'Por favor, informe a data de validade (MM/AA).' : 'Please enter expiration date (MM/YY).');
+      setErrorMessage(t('pub_checkout_card_expiry_required'));
       return;
     }
     if (!cardData.cvv || cardData.cvv.length < 3) {
-      setErrorMessage(currency === 'BRL' ? 'Por favor, informe o código de segurança (CVV).' : 'Please enter the security code (CVV).');
+      setErrorMessage(t('pub_checkout_card_cvv_required'));
       return;
     }
 
@@ -391,14 +391,14 @@ function CheckoutContent() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // O backend já normaliza a mensagem — exibe diretamente sem alterar
-        throw new Error(data.error || 'Transação não autorizada pela emissora do cartão. Verifique os dados ou tente outro cartão / Pix.');
+        // O backend normaliza a mensagem e envia `code` para tradução
+        throw new Error(tApiError(data, 'pub_checkout_card_declined'));
       }
 
       if (refreshData) await refreshData();
       setPaymentSuccess(true);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Transação não autorizada. Verifique os dados do cartão e tente novamente.';
+      const msg = err instanceof Error ? err.message : t('pub_checkout_card_declined_generic');
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -429,14 +429,14 @@ function CheckoutContent() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Falha ao confirmar pagamento instantâneo.');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(tApiError(data, 'pub_checkout_instant_failed'));
       }
 
       if (refreshData) await refreshData();
       setPaymentSuccess(true);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Falha ao confirmar pagamento instantâneo.';
+      const msg = e instanceof Error ? e.message : t('pub_checkout_instant_failed');
       console.error('[Checkout Instant Payment Error]:', msg);
       setErrorMessage(msg);
     } finally {
@@ -467,7 +467,7 @@ function CheckoutContent() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Erro ao inicializar NOWPayments.');
+        throw new Error(tApiError(data, 'pub_checkout_crypto_init_failed'));
       }
 
       if (data.cryptoDetails) {
@@ -480,7 +480,7 @@ function CheckoutContent() {
         });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Falha na comunicação.';
+      const msg = err instanceof Error ? err.message : t('api_err_network');
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -710,17 +710,17 @@ function CheckoutContent() {
                             {isLoadingPix ? (
                               <div className="flex flex-col items-center justify-center gap-2 p-4 text-[#0B0B0B]">
                                 <RefreshCw className="w-6 h-6 animate-spin text-[#AA820A]" />
-                                <span className="text-[10px] text-neutral-600 font-mono">Gerando Pix Asaas...</span>
+                                <span className="text-[10px] text-neutral-600 font-mono">{t('pub_checkout_pix_generating')}</span>
                               </div>
                             ) : pixQrCodeUrl ? (
                               <img
                                 src={pixQrCodeUrl}
-                                alt="QR Code Pix Oficial Asaas"
+                                alt={t('pub_checkout_pix_qr_alt')}
                                 className="w-40 h-40 object-contain"
                               />
                             ) : (
                               <div className="w-40 h-40 bg-neutral-900 flex items-center justify-center text-gold text-xs">
-                                Carregando Pix...
+                                {t('pub_checkout_pix_loading')}
                               </div>
                             )}
                           </div>
@@ -841,14 +841,14 @@ function CheckoutContent() {
                               onClick={() => setErrorMessage(null)}
                               className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold bg-white/10 hover:bg-white/20 text-ivory rounded-xs transition-colors cursor-pointer"
                             >
-                              Tentar Novamente
+                              {t('pub_checkout_btn_retry')}
                             </button>
                             <button
                               type="button"
                               onClick={() => { setErrorMessage(null); setGateway('pix'); }}
                               className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 text-[#F5D77F] border border-[#D4AF37]/30 rounded-xs transition-colors cursor-pointer"
                             >
-                              Pagar via Pix
+                              {t('pub_checkout_btn_pay_pix')}
                             </button>
                           </div>
                         </div>
@@ -879,7 +879,7 @@ function CheckoutContent() {
                         </label>
                         <input
                           type="text"
-                          placeholder="EX: MARIA SILVA"
+                          placeholder={t('pub_checkout_holder_placeholder')}
                           value={cardData.holderName}
                           onChange={(e) => setCardData((prev) => ({ ...prev, holderName: e.target.value.toUpperCase() }))}
                           required
@@ -895,7 +895,7 @@ function CheckoutContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="MM/AA"
+                            placeholder={t('pub_checkout_expiry_placeholder')}
                             value={cardData.expiry}
                             onChange={handleExpiryChange}
                             required
@@ -940,7 +940,7 @@ function CheckoutContent() {
                           </label>
                           <input
                             type="text"
-                            placeholder="Tax ID / Passport / SSN"
+                            placeholder={t('pub_checkout_taxid_placeholder')}
                             value={cardData.taxId}
                             onChange={(e) => setCardData((prev) => ({ ...prev, taxId: e.target.value }))}
                             className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
@@ -961,14 +961,14 @@ function CheckoutContent() {
                           >
                             <option value="1">
                               {currency === 'BRL'
-                                ? `1x de ${formatPrice(priceBRL, priceUSD)} (à vista sem juros)`
+                                ? t('pub_checkout_installment_single').replace('{price}', formatPrice(priceBRL, priceUSD))
                                 : `1x ${formatPrice(priceBRL, priceUSD)} (${t('checkout_card_installments_cash')})`}
                             </option>
                             {currency === 'BRL' && isYearly && (
                               <>
-                                <option value="3">3x de R$ {(priceBRL / 3).toFixed(2).replace('.', ',')} sem juros</option>
-                                <option value="6">6x de R$ {(priceBRL / 6).toFixed(2).replace('.', ',')} sem juros</option>
-                                <option value="12">12x de R$ {(priceBRL / 12).toFixed(2).replace('.', ',')} sem juros</option>
+                                <option value="3">{t('pub_checkout_installment_n').replace('{n}', '3').replace('{price}', formatPrice(priceBRL / 3, priceUSD / 3))}</option>
+                                <option value="6">{t('pub_checkout_installment_n').replace('{n}', '6').replace('{price}', formatPrice(priceBRL / 6, priceUSD / 6))}</option>
+                                <option value="12">{t('pub_checkout_installment_n').replace('{n}', '12').replace('{price}', formatPrice(priceBRL / 12, priceUSD / 12))}</option>
                               </>
                             )}
                           </select>
@@ -1060,7 +1060,7 @@ function CheckoutContent() {
                             {cryptoData.qrCodeUrl ? (
                               <img
                                 src={cryptoData.qrCodeUrl}
-                                alt="QR Code de Pagamento"
+                                alt={t('pub_checkout_crypto_qr_alt')}
                                 className="w-36 h-36"
                               />
                             ) : null}
@@ -1186,11 +1186,11 @@ function CheckoutContent() {
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 flex items-center gap-1.5">
                       <Tag className="w-3.5 h-3.5 text-[#D4AF37]" />
-                      <span>Cupom de Desconto</span>
+                      <span>{t('pub_checkout_coupon_label')}</span>
                     </label>
                     {appliedCoupon && (
                       <span className="text-[9px] uppercase tracking-widest font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-xs">
-                        Ativo
+                        {t('pub_checkout_coupon_active')}
                       </span>
                     )}
                   </div>
@@ -1200,7 +1200,7 @@ function CheckoutContent() {
                       <div className="flex gap-2">
                         <input
                           type="text"
-                          placeholder="EX: LUMIARDI10"
+                          placeholder={t('pub_checkout_coupon_placeholder')}
                           value={couponInput}
                           onChange={(e) => {
                             setCouponInput(e.target.value.toUpperCase());
@@ -1223,7 +1223,7 @@ function CheckoutContent() {
                           {isValidatingCoupon ? (
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <span>Aplicar</span>
+                            <span>{t('pub_checkout_coupon_apply')}</span>
                           )}
                         </button>
                       </div>
@@ -1248,12 +1248,12 @@ function CheckoutContent() {
                             </span>
                             <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-xs border border-emerald-500/30 shrink-0">
                               {appliedCoupon.discountType === 'percentage'
-                                ? `${appliedCoupon.discountValue}% OFF`
+                                ? t('pub_checkout_coupon_off').replace('{value}', String(appliedCoupon.discountValue))
                                 : `- ${formatPrice(appliedCoupon.discountAmount, appliedCoupon.discountAmount / 5, appliedCoupon.discountAmount / 5.5)}`}
                             </span>
                           </div>
                           <p className="text-[11px] text-emerald-300/80 font-sans mt-0.5">
-                            {appliedCoupon.message || 'Cupom aplicado com sucesso!'}
+                            {language === 'pt' && appliedCoupon.message ? appliedCoupon.message : t('pub_checkout_coupon_applied')}
                           </p>
                         </div>
                       </div>
@@ -1262,7 +1262,7 @@ function CheckoutContent() {
                         onClick={handleRemoveCoupon}
                         className="px-2.5 py-1 text-[11px] font-sans text-ivory/60 hover:text-red-400 border border-white/10 hover:border-red-400/40 rounded-xs transition-colors cursor-pointer shrink-0"
                       >
-                        Remover
+                        {t('pub_checkout_coupon_remove')}
                       </button>
                     </div>
                   )}
@@ -1271,7 +1271,7 @@ function CheckoutContent() {
                 {/* Totais */}
                 <div className="space-y-3 pt-4 border-t border-white/10 text-xs">
                   <div className="flex justify-between text-ivory/70">
-                    <span>{appliedCoupon ? 'Valor Original' : t('checkout_subtotal')}</span>
+                    <span>{appliedCoupon ? t('pub_checkout_original_value') : t('checkout_subtotal')}</span>
                     <span className={appliedCoupon ? 'line-through text-ivory/40' : ''}>
                       {formatPrice(basePriceBRL, basePriceUSD, basePriceEUR)}
                     </span>
@@ -1281,7 +1281,7 @@ function CheckoutContent() {
                     <div className="flex justify-between text-emerald-400 font-medium animate-in fade-in duration-200">
                       <span className="flex items-center gap-1.5">
                         <Tag className="w-3 h-3" />
-                        Desconto Aplicado ({appliedCoupon.code})
+                        {t('pub_checkout_discount_applied').replace('{code}', appliedCoupon.code)}
                       </span>
                       <span>
                         - {formatPrice(discountAmountBRL, discountAmountUSD, discountAmountEUR)}
@@ -1298,7 +1298,7 @@ function CheckoutContent() {
                     <span className="text-[#D4AF37] font-semibold">{t('checkout_shielding_active')}</span>
                   </div>
                   <div className="flex justify-between text-base font-serif-lumiardi text-ivory pt-3 border-t border-white/10 font-bold">
-                    <span>{appliedCoupon ? 'Total Atualizado' : t('checkout_total')}</span>
+                    <span>{appliedCoupon ? t('pub_checkout_total_updated') : t('checkout_total')}</span>
                     <span className="text-[#F5D77F]">{formatPrice(finalPriceBRL, finalPriceUSD, finalPriceEUR)}</span>
                   </div>
                 </div>
@@ -1313,14 +1313,19 @@ function CheckoutContent() {
   );
 }
 
+function CheckoutLoadingFallback() {
+  const { t } = useLanguage();
+  return (
+    <div className="min-h-screen bg-[#070707] flex items-center justify-center text-ivory font-mono text-xs">
+      {t('pub_checkout_loading')}
+    </div>
+  );
+}
+
 export default function CheckoutPage() {
   return (
     <Suspense
-      fallback={
-        <div className="min-h-screen bg-[#070707] flex items-center justify-center text-ivory font-mono text-xs">
-          Carregando ambiente seguro de checkout...
-        </div>
-      }
+      fallback={<CheckoutLoadingFallback />}
     >
       <CheckoutContent />
     </Suspense>

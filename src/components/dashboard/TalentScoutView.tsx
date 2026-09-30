@@ -26,178 +26,30 @@ import { useLanguage } from '@/context/LanguageContext';
 import { CompleteCreatorProfile } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 
+/** Avatar do talento: usa apenas a foto real do perfil; sem foto, mostra a inicial do nome. */
+const TalentAvatar: React.FC<{ creator: CompleteCreatorProfile; imgClassName: string }> = ({ creator, imgClassName }) => {
+  const imgSrc: string = (creator as any)?.avatarUrl || (creator as any)?.avatar_url || '';
+  const name = creator?.qualitative?.artisticName || '';
+  if (!imgSrc) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-[#151515] text-gold/60 font-serif-lumiardi text-2xl uppercase">
+        {name.charAt(0) || '?'}
+      </div>
+    );
+  }
+  return imgSrc.startsWith('data:') ? (
+    <img src={imgSrc} alt={name} className={`absolute inset-0 w-full h-full ${imgClassName}`} />
+  ) : (
+    <Image src={imgSrc} alt={name} fill className={imgClassName} unoptimized />
+  );
+};
+
 export const TalentScoutView: React.FC = () => {
   const { allCreators } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, tApiError } = useLanguage();
 
-  // Modelos expandidas para demonstrar a robustez do Talent Scout
-  const defaultCreators: CompleteCreatorProfile[] = [
-    {
-      id: 'creator-elena-vance',
-      basicInfo: {
-        fullName: 'Elena Vance',
-        cpf: '***.***.***-**',
-        birthDate: '1998-04-12',
-        email: 'elena.vance@lumiardi.exclusive',
-        address: {
-          country: 'Brasil',
-          state: 'RJ',
-          city: 'Rio de Janeiro',
-        },
-        document: {
-          documentType: 'passaporte',
-          fileName: 'passaporte_elena.pdf',
-          uploadedAt: new Date().toISOString(),
-          verifiedStatus: 'verified',
-        },
-        createdAt: new Date().toISOString(),
-      },
-      qualitative: {
-        artisticName: 'Elena Vance',
-        category: 'Criadora de conteúdo +18',
-        gender: 'Feminino Cisgênero',
-        hobbies: 'Fotografia editorial, pilates e viagens de luxo',
-        platforms: {
-          instagram: '@elena.vance',
-          privacy: 'elena_vance',
-          onlyfans: 'elenavance_vip',
-        },
-        monthlyRevenueEstimate: 'R$ 80.000 - R$ 150.000',
-        conversionRateEstimate: '14.5%',
-        availability: ['Tarde', 'Noite'],
-        hasChildren: false,
-        languages: ['Português', 'Inglês', 'Espanhol'],
-        exposureOpinion: 'Posicionamento artístico de alto padrão e bom gosto.',
-        personalLimits: 'Não trabalho com conteúdos explícitos sem curadoria.',
-        mainGoal: 'Internacionalizar a marca pessoal com agência de topo.',
-        measurements: {
-          height: '172',
-          weight: '58',
-          waist: '64',
-          bust: '90',
-          hips: '96',
-        },
-        physiognomy: {
-          hairColor: 'Castanho Claro',
-          eyeColor: 'Verdes',
-          skinTone: 'Clara',
-        },
-      },
-      curationStatus: 'approved',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'creator-sophia-m',
-      basicInfo: {
-        fullName: 'Sophia Marchetti',
-        cpf: '***.***.***-**',
-        birthDate: '1996-09-22',
-        email: 'sophia.m@lumiardi.exclusive',
-        address: {
-          country: 'Itália',
-          state: 'Lombardia',
-          city: 'Milão',
-        },
-        document: {
-          documentType: 'passaporte',
-          fileName: 'id_sophia.pdf',
-          uploadedAt: new Date().toISOString(),
-          verifiedStatus: 'verified',
-        },
-        createdAt: new Date().toISOString(),
-      },
-      qualitative: {
-        artisticName: 'SOPHIA M.',
-        category: 'Criadora de conteúdo +18',
-        gender: 'Feminino Cisgênero',
-        hobbies: 'Moda de luxo, arte contemporânea, gastronomia',
-        platforms: {
-          instagram: '@sophiam_official',
-          onlyfans: 'sophiam_icon',
-        },
-        monthlyRevenueEstimate: 'R$ 150.000+',
-        conversionRateEstimate: '18.2%',
-        availability: ['Manhã', 'Tarde'],
-        hasChildren: false,
-        languages: ['Italiano', 'Inglês', 'Francês', 'Espanhol'],
-        exposureOpinion: 'Preservação de imagem com ensaios cinematográficos.',
-        personalLimits: 'Contratos estritos de confidencialidade apenas.',
-        mainGoal: 'Expandir presença nos mercados de Paris e Milão.',
-        measurements: {
-          height: '176',
-          weight: '56',
-          waist: '60',
-          bust: '88',
-          hips: '92',
-        },
-        physiognomy: {
-          hairColor: 'Loiro',
-          eyeColor: 'Azuis',
-          skinTone: 'Clara',
-        },
-      },
-      curationStatus: 'approved',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'creator-valentina-r',
-      basicInfo: {
-        fullName: 'Valentina Rossi',
-        cpf: '***.***.***-**',
-        birthDate: '1999-01-15',
-        email: 'valentina.r@lumiardi.exclusive',
-        address: {
-          country: 'Brasil',
-          state: 'SP',
-          city: 'São Paulo',
-        },
-        document: {
-          documentType: 'rg_cnh',
-          fileName: 'cnh_valentina.pdf',
-          uploadedAt: new Date().toISOString(),
-          verifiedStatus: 'verified',
-        },
-        createdAt: new Date().toISOString(),
-      },
-      qualitative: {
-        artisticName: 'Valentina Rossi',
-        category: 'Criadora e acompanhante',
-        gender: 'Feminino Cisgênero',
-        hobbies: 'Alta gastronomia, hipismo, produção de vídeo',
-        platforms: {
-          instagram: '@valentinarossi_vip',
-          onlyfans: 'valentinarossi',
-        },
-        monthlyRevenueEstimate: 'R$ 120.000 - R$ 200.000',
-        conversionRateEstimate: '16.8%',
-        availability: ['Noite', 'Madrugada', 'Total'],
-        hasChildren: false,
-        languages: ['Português', 'Inglês'],
-        exposureOpinion: 'Discrição total com eventos privados.',
-        personalLimits: 'Preservação de familiares e contratos jurídicos exclusivos.',
-        mainGoal: 'Consolidar carreira em São Paulo e Miami com agência de topo.',
-        measurements: {
-          height: '168',
-          weight: '54',
-          waist: '62',
-          bust: '92',
-          hips: '94',
-        },
-        physiognomy: {
-          hairColor: 'Morena Escuro',
-          eyeColor: 'Castanhos',
-          skinTone: 'Morena Clara',
-        },
-      },
-      curationStatus: 'approved',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const pool = allCreators.length > 0 ? allCreators : defaultCreators;
+  // Somente talentos reais vindos da base (sem perfis fictícios de demonstração)
+  const pool = allCreators;
 
   // Estados dos Filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -230,8 +82,8 @@ export const TalentScoutView: React.FC = () => {
 
     if (isRep && !accepts) {
       return {
-        label: 'Em agência / Não aceita ofertas',
-        shortLabel: 'Não aceita ofertas',
+        label: t('dsh_ts_status_rep_blocked'),
+        shortLabel: t('dsh_ts_status_blocked_short'),
         variant: 'blocked' as const,
         isRep,
         agencyName,
@@ -239,8 +91,8 @@ export const TalentScoutView: React.FC = () => {
       };
     } else if (isRep && accepts) {
       return {
-        label: 'Em agência / Aberta a propostas',
-        shortLabel: 'Aberta a propostas',
+        label: t('dsh_ts_status_rep_open'),
+        shortLabel: t('dsh_ts_status_open_short'),
         variant: 'rep_open' as const,
         isRep,
         agencyName,
@@ -248,8 +100,8 @@ export const TalentScoutView: React.FC = () => {
       };
     } else if (!isRep && accepts) {
       return {
-        label: 'Independente / Aberta a propostas',
-        shortLabel: 'Aberta a propostas',
+        label: t('dsh_ts_status_indep_open'),
+        shortLabel: t('dsh_ts_status_open_short'),
         variant: 'indep_open' as const,
         isRep: false,
         agencyName: '',
@@ -257,8 +109,8 @@ export const TalentScoutView: React.FC = () => {
       };
     } else {
       return {
-        label: 'Independente / Propostas pausadas',
-        shortLabel: 'Propostas pausadas',
+        label: t('dsh_ts_status_indep_closed'),
+        shortLabel: t('dsh_ts_status_paused_short'),
         variant: 'indep_closed' as const,
         isRep: false,
         agencyName: '',
@@ -341,7 +193,7 @@ export const TalentScoutView: React.FC = () => {
     } else {
       setProposalModalTalent(talent);
       setProposalCommission('20%');
-      setProposalMessage(`Olá ${talent.qualitative.artisticName}, temos interesse em apresentar uma proposta exclusiva de representação e desenvolvimento de carreira na Lumiardi.`);
+      setProposalMessage(t('dsh_ts_proposal_default_msg').replace('{name}', talent.qualitative.artisticName));
       setProposalError(null);
     }
   };
@@ -369,14 +221,14 @@ export const TalentScoutView: React.FC = () => {
           setProposalModalTalent(null);
           return;
         }
-        throw new Error(data.error || 'Erro ao transmitir proposta.');
+        throw new Error(tApiError(data, 'dsh_ts_proposal_error'));
       }
 
       setProposalSentSuccess(proposalModalTalent.qualitative.artisticName);
       setProposalModalTalent(null);
       setTimeout(() => setProposalSentSuccess(null), 5000);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Falha ao enviar proposta.';
+      const message = err instanceof Error ? err.message : t('dsh_ts_proposal_failed');
       setProposalError(message);
     } finally {
       setSendingProposal(false);
@@ -411,7 +263,7 @@ export const TalentScoutView: React.FC = () => {
                 : 'bg-[#151515] text-ivory/60 border-white/10 hover:text-ivory'
             }`}
           >
-            Grid Visual
+            {t('dsh_ts_view_grid')}
           </button>
           <button
             onClick={() => setViewMode('table')}
@@ -421,7 +273,7 @@ export const TalentScoutView: React.FC = () => {
                 : 'bg-[#151515] text-ivory/60 border-white/10 hover:text-ivory'
             }`}
           >
-            Tabela Executiva
+            {t('dsh_ts_view_table')}
           </button>
         </div>
       </div>
@@ -430,7 +282,7 @@ export const TalentScoutView: React.FC = () => {
         <div className="p-4 bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-xs font-sans flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>
-            Proposta de agenciamento e convite de casting transmitidos com sucesso para <strong>{proposalSentSuccess}</strong>! O chat criptografado foi inicializado.
+            {t('dsh_ts_sent_a')} <strong>{proposalSentSuccess}</strong>{t('dsh_ts_sent_b')}
           </span>
         </div>
       )}
@@ -440,13 +292,13 @@ export const TalentScoutView: React.FC = () => {
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2 text-gold font-sans text-xs uppercase tracking-widest font-semibold">
             <SlidersHorizontal className="w-4 h-4" />
-            <span>Filtros Indexados da Pré-Entrevista</span>
+            <span>{t('dsh_ts_filters_title')}</span>
           </div>
           <button
             onClick={handleResetFilters}
             className="text-[11px] font-sans text-ivory/50 hover:text-gold flex items-center gap-1 cursor-pointer transition-colors"
           >
-            <RotateCcw className="w-3 h-3" /> Limpar Filtros
+            <RotateCcw className="w-3 h-3" /> {t('dsh_ts_clear_filters')}
           </button>
         </div>
 
@@ -455,13 +307,13 @@ export const TalentScoutView: React.FC = () => {
           {/* Busca por Palavra-chave */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase tracking-wider text-ivory/50 font-sans">
-              Nome ou Cidade
+              {t('dsh_ts_name_or_city')}
             </label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
               <input
                 type="text"
-                placeholder="Ex: Elena, Milão, Rio..."
+                placeholder={t('dsh_ts_search_placeholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-[#161616] border border-white/10 text-xs text-ivory focus:outline-none focus:border-gold font-sans"
@@ -472,59 +324,59 @@ export const TalentScoutView: React.FC = () => {
           {/* Categoria */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase tracking-wider text-ivory/50 font-sans">
-              Categoria
+              {t('dsh_ts_category')}
             </label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="w-full px-3 py-2 bg-[#161616] border border-white/10 text-xs text-ivory focus:outline-none focus:border-gold font-sans cursor-pointer"
             >
-              <option value="all">Todas as Categorias</option>
-              <option value="Criadora de conteúdo +18">Criadora +18</option>
-              <option value="Criadora e acompanhante">Criadora e Acompanhante</option>
-              <option value="Acompanhante">Acompanhante</option>
+              <option value="all">{t('dsh_ts_all_categories')}</option>
+              <option value="Criadora de conteúdo +18">{t('dsh_ts_cat_creator18')}</option>
+              <option value="Criadora e acompanhante">{t('dsh_ts_cat_creator_companion')}</option>
+              <option value="Acompanhante">{t('dsh_ts_cat_companion')}</option>
             </select>
           </div>
 
           {/* Cabelo */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase tracking-wider text-ivory/50 font-sans">
-              Cor de Cabelo
+              {t('dsh_ts_hair_color')}
             </label>
             <select
               value={selectedHair}
               onChange={(e) => setSelectedHair(e.target.value)}
               className="w-full px-3 py-2 bg-[#161616] border border-white/10 text-xs text-ivory focus:outline-none focus:border-gold font-sans cursor-pointer"
             >
-              <option value="all">Qualquer Cabelo</option>
-              <option value="Castanho">Castanho</option>
-              <option value="Loiro">Loiro</option>
-              <option value="Morena">Morena</option>
-              <option value="Ruiva">Ruiva</option>
+              <option value="all">{t('dsh_ts_any_hair')}</option>
+              <option value="Castanho">{t('dsh_ts_hair_brown')}</option>
+              <option value="Loiro">{t('dsh_ts_hair_blonde')}</option>
+              <option value="Morena">{t('dsh_ts_hair_brunette')}</option>
+              <option value="Ruiva">{t('dsh_ts_hair_red')}</option>
             </select>
           </div>
 
           {/* Olhos */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase tracking-wider text-ivory/50 font-sans">
-              Cor dos Olhos
+              {t('dsh_ts_eye_color')}
             </label>
             <select
               value={selectedEyes}
               onChange={(e) => setSelectedEyes(e.target.value)}
               className="w-full px-3 py-2 bg-[#161616] border border-white/10 text-xs text-ivory focus:outline-none focus:border-gold font-sans cursor-pointer"
             >
-              <option value="all">Qualquer Olhos</option>
-              <option value="Verdes">Verdes</option>
-              <option value="Azuis">Azuis</option>
-              <option value="Castanhos">Castanhos</option>
+              <option value="all">{t('dsh_ts_any_eyes')}</option>
+              <option value="Verdes">{t('dsh_ts_eyes_green')}</option>
+              <option value="Azuis">{t('dsh_ts_eyes_blue')}</option>
+              <option value="Castanhos">{t('dsh_ts_eyes_brown')}</option>
             </select>
           </div>
 
           {/* Altura Mínima */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-ivory/50 font-sans">
-              <span>Altura Mínima</span>
+              <span>{t('dsh_ts_min_height')}</span>
               <span className="text-gold font-semibold">{minHeight} cm</span>
             </div>
             <input
@@ -540,13 +392,25 @@ export const TalentScoutView: React.FC = () => {
         </div>
 
         <div className="flex items-center justify-between pt-2 text-xs font-sans text-ivory/50">
-          <span>{filteredCreators.length} modelos de elite encontradas</span>
-          <span className="text-gold">Sincronizado com a base de curadoria Lumiardi</span>
+          <span>{t('dsh_ts_found_count').replace('{count}', String(filteredCreators.length))}</span>
+          <span className="text-gold">{t('dsh_ts_synced')}</span>
         </div>
       </div>
 
+      {/* Estado vazio: sem talentos reais cadastrados ou nenhum resultado para os filtros */}
+      {filteredCreators.length === 0 && (
+        <div className="p-10 bg-[#0E0E0E] border border-white/10 text-center space-y-2">
+          <p className="font-serif-lumiardi text-xl text-ivory">
+            {pool.length === 0 ? t('dsh_ts_empty_title') : t('dsh_ts_no_match_title')}
+          </p>
+          <p className="text-xs font-sans text-ivory/50">
+            {pool.length === 0 ? t('dsh_ts_empty_desc') : t('dsh_ts_no_match_desc')}
+          </p>
+        </div>
+      )}
+
       {/* Exibição em Grid */}
-      {viewMode === 'grid' && (
+      {viewMode === 'grid' && filteredCreators.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCreators.map((creator) => {
             const statusInfo = getTalentStatusInfo(creator);
@@ -558,22 +422,7 @@ export const TalentScoutView: React.FC = () => {
               >
                 {/* Imagem do Book com Badges */}
                 <div className="relative h-72 bg-black overflow-hidden">
-                  {(() => {
-                    const imgSrc = (creator as any).avatarUrl ||
-                      (creator as any).avatar_url ||
-                      (creator.id === 'creator-sophia-m' ? '/api/media/assets/images/creator_sophia.jpg' : '/api/media/assets/images/creator_elena.jpg');
-                    return imgSrc.startsWith('data:') ? (
-                      <img src={imgSrc} alt={creator.qualitative.artisticName} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <Image
-                        src={imgSrc}
-                        alt={creator.qualitative.artisticName}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        unoptimized
-                      />
-                    );
-                  })()}
+                  <TalentAvatar creator={creator} imgClassName="object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
                   {/* Badges do Card */}
@@ -581,7 +430,7 @@ export const TalentScoutView: React.FC = () => {
                     <div className="flex gap-2">
                       <Badge variant="gold">TOP 0.1%</Badge>
                       <span className="px-2 py-0.5 bg-black/70 backdrop-blur-md text-emerald-400 text-[9px] font-sans uppercase tracking-widest font-semibold border border-emerald-500/30">
-                        Aprovada
+                        {t('dsh_ts_approved')}
                       </span>
                     </div>
 
@@ -621,19 +470,19 @@ export const TalentScoutView: React.FC = () => {
                 <div className="p-5 space-y-4">
                   <div className="grid grid-cols-3 gap-2 text-center text-xs font-sans">
                     <div className="p-2 bg-[#151515] border border-white/5">
-                      <span className="text-[9px] uppercase text-ivory/40 block">Altura</span>
+                      <span className="text-[9px] uppercase text-ivory/40 block">{t('dsh_ts_height')}</span>
                       <span className="text-gold font-medium">
                         {creator.qualitative.measurements.height} cm
                       </span>
                     </div>
                     <div className="p-2 bg-[#151515] border border-white/5">
-                      <span className="text-[9px] uppercase text-ivory/40 block">Faturamento</span>
+                      <span className="text-[9px] uppercase text-ivory/40 block">{t('dsh_ts_revenue')}</span>
                       <span className="text-emerald-400 font-medium truncate block text-[11px]">
                         {creator.qualitative.monthlyRevenueEstimate.split(' ')[0]}
                       </span>
                     </div>
                     <div className="p-2 bg-[#151515] border border-white/5">
-                      <span className="text-[9px] uppercase text-ivory/40 block">Cabelo</span>
+                      <span className="text-[9px] uppercase text-ivory/40 block">{t('dsh_ts_hair')}</span>
                       <span className="text-ivory font-medium truncate block text-[11px]">
                         {creator.qualitative.physiognomy.hairColor}
                       </span>
@@ -651,7 +500,7 @@ export const TalentScoutView: React.FC = () => {
                       className="flex-1 px-3 py-2 bg-[#161616] hover:bg-[#222222] text-ivory border border-white/10 text-xs font-sans uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5 text-gold" />
-                      <span>Ver Book</span>
+                      <span>{t('dsh_ts_view_book')}</span>
                     </button>
 
                     <button
@@ -661,10 +510,10 @@ export const TalentScoutView: React.FC = () => {
                           ? 'bg-gold hover:bg-gold-light text-black-matte'
                           : 'bg-zinc-800/80 hover:bg-zinc-700 text-ivory/70 border border-white/10'
                       }`}
-                      title={!statusInfo.acceptsOffers ? 'Ofertas desativadas pelo talento' : 'Enviar proposta formal'}
+                      title={!statusInfo.acceptsOffers ? t('dsh_ts_offers_disabled_title') : t('dsh_ts_send_formal_title')}
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>{statusInfo.acceptsOffers ? 'Proposta' : 'Ofertas Off'}</span>
+                      <span>{statusInfo.acceptsOffers ? t('dsh_ts_proposal') : t('dsh_ts_offers_off')}</span>
                     </button>
                   </div>
                 </div>
@@ -675,18 +524,18 @@ export const TalentScoutView: React.FC = () => {
       )}
 
       {/* Exibição em Tabela Executiva */}
-      {viewMode === 'table' && (
+      {viewMode === 'table' && filteredCreators.length > 0 && (
         <div className="bg-[#0E0E0E] border border-white/10 overflow-x-auto shadow-2xl">
           <table className="w-full text-left border-collapse text-xs font-sans">
             <thead>
               <tr className="bg-[#141414] border-b border-white/10 text-ivory/50 uppercase tracking-widest text-[10px]">
-                <th className="p-4">Modelo / Talento</th>
-                <th className="p-4">Status no Scout</th>
-                <th className="p-4">Categoria</th>
-                <th className="p-4">Localização</th>
-                <th className="p-4">Biometria</th>
-                <th className="p-4">Fat. Mensal Estimado</th>
-                <th className="p-4 text-right">Ações</th>
+                <th className="p-4">{t('dsh_ts_th_talent')}</th>
+                <th className="p-4">{t('dsh_ts_th_status')}</th>
+                <th className="p-4">{t('dsh_ts_category')}</th>
+                <th className="p-4">{t('dsh_ts_th_location')}</th>
+                <th className="p-4">{t('dsh_ts_th_biometrics')}</th>
+                <th className="p-4">{t('dsh_ts_th_monthly_revenue')}</th>
+                <th className="p-4 text-right">{t('dsh_ts_th_actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -698,22 +547,7 @@ export const TalentScoutView: React.FC = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 border border-gold/40 relative bg-black shrink-0 overflow-hidden">
-                          {(() => {
-                            const imgSrc = (creator as any).avatarUrl ||
-                              (creator as any).avatar_url ||
-                              (creator.id === 'creator-sophia-m' ? '/api/media/assets/images/creator_sophia.jpg' : '/api/media/assets/images/creator_elena.jpg');
-                            return imgSrc.startsWith('data:') ? (
-                              <img src={imgSrc} alt={creator.qualitative.artisticName} className="absolute inset-0 w-full h-full object-cover" />
-                            ) : (
-                              <Image
-                                src={imgSrc}
-                                alt={creator.qualitative.artisticName}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                              />
-                            );
-                          })()}
+                          <TalentAvatar creator={creator} imgClassName="object-cover" />
                         </div>
                         <div>
                           <span className="font-serif-lumiardi text-base text-ivory font-medium block">
@@ -764,7 +598,7 @@ export const TalentScoutView: React.FC = () => {
                               : 'bg-zinc-800 text-ivory/60 border border-white/10 hover:bg-zinc-700'
                           }`}
                         >
-                          {statusInfo.acceptsOffers ? 'Contratar' : 'Ofertas Off'}
+                          {statusInfo.acceptsOffers ? t('dsh_ts_hire') : t('dsh_ts_offers_off')}
                         </button>
                       </div>
                     </td>
@@ -800,29 +634,12 @@ export const TalentScoutView: React.FC = () => {
 
               <div className="flex items-center gap-4 pb-4 border-b border-white/10">
                 <div className="relative w-16 h-16 border-2 border-gold/40 bg-black shrink-0 overflow-hidden">
-                  {(() => {
-                    const imgSrc = (selectedTalent as any).avatarUrl ||
-                      (selectedTalent as any).avatar_url ||
-                      (selectedTalent.id === 'creator-sophia-m'
-                        ? '/api/media/assets/images/creator_sophia.jpg'
-                        : '/api/media/assets/images/creator_elena.jpg');
-                    return imgSrc.startsWith('data:') ? (
-                      <img src={imgSrc} alt={selectedTalent.qualitative.artisticName} className="absolute inset-0 w-full h-full object-cover" />
-                    ) : (
-                      <Image
-                        src={imgSrc}
-                        alt={selectedTalent.qualitative.artisticName}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    );
-                  })()}
+                  <TalentAvatar creator={selectedTalent} imgClassName="object-cover" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="gold">APROVADA</Badge>
-                    <span className="text-[10px] text-emerald-400 font-sans">Documentos Verificados</span>
+                    <Badge variant="gold">{t('dsh_ts_approved')}</Badge>
+                    <span className="text-[10px] text-emerald-400 font-sans">{t('dsh_ts_docs_verified')}</span>
                   </div>
                   <h3 className="font-serif-lumiardi text-3xl font-light text-ivory mt-0.5">
                     {selectedTalent.qualitative.artisticName}
@@ -836,25 +653,25 @@ export const TalentScoutView: React.FC = () => {
               {/* Ficha Técnica Modal */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-sans">
                 <div className="p-3 bg-[#151515] border border-white/5">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Altura</span>
+                  <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_height')}</span>
                   <span className="font-serif-lumiardi text-base text-gold">
                     {selectedTalent.qualitative.measurements.height} cm
                   </span>
                 </div>
                 <div className="p-3 bg-[#151515] border border-white/5">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Busto/Cintura/Quadril</span>
+                  <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_bust_waist_hips')}</span>
                   <span className="font-serif-lumiardi text-base text-gold">
                     {selectedTalent.qualitative.measurements.bust}/{selectedTalent.qualitative.measurements.waist}/{selectedTalent.qualitative.measurements.hips}
                   </span>
                 </div>
                 <div className="p-3 bg-[#151515] border border-white/5">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Fisiognomia</span>
+                  <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_physiognomy')}</span>
                   <span className="text-ivory font-medium text-[11px]">
                     {selectedTalent.qualitative.physiognomy.hairColor} / {selectedTalent.qualitative.physiognomy.eyeColor}
                   </span>
                 </div>
                 <div className="p-3 bg-[#151515] border border-white/5">
-                  <span className="text-ivory/40 block text-[10px] uppercase">Fat. Médio</span>
+                  <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_avg_revenue')}</span>
                   <span className="text-emerald-400 font-medium text-[11px]">
                     {selectedTalent.qualitative.monthlyRevenueEstimate}
                   </span>
@@ -865,14 +682,14 @@ export const TalentScoutView: React.FC = () => {
               <div className="space-y-3 text-xs font-sans">
                 <div className="p-3.5 bg-[#141414] border border-white/5">
                   <span className="text-bronze font-semibold uppercase tracking-wider text-[10px] block mb-1">
-                    Objetivo Declarado na Pré-Entrevista:
+                    {t('dsh_ts_declared_goal')}
                   </span>
                   <p className="text-ivory/80">&quot;{selectedTalent.qualitative.mainGoal}&quot;</p>
                 </div>
 
                 <div className="p-3.5 bg-[#141414] border border-white/5">
                   <span className="text-bronze font-semibold uppercase tracking-wider text-[10px] block mb-1">
-                    Limites Pessoais de Conteúdo:
+                    {t('dsh_ts_personal_limits')}
                   </span>
                   <p className="text-ivory/80">&quot;{selectedTalent.qualitative.personalLimits}&quot;</p>
                 </div>
@@ -884,7 +701,7 @@ export const TalentScoutView: React.FC = () => {
                   onClick={() => setSelectedTalent(null)}
                   className="px-4 py-2 text-xs font-sans uppercase text-ivory/60 hover:text-ivory cursor-pointer"
                 >
-                  Fechar
+                  {t('dsh_ts_close')}
                 </button>
                 <button
                   onClick={() => {
@@ -895,7 +712,7 @@ export const TalentScoutView: React.FC = () => {
                   className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Enviar Proposta de Agenciamento</span>
+                  <span>{t('dsh_ts_send_rep_proposal')}</span>
                 </button>
               </div>
             </motion.div>
@@ -927,13 +744,13 @@ export const TalentScoutView: React.FC = () => {
 
               <div className="border-b border-white/10 pb-4">
                 <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                  Scout Oficial Lumiardi
+                  {t('dsh_ts_official_scout')}
                 </span>
                 <h3 className="font-serif-lumiardi text-2xl text-ivory mt-1">
-                  Enviar Proposta para {proposalModalTalent.qualitative.artisticName}
+                  {t('dsh_ts_send_proposal_to').replace('{name}', proposalModalTalent.qualitative.artisticName)}
                 </h3>
                 <p className="text-xs text-ivory/60 font-sans mt-1">
-                  Uma proposta formal será transmitida e um canal de chat seguro será aberto no painel do talento.
+                  {t('dsh_ts_proposal_modal_desc')}
                 </p>
               </div>
 
@@ -946,26 +763,26 @@ export const TalentScoutView: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-wider mb-1">
-                    Comissão Proposta para a Agência
+                    {t('dsh_ts_commission_label')}
                   </label>
                   <input
                     type="text"
                     value={proposalCommission}
                     onChange={(e) => setProposalCommission(e.target.value)}
-                    placeholder="Ex: 20% ou 15%"
+                    placeholder={t('dsh_ts_commission_placeholder')}
                     className="w-full bg-[#181818] border border-white/15 focus:border-gold px-3.5 py-2.5 text-xs text-ivory outline-none rounded-sm"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-wider mb-1">
-                    Mensagem de Apresentação e Termos
+                    {t('dsh_ts_message_label')}
                   </label>
                   <textarea
                     rows={4}
                     value={proposalMessage}
                     onChange={(e) => setProposalMessage(e.target.value)}
-                    placeholder="Apresente as oportunidades, escopo e estrutura da sua agência..."
+                    placeholder={t('dsh_ts_message_placeholder')}
                     className="w-full bg-[#181818] border border-white/15 focus:border-gold p-3 text-xs text-ivory outline-none rounded-sm"
                   />
                 </div>
@@ -977,7 +794,7 @@ export const TalentScoutView: React.FC = () => {
                   onClick={() => setProposalModalTalent(null)}
                   className="px-4 py-2 text-xs font-sans uppercase text-ivory/60 hover:text-ivory cursor-pointer"
                 >
-                  Cancelar
+                  {t('dsh_ts_cancel')}
                 </button>
 
                 <button
@@ -987,7 +804,7 @@ export const TalentScoutView: React.FC = () => {
                   className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-bold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>{sendingProposal ? 'Transmitindo...' : 'Transmitir Proposta'}</span>
+                  <span>{sendingProposal ? t('dsh_ts_transmitting') : t('dsh_ts_transmit')}</span>
                 </button>
               </div>
             </motion.div>
@@ -1023,7 +840,7 @@ export const TalentScoutView: React.FC = () => {
 
               <div>
                 <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-amber-400 font-semibold block mb-1">
-                  Propostas Temporariamente Indisponíveis
+                  {t('dsh_ts_blocked_title')}
                 </span>
                 <h3 className="font-serif-lumiardi text-2xl text-ivory">
                   {blockedModalTalent.qualitative.artisticName}
@@ -1032,10 +849,10 @@ export const TalentScoutView: React.FC = () => {
 
               <div className="p-4 bg-black/50 border border-white/5 text-xs font-sans text-ivory/80 leading-relaxed text-left space-y-2 rounded-sm">
                 <p>
-                  <strong>Aviso do Sistema:</strong> Esta modelo já possui contrato e não está recebendo novas ofertas no momento.
+                  <strong>{t('dsh_ts_system_notice')}</strong> {t('dsh_ts_blocked_desc')}
                 </p>
                 <p className="text-ivory/60 text-[11px]">
-                  O perfil permanece indexado no catálogo institucional da Lumiardi para fins de portfólio e auditoria. Novas propostas poderão ser enviadas caso a criadora reative a opção em seu painel.
+                  {t('dsh_ts_blocked_note')}
                 </p>
               </div>
 
@@ -1045,7 +862,7 @@ export const TalentScoutView: React.FC = () => {
                   onClick={() => setBlockedModalTalent(null)}
                   className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-bold text-xs font-sans uppercase tracking-wider cursor-pointer shadow-md rounded-sm"
                 >
-                  Entendido
+                  {t('dsh_ts_understood')}
                 </button>
                 <button
                   type="button"
@@ -1056,7 +873,7 @@ export const TalentScoutView: React.FC = () => {
                   }}
                   className="px-4 py-2.5 bg-[#181818] border border-white/15 text-ivory text-xs font-sans uppercase tracking-wider hover:border-gold transition-colors cursor-pointer rounded-sm"
                 >
-                  Ver Book Público
+                  {t('dsh_ts_view_public_book')}
                 </button>
               </div>
             </motion.div>
