@@ -146,6 +146,7 @@ export default function AdminDashboardPage() {
 
   // Estados de Envio de Convite e Notificações
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [meetLinkInput, setMeetLinkInput] = useState('');
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
   const [inviteFeedback, setInviteFeedback] = useState<{
     type: 'success' | 'warning' | 'error';
@@ -165,27 +166,8 @@ export default function AdminDashboardPage() {
     setSendingInvite(true);
     setInviteFeedback(null);
     try {
-      let meetLink = '';
-      let roomPasscode: string | undefined;
-
-      try {
-        const roomRes = await fetch('/api/meet/room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customRoomName: `curation-${candidate.userId || candidate.id}` }),
-        });
-        if (roomRes.ok) {
-          const roomData = await roomRes.json();
-          meetLink = roomData.inviteUrl || roomData.dailyRoomUrl || `${window.location.origin}/dashboard/meet?room=${roomData.roomId}`;
-          roomPasscode = roomData.passcode;
-        }
-      } catch (roomErr) {
-        console.warn('[handleSendEmailInviteFromAdmin] Falha ao pré-gerar sala Meet, fallback ativado:', roomErr);
-      }
-
-      if (!meetLink) {
-        meetLink = `${window.location.origin}/dashboard/meet?room=curation-${candidate.userId || candidate.id}`;
-      }
+      // Vazio = servidor usa GOOGLE_MEET_URL do .env
+      const meetLink = meetLinkInput.trim();
 
       const res = await fetch('/api/admin/send-interview-invite', {
         method: 'POST',
@@ -198,7 +180,6 @@ export default function AdminDashboardPage() {
           interviewDate: candidate.interviewDate,
           interviewTime: candidate.interviewTime,
           meetLink,
-          roomPasscode,
         }),
       });
       const data = await res.json();
@@ -213,7 +194,7 @@ export default function AdminDashboardPage() {
           setInviteFeedback({
             type: 'success',
             message: `Convite enviado com sucesso para ${data.sentTo}!`,
-            detail: `E-mail transacional em inglês disparado com link da sala segura do Meet. Horário: ${data.interviewDate} às ${data.interviewTime}.`,
+            detail: `E-mail em inglês enviado com o Google Meet ${data.meetLink} e o convite de agenda. Horário: ${data.interviewDate} às ${data.interviewTime}.`,
           });
         }
       } else {
@@ -1033,6 +1014,7 @@ export default function AdminDashboardPage() {
                   onClick={() => {
                     setSelectedApp(null);
                     setInviteFeedback(null);
+                    setMeetLinkInput('');
                   }}
                   className="p-1.5 text-ivory/40 hover:text-ivory hover:bg-white/[0.06] transition-colors rounded-sm cursor-pointer"
                 >
@@ -1090,7 +1072,15 @@ export default function AdminDashboardPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <input
+                        type="text"
+                        value={meetLinkInput}
+                        onChange={(e) => setMeetLinkInput(e.target.value)}
+                        placeholder="Link ou código do Google Meet (vazio = padrão)"
+                        aria-label="Link do Google Meet"
+                        className="w-full sm:w-72 px-3 py-2 bg-black/40 border border-sky-500/30 focus:border-sky-400 text-xs text-ivory placeholder:text-ivory/40 rounded-sm focus:outline-none font-mono"
+                      />
                       <button
                         onClick={() => handleSendEmailInviteFromAdmin(selectedApp)}
                         disabled={sendingInvite}

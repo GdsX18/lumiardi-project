@@ -4,6 +4,7 @@ import { pool, initDatabase, fallbackStore } from '@/lib/db';
 import { EmailService } from '@/lib/email';
 import { StorageService } from '@/services/storageService';
 import { AuditLogService } from '@/lib/audit/auditService';
+import { normalizeGoogleMeetUrl } from '@/lib/googleMeet';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,10 +21,24 @@ export async function POST(req: NextRequest) {
       email,
       user_email,
       meetLink,
-      roomPasscode,
       interviewDate: interviewDateParam,
       interviewTime: interviewTimeParam,
     } = body;
+
+    // A candidata não tem conta na plataforma: o convite sempre aponta para o Google Meet.
+    // Prioridade: link informado no modal do /admin > GOOGLE_MEET_URL do .env
+    const finalMeetLink = normalizeGoogleMeetUrl(meetLink) || normalizeGoogleMeetUrl(process.env.GOOGLE_MEET_URL);
+    if (!finalMeetLink) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: meetLink
+            ? 'Link do Google Meet inválido. Use https://meet.google.com/abc-defg-hij ou apenas o código.'
+            : 'Informe o link do Google Meet no modal ou configure GOOGLE_MEET_URL no .env.',
+        },
+        { status: 400 }
+      );
+    }
 
     const targetId = (interviewId || candidateId || userId || '').toString().trim();
     const targetEmail = (email || user_email || (targetId.includes('@') ? targetId : '')).toString().trim().toLowerCase();
@@ -230,9 +245,6 @@ export async function POST(req: NextRequest) {
 
     const timeDisplay = interview.interview_time || interview.u_interview_time || interviewTimeParam || '14:00';
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const finalMeetLink = meetLink || `${origin}/dashboard/meet?room=curation-${interview.user_id || interview.id}`;
-
     // 3. Disparo do e-mail com template em inglês
     const emailResult = await EmailService.sendInterviewInvite({
       to: toEmail,
@@ -242,7 +254,6 @@ export async function POST(req: NextRequest) {
       interviewTime: String(timeDisplay),
       meetUrl: finalMeetLink,
       meetLink: finalMeetLink,
-      roomPasscode,
     });
 
     // 4. Registro no Audit Log imutável

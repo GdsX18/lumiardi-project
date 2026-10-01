@@ -37,6 +37,8 @@ export function InterviewQueueTab({
   // Um único aviso por vez: uma nova mensagem substitui a anterior (nada de alertas empilhados/duplicados)
   const [notice, setNotice] = useState<{ type: AdminNoticeType; message: string } | null>(null);
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
+  // Link do Google Meet por entrevista (vazio = GOOGLE_MEET_URL do .env)
+  const [meetLinks, setMeetLinks] = useState<Record<string, string>>({});
 
   // Modal de Recusa
   const [rejectingItem, setRejectingItem] = useState<CurationInterview | null>(null);
@@ -135,29 +137,8 @@ export function InterviewQueueTab({
     if (sendingInviteId === item.id) return;
     setSendingInviteId(item.id);
     try {
-      let meetLink = '';
-      let roomPasscode: string | undefined;
-
-      try {
-        const roomRes = await fetch('/api/meet/room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customRoomName: `curation-${item.userId || item.id}`,
-          }),
-        });
-        if (roomRes.ok) {
-          const roomData = await roomRes.json();
-          meetLink = roomData.inviteUrl || roomData.dailyRoomUrl || `${window.location.origin}/dashboard/meet?room=${roomData.roomId}`;
-          roomPasscode = roomData.passcode;
-        }
-      } catch (roomErr) {
-        console.warn('[InterviewQueueTab] Falha ao pré-gerar sala Meet, fallback ativado:', roomErr);
-      }
-
-      if (!meetLink) {
-        meetLink = `${window.location.origin}/dashboard/meet?room=curation-${item.userId || item.id}`;
-      }
+      // Vazio = servidor usa GOOGLE_MEET_URL do .env
+      const meetLink = (meetLinks[item.id] || '').trim();
 
       // Send the email invite
       const res = await fetch('/api/admin/send-interview-invite', {
@@ -171,7 +152,6 @@ export function InterviewQueueTab({
           interviewDate: item.interviewDate,
           interviewTime: item.interviewTime,
           meetLink,
-          roomPasscode,
         }),
       });
       const data = await res.json();
@@ -371,7 +351,15 @@ export function InterviewQueueTab({
 
                 {/* Barra de Ações Operacionais */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={meetLinks[item.id] || ''}
+                      onChange={(e) => setMeetLinks((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      placeholder="Google Meet (vazio = padrão)"
+                      aria-label="Link do Google Meet"
+                      className="w-56 px-2.5 py-1.5 bg-[#1A1A1A] border border-white/10 focus:border-[#D4AF37] text-xs text-ivory placeholder:text-ivory/40 rounded focus:outline-none font-mono"
+                    />
                     {/* Botão de Envio de Convite por E-mail */}
                     <button
                       type="button"

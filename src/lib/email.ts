@@ -4,7 +4,9 @@
  * Design responsivo de alto padrão (Dark/Gold Luxury Theme).
  */
 
+import { randomUUID } from 'crypto';
 import nodemailer from 'nodemailer';
+import { normalizeGoogleMeetUrl } from './googleMeet';
 
 const smtpPort = Number(process.env.SMTP_PORT) || 587;
 const isSecure = smtpPort === 465; // true para 465 (SSL direto), false para 587 (STARTTLS)
@@ -13,12 +15,14 @@ export const mailTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'mail.lumiardi.com',
   port: smtpPort,
   secure: isSecure,
+  requireTLS: !isSecure, // 587: exige STARTTLS (nunca envia credenciais em texto puro)
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
-    rejectUnauthorized: false // Evita falhas por certificados autoassinados em desenvolvimento
+    // Certificado da HostGator é válido para sh00214.hostgator.com.br e mail.lumiardi.com
+    minVersion: 'TLSv1.2',
   },
   connectionTimeout: 10000, // 10s timeout
   greetingTimeout: 5000,
@@ -37,6 +41,17 @@ function getTransporter() {
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Lumiardi Official <noreply@lumiardi.com>';
 
+const INTERVIEW_DURATION_MINUTES = 30;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function isEmailConfigured(): boolean {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
@@ -44,36 +59,6 @@ export function isEmailConfigured(): boolean {
   if (!host || !user || !pass) return false;
   if (host === 'mail.seudominio.com' || pass === 'SUA_SENHA_SMTP' || pass === 'placeholder') return false;
   return true;
-}
-
-async function sendViaResend(params: {
-  from: string;
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
-}): Promise<{ messageId?: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      from: params.from,
-      to: [params.to],
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `Resend error: ${res.statusText}`);
-  }
-  const data = await res.json();
-  return { messageId: data.id };
 }
 
 /**
@@ -565,14 +550,12 @@ export const EmailService = {
     interviewTime: string;
     meetUrl?: string;
     meetLink?: string;
-    roomPasscode?: string;
   }): Promise<{ success: boolean; simulated: boolean; message: string; messageId?: string }> {
     const to = (params.to || params.toEmail || '').trim();
     const candidateName = (params.candidateName || '').trim();
     const interviewDate = (params.interviewDate || '').trim();
     const interviewTime = (params.interviewTime || '').trim();
-    const meetUrl = (params.meetUrl || params.meetLink || '').trim();
-    const roomPasscode = params.roomPasscode?.trim();
+    const meetUrl = normalizeGoogleMeetUrl(params.meetUrl || params.meetLink) || '';
 
     // 1. Validação defensiva dos dados essenciais (lança erro explícito se faltar algum campo)
     if (!to) {
@@ -588,7 +571,7 @@ export const EmailService = {
       throw new Error("Dados incompletos para o convite: interviewTime");
     }
     if (!meetUrl) {
-      throw new Error("Dados incompletos para o convite: meetUrl (link da sala de reunião)");
+      throw new Error("Dados incompletos para o convite: meetUrl (link válido do Google Meet)");
     }
 
     // 2. Verificação de chaves no .env: Se não configuradas, retorna aviso informativo claro
@@ -609,137 +592,213 @@ export const EmailService = {
       throw new Error(`Falha na conexão SMTP (${process.env.SMTP_HOST || 'mail.lumiardi.com'}): ${verifyErr?.message || String(verifyErr)}`);
     }
 
-    // 4. Formatação de data em Inglês
+    // 4. Horário da entrevista (Brasília, UTC-3 fixo — sem horário de verão desde 2019)
+    const cleanDate = interviewDate.includes('T') ? interviewDate.split('T')[0] : interviewDate;
+    const dateMatch = cleanDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const timeMatch = interviewTime.match(/^(\d{1,2})(?:[:h](\d{2}))?/i);
+    const startUtc = dateMatch && timeMatch
+      ? new Date(Date.UTC(+dateMatch[1], +dateMatch[2] - 1, +dateMatch[3], +timeMatch[1] + 3, +(timeMatch[2] || 0)))
+      : null;
+    const endUtc = startUtc ? new Date(startUtc.getTime() + INTERVIEW_DURATION_MINUTES * 60_000) : null;
+
     let formattedDate = interviewDate;
-    try {
-      const cleanDate = interviewDate.includes('T') ? interviewDate.split('T')[0] : interviewDate;
-      const dateObj = new Date(cleanDate + 'T12:00:00');
-      if (!isNaN(dateObj.getTime())) {
-        formattedDate = dateObj.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-      }
-    } catch {
-      formattedDate = interviewDate;
+    if (dateMatch) {
+      formattedDate = new Date(Date.UTC(+dateMatch[1], +dateMatch[2] - 1, +dateMatch[3], 12)).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC',
+      });
     }
 
-    // 5. Template do Convite (Inglês Oficial)
-    const subject = 'Lumiardi Curation — Your Editorial Interview is Scheduled';
+    // 5. Agenda: link do Google Calendar + anexo .ics com os mesmos dados
+    const eventTitle = 'Lumiardi Curation — Editorial Interview';
+    const eventDetails =
+      `Private editorial interview with the Lumiardi curation board.\n\n` +
+      `Join via Google Meet: ${meetUrl}\n\n` +
+      `Please join 5 minutes early and have a valid government-issued ID ready.`;
+    const toCalendarStamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
-    const html = `
-<!DOCTYPE html>
+    const calendarUrl = startUtc && endUtc
+      ? 'https://calendar.google.com/calendar/render?' + new URLSearchParams({
+          action: 'TEMPLATE',
+          text: eventTitle,
+          dates: `${toCalendarStamp(startUtc)}/${toCalendarStamp(endUtc)}`,
+          details: eventDetails,
+          location: meetUrl,
+        }).toString()
+      : null;
+
+    const icsEscape = (v: string) => v.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+    const icsContent = startUtc && endUtc
+      ? [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Lumiardi//Curation Interview//EN',
+          'CALSCALE:GREGORIAN',
+          'METHOD:PUBLISH',
+          'BEGIN:VEVENT',
+          `UID:${randomUUID()}@lumiardi.com`,
+          `DTSTAMP:${toCalendarStamp(new Date())}`,
+          `DTSTART:${toCalendarStamp(startUtc)}`,
+          `DTEND:${toCalendarStamp(endUtc)}`,
+          `SUMMARY:${icsEscape(eventTitle)}`,
+          `DESCRIPTION:${icsEscape(eventDetails)}`,
+          `LOCATION:${icsEscape(meetUrl)}`,
+          `URL:${meetUrl}`,
+          'BEGIN:VALARM',
+          'TRIGGER:-PT15M',
+          'ACTION:DISPLAY',
+          `DESCRIPTION:${icsEscape(eventTitle)}`,
+          'END:VALARM',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ].join('\r\n')
+      : null;
+
+    // 6. Template do Convite (Inglês Oficial) — tabelas + estilos inline, 600px centralizado
+    const subject = 'Lumiardi Curation — Your Editorial Interview is Scheduled';
+    const safeName = escapeHtml(candidateName);
+    const safeMeetUrl = escapeHtml(meetUrl);
+    const safeTime = escapeHtml(interviewTime);
+    const safeDate = escapeHtml(formattedDate);
+    const year = new Date().getFullYear();
+
+    const detailRow = (label: string, value: string, last = false) => `
+                  <tr>
+                    <td style="padding:14px 0;${last ? '' : 'border-bottom:1px solid #1E1C17;'}">
+                      <div style="font-size:10px;letter-spacing:2px;color:#8C8270;text-transform:uppercase;margin-bottom:4px;">${label}</div>
+                      <div style="font-size:15px;color:#F3E5AB;font-weight:600;">${value}</div>
+                    </td>
+                  </tr>`;
+
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lumiardi Curation — Your Editorial Interview is Scheduled</title>
-  <style>
-    body { margin: 0; padding: 0; background-color: #070708; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #E6E6E6; -webkit-font-smoothing: antialiased; }
-    .wrapper { width: 100%; background-color: #070708; padding: 40px 10px; }
-    .card { max-width: 600px; margin: 0 auto; background-color: #0F0F12; border: 1px solid #24221C; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.8); }
-    .header { padding: 35px 30px 25px; text-align: center; border-bottom: 1px solid #1E1C17; background: radial-gradient(circle at top, #1C1914 0%, #0F0F12 100%); }
-    .logo-text { font-size: 26px; font-weight: 700; letter-spacing: 5px; color: #F3E5AB; margin: 0; text-transform: uppercase; font-family: 'Cinzel', Georgia, serif; }
-    .logo-sub { font-size: 11px; letter-spacing: 3px; color: #8C8270; margin-top: 6px; text-transform: uppercase; }
-    .content { padding: 35px 35px 30px; font-size: 15px; line-height: 1.6; color: #D1D1D6; }
-    .badge { display: inline-block; padding: 5px 14px; background: rgba(212, 175, 55, 0.12); border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 20px; color: #D4AF37; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 20px; }
-    .details-box { background-color: #070709; border: 1px solid #24221C; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
-    .detail-row { padding: 10px 0; border-bottom: 1px solid #1A1917; }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label { font-size: 11px; letter-spacing: 1.5px; color: #8C8270; text-transform: uppercase; margin-bottom: 4px; display: block; }
-    .detail-value { font-size: 15px; color: #F3E5AB; font-weight: 600; }
-    .instructions-box { background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.25); border-radius: 8px; padding: 18px 20px; margin: 24px 0; }
-    .instructions-title { font-size: 12px; font-weight: 700; color: #D4AF37; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; }
-    .instructions-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: #C5C5CA; }
-    .btn-container { text-align: center; margin: 30px 0 25px; }
-    .btn { display: inline-block; padding: 15px 36px; background: linear-gradient(135deg, #D4AF37 0%, #AA820A 100%); color: #070708 !important; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-decoration: none; text-transform: uppercase; border-radius: 6px; }
-    .footer { padding: 25px 30px; text-align: center; border-top: 1px solid #1A1917; font-size: 11px; color: #636366; background-color: #0A0A0C; line-height: 1.6; }
-  </style>
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <title>${subject}</title>
 </head>
-<body>
-  <div style="display:none;font-size:1px;color:#070708;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-    Your editorial interview with Lumiardi Curation has been scheduled for ${formattedDate} at ${interviewTime} (Brasília Time).
+<body style="margin:0;padding:0;background-color:#070708;-webkit-font-smoothing:antialiased;">
+  <div style="display:none;font-size:1px;color:#070708;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+    Your editorial interview with Lumiardi Curation is scheduled for ${safeDate} at ${safeTime} (Brasília Time).
   </div>
-  <div class="wrapper">
-    <div class="card">
-      <div class="header">
-        <h1 class="logo-text">LUMIARDI</h1>
-        <div class="logo-sub">Curation Department & Editorial Board</div>
-      </div>
-      <div class="content">
-        <div class="badge">Editorial Selection</div>
-        <h2 style="color:#FFF; font-size:22px; font-weight:600; margin-top:0; margin-bottom:16px;">
-          Your Editorial Interview is Scheduled
-        </h2>
-        
-        <p>Hello, <strong style="color:#F3E5AB;">${candidateName}</strong>,</p>
-        <p>We are pleased to confirm your preliminary curation interview with the Lumiardi editorial board. Please review your scheduled session details below:</p>
-        
-        <div class="details-box">
-          <div class="detail-row">
-            <span class="detail-label">Date</span>
-            <span class="detail-value">${formattedDate}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Time</span>
-            <span class="detail-value">${interviewTime} (Brasília Time — BRT / UTC-3)</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Session Format</span>
-            <span class="detail-value">Private Video Evaluation (1-on-1)</span>
-          </div>
-          ${roomPasscode ? `
-          <div class="detail-row">
-            <span class="detail-label">Access Passcode</span>
-            <span class="detail-value" style="font-family:monospace; letter-spacing:3px;">${roomPasscode}</span>
-          </div>
-          ` : ''}
-        </div>
-
-        <div class="btn-container">
-          <a href="${meetUrl}" class="btn" target="_blank" rel="noopener noreferrer">Join Secure Meeting Room</a>
-        </div>
-
-        <div class="instructions-box">
-          <div class="instructions-title">Preparation & Mandatory Instructions</div>
-          <ul class="instructions-list">
-            <li><strong>Join 5 minutes early:</strong> Please connect 5 minutes prior to ensure camera and audio settings are ready.</li>
-            <li><strong>Identification document:</strong> Have a valid government-issued ID card or passport ready for visual confirmation (in compliance with 18 U.S.C. § 2257).</li>
-            <li><strong>Private environment:</strong> Ensure you are located in a quiet, well-lit private space for your session.</li>
-          </ul>
-        </div>
-
-        <p style="font-size:13px; color:#8E8E93; line-height:1.6; margin-top:24px;">
-          This meeting room link is private, encrypted, and uniquely assigned to your profile. Please do not forward or share this link. If you have any questions or need to reschedule, reply directly to this email.
-        </p>
-      </div>
-      <div class="footer">
-        <p style="margin:0 0 4px 0;">© ${new Date().getFullYear()} LUMIARDI INC. All rights reserved.</p>
-        <p style="margin:0 0 4px 0;">Confidential & Encrypted Curation Channel • 18 U.S.C. § 2257 Compliance</p>
-        <p style="margin:0;">Lumiardi Editorial Board • <a href="https://www.lumiardi.com" style="color:#8C8270; text-decoration:none;">www.lumiardi.com</a></p>
-      </div>
-    </div>
-  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#070708;">
+    <tr>
+      <td align="center" style="padding:40px 12px;">
+        <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;margin:0 auto;background-color:#0F0F12;border:1px solid #2A261D;border-radius:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+          <!-- Filete dourado -->
+          <tr>
+            <td style="height:3px;line-height:3px;font-size:0;background-color:#D4AF37;background-image:linear-gradient(90deg,#AA820A,#F3E5AB,#AA820A);border-radius:12px 12px 0 0;">&nbsp;</td>
+          </tr>
+          <!-- Cabeçalho -->
+          <tr>
+            <td align="center" style="padding:36px 32px 26px;border-bottom:1px solid #1E1C17;background-color:#13110D;">
+              <div style="font-family:'Cinzel',Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:7px;color:#F3E5AB;text-transform:uppercase;">LUMIARDI</div>
+              <div style="font-size:10px;letter-spacing:3px;color:#8C8270;text-transform:uppercase;margin-top:8px;">Curation Department &amp; Editorial Board</div>
+            </td>
+          </tr>
+          <!-- Conteúdo -->
+          <tr>
+            <td style="padding:36px 36px 8px;font-size:15px;line-height:1.65;color:#D1D1D6;">
+              <span style="display:inline-block;padding:5px 14px;border:1px solid #6B5A23;border-radius:20px;color:#D4AF37;font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;">Editorial Selection</span>
+              <h1 style="color:#FFFFFF;font-size:22px;font-weight:600;line-height:1.3;margin:20px 0 16px;">Your Editorial Interview is Scheduled</h1>
+              <p style="margin:0 0 12px;">Hello, <strong style="color:#F3E5AB;">${safeName}</strong>,</p>
+              <p style="margin:0;">We are pleased to confirm your preliminary curation interview with the Lumiardi editorial board. Please review your session details below.</p>
+            </td>
+          </tr>
+          <!-- Detalhes -->
+          <tr>
+            <td style="padding:20px 36px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#09090B;border:1px solid #24221C;border-radius:8px;">
+                <tr><td style="padding:6px 24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  ${detailRow('Date', safeDate)}
+                  ${detailRow('Time', `${safeTime} <span style="color:#8C8270;font-weight:400;font-size:13px;">(Brasília Time — UTC-3)</span>`)}
+                  ${detailRow('Format', 'Private video interview via Google Meet')}
+                  ${detailRow('Meeting Link', `<a href="${safeMeetUrl}" target="_blank" style="color:#F3E5AB;text-decoration:underline;word-break:break-all;">${safeMeetUrl.replace('https://', '')}</a>`, true)}
+                </table>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Botões -->
+          <tr>
+            <td align="center" style="padding:32px 36px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                <tr>
+                  <td align="center" bgcolor="#D4AF37" style="border-radius:6px;background-color:#D4AF37;background-image:linear-gradient(135deg,#E6C65C,#AA820A);">
+                    <a href="${safeMeetUrl}" target="_blank" style="display:inline-block;padding:16px 38px;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#070708;text-decoration:none;border-radius:6px;">Join Google Meet</a>
+                  </td>
+                </tr>
+              </table>
+              ${calendarUrl ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin-top:14px;">
+                <tr>
+                  <td align="center" style="border:1px solid #6B5A23;border-radius:6px;">
+                    <a href="${escapeHtml(calendarUrl)}" target="_blank" style="display:inline-block;padding:12px 28px;font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#D4AF37;text-decoration:none;">Add to Google Calendar</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:12px 0 0;font-size:12px;color:#8E8E93;">Using Outlook or Apple Calendar? Open the attached <strong style="color:#C5C5CA;">invite.ics</strong> file.</p>` : ''}
+            </td>
+          </tr>
+          <!-- Instruções -->
+          <tr>
+            <td style="padding:28px 36px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#13110B;border:1px solid #3A3220;border-radius:8px;">
+                <tr>
+                  <td style="padding:20px 22px;">
+                    <div style="font-size:11px;font-weight:700;color:#D4AF37;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Preparation &amp; Mandatory Instructions</div>
+                    <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.75;color:#C5C5CA;">
+                      <li><strong style="color:#E6E6E6;">Join 5 minutes early</strong> to check your camera and audio. No Lumiardi account is needed — just open the Google Meet link.</li>
+                      <li><strong style="color:#E6E6E6;">Identification document:</strong> have a valid government-issued ID or passport ready for visual confirmation (18 U.S.C. § 2257).</li>
+                      <li><strong style="color:#E6E6E6;">Private environment:</strong> a quiet, well-lit private space.</li>
+                    </ul>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 36px 34px;font-size:13px;line-height:1.6;color:#8E8E93;">
+              This meeting link is private and assigned to your interview. Please do not forward it. If you have any questions or need to reschedule, reply directly to this email.
+            </td>
+          </tr>
+          <!-- Rodapé -->
+          <tr>
+            <td align="center" style="padding:24px 30px;border-top:1px solid #1A1917;background-color:#0A0A0C;border-radius:0 0 12px 12px;font-size:11px;line-height:1.7;color:#636366;">
+              © ${year} LUMIARDI INC. All rights reserved.<br>
+              Confidential Curation Channel • 18 U.S.C. § 2257 Compliance<br>
+              <a href="https://www.lumiardi.com" target="_blank" style="color:#8C8270;text-decoration:none;">www.lumiardi.com</a>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-    `;
+</html>`;
 
     const text = `LUMIARDI CURATION — YOUR EDITORIAL INTERVIEW IS SCHEDULED\n\n` +
       `Hello, ${candidateName},\n\n` +
       `We are pleased to confirm your preliminary curation interview with the Lumiardi editorial board.\n\n` +
       `SESSION DETAILS:\n` +
       `- Date: ${formattedDate}\n` +
-      `- Time: ${interviewTime} (Brasília Time — BRT / UTC-3)\n` +
-      `- Format: Private Video Evaluation (1-on-1)\n` +
-      `${roomPasscode ? `- Access Passcode: ${roomPasscode}\n` : ''}` +
-      `- Meeting Room: ${meetUrl}\n\n` +
+      `- Time: ${interviewTime} (Brasília Time — UTC-3)\n` +
+      `- Format: Private video interview via Google Meet\n` +
+      `- Google Meet: ${meetUrl}\n` +
+      `${calendarUrl ? `- Add to Google Calendar: ${calendarUrl}\n` : ''}\n` +
       `MANDATORY INSTRUCTIONS:\n` +
-      `1. Please connect 5 minutes early to test camera and audio.\n` +
-      `2. Have a valid government-issued ID card or passport ready for visual confirmation (18 U.S.C. § 2257).\n` +
+      `1. Join 5 minutes early to test camera and audio. No Lumiardi account is needed.\n` +
+      `2. Have a valid government-issued ID or passport ready for visual confirmation (18 U.S.C. § 2257).\n` +
       `3. Ensure a quiet, well-lit private space.\n\n` +
-      `This meeting link is private and assigned exclusively to you.\n` +
+      `This meeting link is private and assigned to your interview.\n` +
       `If you have questions or need to reschedule, please reply directly to this email.\n\n` +
       `Lumiardi Curation Team`;
 
@@ -751,7 +810,16 @@ export const EmailService = {
         subject,
         html,
         text,
+        attachments: icsContent
+          ? [{ filename: 'invite.ics', content: icsContent, contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }]
+          : undefined,
       });
+
+      // response contém o ID de fila do servidor SMTP, útil para rastrear a entrega
+      console.log('[EmailService] Convite aceito pelo SMTP:', { to, messageId: info.messageId, response: info.response, rejected: info.rejected });
+      if (info.rejected?.length) {
+        throw new Error(`Destinatário recusado pelo SMTP: ${info.rejected.join(', ')}`);
+      }
 
       return {
         success: true,
