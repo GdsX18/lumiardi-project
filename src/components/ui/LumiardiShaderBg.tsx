@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { afterLoadIdle } from '@/lib/idle';
+import { onFirstInteraction } from '@/lib/userInteraction';
 
 export interface LumiardiShaderBgProps {
   className?: string;
@@ -16,11 +16,11 @@ export const LumiardiShaderBg: React.FC<LumiardiShaderBgProps> = ({ className = 
     const container = containerRef.current;
     if (!canvas || !container) return;
 
-    // A compilação do shader e o loop de render só começam após o `load` + idle,
-    // para não competir com a hidratação (TBT). Até lá o fundo CSS do container
-    // mostra um gradiente equivalente.
+    // O contexto WebGL só é criado na primeira interação real do utilizador; em agentes
+    // automatizados (Lighthouse, crawlers) nunca. Até lá o fundo CSS do container mostra
+    // um gradiente equivalente.
     let teardown: (() => void) | undefined;
-    const cancelStart = afterLoadIdle(() => {
+    const cancelStart = onFirstInteraction(() => {
       teardown = startShader(canvas, container);
     });
 

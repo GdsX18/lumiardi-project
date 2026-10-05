@@ -18,6 +18,7 @@ export const HeroSection: React.FC = () => {
       <ScrollExpandMedia
         mediaType="video"
         mediaSrc="/hero-video.mp4"
+        posterSrc="/hero-poster.webp"
         useShaderBg={true}
         title="LUMIARDI ECOSYSTEM"
         date={t('footer_platform_tag').toUpperCase()}

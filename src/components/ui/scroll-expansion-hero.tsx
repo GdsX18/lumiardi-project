@@ -4,6 +4,7 @@ import { useEffect, useRef, ReactNode } from 'react';
 import Image from 'next/image';
 import { gsap } from '@/lib/gsap';
 import { LumiardiShaderBg } from './LumiardiShaderBg';
+import { isConstrainedConnection, onFirstInteraction } from '@/lib/userInteraction';
 
 interface ScrollExpandMediaProps {
   mediaType?: 'video' | 'image';
@@ -38,15 +39,22 @@ const ScrollExpandMedia = ({
   const crtLayerRef = useRef<HTMLDivElement>(null);
 
   // ═══════════════════════════════════════════════════════════
-  //  Otimização e Autoplay do Vídeo (Cross-browser / 60fps)
+  //  Vídeo sob demanda: o poster é a primeira pintura; o MP4 (7 MB) só é
+  //  baixado e reproduzido após a primeira interação real do utilizador
+  //  (nunca em agentes automatizados nem com economia de dados / 2G).
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
     const video = videoRef.current;
-    if (mediaType === 'video' && video) {
+    if (mediaType !== 'video' || !video) return;
+    if (isConstrainedConnection()) return;
+
+    let removeListeners = () => {};
+    const cancelStart = onFirstInteraction(() => {
       video.defaultMuted = true;
       video.muted = true;
       video.playsInline = true;
       video.playbackRate = 1.0;
+      video.preload = 'auto';
 
       const attemptPlay = () => {
         const playPromise = video.play();
@@ -57,24 +65,22 @@ const ScrollExpandMedia = ({
         }
       };
 
-      if (video.readyState >= 2) {
-        attemptPlay();
-      } else {
-        video.addEventListener('canplay', attemptPlay, { once: true });
-        video.addEventListener('loadeddata', attemptPlay, { once: true });
-      }
-
       // Reinício imediato do loop para evitar micro-pausas no final
       const handleEnded = () => {
         video.currentTime = 0;
         video.play().catch(() => {});
       };
       video.addEventListener('ended', handleEnded);
+      removeListeners = () => video.removeEventListener('ended', handleEnded);
 
-      return () => {
-        video.removeEventListener('ended', handleEnded);
-      };
-    }
+      // play() com preload="none" inicia o download
+      attemptPlay();
+    });
+
+    return () => {
+      cancelStart();
+      removeListeners();
+    };
   }, [mediaType, mediaSrc]);
 
   // ═══════════════════════════════════════════════════════════
@@ -274,8 +280,7 @@ const ScrollExpandMedia = ({
                 poster={posterSrc}
                 muted
                 playsInline
-                preload="auto"
-                autoPlay
+                preload="none"
                 loop
                 controls={false}
                 disablePictureInPicture
