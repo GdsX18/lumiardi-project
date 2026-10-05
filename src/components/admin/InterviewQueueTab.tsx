@@ -37,8 +37,9 @@ export function InterviewQueueTab({
   // Um único aviso por vez: uma nova mensagem substitui a anterior (nada de alertas empilhados/duplicados)
   const [notice, setNotice] = useState<{ type: AdminNoticeType; message: string } | null>(null);
   const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
-  // Link do Google Meet por entrevista (vazio = GOOGLE_MEET_URL do .env)
+  // Link do Google Meet por entrevista (obrigatório para enviar o convite)
   const [meetLinks, setMeetLinks] = useState<Record<string, string>>({});
+  const [missingMeetId, setMissingMeetId] = useState<string | null>(null);
 
   // Modal de Recusa
   const [rejectingItem, setRejectingItem] = useState<CurationInterview | null>(null);
@@ -135,10 +136,17 @@ export function InterviewQueueTab({
 
   const handleSendEmailInvite = async (item: CurationInterview) => {
     if (sendingInviteId === item.id) return;
+
+    // Meet obrigatório: sem link/código o convite não é disparado
+    const meetLink = (meetLinks[item.id] || '').trim();
+    if (!meetLink) {
+      setMissingMeetId(item.id);
+      setNotice({ type: 'warning', message: 'Insira o link ou código do Google Meet para enviar o convite.' });
+      return;
+    }
+
     setSendingInviteId(item.id);
     try {
-      // Vazio = servidor usa GOOGLE_MEET_URL do .env
-      const meetLink = (meetLinks[item.id] || '').trim();
 
       // Send the email invite
       const res = await fetch('/api/admin/send-interview-invite', {
@@ -354,11 +362,22 @@ export function InterviewQueueTab({
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
+                      inputMode="url"
+                      autoComplete="off"
+                      spellCheck={false}
+                      required
                       value={meetLinks[item.id] || ''}
-                      onChange={(e) => setMeetLinks((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                      placeholder="Google Meet (vazio = padrão)"
-                      aria-label="Link do Google Meet"
-                      className="w-56 px-2.5 py-1.5 bg-[#1A1A1A] border border-white/10 focus:border-[#D4AF37] text-xs text-ivory placeholder:text-ivory/40 rounded focus:outline-none font-mono"
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setMeetLinks((prev) => ({ ...prev, [item.id]: value }));
+                        if (value.trim() && missingMeetId === item.id) setMissingMeetId(null);
+                      }}
+                      placeholder="Link ou código do Google Meet (obrigatório)"
+                      aria-label="Link do Google Meet (obrigatório)"
+                      aria-invalid={missingMeetId === item.id}
+                      className={`w-64 px-2.5 py-1.5 bg-[#1A1A1A] border text-xs text-ivory placeholder:text-ivory/40 rounded focus:outline-none font-mono select-text ${
+                        missingMeetId === item.id ? 'border-rose-500 focus:border-rose-400' : 'border-white/10 focus:border-[#D4AF37]'
+                      }`}
                     />
                     {/* Botão de Envio de Convite por E-mail */}
                     <button

@@ -20,13 +20,20 @@ export function ContentProtectionProvider({ children }: { children: React.ReactN
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // Campos editáveis ficam fora das proteções: colar/copiar/menu nativo precisam funcionar neles
+    const isEditableTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      (target.isContentEditable || !!target.closest('input, textarea, select, [contenteditable="true"]'));
+
     // --- 1. Bloqueio de clique direito ---
     const blockContextMenu = (e: MouseEvent) => {
+      if (isEditableTarget(e.target)) return;
       e.preventDefault();
     };
 
     // --- 2. Bloqueio de atalhos de teclado sensíveis ---
     const blockShortcuts = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
       const key = e.key;
       const ctrl = e.ctrlKey || e.metaKey;
       const shift = e.shiftKey;

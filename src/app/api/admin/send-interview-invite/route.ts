@@ -5,6 +5,24 @@ import { EmailService } from '@/lib/email';
 import { StorageService } from '@/services/storageService';
 import { AuditLogService } from '@/lib/audit/auditService';
 import { normalizeGoogleMeetUrl } from '@/lib/googleMeet';
+import { z } from 'zod';
+
+const MEET_REQUIRED_MSG = 'Insira o link ou código do Google Meet para enviar o convite.';
+const MEET_INVALID_MSG = 'Link do Google Meet inválido. Use https://meet.google.com/abc-defg-hij ou apenas o código.';
+
+// Meet obrigatório: string não vazia que precisa ser uma sala válida do Google Meet
+const meetLinkSchema = z
+  .string({ error: MEET_REQUIRED_MSG })
+  .trim()
+  .min(1, MEET_REQUIRED_MSG)
+  .transform((value, ctx) => {
+    const url = normalizeGoogleMeetUrl(value);
+    if (!url) {
+      ctx.addIssue({ code: 'custom', message: MEET_INVALID_MSG });
+      return z.NEVER;
+    }
+    return url;
+  });
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,31 +32,27 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // A candidata não tem conta na plataforma: o convite sempre aponta para o Google Meet.
+    // O link é obrigatório e informado pelo admin a cada envio — não existe Meet padrão.
+    const parsedMeet = meetLinkSchema.safeParse(body?.meetLink);
+    if (!parsedMeet.success) {
+      return NextResponse.json(
+        { success: false, error: parsedMeet.error.issues[0]?.message || MEET_REQUIRED_MSG },
+        { status: 400 }
+      );
+    }
+    const finalMeetLink = parsedMeet.data;
+
     const {
       interviewId,
       candidateId,
       userId,
       email,
       user_email,
-      meetLink,
       interviewDate: interviewDateParam,
       interviewTime: interviewTimeParam,
     } = body;
-
-    // A candidata não tem conta na plataforma: o convite sempre aponta para o Google Meet.
-    // Prioridade: link informado no modal do /admin > GOOGLE_MEET_URL do .env
-    const finalMeetLink = normalizeGoogleMeetUrl(meetLink) || normalizeGoogleMeetUrl(process.env.GOOGLE_MEET_URL);
-    if (!finalMeetLink) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: meetLink
-            ? 'Link do Google Meet inválido. Use https://meet.google.com/abc-defg-hij ou apenas o código.'
-            : 'Informe o link do Google Meet no modal ou configure GOOGLE_MEET_URL no .env.',
-        },
-        { status: 400 }
-      );
-    }
 
     const targetId = (interviewId || candidateId || userId || '').toString().trim();
     const targetEmail = (email || user_email || (targetId.includes('@') ? targetId : '')).toString().trim().toLowerCase();

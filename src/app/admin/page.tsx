@@ -147,6 +147,7 @@ export default function AdminDashboardPage() {
   // Estados de Envio de Convite e Notificações
   const [sendingInvite, setSendingInvite] = useState(false);
   const [meetLinkInput, setMeetLinkInput] = useState('');
+  const [meetLinkMissing, setMeetLinkMissing] = useState(false);
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
   const [inviteFeedback, setInviteFeedback] = useState<{
     type: 'success' | 'warning' | 'error';
@@ -163,11 +164,21 @@ export default function AdminDashboardPage() {
 
   const handleSendEmailInviteFromAdmin = async (candidate: any) => {
     if (!candidate?.id || sendingInvite) return;
+
+    // Meet obrigatório: sem link/código o convite não é disparado
+    const meetLink = meetLinkInput.trim();
+    if (!meetLink) {
+      setMeetLinkMissing(true);
+      setInviteFeedback({
+        type: 'warning',
+        message: 'Insira o link ou código do Google Meet para enviar o convite.',
+      });
+      return;
+    }
+
     setSendingInvite(true);
     setInviteFeedback(null);
     try {
-      // Vazio = servidor usa GOOGLE_MEET_URL do .env
-      const meetLink = meetLinkInput.trim();
 
       const res = await fetch('/api/admin/send-interview-invite', {
         method: 'POST',
@@ -1073,14 +1084,31 @@ export default function AdminDashboardPage() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <input
-                        type="text"
-                        value={meetLinkInput}
-                        onChange={(e) => setMeetLinkInput(e.target.value)}
-                        placeholder="Link ou código do Google Meet (vazio = padrão)"
-                        aria-label="Link do Google Meet"
-                        className="w-full sm:w-72 px-3 py-2 bg-black/40 border border-sky-500/30 focus:border-sky-400 text-xs text-ivory placeholder:text-ivory/40 rounded-sm focus:outline-none font-mono"
-                      />
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="text"
+                          inputMode="url"
+                          autoComplete="off"
+                          spellCheck={false}
+                          required
+                          value={meetLinkInput}
+                          onChange={(e) => {
+                            setMeetLinkInput(e.target.value);
+                            if (e.target.value.trim()) setMeetLinkMissing(false);
+                          }}
+                          placeholder="Link ou código do Google Meet (obrigatório)"
+                          aria-label="Link do Google Meet (obrigatório)"
+                          aria-invalid={meetLinkMissing}
+                          className={`w-full sm:w-72 px-3 py-2 bg-black/40 border text-xs text-ivory placeholder:text-ivory/40 rounded-sm focus:outline-none font-mono select-text ${
+                            meetLinkMissing ? 'border-rose-500 focus:border-rose-400' : 'border-sky-500/30 focus:border-sky-400'
+                          }`}
+                        />
+                        {meetLinkMissing && (
+                          <span className="text-[11px] text-rose-400">
+                            Insira o link ou código do Google Meet para enviar o convite.
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={() => handleSendEmailInviteFromAdmin(selectedApp)}
                         disabled={sendingInvite}
