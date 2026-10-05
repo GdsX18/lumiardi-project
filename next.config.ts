@@ -5,9 +5,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
   experimental: {
-    // lucide-react e framer-motion já são otimizados por padrão; drei é um barrel com
-    // centenas de módulos e só usamos Float/Sparkles.
-    optimizePackageImports: ["@react-three/drei", "gsap"],
+    // lucide-react e framer-motion já são otimizados por padrão.
+    optimizePackageImports: ["gsap"],
   },
   productionBrowserSourceMaps: false,
   compiler: {

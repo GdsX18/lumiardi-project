@@ -4,7 +4,6 @@ import React, { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { LazyIconL3D } from '@/components/3d/LazyIconL3D';
 import { ShieldCheck, EyeOff, Flame, Award } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -117,7 +116,7 @@ export const BrandPillarsSection: React.FC = () => {
       className="w-full min-h-screen bg-[#F7F3EC] text-[#0B0B0B] py-28 md:py-40 relative overflow-hidden"
     >
       <div className="w-full max-w-[1920px] mx-auto px-6 md:px-16 lg:px-24">
-        {/* Editorial Header with Floating 3D Icon L */}
+        {/* Editorial Header with L monogram */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-24">
           <div className="lg:col-span-8 space-y-6">
             <span className="text-xs uppercase tracking-[0.35em] text-[#A97745] font-sans font-medium block">
@@ -134,9 +133,14 @@ export const BrandPillarsSection: React.FC = () => {
             </p>
           </div>
 
-          {/* 3D Icon L Floating Element */}
-          <div className="lg:col-span-4 flex justify-center lg:justify-end">
-            <LazyIconL3D className="w-56 h-56 md:w-72 md:h-72" />
+          {/* Monograma L estático (sem WebGL) */}
+          <div className="lg:col-span-4 hidden lg:flex justify-end" aria-hidden="true">
+            <div className="relative w-56 h-56 xl:w-64 xl:h-64 flex items-center justify-center border border-[#C9A96B]/40">
+              <div className="absolute inset-3 border border-[#C9A96B]/20" />
+              <span className="font-serif-lumiardi text-[9rem] xl:text-[11rem] font-light leading-none bg-gradient-to-b from-[#C9A96B] via-[#A97745] to-[#8C6B2F] bg-clip-text text-transparent select-none">
+                L
+              </span>
+            </div>
           </div>
         </div>
 

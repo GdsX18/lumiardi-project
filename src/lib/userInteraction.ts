@@ -1,5 +1,5 @@
 /**
- * Gate de "primeira interação real" para recursos pesados (WebGL, three.js, vídeo do hero).
+ * Gate de "primeira interação real" para recursos pesados (shader WebGL, vídeo do hero).
  *
  * Auditorias (Lighthouse/PageSpeed) e crawlers rodam em Chromium headless sem GPU: lá o WebGL
  * é emulado na CPU e cada frame vira long task. Em agentes automatizados os callbacks nunca
