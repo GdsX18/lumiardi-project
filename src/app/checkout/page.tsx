@@ -83,6 +83,8 @@ function CheckoutContent() {
     paymentId: string;
   } | null>(null);
   const [isLoadingPix, setIsLoadingPix] = useState(false);
+  const [pixError, setPixError] = useState<{ code?: string; error?: string } | null>(null);
+  const [pixAttempt, setPixAttempt] = useState(0);
   const [cryptoData, setCryptoData] = useState<{
     payAddress: string;
     payAmount: number;
@@ -252,6 +254,8 @@ function CheckoutContent() {
     let isMounted = true;
     const loadAsaasPix = async () => {
       setIsLoadingPix(true);
+      setPixError(null);
+      setPixData(null);
       try {
         const res = await fetch('/api/checkout/create-session', {
           method: 'POST',
@@ -268,18 +272,20 @@ function CheckoutContent() {
           }),
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data.pixDetails) {
-            setPixData({
-              qrCodeUrl: data.pixDetails.encodedImage,
-              copiaECola: data.pixDetails.payload,
-              paymentId: data.pixDetails.paymentId,
-            });
-          }
+        const data = await res.json().catch(() => ({}));
+        if (!isMounted) return;
+        if (res.ok && data.pixDetails?.payload && data.pixDetails?.encodedImage) {
+          setPixData({
+            qrCodeUrl: data.pixDetails.encodedImage,
+            copiaECola: data.pixDetails.payload,
+            paymentId: data.pixDetails.paymentId,
+          });
+        } else {
+          setPixError({ code: data.code, error: data.error });
         }
       } catch (err) {
         console.warn('[Checkout] Erro ao carregar Pix dinâmico Asaas:', err);
+        if (isMounted) setPixError({});
       } finally {
         if (isMounted) setIsLoadingPix(false);
       }
@@ -289,12 +295,14 @@ function CheckoutContent() {
     return () => {
       isMounted = false;
     };
-  }, [gateway, currency, selectedPlanId, billingInterval, currentUser, appliedCoupon]);
+  }, [gateway, currency, selectedPlanId, billingInterval, currentUser, appliedCoupon, pixAttempt]);
 
-  // Código Pix Copia e Cola Padrão Asaas / BACEN EMV
-  const fallbackPixCopiaECola = `00020126580014br.gov.bcb.pix0136pix@asaas.com.br520400005303986540${priceBRL.toFixed(2)}5802BR5916LUMIARDI PLATFORM6009SAO PAULO62070503***6304`;
-  const pixCopiaECola = pixData?.copiaECola || fallbackPixCopiaECola;
-  const pixQrCodeUrl = pixData?.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fallbackPixCopiaECola)}`;
+  // Só exibimos Pix emitido pelo Asaas para esta cobrança — nunca um código de fallback
+  const pixCopiaECola = pixData?.copiaECola || '';
+  // O Asaas devolve encodedImage como base64 puro (sem prefixo data:)
+  const rawPixImage = pixData?.qrCodeUrl || '';
+  const pixQrCodeUrl =
+    !rawPixImage || /^(https?:|data:)/.test(rawPixImage) ? rawPixImage : `data:image/png;base64,${rawPixImage}`;
 
   // Formatação de Número de Cartão
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -704,6 +712,20 @@ function CheckoutContent() {
                       </div>
                     ) : (
                       <div className="p-6 bg-[#121212] border border-[#D4AF37]/50 space-y-6 rounded-lg">
+                        {pixError && !isLoadingPix && (
+                          <div role="alert" className="p-4 bg-red-950/40 border border-red-500/40 rounded-xs space-y-3">
+                            <p className="text-xs text-red-200 leading-relaxed">{tApiError(pixError, 'pub_checkout_pix_failed')}</p>
+                            <button
+                              type="button"
+                              onClick={() => setPixAttempt((n) => n + 1)}
+                              className="px-4 py-2 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer rounded-xs"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>{t('pub_checkout_pix_retry')}</span>
+                            </button>
+                          </div>
+                        )}
+
                         <div className="flex flex-col sm:flex-row items-center gap-6">
                           {/* QR Code Pix */}
                           <div className="p-3 bg-white rounded-md shrink-0 shadow-2xl min-w-[160px] min-h-[160px] flex items-center justify-center">
@@ -738,18 +760,11 @@ function CheckoutContent() {
                                 <Zap className="w-3 h-3" /> {t('checkout_pix_bacen_approved')}
                               </span>
                             </div>
-
-                            <div>
-                              <span className="text-[10px] uppercase tracking-widest text-ivory/50 block font-sans">
-                                {t('checkout_pix_key_label')}
-                              </span>
-                              <div className="text-xs font-mono text-ivory font-bold bg-black/60 p-2 border border-white/10 rounded-xs truncate">
-                                noreply@lumiardi.com
-                              </div>
-                            </div>
                           </div>
                         </div>
 
+                        {pixData && (
+                        <>
                         {/* Caixa Copia e Cola */}
                         <div className="space-y-2">
                           <label className="text-[10px] uppercase tracking-widest text-ivory/60 block font-sans">
@@ -795,6 +810,8 @@ function CheckoutContent() {
                             </>
                           )}
                         </button>
+                        </>
+                        )}
                       </div>
                     )}
                   </div>

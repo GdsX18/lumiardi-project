@@ -196,7 +196,9 @@ async function handleEvent(
             billingType,
             event,
             paidAt: payment.clientPaymentDate || payment.paymentDate || new Date().toISOString(),
-            creditCard: payment.creditCard,
+            // Só bandeira e final do cartão; o creditCardToken nunca é persistido
+            cardBrand: payment.creditCard?.creditCardBrand,
+            cardLast4: payment.creditCard?.creditCardNumber,
           },
         });
 

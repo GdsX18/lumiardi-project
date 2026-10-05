@@ -5,6 +5,7 @@
  */
 
 import crypto from 'crypto';
+import { safeEqual } from '@/lib/security/secureCompare';
 import {
   PaymentGatewayService,
   PaymentGatewayType,
@@ -18,18 +19,26 @@ import { getPlan } from './plansConfig';
 export class NOWPaymentsAdapter implements PaymentGatewayService {
   public readonly gatewayName: PaymentGatewayType = 'nowpayments';
 
-  private readonly apiKey: string;
-  private readonly ipnSecret: string;
-  private readonly apiUrl: string;
-  private readonly isSandbox: boolean;
+  /** Lidos dinamicamente: sem chave/segredo configurado nada é aceito (sem defaults hardcoded) */
+  private get apiKey(): string {
+    return (process.env.NOWPAYMENTS_API_KEY || '').trim();
+  }
 
-  constructor() {
-    this.apiKey = process.env.NOWPAYMENTS_API_KEY || 'NOWPAYMENTS_SANDBOX_KEY';
-    this.ipnSecret = process.env.NOWPAYMENTS_IPN_SECRET || 'lumiardi_nowpayments_ipn_secret_2026';
-    this.isSandbox = process.env.NOWPAYMENTS_SANDBOX === 'true' || !process.env.NOWPAYMENTS_API_KEY;
-    this.apiUrl = this.isSandbox
-      ? 'https://api-sandbox.nowpayments.io/v1'
-      : 'https://api.nowpayments.io/v1';
+  private get ipnSecret(): string {
+    return (process.env.NOWPAYMENTS_IPN_SECRET || '').trim();
+  }
+
+  private get isSandbox(): boolean {
+    return process.env.NOWPAYMENTS_SANDBOX === 'true';
+  }
+
+  private get apiUrl(): string {
+    return this.isSandbox ? 'https://api-sandbox.nowpayments.io/v1' : 'https://api.nowpayments.io/v1';
+  }
+
+  /** Carteiras simuladas só fora de produção e sem chave real configurada */
+  private get mockAllowed(): boolean {
+    return process.env.NODE_ENV !== 'production' && !this.apiKey;
   }
 
   /**
@@ -69,64 +78,71 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const ipnCallbackUrl = `${appUrl}/api/webhooks/nowpayments`;
 
-    // 1. Modo de Produção / Integração com API NOWPayments
-    if (process.env.NOWPAYMENTS_API_KEY && process.env.NOWPAYMENTS_API_KEY !== 'NOWPAYMENTS_SANDBOX_KEY') {
-      try {
-        const response = await fetch(`${this.apiUrl}/payment`, {
-          method: 'POST',
-          headers: {
-            'x-api-key': this.apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            price_amount: priceUSD,
-            price_currency: 'usd',
-            pay_amount: priceUSD, // Para stablecoins como USDT/USDC
-            pay_currency: cryptoCurrency,
-            ipn_callback_url: ipnCallbackUrl,
-            order_id: orderId,
-            order_description: orderDescription,
-            case: 'success',
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-            data.pay_address
-          )}`;
-
-          return {
-            success: true,
-            gateway: 'nowpayments',
-            sessionId,
-            cryptoDetails: {
-              paymentId: data.payment_id || String(data.id),
-              payAddress: data.pay_address,
-              payAmount: data.pay_amount || priceUSD,
-              payCurrency: (data.pay_currency || cryptoCurrency).toUpperCase(),
-              priceAmount: priceUSD,
-              priceCurrency: 'USD',
-              qrCodeUrl,
-              expirationEstimate: '60 minutos',
-            },
-            orderSummary: {
-              planId: plan.id,
-              planName: plan.name,
-              category: plan.category,
-              interval: req.interval,
-              amount: priceUSD,
-              currency: 'USD',
-            },
-          };
-        }
-      } catch (err) {
-        console.warn('[NOWPayments] Falha ao contatar API remota, usando fallback seguro:', err);
+    // 1. Integração real com a API NOWPayments. Qualquer falha é propagada: nunca exibimos
+    //    um endereço que não foi emitido pelo gateway para esta cobrança.
+    if (!this.mockAllowed) {
+      if (!this.apiKey) {
+        throw new Error('NOWPAYMENTS_API_KEY não configurada.');
       }
+
+      const response = await fetch(`${this.apiUrl}/payment`, {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.apiKey,
+          'Content-Type': 'application/json',
+        },
+        // Sem pay_amount: o gateway converte price_amount (USD) para a moeda escolhida
+        body: JSON.stringify({
+          price_amount: priceUSD,
+          price_currency: 'usd',
+          pay_currency: cryptoCurrency,
+          ipn_callback_url: ipnCallbackUrl,
+          order_id: orderId,
+          order_description: orderDescription,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Falha ao criar pagamento NOWPayments: HTTP ${response.status} ${errText.slice(0, 300)}`);
+      }
+
+      const data = await response.json();
+      if (!data.pay_address || !data.pay_amount || !(data.payment_id || data.id)) {
+        throw new Error('Resposta NOWPayments sem endereço, valor ou payment_id.');
+      }
+
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+        data.pay_address
+      )}`;
+
+      return {
+        success: true,
+        gateway: 'nowpayments',
+        sessionId,
+        cryptoDetails: {
+          paymentId: String(data.payment_id || data.id),
+          payAddress: data.pay_address,
+          payAmount: Number(data.pay_amount),
+          payCurrency: (data.pay_currency || cryptoCurrency).toUpperCase(),
+          priceAmount: priceUSD,
+          priceCurrency: 'USD',
+          qrCodeUrl,
+          expirationEstimate: '60 minutos',
+        },
+        orderSummary: {
+          planId: plan.id,
+          planName: plan.name,
+          category: plan.category,
+          interval: req.interval,
+          amount: priceUSD,
+          currency: 'USD',
+        },
+      };
     }
 
-    // 2. Fallback Resiliente / Sandbox com Endereço USDT Dedicado e QR Code
-    // Garante que o ambiente de testes e desenvolvimento funcione instantaneamente
+    // 2. Simulação local (somente fora de produção e sem NOWPAYMENTS_API_KEY)
+    console.warn('[NOWPayments] Sem NOWPAYMENTS_API_KEY em ambiente de desenvolvimento: retornando carteira simulada.');
     const mockWalletAddress =
       cryptoCurrency.includes('trc')
         ? 'TLi9ArDi88xU7zP3mKvR9bQwRtY2479XpM'
@@ -171,44 +187,19 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
     headers: Record<string, string | string[] | undefined>
   ): Promise<boolean> {
     try {
-      const receivedSig =
-        headers['x-nowpayments-sig'] ||
-        headers['X-NOWPAYMENTS-SIG'] ||
-        headers['x-nowpayments-signature'];
+      const secret = this.ipnSecret;
+      const receivedSig = headers['x-nowpayments-sig'];
 
-      if (!receivedSig || typeof receivedSig !== 'string') {
-        // Em dev sem chave configurada, aceita para facilitar testes
-        if (process.env.NODE_ENV !== 'production') return true;
+      // Fail-closed em qualquer ambiente: sem segredo ou sem assinatura, nenhum IPN é aceito
+      if (!secret || !receivedSig || typeof receivedSig !== 'string') {
         return false;
       }
 
       const parsed = JSON.parse(rawBody);
-      const sortedPayload = this.sortObjectKeys(parsed);
-      const jsonString = JSON.stringify(sortedPayload);
+      const jsonString = JSON.stringify(this.sortObjectKeys(parsed));
+      const calculatedSig = crypto.createHmac('sha512', secret).update(jsonString).digest('hex');
 
-      // Validação com a chave secreta principal e variações visuais seguras de tipografia
-      const secretCandidates = [
-        this.ipnSecret,
-        this.ipnSecret.replace(/^UpI3/, 'Upl3'),
-        this.ipnSecret.replace(/^Upl3/, 'UpI3'),
-        this.ipnSecret.replace(/s8$/, 'S8'),
-        this.ipnSecret.replace(/S8$/, 's8'),
-        this.ipnSecret.replace(/Os8$/, '0s8'),
-        this.ipnSecret.replace(/OS8$/, '0S8'),
-        this.ipnSecret.replace(/HOS8$/, 'HOs8'),
-        this.ipnSecret.replace(/HOs8$/, 'HOS8'),
-      ].filter(Boolean);
-
-      for (const secret of Array.from(new Set(secretCandidates))) {
-        const hmac = crypto.createHmac('sha512', secret);
-        hmac.update(jsonString);
-        const calculatedSig = hmac.digest('hex');
-        if (calculatedSig.toLowerCase() === receivedSig.toLowerCase()) {
-          return true;
-        }
-      }
-
-      return false;
+      return safeEqual(calculatedSig, receivedSig.trim().toLowerCase());
     } catch (err) {
       console.error('[NOWPayments IPN] Erro ao validar assinatura HMAC:', err);
       return false;
@@ -279,8 +270,8 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
    * Polling / Consulta de status de pagamento específico
    */
   async getPaymentStatus(paymentId: string): Promise<string> {
-    if (!this.apiKey || this.apiKey === 'NOWPAYMENTS_SANDBOX_KEY') {
-      return 'finished';
+    if (!this.apiKey) {
+      return 'waiting';
     }
 
     try {
