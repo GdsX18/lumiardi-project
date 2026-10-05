@@ -4,7 +4,7 @@
  */
 
 import bcrypt from 'bcryptjs';
-import { pool, initDatabase, fallbackStore } from '@/lib/db';
+import { pool, initDatabase, fallbackStore, withTransaction } from '@/lib/db';
 import type { PoolClient } from 'pg';
 import { encryptTOTPSecret } from '@/lib/security/twoFactor';
 import {
@@ -33,29 +33,6 @@ export function isStrongPassword(password: unknown): password is string {
     /[A-Za-z]/.test(password) &&
     /\d/.test(password)
   );
-}
-
-/** Executa `fn` numa transação (BEGIN/COMMIT); qualquer erro faz ROLLBACK e é relançado. */
-async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  await initDatabase();
-  let client: PoolClient;
-  try {
-    client = await pool.connect();
-  } catch (err) {
-    console.error('[StorageService] Sem conexão com o banco para abrir transação:', err);
-    throw new Error('DATABASE_UNAVAILABLE');
-  }
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK').catch((rbErr) => console.error('[StorageService] Falha no ROLLBACK:', rbErr));
-    throw err;
-  } finally {
-    client.release();
-  }
 }
 
 export function getDirectConversationId(id1: string, id2: string): string {

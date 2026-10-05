@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BillingService } from '@/lib/payments/billingService';
+import { withTransaction } from '@/lib/db';
+import { cache } from '@/lib/cache';
 import { StorageService } from '@/services/storageService';
 import { getPlan } from '@/lib/payments/plansConfig';
-import { PlanId, BillingInterval, PaymentGatewayType } from '@/lib/payments/types';
+import { PlanId, BillingInterval, PaymentGatewayType, SubscriptionRecord } from '@/lib/payments/types';
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 import { asaasClient } from '@/lib/payments/asaasClient';
@@ -222,6 +224,8 @@ export async function POST(request: NextRequest) {
     if (!isPaid) {
       if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
       reservedCoupon = null;
+      // A cobrança já existe no Asaas: falhar aqui com 500 levaria a uma nova tentativa (cobrança dupla).
+      // O pré-registro é só auxiliar — o webhook PAYMENT_CONFIRMED cria tudo a partir da externalReference.
       await BillingService.recordTransaction({
         userId,
         gateway: 'asaas',
@@ -239,7 +243,7 @@ export async function POST(request: NextRequest) {
           couponCode: couponValidation?.code || null,
         },
         idempotencyKey: `confirm_${asaasPaymentId}`,
-      });
+      }).catch((err) => console.error('[Checkout Confirm] Falha ao pré-registrar cartão em análise:', asaasPaymentId, err));
       return NextResponse.json(
         {
           success: true,
@@ -255,56 +259,83 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3b. Pago: ativa assinatura, registra transação e libera o acesso
-    reservedCoupon = null; // uso do cupom efetivado
-    const subscription = await BillingService.createOrRenewSubscription({
-      userId,
-      gateway: 'asaas',
-      gatewaySubscriptionId: asaasPaymentId,
-      planId: plan.id,
-      planCategory: plan.category,
-      billingInterval,
-      amount: finalAmount,
-      currency: 'BRL',
-      metadata: {
-        paymentMethod: 'credit_card',
-        cardLast4,
-        paidAt: new Date().toISOString(),
-        asaasPaymentId,
-        couponCode: couponValidation?.code || undefined,
-        discountAmount: couponValidation?.discountAmount || undefined,
-      },
-    });
-
-    await BillingService.recordTransaction({
-      userId,
-      subscriptionId: subscription?.id,
-      gateway: 'asaas',
-      gatewayTransactionId: asaasPaymentId,
-      amount: finalAmount,
-      currency: 'BRL',
-      status: 'success',
-      paymentMethod: 'credit_card',
-      rawPayload: {
-        planId: plan.id,
-        planName: plan.name,
-        billingInterval,
-        paidAt: new Date().toISOString(),
-        asaasPaymentId,
-        couponCode: couponValidation?.code || null,
-        discountAmount: couponValidation?.discountAmount || 0,
-        originalAmount: baseAmount,
-      },
-      idempotencyKey: `confirm_${asaasPaymentId}`,
-    });
-
-    let updatedSession: SessionUser | null = null;
+    // 3b. Pago: assinatura + fatura + transação + liberação do acesso numa única transação
+    let subscription: SubscriptionRecord;
     try {
-      await StorageService.updateCurationStatus(userId, 'APROVADO');
-      updatedSession = { ...session, curationStatus: 'APROVADO' };
+      subscription = await withTransaction(async (client) => {
+        const sub = await BillingService.createOrRenewSubscription({
+          userId,
+          gateway: 'asaas',
+          gatewaySubscriptionId: asaasPaymentId,
+          planId: plan.id,
+          planCategory: plan.category,
+          billingInterval,
+          amount: finalAmount,
+          currency: 'BRL',
+          metadata: {
+            paymentMethod: 'credit_card',
+            cardLast4,
+            paidAt: new Date().toISOString(),
+            asaasPaymentId,
+            couponCode: couponValidation?.code || undefined,
+            discountAmount: couponValidation?.discountAmount || undefined,
+          },
+        }, client);
+
+        await BillingService.recordTransaction({
+          userId,
+          subscriptionId: sub.id,
+          gateway: 'asaas',
+          gatewayTransactionId: asaasPaymentId,
+          amount: finalAmount,
+          currency: 'BRL',
+          status: 'success',
+          paymentMethod: 'credit_card',
+          rawPayload: {
+            planId: plan.id,
+            planName: plan.name,
+            billingInterval,
+            paidAt: new Date().toISOString(),
+            asaasPaymentId,
+            couponCode: couponValidation?.code || null,
+            discountAmount: couponValidation?.discountAmount || 0,
+            originalAmount: baseAmount,
+          },
+          idempotencyKey: `confirm_${asaasPaymentId}`,
+        }, client);
+
+        // Só promove quem a curadoria aprovou para pagamento (ou renovação de membro)
+        await client.query(
+          `UPDATE users SET curation_status = 'APROVADO', updated_at = NOW()
+           WHERE id = $1 AND curation_status IN ('APROVADA_PAGAMENTO', 'APROVADO')`,
+          [userId]
+        );
+        return sub;
+      });
     } catch (err) {
-      console.error('[Checkout Confirm] Erro ao promover status para APROVADO:', err);
+      // A cobrança foi APROVADA no Asaas: nunca responder 500 (a usuária tentaria pagar de novo).
+      // Nada foi gravado (ROLLBACK); o webhook PAYMENT_CONFIRMED ativa a assinatura e contabiliza
+      // o cupom pela externalReference, por isso a reserva é devolvida (evita contagem dupla).
+      console.error('[Checkout Confirm CRITICAL] Cobrança aprovada mas ativação falhou; aguardando webhook:', asaasPaymentId, err);
+      if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
+      reservedCoupon = null;
+      return NextResponse.json(
+        {
+          success: true,
+          pending: true,
+          code: 'payment_processing',
+          paymentId: asaasPaymentId,
+          amountPaid: finalAmount,
+          currency: 'BRL',
+          planName: plan.name,
+          message: 'Pagamento aprovado. Estamos concluindo a ativação e seu acesso será liberado automaticamente em instantes.',
+        },
+        { status: 202 }
+      );
     }
+    reservedCoupon = null; // uso do cupom efetivado junto com a ativação
+    await cache.delete(`sub:${userId}`).catch(() => {});
+    const updatedSession: SessionUser = { ...session, curationStatus: 'APROVADO' };
 
     try {
       await StorageService.createNotification({
@@ -333,9 +364,7 @@ export async function POST(request: NextRequest) {
       message: 'Pagamento confirmado com sucesso. Seu acesso ao ecossistema Lumiardi está liberado!',
     });
 
-    if (updatedSession) {
-      setSessionCookie(response, updatedSession);
-    }
+    setSessionCookie(response, updatedSession);
 
     return response;
   } catch (err: unknown) {

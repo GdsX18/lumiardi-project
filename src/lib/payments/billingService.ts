@@ -4,7 +4,9 @@
  * cálculo de limites de tiers e emissão de faturas.
  */
 
-import { pool, initDatabase, fallbackStore } from '@/lib/db';
+import crypto from 'crypto';
+import type { PoolClient } from 'pg';
+import { pool, initDatabase } from '@/lib/db';
 import {
   SubscriptionRecord,
   TransactionRecord,
@@ -19,9 +21,38 @@ import {
 import { getPlan } from './plansConfig';
 import { cache } from '@/lib/cache';
 
+/**
+ * Executor de queries: o pool (operação isolada) ou o client de uma transação aberta
+ * com withTransaction (escritas atômicas). Falhas de banco SEMPRE são propagadas — sem
+ * fallback em memória — para que webhooks respondam 500 e o gateway reenvie o evento.
+ */
+export type DbExecutor = typeof pool | PoolClient;
+
+function randomSuffix(bytes = 4): string {
+  return crypto.randomBytes(bytes).toString('hex');
+}
+
+function mapInvoiceRow(r: Record<string, any>): InvoiceRecord {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    subscriptionId: r.subscription_id,
+    invoiceNumber: r.invoice_number,
+    amount: Number(r.amount),
+    currency: r.currency,
+    status: r.status,
+    billingReason: r.billing_reason,
+    dueDate: r.due_date,
+    paidAt: r.paid_at,
+    receiptNumber: r.receipt_number,
+    pdfUrl: r.pdf_url,
+    createdAt: r.created_at,
+  };
+}
+
 export const BillingService = {
   /**
-   * Obtém a assinatura ativa do usuário (com cache integrado)
+   * Obtém a assinatura mais recente do usuário (com cache integrado)
    */
   async getUserSubscription(userId: string): Promise<SubscriptionRecord | null> {
     const cacheKey = `sub:${userId}`;
@@ -30,62 +61,32 @@ export const BillingService = {
       async () => {
         await initDatabase();
 
-        try {
-          const res = await pool.query(
-            'SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
-            [userId]
-          );
+        const res = await pool.query(
+          'SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+          [userId]
+        );
+        if (res.rows.length === 0) return null;
 
-          if (res.rows.length > 0) {
-            const r = res.rows[0];
-            return {
-              id: r.id,
-              userId: r.user_id,
-              gateway: r.gateway,
-              gatewaySubscriptionId: r.gateway_subscription_id,
-              gatewayCustomerId: r.gateway_customer_id,
-              planId: r.plan_id,
-              planCategory: r.plan_category,
-              status: r.status,
-              billingInterval: r.billing_interval,
-              amount: Number(r.amount),
-              currency: r.currency,
-              currentPeriodStart: r.current_period_start,
-              currentPeriodEnd: r.current_period_end,
-              cancelAtPeriodEnd: r.cancel_at_period_end,
-              metadata: r.metadata,
-              createdAt: r.created_at,
-              updatedAt: r.updated_at,
-            };
-          }
-        } catch {
-          // Fallback
-        }
-
-        const fallback = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
-        if (fallback) {
-          return {
-            id: fallback.id,
-            userId: fallback.user_id || fallback.userId,
-            gateway: fallback.gateway,
-            gatewaySubscriptionId: fallback.gateway_subscription_id || fallback.gatewaySubscriptionId,
-            gatewayCustomerId: fallback.gateway_customer_id || fallback.gatewayCustomerId,
-            planId: fallback.plan_id || fallback.planId,
-            planCategory: fallback.plan_category || fallback.planCategory,
-            status: fallback.status,
-            billingInterval: fallback.billing_interval || fallback.billingInterval,
-            amount: Number(fallback.amount),
-            currency: fallback.currency,
-            currentPeriodStart: fallback.current_period_start || fallback.currentPeriodStart,
-            currentPeriodEnd: fallback.current_period_end || fallback.currentPeriodEnd,
-            cancelAtPeriodEnd: Boolean(fallback.cancel_at_period_end ?? fallback.cancelAtPeriodEnd),
-            metadata: fallback.metadata,
-            createdAt: fallback.created_at || fallback.createdAt,
-            updatedAt: fallback.updated_at || fallback.updatedAt,
-          };
-        }
-
-        return null;
+        const r = res.rows[0];
+        return {
+          id: r.id,
+          userId: r.user_id,
+          gateway: r.gateway,
+          gatewaySubscriptionId: r.gateway_subscription_id,
+          gatewayCustomerId: r.gateway_customer_id,
+          planId: r.plan_id,
+          planCategory: r.plan_category,
+          status: r.status,
+          billingInterval: r.billing_interval,
+          amount: Number(r.amount),
+          currency: r.currency,
+          currentPeriodStart: r.current_period_start,
+          currentPeriodEnd: r.current_period_end,
+          cancelAtPeriodEnd: r.cancel_at_period_end,
+          metadata: r.metadata,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        };
       },
       60,
       ['billing', `user:${userId}`]
@@ -93,23 +94,27 @@ export const BillingService = {
   },
 
   /**
-   * Criação ou renovação atômica de assinatura
+   * Criação de assinatura + fatura. Passe o client de withTransaction para que ambas
+   * sejam gravadas atomicamente junto com as demais escritas do pagamento.
    */
-  async createOrRenewSubscription(params: {
-    userId: string;
-    gateway: PaymentGatewayType;
-    gatewaySubscriptionId?: string;
-    gatewayCustomerId?: string;
-    planId: PlanId;
-    planCategory: PlanCategory;
-    billingInterval: BillingInterval;
-    amount: number;
-    currency: 'BRL' | 'USD';
-    metadata?: Record<string, unknown>;
-  }): Promise<SubscriptionRecord> {
+  async createOrRenewSubscription(
+    params: {
+      userId: string;
+      gateway: PaymentGatewayType;
+      gatewaySubscriptionId?: string;
+      gatewayCustomerId?: string;
+      planId: PlanId;
+      planCategory: PlanCategory;
+      billingInterval: BillingInterval;
+      amount: number;
+      currency: 'BRL' | 'USD';
+      metadata?: Record<string, unknown>;
+    },
+    db: DbExecutor = pool
+  ): Promise<SubscriptionRecord> {
     await initDatabase();
 
-    const id = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const id = `sub_${Date.now()}_${randomSuffix()}`;
     const now = new Date();
     const periodDays = params.billingInterval === 'yearly' ? 365 : 30;
     const periodEnd = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000);
@@ -134,94 +139,75 @@ export const BillingService = {
       updatedAt: now.toISOString(),
     };
 
-    try {
-      await pool.query(
-        `INSERT INTO subscriptions (
-          id, user_id, gateway, gateway_subscription_id, gateway_customer_id,
-          plan_id, plan_category, status, billing_interval, amount, currency,
-          current_period_start, current_period_end, cancel_at_period_end, metadata, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        ON CONFLICT (id) DO NOTHING`,
-        [
-          record.id,
-          record.userId,
-          record.gateway,
-          record.gatewaySubscriptionId,
-          record.gatewayCustomerId,
-          record.planId,
-          record.planCategory,
-          record.status,
-          record.billingInterval,
-          record.amount,
-          record.currency,
-          record.currentPeriodStart,
-          record.currentPeriodEnd,
-          record.cancelAtPeriodEnd,
-          JSON.stringify(record.metadata),
-          record.createdAt,
-          record.updatedAt,
-        ]
-      );
-    } catch (err) {
-      console.error('[BillingService createOrRenewSubscription DB ERROR]:', err);
-    }
+    await db.query(
+      `INSERT INTO subscriptions (
+        id, user_id, gateway, gateway_subscription_id, gateway_customer_id,
+        plan_id, plan_category, status, billing_interval, amount, currency,
+        current_period_start, current_period_end, cancel_at_period_end, metadata, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+      [
+        record.id,
+        record.userId,
+        record.gateway,
+        record.gatewaySubscriptionId,
+        record.gatewayCustomerId,
+        record.planId,
+        record.planCategory,
+        record.status,
+        record.billingInterval,
+        record.amount,
+        record.currency,
+        record.currentPeriodStart,
+        record.currentPeriodEnd,
+        record.cancelAtPeriodEnd,
+        JSON.stringify(record.metadata),
+        record.createdAt,
+        record.updatedAt,
+      ]
+    );
 
-    // Salva no fallbackStore
-    fallbackStore.subscriptions.set(params.userId, {
-      ...record,
-      user_id: record.userId,
-      gateway_subscription_id: record.gatewaySubscriptionId,
-      gateway_customer_id: record.gatewayCustomerId,
-      plan_id: record.planId,
-      plan_category: record.planCategory,
-      billing_interval: record.billingInterval,
-      current_period_start: record.currentPeriodStart,
-      current_period_end: record.currentPeriodEnd,
-      cancel_at_period_end: record.cancelAtPeriodEnd,
-      created_at: record.createdAt,
-      updated_at: record.updatedAt,
-    });
+    await this.generateInvoice(
+      {
+        userId: params.userId,
+        subscriptionId: record.id,
+        amount: params.amount,
+        currency: params.currency,
+        billingReason: `Assinatura Plano ${getPlan(params.planId).name} (${params.billingInterval === 'yearly' ? 'Anual' : 'Mensal'})`,
+      },
+      db
+    );
 
-    // Invalida cache
+    // Dentro de transação, quem chama também deve invalidar o cache após o COMMIT
     await cache.delete(`sub:${params.userId}`);
-
-    // Emite fatura automática correspondente
-    await this.generateInvoice({
-      userId: params.userId,
-      subscriptionId: record.id,
-      amount: params.amount,
-      currency: params.currency,
-      billingReason: `Assinatura Plano ${getPlan(params.planId).name} (${params.billingInterval === 'yearly' ? 'Anual' : 'Mensal'})`,
-    });
 
     return record;
   },
 
   /**
-   * Registra transação de pagamento com garantia de idempotência
+   * Registra transação de pagamento com garantia de idempotência (UNIQUE idempotency_key)
    */
-  async recordTransaction(params: {
-    userId: string;
-    subscriptionId?: string;
-    gateway: PaymentGatewayType;
-    gatewayTransactionId: string;
-    amount: number;
-    currency: string;
-    status: TransactionStatus;
-    paymentMethod: 'credit_card' | 'crypto' | 'pix';
-    cryptoAddress?: string;
-    cryptoAmount?: number;
-    cryptoCurrency?: string;
-    rawPayload?: Record<string, unknown>;
-    idempotencyKey?: string;
-  }): Promise<TransactionRecord> {
+  async recordTransaction(
+    params: {
+      userId: string;
+      subscriptionId?: string;
+      gateway: PaymentGatewayType;
+      gatewayTransactionId: string;
+      amount: number;
+      currency: string;
+      status: TransactionStatus;
+      paymentMethod: 'credit_card' | 'crypto' | 'pix';
+      cryptoAddress?: string;
+      cryptoAmount?: number;
+      cryptoCurrency?: string;
+      rawPayload?: Record<string, unknown>;
+      idempotencyKey?: string;
+    },
+    db: DbExecutor = pool
+  ): Promise<TransactionRecord> {
     await initDatabase();
 
-    const id = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const now = new Date().toISOString();
-
     const record: TransactionRecord = {
-      id,
+      id: `tx_${Date.now()}_${randomSuffix()}`,
       userId: params.userId,
       subscriptionId: params.subscriptionId,
       gateway: params.gateway,
@@ -235,58 +221,58 @@ export const BillingService = {
       cryptoCurrency: params.cryptoCurrency,
       rawPayload: params.rawPayload,
       idempotencyKey: params.idempotencyKey || `${params.gateway}_${params.gatewayTransactionId}`,
-      createdAt: now,
+      createdAt: new Date().toISOString(),
     };
 
-    try {
-      await pool.query(
-        `INSERT INTO payment_transactions (
-          id, user_id, subscription_id, gateway, gateway_transaction_id,
-          amount, currency, status, payment_method, crypto_address, crypto_amount,
-          crypto_currency, raw_payload, idempotency_key, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        ON CONFLICT (idempotency_key) DO NOTHING`,
-        [
-          record.id,
-          record.userId,
-          record.subscriptionId,
-          record.gateway,
-          record.gatewayTransactionId,
-          record.amount,
-          record.currency,
-          record.status,
-          record.paymentMethod,
-          record.cryptoAddress,
-          record.cryptoAmount,
-          record.cryptoCurrency,
-          JSON.stringify(record.rawPayload),
-          record.idempotencyKey,
-          record.createdAt,
-        ]
-      );
-    } catch {
-      // Fallback
-    }
+    await db.query(
+      `INSERT INTO payment_transactions (
+        id, user_id, subscription_id, gateway, gateway_transaction_id,
+        amount, currency, status, payment_method, crypto_address, crypto_amount,
+        crypto_currency, raw_payload, idempotency_key, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ON CONFLICT (idempotency_key) DO NOTHING`,
+      [
+        record.id,
+        record.userId,
+        record.subscriptionId,
+        record.gateway,
+        record.gatewayTransactionId,
+        record.amount,
+        record.currency,
+        record.status,
+        record.paymentMethod,
+        record.cryptoAddress,
+        record.cryptoAmount,
+        record.cryptoCurrency,
+        JSON.stringify(record.rawPayload),
+        record.idempotencyKey,
+        record.createdAt,
+      ]
+    );
 
-    fallbackStore.payment_transactions.set(record.id, record as unknown as Record<string, unknown>);
     return record;
   },
 
   /**
-   * Emite fatura fiscal e gera número de recibo com hash de integridade
+   * Emite fatura e gera número de recibo
    */
-  async generateInvoice(params: {
-    userId: string;
-    subscriptionId?: string;
-    amount: number;
-    currency: string;
-    billingReason: string;
-  }): Promise<InvoiceRecord> {
+  async generateInvoice(
+    params: {
+      userId: string;
+      subscriptionId?: string;
+      amount: number;
+      currency: string;
+      billingReason: string;
+    },
+    db: DbExecutor = pool
+  ): Promise<InvoiceRecord> {
     await initDatabase();
 
-    const id = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const invoiceNumber = `LUM-INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const receiptNumber = `LMI-REC-${Math.floor(100000 + Math.random() * 900000)}`;
+    const id = `inv_${Date.now()}_${randomSuffix()}`;
+    // invoice_number é UNIQUE: sufixo criptográfico de 32 bits (o antigo de 4 dígitos colidia
+    // e, agora que erros de banco são propagados, derrubaria o pagamento inteiro)
+    const invoiceNumber = `LUM-INV-${new Date().getFullYear()}-${randomSuffix().toUpperCase()}`;
+    const receiptNumber = `LMI-REC-${randomSuffix(5).toUpperCase()}`;
     const now = new Date().toISOString();
 
     const record: InvoiceRecord = {
@@ -305,34 +291,28 @@ export const BillingService = {
       createdAt: now,
     };
 
-    try {
-      await pool.query(
-        `INSERT INTO invoices (
-          id, user_id, subscription_id, invoice_number, amount, currency,
-          status, billing_reason, due_date, paid_at, receipt_number, pdf_url, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        ON CONFLICT (id) DO NOTHING`,
-        [
-          record.id,
-          record.userId,
-          record.subscriptionId,
-          record.invoiceNumber,
-          record.amount,
-          record.currency,
-          record.status,
-          record.billingReason,
-          record.dueDate,
-          record.paidAt,
-          record.receiptNumber,
-          record.pdfUrl,
-          record.createdAt,
-        ]
-      );
-    } catch (err) {
-      console.error('[BillingService generateInvoice DB ERROR]:', err);
-    }
+    await db.query(
+      `INSERT INTO invoices (
+        id, user_id, subscription_id, invoice_number, amount, currency,
+        status, billing_reason, due_date, paid_at, receipt_number, pdf_url, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        record.id,
+        record.userId,
+        record.subscriptionId,
+        record.invoiceNumber,
+        record.amount,
+        record.currency,
+        record.status,
+        record.billingReason,
+        record.dueDate,
+        record.paidAt,
+        record.receiptNumber,
+        record.pdfUrl,
+        record.createdAt,
+      ]
+    );
 
-    fallbackStore.invoices.set(id, record as unknown as Record<string, unknown>);
     return record;
   },
 
@@ -341,57 +321,8 @@ export const BillingService = {
    */
   async getUserInvoices(userId: string): Promise<InvoiceRecord[]> {
     await initDatabase();
-
-    try {
-      const res = await pool.query(
-        'SELECT * FROM invoices WHERE user_id = $1 ORDER BY created_at DESC',
-        [userId]
-      );
-
-      if (res.rows.length > 0) {
-        return res.rows.map((r) => ({
-          id: r.id,
-          userId: r.user_id,
-          subscriptionId: r.subscription_id,
-          invoiceNumber: r.invoice_number,
-          amount: Number(r.amount),
-          currency: r.currency,
-          status: r.status,
-          billingReason: r.billing_reason,
-          dueDate: r.due_date,
-          paidAt: r.paid_at,
-          receiptNumber: r.receipt_number,
-          pdfUrl: r.pdf_url,
-          createdAt: r.created_at,
-        }));
-      }
-    } catch {
-      // Fallback
-    }
-
-    const invoices: InvoiceRecord[] = [];
-    for (const rawInv of fallbackStore.invoices.values()) {
-      const inv = rawInv as Record<string, any>;
-      if (inv.user_id === userId || inv.userId === userId) {
-        invoices.push({
-          id: inv.id,
-          userId: inv.user_id || inv.userId,
-          subscriptionId: inv.subscription_id || inv.subscriptionId,
-          invoiceNumber: inv.invoice_number || inv.invoiceNumber,
-          amount: Number(inv.amount),
-          currency: inv.currency,
-          status: inv.status,
-          billingReason: inv.billing_reason || inv.billingReason,
-          dueDate: inv.due_date || inv.dueDate,
-          paidAt: inv.paid_at || inv.paidAt,
-          receiptNumber: inv.receipt_number || inv.receiptNumber,
-          pdfUrl: inv.pdf_url || inv.pdfUrl,
-          createdAt: inv.created_at || inv.createdAt,
-        });
-      }
-    }
-
-    return invoices.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const res = await pool.query('SELECT * FROM invoices WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    return res.rows.map(mapInvoiceRow);
   },
 
   /**
@@ -399,53 +330,8 @@ export const BillingService = {
    */
   async getInvoiceById(invoiceId: string): Promise<InvoiceRecord | null> {
     await initDatabase();
-
-    try {
-      const res = await pool.query(
-        'SELECT * FROM invoices WHERE id = $1 LIMIT 1',
-        [invoiceId]
-      );
-
-      if (res.rows.length > 0) {
-        const r = res.rows[0];
-        return {
-          id: r.id,
-          userId: r.user_id,
-          subscriptionId: r.subscription_id,
-          invoiceNumber: r.invoice_number,
-          amount: Number(r.amount),
-          currency: r.currency,
-          status: r.status,
-          billingReason: r.billing_reason,
-          dueDate: r.due_date,
-          paidAt: r.paid_at,
-          receiptNumber: r.receipt_number,
-          pdfUrl: r.pdf_url,
-          createdAt: r.created_at,
-        };
-      }
-    } catch {
-      // Fallback
-    }
-
-    const raw = fallbackStore.invoices.get(invoiceId);
-    if (!raw) return null;
-    const inv = raw as Record<string, any>;
-    return {
-      id: inv.id,
-      userId: inv.user_id || inv.userId,
-      subscriptionId: inv.subscription_id || inv.subscriptionId,
-      invoiceNumber: inv.invoice_number || inv.invoiceNumber,
-      amount: Number(inv.amount),
-      currency: inv.currency,
-      status: inv.status,
-      billingReason: inv.billing_reason || inv.billingReason,
-      dueDate: inv.due_date || inv.dueDate,
-      paidAt: inv.paid_at || inv.paidAt,
-      receiptNumber: inv.receipt_number || inv.receiptNumber,
-      pdfUrl: inv.pdf_url || inv.pdfUrl,
-      createdAt: inv.created_at || inv.createdAt,
-    };
+    const res = await pool.query('SELECT * FROM invoices WHERE id = $1 LIMIT 1', [invoiceId]);
+    return res.rows.length > 0 ? mapInvoiceRow(res.rows[0]) : null;
   },
 
   /**
@@ -453,53 +339,23 @@ export const BillingService = {
    */
   async getUserPayouts(userId: string): Promise<PayoutRecord[]> {
     await initDatabase();
-
-    try {
-      const res = await pool.query(
-        'SELECT * FROM payouts WHERE creator_id = $1 OR agency_id = $1 ORDER BY created_at DESC',
-        [userId]
-      );
-
-      if (res.rows.length > 0) {
-        return res.rows.map((r) => ({
-          id: r.id,
-          creatorId: r.creator_id,
-          agencyId: r.agency_id,
-          amount: Number(r.amount),
-          currency: r.currency,
-          status: r.status,
-          payoutMethod: r.payout_method,
-          gatewayReference: r.gateway_reference,
-          description: r.description,
-          createdAt: r.created_at,
-          paidAt: r.paid_at,
-        }));
-      }
-    } catch {
-      // Fallback
-    }
-
-    const payouts: PayoutRecord[] = [];
-    for (const rawP of fallbackStore.payouts.values()) {
-      const p = rawP as Record<string, any>;
-      if (p.creator_id === userId || p.agency_id === userId || p.creatorId === userId) {
-        payouts.push({
-          id: p.id,
-          creatorId: p.creator_id || p.creatorId,
-          agencyId: p.agency_id || p.agencyId,
-          amount: Number(p.amount),
-          currency: p.currency,
-          status: p.status,
-          payoutMethod: p.payout_method || p.payoutMethod,
-          gatewayReference: p.gateway_reference || p.gatewayReference,
-          description: p.description,
-          createdAt: p.created_at || p.createdAt,
-          paidAt: p.paid_at || p.paidAt,
-        });
-      }
-    }
-
-    return payouts;
+    const res = await pool.query(
+      'SELECT * FROM payouts WHERE creator_id = $1 OR agency_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      creatorId: r.creator_id,
+      agencyId: r.agency_id,
+      amount: Number(r.amount),
+      currency: r.currency,
+      status: r.status,
+      payoutMethod: r.payout_method,
+      gatewayReference: r.gateway_reference,
+      description: r.description,
+      createdAt: r.created_at,
+      paidAt: r.paid_at,
+    }));
   },
 
   /**
@@ -507,23 +363,10 @@ export const BillingService = {
    */
   async cancelSubscription(userId: string): Promise<boolean> {
     await initDatabase();
-
-    try {
-      await pool.query(
-        'UPDATE subscriptions SET cancel_at_period_end = TRUE, updated_at = NOW() WHERE user_id = $1 AND status = $2',
-        [userId, 'active']
-      );
-    } catch {
-      // Fallback
-    }
-
-    const sub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
-    if (sub) {
-      sub.cancel_at_period_end = true;
-      sub.cancelAtPeriodEnd = true;
-      fallbackStore.subscriptions.set(userId, sub);
-    }
-
+    await pool.query(
+      'UPDATE subscriptions SET cancel_at_period_end = TRUE, updated_at = NOW() WHERE user_id = $1 AND status = $2',
+      [userId, 'active']
+    );
     await cache.delete(`sub:${userId}`);
     return true;
   },
@@ -533,23 +376,10 @@ export const BillingService = {
    */
   async reactivateSubscription(userId: string): Promise<boolean> {
     await initDatabase();
-
-    try {
-      await pool.query(
-        'UPDATE subscriptions SET cancel_at_period_end = FALSE, updated_at = NOW() WHERE user_id = $1 AND status = $2',
-        [userId, 'active']
-      );
-    } catch {
-      // Fallback
-    }
-
-    const sub = fallbackStore.subscriptions.get(userId) as Record<string, any> | undefined;
-    if (sub) {
-      sub.cancel_at_period_end = false;
-      sub.cancelAtPeriodEnd = false;
-      fallbackStore.subscriptions.set(userId, sub);
-    }
-
+    await pool.query(
+      'UPDATE subscriptions SET cancel_at_period_end = FALSE, updated_at = NOW() WHERE user_id = $1 AND status = $2',
+      [userId, 'active']
+    );
     await cache.delete(`sub:${userId}`);
     return true;
   },
@@ -574,7 +404,7 @@ export const BillingService = {
   }> {
     await initDatabase();
     const now = new Date().toISOString();
-    const refundCode = `REFUND-LUM-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const refundCode = `REFUND-LUM-${Date.now().toString(36).toUpperCase()}-${randomSuffix(2).toUpperCase()}`;
 
     const paidRes = await pool.query(
       `SELECT DISTINCT ON (gateway_transaction_id) gateway_transaction_id, gateway, amount, currency

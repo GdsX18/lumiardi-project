@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       pending: true,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao processar upgrade de plano';
-    console.error('[API Subscription Upgrade] Erro:', err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Detalhes (ex.: erros do PostgreSQL) ficam só no log do servidor
+    console.error('[API billing/subscription/upgrade] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao processar upgrade de plano' }, { status: 500 });
   }
 }

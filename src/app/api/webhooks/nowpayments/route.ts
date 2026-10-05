@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { paymentFactory } from '@/lib/payments/gatewayFactory';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
+import { withTransaction } from '@/lib/db';
+import { cache } from '@/lib/cache';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,41 +45,43 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'User ID missing in payload' }, { status: 400 });
       }
 
-      // Cria/Renova assinatura ativa
-      const sub = await BillingService.createOrRenewSubscription({
-        userId,
-        gateway: 'nowpayments',
-        gatewaySubscriptionId: result.subscriptionId,
-        planId: plan.id,
-        planCategory: plan.category,
-        billingInterval: isYearly ? 'yearly' : 'monthly',
-        amount: priceAmount,
-        currency: 'USD',
-        metadata: {
-          paymentId: result.transactionId,
-          cryptoCurrency: payCurrency,
-          cryptoAddress,
-          txHash,
-          orderId,
-        },
-      });
+      // Assinatura + fatura + transação numa única transação: falha => ROLLBACK e 500 (gateway reenvia)
+      await withTransaction(async (client) => {
+        const sub = await BillingService.createOrRenewSubscription({
+          userId,
+          gateway: 'nowpayments',
+          gatewaySubscriptionId: result.subscriptionId,
+          planId: plan.id,
+          planCategory: plan.category,
+          billingInterval: isYearly ? 'yearly' : 'monthly',
+          amount: priceAmount,
+          currency: 'USD',
+          metadata: {
+            paymentId: result.transactionId,
+            cryptoCurrency: payCurrency,
+            cryptoAddress,
+            txHash,
+            orderId,
+          },
+        }, client);
 
-      // Registra transação auditável
-      await BillingService.recordTransaction({
-        userId,
-        subscriptionId: sub.id,
-        gateway: 'nowpayments',
-        gatewayTransactionId: String(result.transactionId || txHash),
-        amount: priceAmount,
-        currency: 'USD',
-        status: 'success',
-        paymentMethod: 'crypto',
-        cryptoAddress,
-        cryptoAmount: Number(payload.actually_paid || payload.pay_amount || priceAmount),
-        cryptoCurrency: payCurrency,
-        rawPayload: payload,
-        idempotencyKey: `nowpayments_${result.transactionId || txHash}`,
+        await BillingService.recordTransaction({
+          userId,
+          subscriptionId: sub.id,
+          gateway: 'nowpayments',
+          gatewayTransactionId: String(result.transactionId || txHash),
+          amount: priceAmount,
+          currency: 'USD',
+          status: 'success',
+          paymentMethod: 'crypto',
+          cryptoAddress,
+          cryptoAmount: Number(payload.actually_paid || payload.pay_amount || priceAmount),
+          cryptoCurrency: payCurrency,
+          rawPayload: payload,
+          idempotencyKey: `nowpayments_${result.transactionId || txHash}`,
+        }, client);
       });
+      await cache.delete(`sub:${userId}`).catch(() => {});
     }
 
     return NextResponse.json({

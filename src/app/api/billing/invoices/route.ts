@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
       invoices,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao listar faturas';
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Detalhes (ex.: erros do PostgreSQL) ficam só no log do servidor
+    console.error('[API billing/invoices] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao listar faturas' }, { status: 500 });
   }
 }

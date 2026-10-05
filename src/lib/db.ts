@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -58,6 +58,29 @@ export const fallbackStore = {
 };
 
 // Nenhum dado é semeado em memória: contas, cupons e cadastros existem apenas no PostgreSQL.
+
+/** Executa `fn` numa transação (BEGIN/COMMIT); qualquer erro faz ROLLBACK e é relançado. */
+export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  await initDatabase();
+  let client: PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error('[DB] Sem conexão com o banco para abrir transação:', err);
+    throw new Error('DATABASE_UNAVAILABLE');
+  }
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch((rbErr) => console.error('[DB] Falha no ROLLBACK:', rbErr));
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 let isInitialized = false;
 let initPromise: Promise<boolean> | null = null;

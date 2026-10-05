@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
       message: 'Sua assinatura foi reativada com sucesso! A renovação automática continuará garantindo seu acesso VIP.',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao reativar assinatura';
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Detalhes (ex.: erros do PostgreSQL) ficam só no log do servidor
+    console.error('[API billing/subscription/reactivate] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao reativar assinatura' }, { status: 500 });
   }
 }

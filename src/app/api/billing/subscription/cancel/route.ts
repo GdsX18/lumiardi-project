@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
       message: 'Sua assinatura foi programada para cancelamento ao fim do ciclo atual. Seu acesso VIP continua ativo até a data de expiração.',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao cancelar assinatura';
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Detalhes (ex.: erros do PostgreSQL) ficam só no log do servidor
+    console.error('[API billing/subscription/cancel] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao cancelar assinatura' }, { status: 500 });
   }
 }
