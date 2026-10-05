@@ -26,6 +26,46 @@ export interface DocumentUploadPayload {
   fileUrl: string;
 }
 
+// Limites de pré-processamento: suficientes para OCR/face match e ~10x menores que o arquivo original
+const DOC_MAX_DIM = 1280;
+const SELFIE_MAX_DIM = 640;
+const JPEG_QUALITY = 0.8;
+
+/** Redimensiona (mantendo a proporção) e recomprime em JPEG. Em caso de falha devolve o original. */
+function compressImageDataUrl(dataUrl: string, maxDim: number, quality = JPEG_QUALITY): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(dataUrl);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/** Captura o frame atual do vídeo sem distorcer a proporção (o lado maior fica com maxDim px). */
+function captureVideoFrame(video: HTMLVideoElement, maxDim: number): string {
+  const vw = video.videoWidth || 640;
+  const vh = video.videoHeight || 480;
+  const scale = Math.min(1, maxDim / Math.max(vw, vh));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(vw * scale);
+  canvas.height = Math.round(vh * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+}
+
 export interface KYCVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,6 +98,8 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   const [docType, setDocType] = useState<'cnh' | 'passaporte' | 'rg'>('cnh');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  // A captura roda dentro de um setInterval (closure antiga): o ref garante o documento mais recente
+  const documentPreviewRef = useRef<string | null>(null);
   
   // Estados da Câmera e Captura Real
   const [cameraActive, setCameraActive] = useState(false);
@@ -119,46 +161,22 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
     setErrorMsg(null);
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
+      if (!dataUrl) return;
 
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxDim = 1200;
-        let w = img.width;
-        let h = img.height;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = Math.round((h * maxDim) / w);
-            w = maxDim;
-          } else {
-            w = Math.round((w * maxDim) / h);
-            h = maxDim;
-          }
-        }
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, w, h);
-          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setDocumentPreview(optimizedDataUrl);
-        } else {
-          setDocumentPreview(dataUrl);
-        }
-      };
-      img.onerror = () => {
-        setDocumentPreview(dataUrl);
-      };
-      img.src = dataUrl;
+      // Uma única versão comprimida serve para a pré-visualização, para o Gemini e para o cadastro
+      // (o original de até 25 MB virava um Base64 de ~33 MB trafegado duas vezes).
+      const optimizedDataUrl = await compressImageDataUrl(dataUrl, DOC_MAX_DIM);
+      documentPreviewRef.current = optimizedDataUrl;
+      setDocumentPreview(optimizedDataUrl);
 
       if (onDocumentUpload) {
         onDocumentUpload({
           type: docType === 'passaporte' ? 'passaporte' : 'rg_cnh',
           fileName: file.name,
-          fileSize: file.size,
-          fileUrl: dataUrl,
+          fileSize: Math.round((optimizedDataUrl.length * 3) / 4),
+          fileUrl: optimizedDataUrl,
         });
       }
     };
@@ -250,7 +268,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
       }
 
       stopCamera();
-      captureAndVerifyBiometrics(dataUrl);
+      compressImageDataUrl(dataUrl, SELFIE_MAX_DIM).then((compressed) => captureAndVerifyBiometrics(compressed));
     };
     reader.readAsDataURL(file);
   };
@@ -287,26 +305,16 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
   const captureAndVerifyBiometrics = async (overrideSelfieBase64?: string) => {
     let capturedSelfieBase64 = overrideSelfieBase64 || '';
 
-    if (!capturedSelfieBase64 && videoRef.current && videoRef.current.videoWidth > 0) {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(720, videoRef.current.videoWidth);
-      canvas.height = Math.min(720, videoRef.current.videoHeight);
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.85);
-      }
+    if (!capturedSelfieBase64 && videoRef.current) {
+      capturedSelfieBase64 = captureVideoFrame(videoRef.current, SELFIE_MAX_DIM);
     }
 
-    if (!capturedSelfieBase64 && videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 480;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, 640, 480);
-        capturedSelfieBase64 = canvas.toDataURL('image/jpeg', 0.85);
-      }
+    const documentBase64 = documentPreviewRef.current || documentPreview;
+    if (!documentBase64) {
+      setErrorMsg(t('kyc_err_attach_doc'));
+      setStep('rejected');
+      stopCamera();
+      return;
     }
 
     if (!capturedSelfieBase64 || capturedSelfieBase64.length < 500) {
@@ -328,7 +336,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          documentBase64: documentPreview,
+          documentBase64,
           liveSelfieBase64: capturedSelfieBase64,
           docType,
           claimedData: {
@@ -351,7 +359,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
         if (onSuccess) onSuccess();
       } else {
         setVerificationResult(data);
-        setErrorMsg(data.reasons?.join(' ') || t('kyc_err_inconsistency'));
+        setErrorMsg(data.reasons?.join(' ') || data.error || t('kyc_err_inconsistency'));
         setStep('rejected');
       }
     } catch (e: unknown) {
@@ -528,6 +536,7 @@ export const KYCVerificationModal: React.FC<KYCVerificationModalProps> = ({
                     onClick={() => {
                       setDocumentFile(null);
                       setDocumentPreview(null);
+                      documentPreviewRef.current = null;
                     }}
                     className="text-ivory/40 hover:text-rose-400 p-1 cursor-pointer transition-colors"
                     title={t('kyc_change_doc')}

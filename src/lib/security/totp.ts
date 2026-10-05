@@ -4,6 +4,7 @@
  */
 
 import crypto from 'crypto';
+import QRCode from 'qrcode';
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
@@ -127,8 +128,10 @@ export function getTOTPAuthUri(accountEmail: string, secretBase32: string, issue
 }
 
 /**
- * Gera URL de imagem de QR Code pronta para exibição no frontend
+ * Gera o QR Code localmente como data URL SVG (sem rede).
+ * Antes a imagem vinha de api.qrserver.com: lenta e expunha o segredo TOTP a terceiros.
  */
-export function getQRCodeImageUrl(otpauthUri: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(otpauthUri)}`;
+export async function getQRCodeImageUrl(otpauthUri: string): Promise<string> {
+  const svg = await QRCode.toString(otpauthUri, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, width: 250 });
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

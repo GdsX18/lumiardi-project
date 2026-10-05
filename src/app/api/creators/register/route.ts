@@ -3,11 +3,28 @@ import { StorageService } from '@/services/storageService';
 import { sanitizeObject } from '@/lib/security';
 import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { CompleteCreatorProfile } from '@/types';
+import { extractDocumentDataUrl, persistIdentityDocument, registrationErrorResponse } from '@/lib/registration';
+import { readEnrollmentToken } from '@/lib/security/twoFactor';
 
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.json();
+    // O documento chega como data URL (Base64, vários MB): sai do corpo antes da sanitização
+    // e vai para o vault R2 — nunca para users.document_url diretamente.
+    const documentDataUrl = extractDocumentDataUrl(rawBody?.basicInfo);
+    // A senha é apenas hasheada (nunca renderizada): sanitizar alteraria a senha e quebraria o login
+    const rawPassword = typeof rawBody?.basicInfo?.password === 'string' ? rawBody.basicInfo.password : '';
+    // 2FA validado na etapa 1: o token cifrado pelo servidor carrega o segredo TOTP
+    const twoFactorSecret = readEnrollmentToken(rawBody?.twoFactorEnrollmentToken);
+    if (rawBody) delete rawBody.twoFactorEnrollmentToken;
+    if (!twoFactorSecret) {
+      return NextResponse.json(
+        { error: 'A verificação 2FA expirou ou não foi concluída. Refaça a Blindagem de Acesso na etapa 1.', code: 'two_factor_required' },
+        { status: 400 }
+      );
+    }
     const sanitizedBody = sanitizeObject(rawBody) as CompleteCreatorProfile;
+    if (sanitizedBody.basicInfo) sanitizedBody.basicInfo.password = rawPassword;
 
     // Validações básicas de segurança
     if (!sanitizedBody.basicInfo?.fullName || !sanitizedBody.basicInfo?.email) {
@@ -33,6 +50,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(appointment.date)) || !/^\d{2}:\d{2}$/.test(String(appointment.timeSlot))) {
+      return NextResponse.json({ error: 'Data ou horário da entrevista inválidos.', code: 'invalid_input' }, { status: 400 });
+    }
 
     const planId = (rawBody as any).planId || 'glow';
     const billingInterval = (rawBody as any).billingInterval || 'yearly';
@@ -52,12 +72,17 @@ export async function POST(request: NextRequest) {
 
     const savedProfile = await StorageService.saveCreator({
       ...sanitizedBody,
+      twoFactorSecret,
       curationStatus: 'AGUARDANDO_REUNIAO',
       planId,
       billingInterval,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+
+    if (documentDataUrl) {
+      await persistIdentityDocument(savedProfile.id, documentDataUrl, savedProfile.basicInfo.document?.fileName);
+    }
 
     const displayDate = appointment.date.split('-').reverse().join('/');
 
@@ -104,10 +129,6 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro interno ao processar cadastro';
-    return NextResponse.json(
-      { error: 'Falha no processamento seguro dos dados.', details: message },
-      { status: 500 }
-    );
+    return registrationErrorResponse(err, 'creators/register');
   }
 }

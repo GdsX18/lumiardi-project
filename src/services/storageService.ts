@@ -5,6 +5,8 @@
 
 import bcrypt from 'bcryptjs';
 import { pool, initDatabase, fallbackStore } from '@/lib/db';
+import type { PoolClient } from 'pg';
+import { encryptTOTPSecret } from '@/lib/security/twoFactor';
 import {
   CompleteCreatorProfile,
   CompleteAgencyProfile,
@@ -33,6 +35,29 @@ export function isStrongPassword(password: unknown): password is string {
   );
 }
 
+/** Executa `fn` numa transação (BEGIN/COMMIT); qualquer erro faz ROLLBACK e é relançado. */
+async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  await initDatabase();
+  let client: PoolClient;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    console.error('[StorageService] Sem conexão com o banco para abrir transação:', err);
+    throw new Error('DATABASE_UNAVAILABLE');
+  }
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch((rbErr) => console.error('[StorageService] Falha no ROLLBACK:', rbErr));
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export function getDirectConversationId(id1: string, id2: string): string {
   return ['conv', ...[id1, id2].sort()].join('_');
 }
@@ -45,7 +70,7 @@ export const StorageService = {
     email: string,
     pass: string,
     role: 'criadora' | 'agencia'
-  ): Promise<{ user: SessionUser; profile?: Record<string, unknown> | null } | null> {
+  ): Promise<{ user: SessionUser; profile?: Record<string, unknown> | null; twoFactorSecretEncrypted?: string | null } | null> {
     const normEmail = email.trim().toLowerCase();
     const cleanPass = pass.trim();
     const targetRole = role === 'criadora' ? 'MODELO' : 'AGENCIA';
@@ -78,6 +103,8 @@ export const StorageService = {
               createdAt: user.created_at,
             },
             profile: (profRes.rows[0] as Record<string, unknown>) || null,
+            // Só devolvido com 2FA ativo; a rota de login decifra e exige o código TOTP
+            twoFactorSecretEncrypted: user.two_factor_enabled ? user.two_factor_secret || null : null,
           };
         }
       }
@@ -544,12 +571,17 @@ export const StorageService = {
     address?: any;
     birthDate?: string;
     cpf?: string;
-  }) {
+    /** Segredo TOTP já validado (em claro); é gravado cifrado */
+    twoFactorSecret?: string | null;
+  }, client?: PoolClient) {
+    // Mesmo trim aplicado em authenticate(): senha com espaço nas pontas continua funcionando no login
+    const password = typeof data.password === 'string' ? data.password.trim() : data.password;
     const normEmail = data.email.trim().toLowerCase();
-    if (!isStrongPassword(data.password)) {
+    if (!isStrongPassword(password)) {
       throw new Error('WEAK_PASSWORD');
     }
-    const hash = await bcrypt.hash(data.password as string, 10);
+    const hash = await bcrypt.hash(password, 10);
+    const db = client ?? pool;
     const id = data.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const roleDb = data.role === 'criadora' ? 'MODELO' : 'AGENCIA';
     const now = new Date().toISOString();
@@ -578,7 +610,7 @@ export const StorageService = {
     };
     void userObj;
 
-    const existing = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [normEmail]);
+    const existing = await db.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [normEmail]);
     if (existing.rows.length > 0) {
       throw new Error('EMAIL_IN_USE');
     }
@@ -603,14 +635,14 @@ export const StorageService = {
     void profileObj;
 
     try {
-      await pool.query(
+      await db.query(
         `INSERT INTO users (
            id, email, password_hash, role, curation_status, full_name,
            phone, whatsapp, document_name, document_url, plan_id,
            plan_billing_interval, interview_date, interview_time,
-           interview_scheduled_at, created_at
+           interview_scheduled_at, two_factor_secret, two_factor_enabled, created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())`,
         [
           id,
           normEmail,
@@ -620,17 +652,20 @@ export const StorageService = {
           data.fullName,
           phoneVal,
           phoneVal,
-          data.documentName || null,
-          data.documentUrl || null,
+          data.documentName ? data.documentName.slice(0, 255) : null,
+          // Data URLs (Base64) nunca vão para a coluna: o documento é persistido no vault R2
+          data.documentUrl && !data.documentUrl.startsWith('data:') ? data.documentUrl : null,
           data.planId || null,
           data.billingInterval || null,
           data.interviewDate || null,
           data.interviewTime || null,
           data.interviewDate ? now : null,
+          data.twoFactorSecret ? encryptTOTPSecret(data.twoFactorSecret) : null,
+          !!data.twoFactorSecret,
         ]
       );
 
-      await pool.query(
+      await db.query(
         `INSERT INTO profiles (
            user_id, artistic_name, category, instagram, gender, birth_date,
            document_number, bio, hobbies, exposure_opinion, measurements,
@@ -2110,7 +2145,7 @@ export const StorageService = {
     return { totalBytes, totalGB, fileCount };
   },
 
-  async saveCreator(creatorData: Partial<CompleteCreatorProfile> & { planId?: string; billingInterval?: string }): Promise<CompleteCreatorProfile> {
+  async saveCreator(creatorData: Partial<CompleteCreatorProfile> & { planId?: string; billingInterval?: string; twoFactorSecret?: string | null }): Promise<CompleteCreatorProfile> {
     // O id é sempre gerado no servidor: nunca aceitar id vindo do cliente (evita sobrescrever contas)
     const id = `creator-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     const now = new Date().toISOString();
@@ -2129,53 +2164,56 @@ export const StorageService = {
       updatedAt: now,
     };
 
-    const user = await this.registerUser({
-      id,
-      email: fullProfile.basicInfo.email,
-      password: fullProfile.basicInfo.password,
-      fullName: fullProfile.basicInfo.fullName,
-      role: 'criadora',
-      artisticName: fullProfile.qualitative.artisticName,
-      category: fullProfile.qualitative.category,
-      instagram: fullProfile.qualitative.platforms?.instagram,
-      documentName: fullProfile.basicInfo.document?.fileName || (fullProfile.basicInfo.document as any)?.name || 'documento_identidade.jpg',
-      documentUrl: fullProfile.basicInfo.document?.fileUrl || fullProfile.basicInfo.document?.fileData || (fullProfile.basicInfo.document as any)?.url || '',
-      whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
-      phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
-      curationStatus: fullProfile.curationStatus,
-      planId: creatorData.planId || 'glow',
-      billingInterval: creatorData.billingInterval || 'monthly',
-      interviewDate: fullProfile.appointment?.date,
-      interviewTime: fullProfile.appointment?.timeSlot,
-      qualitative: fullProfile.qualitative,
-      address: fullProfile.basicInfo.address,
-      birthDate: fullProfile.basicInfo.birthDate,
-      cpf: fullProfile.basicInfo.cpf,
+    // Conta + entrevista são atômicas: se a entrevista falhar, o usuário é desfeito (e-mail não fica "preso")
+    const user = await withTransaction(async (client) => {
+      const created = await this.registerUser({
+        id,
+        email: fullProfile.basicInfo.email,
+        password: fullProfile.basicInfo.password,
+        fullName: fullProfile.basicInfo.fullName,
+        role: 'criadora',
+        artisticName: fullProfile.qualitative.artisticName,
+        category: fullProfile.qualitative.category,
+        instagram: fullProfile.qualitative.platforms?.instagram,
+        documentName: fullProfile.basicInfo.document?.fileName || (fullProfile.basicInfo.document as any)?.name || 'documento_identidade.jpg',
+        documentUrl: fullProfile.basicInfo.document?.fileUrl || fullProfile.basicInfo.document?.fileData || (fullProfile.basicInfo.document as any)?.url || '',
+        whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
+        phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
+        curationStatus: fullProfile.curationStatus,
+        planId: creatorData.planId || 'glow',
+        billingInterval: creatorData.billingInterval || 'monthly',
+        interviewDate: fullProfile.appointment?.date,
+        interviewTime: fullProfile.appointment?.timeSlot,
+        qualitative: fullProfile.qualitative,
+        address: fullProfile.basicInfo.address,
+        birthDate: fullProfile.basicInfo.birthDate,
+        cpf: fullProfile.basicInfo.cpf,
+        twoFactorSecret: creatorData.twoFactorSecret,
+      }, client);
+
+      if (fullProfile.appointment?.date) {
+        await this.saveInterview({
+          userId: created.id,
+          fullName: fullProfile.basicInfo.fullName,
+          artisticName: fullProfile.qualitative.artisticName,
+          email: fullProfile.basicInfo.email,
+          whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone || '',
+          planId: creatorData.planId || 'glow',
+          billingInterval: creatorData.billingInterval || 'monthly',
+          interviewDate: fullProfile.appointment.date,
+          interviewTime: fullProfile.appointment.timeSlot,
+          status: 'aguardando_reuniao',
+          notes: fullProfile.appointment.notes,
+        }, client);
+      }
+      return created;
     });
 
     fullProfile.id = user.id;
-
-    // Persistência imediata na tabela de entrevistas
-    if (fullProfile.appointment?.date) {
-      await this.saveInterview({
-        userId: user.id,
-        fullName: fullProfile.basicInfo.fullName,
-        artisticName: fullProfile.qualitative.artisticName,
-        email: fullProfile.basicInfo.email,
-        whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone || '',
-        planId: creatorData.planId || 'glow',
-        billingInterval: creatorData.billingInterval || 'monthly',
-        interviewDate: fullProfile.appointment.date,
-        interviewTime: fullProfile.appointment.timeSlot,
-        status: 'aguardando_reuniao',
-        notes: fullProfile.appointment.notes,
-      });
-    }
-
     return fullProfile;
   },
 
-  async saveAgency(agencyData: Partial<CompleteAgencyProfile>): Promise<CompleteAgencyProfile> {
+  async saveAgency(agencyData: Partial<CompleteAgencyProfile> & { twoFactorSecret?: string | null }): Promise<CompleteAgencyProfile> {
     const id = `agency-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     const now = new Date().toISOString();
 
@@ -2188,7 +2226,8 @@ export const StorageService = {
       updatedAt: now,
     };
 
-    const user = await this.registerUser({
+    // users + profiles na mesma transação: falha parcial não deixa conta órfã
+    const user = await withTransaction((client) => this.registerUser({
       id,
       email: fullProfile.basicInfo.corporateEmail,
       password: fullProfile.basicInfo.password,
@@ -2200,7 +2239,8 @@ export const StorageService = {
       whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
       phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
       curationStatus: fullProfile.curationStatus,
-    });
+      twoFactorSecret: agencyData.twoFactorSecret,
+    }, client));
 
     fullProfile.id = user.id;
     return fullProfile;
@@ -2220,7 +2260,7 @@ export const StorageService = {
     status?: string;
     photoUrl?: string;
     notes?: string;
-  }): Promise<CurationInterview> {
+  }, client?: PoolClient): Promise<CurationInterview> {
     await initDatabase();
     const id = interviewData.id || `interview-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
@@ -2242,11 +2282,8 @@ export const StorageService = {
       updatedAt: now,
     };
 
-    fallbackStore.curation_interviews.set(id, interviewObj as any);
-    fallbackStore.curation_interviews.set(`user_${interviewData.userId}`, interviewObj as any);
-
     try {
-      await pool.query(
+      await (client ?? pool).query(
         `INSERT INTO curation_interviews (
            id, user_id, full_name, artistic_name, email, whatsapp,
            plan_id, billing_interval, interview_date, interview_time,
@@ -2277,7 +2314,12 @@ export const StorageService = {
       );
     } catch (err) {
       console.error('[StorageService saveInterview DB ERROR]:', err);
+      // Dentro de transação (cadastro) a falha precisa abortar tudo para o ROLLBACK
+      if (client) throw new Error('DATABASE_UNAVAILABLE');
     }
+
+    fallbackStore.curation_interviews.set(id, interviewObj as any);
+    fallbackStore.curation_interviews.set(`user_${interviewData.userId}`, interviewObj as any);
 
     return interviewObj;
   },

@@ -110,6 +110,11 @@ async function runInitDatabase(): Promise<boolean> {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_billing_interval VARCHAR(20);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_selfie_url TEXT;
+        -- VARCHAR(255) estourava com URLs longas do vault (erro 22001 no cadastro)
+        ALTER TABLE users ALTER COLUMN document_url TYPE TEXT;
+        -- 2FA TOTP: segredo cifrado (AES-256-GCM, ver lib/security/twoFactor.ts)
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE;
         CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users(last_seen_at);
 
         -- Tabela CURATION_INTERVIEWS (Entrevista de Curadoria Prévia Obrigatória)

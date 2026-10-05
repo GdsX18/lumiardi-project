@@ -33,6 +33,9 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Contas com 2FA ativo: o servidor pede o código TOTP após validar a senha
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,10 +46,17 @@ function LoginForm() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role, ...(requiresTwoFactor ? { totpCode } : {}) }),
       });
 
       const data = await res.json();
+
+      if (data?.requiresTwoFactor) {
+        setRequiresTwoFactor(true);
+        setTotpCode('');
+        // Primeiro pedido do código não é erro: só mostra o campo
+        if (data.code === 'two_factor_code_required') return;
+      }
 
       if (!res.ok) {
         throw new Error(tApiError(data, 'pub_login_auth_failed'));
@@ -94,6 +104,7 @@ function LoginForm() {
             type="button"
             onClick={() => {
               setRole('criadora');
+              setRequiresTwoFactor(false);
               setErrorMsg(null);
             }}
             className={`flex-1 py-2.5 text-xs font-sans font-medium uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -110,6 +121,7 @@ function LoginForm() {
             type="button"
             onClick={() => {
               setRole('agencia');
+              setRequiresTwoFactor(false);
               setErrorMsg(null);
             }}
             className={`flex-1 py-2.5 text-xs font-sans font-medium uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -143,7 +155,10 @@ function LoginForm() {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setRequiresTwoFactor(false);
+                }}
                 placeholder={role === 'criadora' ? t('pub_login_email_placeholder_creator') : t('pub_login_email_placeholder_agency')}
                 className="w-full pl-9 pr-4 py-3 bg-[#161616] border border-white/10 text-xs md:text-sm text-ivory placeholder:text-ivory/30 focus:outline-none focus:border-gold font-sans"
               />
@@ -178,6 +193,30 @@ function LoginForm() {
               </button>
             </div>
           </div>
+
+          {requiresTwoFactor && (
+            <div className="animate-in fade-in">
+              <label className="block text-xs font-sans uppercase tracking-wider text-ivory/70 mb-1.5">
+                {t('api_err_two_factor_code_required')}
+              </label>
+              <div className="relative">
+                <ShieldCheck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gold" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  maxLength={6}
+                  pattern="\d{6}"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="w-full pl-9 pr-4 py-3 bg-[#161616] border border-gold/40 text-sm text-ivory tracking-[0.5em] font-mono placeholder:text-ivory/30 focus:outline-none focus:border-gold"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="pt-2">
             <button

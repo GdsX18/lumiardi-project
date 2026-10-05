@@ -25,6 +25,9 @@ export const apiErrors: ModuleTranslations = {
     api_err_upload_too_large: 'Arquivo muito grande.',
     api_err_upload_type: 'Tipo de arquivo não permitido.',
     api_err_service_unavailable: 'Serviço temporariamente indisponível. Tente novamente em instantes.',
+    api_err_two_factor_required: 'A verificação 2FA expirou. Refaça a Blindagem de Acesso na etapa 1 para concluir.',
+    api_err_two_factor_invalid: 'Código de autenticação inválido ou expirado.',
+    api_err_two_factor_code_required: 'Informe o código de 6 dígitos do seu app autenticador.',
   },
   en: {
     api_err_generic: 'We could not complete the operation. Please try again.',
@@ -46,6 +49,9 @@ export const apiErrors: ModuleTranslations = {
     api_err_upload_too_large: 'File is too large.',
     api_err_upload_type: 'File type not allowed.',
     api_err_service_unavailable: 'Service temporarily unavailable. Please try again shortly.',
+    api_err_two_factor_required: 'Your 2FA verification expired. Please redo the account protection step to finish.',
+    api_err_two_factor_invalid: 'Invalid or expired authentication code.',
+    api_err_two_factor_code_required: 'Enter the 6-digit code from your authenticator app.',
   },
   es: {
     api_err_generic: 'No fue posible completar la operación. Inténtalo de nuevo.',
@@ -67,6 +73,9 @@ export const apiErrors: ModuleTranslations = {
     api_err_upload_too_large: 'El archivo es demasiado grande.',
     api_err_upload_type: 'Tipo de archivo no permitido.',
     api_err_service_unavailable: 'Servicio temporalmente no disponible. Inténtalo de nuevo en breve.',
+    api_err_two_factor_required: 'La verificación 2FA expiró. Repite el paso de protección de la cuenta para finalizar.',
+    api_err_two_factor_invalid: 'Código de autenticación inválido o expirado.',
+    api_err_two_factor_code_required: 'Introduce el código de 6 dígitos de tu app de autenticación.',
   },
   fr: {
     api_err_generic: "Impossible de terminer l'opération. Veuillez réessayer.",
@@ -88,6 +97,9 @@ export const apiErrors: ModuleTranslations = {
     api_err_upload_too_large: 'Fichier trop volumineux.',
     api_err_upload_type: 'Type de fichier non autorisé.',
     api_err_service_unavailable: 'Service temporairement indisponible. Réessayez dans un instant.',
+    api_err_two_factor_required: "La vérification 2FA a expiré. Refaites l'étape de protection du compte pour terminer.",
+    api_err_two_factor_invalid: "Code d'authentification invalide ou expiré.",
+    api_err_two_factor_code_required: "Saisissez le code à 6 chiffres de votre application d'authentification.",
   },
   it: {
     api_err_generic: "Impossibile completare l'operazione. Riprova.",
@@ -109,6 +121,9 @@ export const apiErrors: ModuleTranslations = {
     api_err_upload_too_large: 'File troppo grande.',
     api_err_upload_type: 'Tipo di file non consentito.',
     api_err_service_unavailable: 'Servizio temporaneamente non disponibile. Riprova tra poco.',
+    api_err_two_factor_required: "La verifica 2FA è scaduta. Ripeti il passaggio di protezione dell'account per completare.",
+    api_err_two_factor_invalid: 'Codice di autenticazione non valido o scaduto.',
+    api_err_two_factor_code_required: 'Inserisci il codice a 6 cifre della tua app di autenticazione.',
   },
   ru: {
     api_err_generic: 'Не удалось выполнить операцию. Попробуйте ещё раз.',
@@ -130,5 +145,8 @@ export const apiErrors: ModuleTranslations = {
     api_err_upload_too_large: 'Файл слишком большой.',
     api_err_upload_type: 'Недопустимый тип файла.',
     api_err_service_unavailable: 'Сервис временно недоступен. Попробуйте чуть позже.',
+    api_err_two_factor_required: 'Срок проверки 2FA истёк. Повторите шаг защиты аккаунта, чтобы завершить.',
+    api_err_two_factor_invalid: 'Неверный или просроченный код аутентификации.',
+    api_err_two_factor_code_required: 'Введите 6-значный код из приложения-аутентификатора.',
   },
 };

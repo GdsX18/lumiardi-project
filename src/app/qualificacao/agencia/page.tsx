@@ -64,6 +64,8 @@ function AgenciaQualificacaoContent() {
   const [isKYCVerified, setIsKYCVerified] = useState(false);
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
   const [is2FAVerified, setIs2FAVerified] = useState(false);
+  // Token cifrado emitido pelo servidor após validar o código TOTP; o /register grava o segredo na conta
+  const [twoFactorToken, setTwoFactorToken] = useState<string | null>(null);
   const [showTerms, setShowTerms] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -140,6 +142,13 @@ function AgenciaQualificacaoContent() {
 
     if (!basicData.responsibleName.trim() || !basicData.taxId.trim() || !basicData.corporateEmail.trim() || !basicData.password.trim()) {
       setSubmissionError(t('err_fill_all_required'));
+      return;
+    }
+
+    // Mesma política do servidor (isStrongPassword): falhar aqui evita perder as etapas 2 e 3
+    const pwd = basicData.password;
+    if (pwd.length < 8 || pwd.length > 128 || !/[A-Za-z]/.test(pwd) || !/\d/.test(pwd)) {
+      setSubmissionError(t('api_err_weak_password'));
       return;
     }
 
@@ -233,11 +242,17 @@ function AgenciaQualificacaoContent() {
       const res = await fetch('/api/agencies/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fullProfile),
+        body: JSON.stringify({ ...fullProfile, twoFactorEnrollmentToken: twoFactorToken }),
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        if (errorData?.code === 'two_factor_required') {
+          // Token expirado/ausente: refaz apenas a blindagem 2FA na etapa 1
+          setIs2FAVerified(false);
+          setTwoFactorToken(null);
+          setCurrentStep(1);
+        }
         throw new Error(tApiError(errorData, 'err_submission_failed'));
       }
 
@@ -854,8 +869,11 @@ function AgenciaQualificacaoContent() {
       <TwoFactorModal
         isOpen={is2FAModalOpen}
         onClose={() => setIs2FAModalOpen(false)}
-        onSuccess={() => {
-          setIs2FAVerified(true);
+        mode="enrollment"
+        accountEmail={basicData.corporateEmail}
+        onSuccess={(_secret, enrollmentToken) => {
+          setTwoFactorToken(enrollmentToken || null);
+          setIs2FAVerified(!!enrollmentToken);
         }}
       />
 

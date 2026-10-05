@@ -3,6 +3,8 @@ import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
+import { verifyTOTP } from '@/lib/security/totp';
+import { decryptTOTPSecret } from '@/lib/security/twoFactor';
 
 const LOGIN_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
 const VALID_STATUSES: SessionUser['curationStatus'][] = [
@@ -58,6 +60,32 @@ export async function POST(request: NextRequest) {
         },
         { status: 401 }
       );
+    }
+
+    // Segundo fator: com 2FA ativo, a senha correta sozinha não abre sessão.
+    // Força bruta do código fica contida pelos limites por IP e por conta acima.
+    if (authResult.twoFactorSecretEncrypted) {
+      const totpSecret = decryptTOTPSecret(authResult.twoFactorSecretEncrypted);
+      if (!totpSecret) {
+        console.error(`[login] Segredo 2FA ilegível para ${authResult.user.id} (chave de cifra alterada?).`);
+        return NextResponse.json(
+          { error: 'Falha interna durante a autenticação.', code: 'generic' },
+          { status: 500 }
+        );
+      }
+      const totpCode = typeof rawBody.totpCode === 'string' ? rawBody.totpCode.replace(/\D/g, '') : '';
+      if (!totpCode) {
+        return NextResponse.json(
+          { error: 'Informe o código de 6 dígitos do seu app autenticador.', code: 'two_factor_code_required', requiresTwoFactor: true },
+          { status: 401 }
+        );
+      }
+      if (!verifyTOTP(totpCode, totpSecret)) {
+        return NextResponse.json(
+          { error: 'Código de autenticação inválido ou expirado.', code: 'two_factor_invalid', requiresTwoFactor: true },
+          { status: 401 }
+        );
+      }
     }
 
     const user = authResult.user;

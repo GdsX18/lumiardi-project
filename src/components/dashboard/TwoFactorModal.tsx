@@ -16,10 +16,15 @@ import { useLanguage } from '@/context/LanguageContext';
 export interface TwoFactorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (secret: string) => void;
+  /** enrollmentToken vem preenchido quando não há sessão (cadastro) e deve ser enviado ao /register */
+  onSuccess?: (secret: string, enrollmentToken?: string) => void;
+  /** Rótulo da conta no app autenticador quando ainda não há sessão */
+  accountEmail?: string;
+  /** 'enrollment' = cadastro: nunca grava em conta logada, devolve token para o /register */
+  mode?: 'account' | 'enrollment';
 }
 
-export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose, onSuccess, accountEmail, mode = 'account' }) => {
   const { t, tApiError } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'loading' | 'qrcode' | 'success'>('loading');
@@ -41,7 +46,11 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
     setErrorMessage(null);
     setImageError(false);
     try {
-      const res = await fetch('/api/auth/2fa/generate', { method: 'POST' });
+      const res = await fetch('/api/auth/2fa/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountEmail: accountEmail || undefined }),
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         setSecret(data.secret);
@@ -78,7 +87,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
       const res = await fetch('/api/auth/2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenInput, secret }),
+        body: JSON.stringify({ token: tokenInput, secret, purpose: mode }),
       });
 
       const data = await res.json();
@@ -86,7 +95,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
       if (res.ok && data.success) {
         setStep('success');
         if (onSuccess) {
-          onSuccess(secret);
+          onSuccess(secret, data.enrollmentToken);
         }
       } else {
         throw new Error(tApiError(data, 'twofa_err_incorrect'));

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar as CalendarIcon, Clock, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { CurationAppointment } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
@@ -88,6 +88,20 @@ export const CurationScheduler: React.FC<CurationSchedulerProps> = ({
   const [selectedSlot, setSelectedSlot] = useState<string>(
     selectedAppointment?.timeSlot || '15:00'
   );
+
+  // A UI já mostra o primeiro dia como selecionado: propaga essa escolha para o formulário pai,
+  // senão a submissão chega sem data ("seleção obrigatória") mesmo com o dia destacado na tela.
+  useEffect(() => {
+    if (!selectedAppointment?.date && selectedDate) {
+      onScheduleChange({
+        date: selectedDate,
+        timeSlot: selectedSlot,
+        status: 'scheduled',
+        notes: `Curadoria agendada para ${userType}`,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelect = (date: string, slot: string) => {
     setSelectedDate(date);

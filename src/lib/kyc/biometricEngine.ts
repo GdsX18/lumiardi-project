@@ -188,16 +188,22 @@ export const BiometricEngine = {
    */
   async verifyWithGeminiVisionCascade(input: DocumentVerificationInput, apiKey: string, auditTimestamp: string): Promise<BiometricVerificationResult> {
     const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Lista ordenada por velocidade e disponibilidade sem 503
-    const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-flash-lite-latest',
-      'gemini-3.6-flash',
-      'gemini-3.5-flash',
-    ];
+
+    // Cascata curta: cada modelo indisponível custa uma ida e volta inteira.
+    // Modelos aposentados (1.5/2.0) foram removidos; GEMINI_VISION_MODEL permite fixar o principal.
+    const candidateModels = Array.from(
+      new Set(
+        [
+          process.env.GEMINI_VISION_MODEL?.trim(),
+          'gemini-2.5-flash',
+          'gemini-flash-latest',
+          'gemini-flash-lite-latest',
+        ].filter((m): m is string => !!m)
+      )
+    );
+    const PER_MODEL_TIMEOUT_MS = 15000;
+    // Fica abaixo do timeout de 35s do cliente para devolver erro tratável em vez de abort
+    const deadline = Date.now() + 30000;
 
     // Higienização completa do Base64 (remove 'data:...;base64,')
     const cleanDocBase64 = cleanBase64(input.documentBase64);
@@ -256,18 +262,32 @@ Responda ESTRITAMENTE em JSON puro (sem markdown extra) com o seguinte formato:
     let lastError: Error | null = null;
 
     for (const modelName of candidateModels) {
+      const remaining = deadline - Date.now();
+      if (remaining < 3000) break;
       try {
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const generationConfig: Record<string, unknown> = {
+          temperature: 0,
+          responseMimeType: 'application/json',
+        };
+        // Raciocínio estendido do 2.5 Flash multiplica a latência sem ganho para esta checagem estruturada
+        if (modelName.includes('2.5-flash')) {
+          generationConfig.thinkingConfig = { thinkingBudget: 0 };
+        }
+        const model = genAI.getGenerativeModel(
+          { model: modelName, generationConfig },
+          { timeout: Math.min(PER_MODEL_TIMEOUT_MS, remaining) }
+        );
+        // Imagens antes do texto: ordem recomendada pelo Google para prompts multimodais
         const result = await model.generateContent([
-          prompt,
           { inlineData: { mimeType: docMime, data: cleanDocBase64 } },
           { inlineData: { mimeType: selfieMime, data: cleanSelfieBase64 } },
+          prompt,
         ]);
         responseText = result.response.text();
         if (responseText) break;
       } catch (err: unknown) {
         lastError = err instanceof Error ? err : new Error(String(err));
-        console.warn(`[KYC Biometrics] Modelo ${modelName} indisponível, tentando próximo na cascata...`);
+        console.warn(`[KYC Biometrics] Modelo ${modelName} indisponível (${lastError.message}), tentando próximo na cascata...`);
         continue;
       }
     }
