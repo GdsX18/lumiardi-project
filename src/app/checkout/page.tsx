@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/lib/payments/types';
+import { cleanCpfCnpj, cleanPhoneBR, cleanPostalCode } from '@/lib/payments/document';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 
 function CheckoutContent() {
@@ -72,6 +73,9 @@ function CheckoutContent() {
     cvv: '',
     cpf: '',
     taxId: '',
+    postalCode: '',
+    addressNumber: '',
+    phone: '',
     installments: '1',
   });
 
@@ -85,6 +89,9 @@ function CheckoutContent() {
   const [isLoadingPix, setIsLoadingPix] = useState(false);
   const [pixError, setPixError] = useState<{ code?: string; error?: string } | null>(null);
   const [pixAttempt, setPixAttempt] = useState(0);
+  // CPF do pagador do Pix: só pedido quando o cadastro não tem um CPF válido (o Asaas exige documento)
+  const [pixCpfInput, setPixCpfInput] = useState('');
+  const [pixCpf, setPixCpf] = useState('');
   const [cryptoData, setCryptoData] = useState<{
     payAddress: string;
     payAmount: number;
@@ -266,6 +273,7 @@ function CheckoutContent() {
             currency: 'BRL',
             gateway: 'pix',
             couponCode: appliedCoupon?.code,
+            cpf: pixCpf || undefined,
             userId: currentUser?.id,
             userEmail: currentUser?.email,
             userName: currentUser?.name,
@@ -295,7 +303,9 @@ function CheckoutContent() {
     return () => {
       isMounted = false;
     };
-  }, [gateway, currency, selectedPlanId, billingInterval, currentUser, appliedCoupon, pixAttempt]);
+  }, [gateway, currency, selectedPlanId, billingInterval, currentUser, appliedCoupon, pixAttempt, pixCpf]);
+
+  const pixNeedsDocument = pixError?.code === 'pix_document_required' || pixError?.code === 'invalid_document';
 
   // Só exibimos Pix emitido pelo Asaas para esta cobrança — nunca um código de fallback
   const pixCopiaECola = pixData?.copiaECola || '';
@@ -321,8 +331,8 @@ function CheckoutContent() {
   };
 
   // Formatação de CPF
-  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '').substring(0, 11);
+  const formatCPF = (raw: string) => {
+    let val = raw.replace(/\D/g, '').substring(0, 11);
     if (val.length > 9) {
       val = `${val.substring(0, 3)}.${val.substring(3, 6)}.${val.substring(6, 9)}-${val.substring(9)}`;
     } else if (val.length > 6) {
@@ -330,7 +340,31 @@ function CheckoutContent() {
     } else if (val.length > 3) {
       val = `${val.substring(0, 3)}.${val.substring(3)}`;
     }
+    return val;
+  };
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = formatCPF(e.target.value);
     setCardData((prev) => ({ ...prev, cpf: val }));
+  };
+
+  // Formatação de CEP 00000-000
+  const handlePostalCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '').substring(0, 8);
+    if (val.length > 5) val = `${val.substring(0, 5)}-${val.substring(5)}`;
+    setCardData((prev) => ({ ...prev, postalCode: val }));
+  };
+
+  // Formatação de telefone (00) 00000-0000
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').substring(0, 11);
+    let val = digits;
+    if (digits.length > 6) {
+      const split = digits.length === 11 ? 7 : 6;
+      val = `(${digits.substring(0, 2)}) ${digits.substring(2, split)}-${digits.substring(split)}`;
+    } else if (digits.length > 2) {
+      val = `(${digits.substring(0, 2)}) ${digits.substring(2)}`;
+    }
+    setCardData((prev) => ({ ...prev, phone: val }));
   };
 
   const copyToClipboard = (text: string) => {
@@ -360,6 +394,14 @@ function CheckoutContent() {
       setErrorMessage(t('pub_checkout_card_cvv_required'));
       return;
     }
+    if (!cleanCpfCnpj(currency === 'BRL' ? cardData.cpf : cardData.taxId)) {
+      setErrorMessage(t('pub_checkout_cpf_invalid'));
+      return;
+    }
+    if (!cleanPostalCode(cardData.postalCode) || !cardData.addressNumber.trim() || !cleanPhoneBR(cardData.phone)) {
+      setErrorMessage(t('pub_checkout_holder_info_required'));
+      return;
+    }
 
     setIsLoading(true);
 
@@ -387,7 +429,10 @@ function CheckoutContent() {
             expiryYear: formattedYear,
             cvv: cardData.cvv.trim(),
             ccv: cardData.cvv.trim(),
-            cpf: cardData.cpf,
+            cpf: currency === 'BRL' ? cardData.cpf : cardData.taxId,
+            postalCode: cardData.postalCode,
+            addressNumber: cardData.addressNumber.trim(),
+            phone: cardData.phone,
             installments: Number(cardData.installments) || 1,
           },
           taxId: currency === 'BRL' ? cardData.cpf : cardData.taxId,
@@ -715,13 +760,32 @@ function CheckoutContent() {
                         {pixError && !isLoadingPix && (
                           <div role="alert" className="p-4 bg-red-950/40 border border-red-500/40 rounded-xs space-y-3">
                             <p className="text-xs text-red-200 leading-relaxed">{tApiError(pixError, 'pub_checkout_pix_failed')}</p>
+                            {pixNeedsDocument && (
+                              <div className="space-y-1.5">
+                                <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                                  {t('pub_checkout_pix_cpf_label')}
+                                </label>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="000.000.000-00"
+                                  value={pixCpfInput}
+                                  onChange={(e) => setPixCpfInput(formatCPF(e.target.value))}
+                                  className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                                />
+                              </div>
+                            )}
                             <button
                               type="button"
-                              onClick={() => setPixAttempt((n) => n + 1)}
+                              disabled={pixNeedsDocument && !cleanCpfCnpj(pixCpfInput)}
+                              onClick={() => {
+                                if (pixNeedsDocument) setPixCpf(pixCpfInput.replace(/\D/g, ''));
+                                setPixAttempt((n) => n + 1);
+                              }}
                               className="px-4 py-2 bg-[#D4AF37] hover:bg-[#F5D77F] text-[#0B0B0B] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer rounded-xs"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
-                              <span>{t('pub_checkout_pix_retry')}</span>
+                              <span>{t(pixNeedsDocument ? 'pub_checkout_pix_generate' : 'pub_checkout_pix_retry')}</span>
                             </button>
                           </div>
                         )}
@@ -964,6 +1028,54 @@ function CheckoutContent() {
                           />
                         </div>
                       )}
+
+                      {/* Endereço e contato do titular (exigidos pelo Asaas em creditCardHolderInfo) */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                            {t('pub_checkout_postal_code')}
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="postal-code"
+                            placeholder="00000-000"
+                            value={cardData.postalCode}
+                            onChange={handlePostalCodeChange}
+                            required
+                            className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                            {t('pub_checkout_address_number')}
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={20}
+                            placeholder="123"
+                            value={cardData.addressNumber}
+                            onChange={(e) => setCardData((prev) => ({ ...prev, addressNumber: e.target.value }))}
+                            required
+                            className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                          {t('pub_checkout_holder_phone')}
+                        </label>
+                        <input
+                          type="tel"
+                          autoComplete="tel-national"
+                          placeholder="(00) 00000-0000"
+                          value={cardData.phone}
+                          onChange={handlePhoneChange}
+                          required
+                          className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                        />
+                      </div>
 
                       {/* Parcelas para Cartão de Crédito */}
                       {cardData.type === 'credit' && (

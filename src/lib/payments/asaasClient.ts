@@ -81,6 +81,28 @@ export interface AsaasPixQrCodeResponse {
   expirationDate: string;
 }
 
+/** Erro devolvido pela API do Asaas, preservando o código e a etapa para diagnóstico nos logs. */
+export class AsaasApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string | undefined,
+    public readonly stage: 'customer' | 'payment' | 'pixQrCode' | 'refund'
+  ) {
+    super(message);
+    this.name = 'AsaasApiError';
+  }
+}
+
+async function toAsaasError(res: Response, stage: AsaasApiError['stage'], fallback: string): Promise<AsaasApiError> {
+  const errJson = await res.json().catch(() => ({}));
+  const first = errJson?.errors?.[0] || {};
+  const err = new AsaasApiError(first.description || `${fallback}: HTTP ${res.status}`, res.status, first.code, stage);
+  // Só código/descrição do Asaas — nunca payload, cartão ou chave
+  console.error(`[AsaasClient ${stage}] HTTP ${res.status}`, JSON.stringify(errJson?.errors || errJson));
+  return err;
+}
+
 export class AsaasClient {
   /** Lemos a URL base dinamicamente com fallback oficial para a API de Produção */
   private get apiUrl(): string {
@@ -115,29 +137,38 @@ export class AsaasClient {
   }
 
   /**
-   * Busca ou cria cliente no Asaas (/v3/customers)
+   * Busca ou cria cliente no Asaas (/v3/customers).
+   * O cliente é a conta da plataforma (e-mail da usuária); o titular do cartão vai à parte em
+   * creditCardHolderInfo. O Asaas exige CPF/CNPJ no cliente para emitir Pix/cartão: se o cliente
+   * existente não tiver documento, ele é completado — um documento já cadastrado nunca é sobrescrito.
    */
   async getOrCreateCustomer(params: AsaasCustomerParams): Promise<AsaasCustomerResponse> {
-    const cleanCpfCnpj = params.cpfCnpj ? params.cpfCnpj.replace(/\D/g, '') : undefined;
-    const cleanPhone = params.phone ? params.phone.replace(/\D/g, '') : undefined;
+    const cleanCpfCnpj = params.cpfCnpj ? params.cpfCnpj.replace(/\D/g, '') || undefined : undefined;
+    const cleanPhone = params.phone ? params.phone.replace(/\D/g, '') || undefined : undefined;
 
     try {
-      // 1. Tenta buscar cliente existente por e-mail ou CPF
-      let searchUrl = `${this.apiUrl}/customers?email=${encodeURIComponent(params.email)}`;
-      if (cleanCpfCnpj) {
-        searchUrl += `&cpfCnpj=${cleanCpfCnpj}`;
-      }
-
-      const searchRes = await fetch(searchUrl, {
+      // 1. Busca pelo e-mail da conta (filtrar também por CPF criaria um cliente duplicado a cada titular diferente)
+      const searchRes = await fetch(`${this.apiUrl}/customers?email=${encodeURIComponent(params.email)}`, {
         method: 'GET',
         headers: this.getHeaders(),
       });
 
       if (searchRes.ok) {
         const searchJson = await searchRes.json();
-        if (searchJson.data && searchJson.data.length > 0) {
-          return searchJson.data[0];
+        const list: AsaasCustomerResponse[] = Array.isArray(searchJson.data) ? searchJson.data : [];
+        const existing = list.find((c) => c.cpfCnpj) || list[0];
+        if (existing) {
+          if (existing.cpfCnpj || !cleanCpfCnpj) return existing;
+          const updateRes = await fetch(`${this.apiUrl}/customers/${encodeURIComponent(existing.id)}`, {
+            method: 'POST',
+            headers: this.getHeaders(),
+            body: JSON.stringify({ cpfCnpj: cleanCpfCnpj, ...(cleanPhone ? { mobilePhone: cleanPhone } : {}) }),
+          });
+          if (!updateRes.ok) throw await toAsaasError(updateRes, 'customer', 'Falha ao atualizar CPF/CNPJ do cliente Asaas');
+          return await updateRes.json();
         }
+      } else {
+        throw await toAsaasError(searchRes, 'customer', 'Falha ao buscar cliente Asaas');
       }
 
       // 2. Se não encontrou, cria novo cliente
@@ -148,22 +179,18 @@ export class AsaasClient {
           name: params.name,
           email: params.email,
           cpfCnpj: cleanCpfCnpj,
-          phone: cleanPhone,
           mobilePhone: cleanPhone,
           externalReference: params.externalReference,
           notificationDisabled: false,
         }),
       });
 
-      if (!createRes.ok) {
-        const errJson = await createRes.json().catch(() => ({}));
-        const msg = errJson.errors?.[0]?.description || `Falha ao criar cliente Asaas: HTTP ${createRes.status}`;
-        throw new Error(msg);
-      }
+      if (!createRes.ok) throw await toAsaasError(createRes, 'customer', 'Falha ao criar cliente Asaas');
 
       return await createRes.json();
     } catch (err: unknown) {
       // Sem cliente real no Asaas não há como cobrar: propaga o erro em vez de inventar um ID
+      if (err instanceof AsaasApiError) throw err;
       console.error('[AsaasClient getOrCreateCustomer] Falha:', err);
       throw err instanceof Error ? err : new Error('Falha ao criar cliente no Asaas');
     }
@@ -234,9 +261,7 @@ export class AsaasClient {
           externalReference: params.externalReference,
         };
       }
-      const errJson = await res.json().catch(() => ({}));
-      const msg = errJson.errors?.[0]?.description || `Falha ao criar cobrança Asaas: HTTP ${res.status}`;
-      throw new Error(msg);
+      throw await toAsaasError(res, 'payment', 'Falha ao criar cobrança Asaas');
     }
 
     return await res.json();
@@ -247,7 +272,10 @@ export class AsaasClient {
    */
   async getPixQrCode(paymentId: string, amount: number = 19.90): Promise<AsaasPixQrCodeResponse> {
     const apiKey = this.getApiKey();
-    const isMock = !apiKey || apiKey === '$aact_sua_chave' || paymentId.startsWith('pay_mock_');
+    // Pix simulado só fora de produção: em produção um QR falso nunca seria liquidado
+    const isMock =
+      process.env.NODE_ENV !== 'production' &&
+      (!apiKey || apiKey === '$aact_sua_chave' || paymentId.startsWith('pay_mock_'));
 
     if (isMock) {
       const formattedAmount = amount.toFixed(2);
@@ -261,18 +289,24 @@ export class AsaasClient {
       };
     }
 
-    const res = await fetch(`${this.apiUrl}/payments/${paymentId}/pixQrCode`, {
-      method: 'GET',
-      headers: this.getHeaders(),
-    });
-
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      const msg = errJson.errors?.[0]?.description || `Falha ao obter QR Code Pix do Asaas: HTTP ${res.status}`;
-      throw new Error(msg);
+    // O QR pode não estar disponível no mesmo instante da criação da cobrança: até 3 tentativas
+    let lastError: AsaasApiError | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 700 * attempt));
+      const res = await fetch(`${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/pixQrCode`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+      if (res.ok) {
+        const qr: AsaasPixQrCodeResponse = await res.json();
+        if (qr.encodedImage && qr.payload) return qr;
+        lastError = new AsaasApiError('QR Code Pix vazio retornado pelo Asaas', res.status, undefined, 'pixQrCode');
+        continue;
+      }
+      lastError = await toAsaasError(res, 'pixQrCode', 'Falha ao obter QR Code Pix do Asaas');
+      if (res.status === 401 || res.status === 403) break;
     }
-
-    return await res.json();
+    throw lastError!;
   }
 
   /**
@@ -285,11 +319,7 @@ export class AsaasClient {
       headers: this.getHeaders(),
       body: JSON.stringify(description ? { description: description.slice(0, 500) } : {}),
     });
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      const msg = errJson.errors?.[0]?.description || `Falha ao estornar cobrança no Asaas: HTTP ${res.status}`;
-      throw new Error(msg);
-    }
+    if (!res.ok) throw await toAsaasError(res, 'refund', 'Falha ao estornar cobrança no Asaas');
     return await res.json();
   }
 

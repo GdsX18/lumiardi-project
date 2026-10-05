@@ -18,6 +18,9 @@ export interface PayableUser {
   name: string;
   role: SessionUser['role'];
   curationStatus: string;
+  /** CPF/CNPJ do cadastro (perfil), só dígitos — usado no cliente Asaas da conta. */
+  documentNumber?: string;
+  phone?: string;
   session: SessionUser;
 }
 
@@ -34,7 +37,12 @@ export async function requirePayableUser(request: NextRequest): Promise<Checkout
 
   try {
     await initDatabase();
-    const res = await pool.query('SELECT id, email, full_name, curation_status FROM users WHERE id = $1', [session.id]);
+    const res = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.curation_status, u.phone, p.document_number, p.cnpj
+       FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       WHERE u.id = $1`,
+      [session.id]
+    );
     const row = res.rows[0];
     if (!row) {
       return {
@@ -63,6 +71,8 @@ export async function requirePayableUser(request: NextRequest): Promise<Checkout
         name: String(row.full_name || session.name || ''),
         role: session.role,
         curationStatus: status,
+        documentNumber: String(row.document_number || row.cnpj || '').replace(/\D/g, '') || undefined,
+        phone: row.phone ? String(row.phone) : undefined,
         session,
       },
     };

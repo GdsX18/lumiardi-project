@@ -7,8 +7,9 @@ import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, SubscriptionRecord } from '@/lib/payments/types';
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
-import { asaasClient } from '@/lib/payments/asaasClient';
-import { normalizeAsaasError } from '@/lib/payments/asaasErrors';
+import { asaasClient, AsaasApiError } from '@/lib/payments/asaasClient';
+import { normalizeAsaasError, asaasErrorCode } from '@/lib/payments/asaasErrors';
+import { cleanCpfCnpj, cleanPhoneBR, cleanPostalCode } from '@/lib/payments/document';
 import { CouponService, MIN_CHARGE_BRL } from '@/services/couponService';
 import { requirePayableUser, ASAAS_PAID_STATUSES, ASAAS_PROCESSING_STATUSES } from '@/lib/payments/checkoutGuard';
 
@@ -131,23 +132,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'O valor mínimo exigido pela operadora do cartão é R$ 5,00.', code: 'invalid_input' }, { status: 400 });
     }
 
-    let cpfCnpj = String(card.cpf || rawBody.taxId || '').replace(/\D/g, '');
-    if (!cpfCnpj) {
+    // Titular do cartão (pode ser outra pessoa que não a dona da conta, ex.: pai pagando a adesão da filha).
+    // O Asaas só aceita CPF/CNPJ brasileiro válido, só com dígitos, além de CEP, número e telefone do titular.
+    const holderName = String(card.holderName || '').trim();
+    const holderCpfCnpj = cleanCpfCnpj(card.cpf || rawBody.taxId);
+    if (!holderCpfCnpj) {
       return NextResponse.json(
-        { error: 'CPF/CNPJ/Passaporte ausente. É obrigatório informar um documento válido.', code: 'invalid_input' },
+        {
+          error: 'O CPF/CNPJ do titular do cartão é inválido. Verifique os números digitados (o Asaas aceita apenas CPF/CNPJ brasileiro).',
+          code: 'invalid_document',
+        },
         { status: 400 }
       );
     }
-    if (cpfCnpj.length < 11) {
-      if (rawBody.currency === 'USD') {
-        cpfCnpj = cpfCnpj.padStart(11, '0'); // documento internacional
-      } else {
-        return NextResponse.json(
-          { error: 'O CPF/CNPJ informado é inválido. Por favor, verifique os números digitados.', code: 'invalid_input' },
-          { status: 400 }
-        );
-      }
+    const holderPostalCode = cleanPostalCode(card.postalCode);
+    const holderAddressNumber = String(card.addressNumber || '').trim().slice(0, 20);
+    const holderPhone = cleanPhoneBR(card.phone || rawBody.phone);
+    if (!holderName || !holderPostalCode || !holderAddressNumber || !holderPhone) {
+      return NextResponse.json(
+        { error: 'Informe nome, CEP, número do endereço e telefone (com DDD) do titular do cartão.', code: 'holder_info_invalid' },
+        { status: 400 }
+      );
     }
+    const holderEmail =
+      typeof card.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(card.email.trim()) ? card.email.trim() : userEmail;
+
+    // Cliente Asaas = conta da plataforma. Usa o CPF/CNPJ do cadastro; o do titular só entra se o cadastro não tiver um
+    // válido (o Asaas exige documento no cliente) e nunca sobrescreve um documento já salvo no Asaas.
+    const customerCpfCnpj = cleanCpfCnpj(guard.user.documentNumber) || holderCpfCnpj;
 
     // Reserva atômica do cupom antes de cobrar (respeita max_uses com checkouts concorrentes)
     if (couponValidation) {
@@ -166,8 +178,8 @@ export async function POST(request: NextRequest) {
       const customer = await asaasClient.getOrCreateCustomer({
         name: userName,
         email: userEmail,
-        cpfCnpj,
-        phone: rawBody.phone,
+        cpfCnpj: customerCpfCnpj,
+        phone: cleanPhoneBR(guard.user.phone),
         externalReference: userId,
       });
 
@@ -181,19 +193,19 @@ export async function POST(request: NextRequest) {
           : `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
         externalReference: `${userId}:${plan.id}:${billingInterval}${couponValidation ? `:${couponValidation.code}` : ''}`,
         creditCard: {
-          holderName: card.holderName || userName,
+          holderName,
           number: card.number.replace(/\D/g, ''),
           expiryMonth: card.expiryMonth,
           expiryYear: card.expiryYear,
           ccv: cvvCode,
         },
         creditCardHolderInfo: {
-          name: card.holderName || userName,
-          email: userEmail,
-          cpfCnpj,
-          postalCode: card.postalCode,
-          addressNumber: card.addressNumber,
-          phone: rawBody.phone,
+          name: holderName,
+          email: holderEmail,
+          cpfCnpj: holderCpfCnpj,
+          postalCode: holderPostalCode,
+          addressNumber: holderAddressNumber,
+          phone: holderPhone,
         },
         installmentCount: installments,
       });
@@ -202,10 +214,22 @@ export async function POST(request: NextRequest) {
       asaasStatus = String(asaasResponse.status || '').toUpperCase();
     } catch (err: unknown) {
       const rawMsg = err instanceof Error ? err.message : '';
-      console.error('[Checkout Confirm Asaas Error]:', rawMsg);
+      const stage = err instanceof AsaasApiError ? err.stage : 'unknown';
+      const asaasCode = err instanceof AsaasApiError ? err.code : undefined;
+      console.error('[Checkout Confirm Asaas Error]:', { stage, asaasCode, message: rawMsg });
       if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
       reservedCoupon = null;
-      return NextResponse.json({ error: normalizeAsaasError(rawMsg), code: 'payment_declined' }, { status: 400 });
+      const code = asaasErrorCode(err);
+      return NextResponse.json(
+        {
+          error:
+            code === 'invalid_document' && stage === 'customer'
+              ? 'O CPF/CNPJ do seu cadastro não foi aceito pelo processador de pagamentos. Contate o suporte.'
+              : normalizeAsaasError(rawMsg),
+          code,
+        },
+        { status: code === 'payment_unavailable' ? 502 : 400 }
+      );
     }
 
     const isPaid = ASAAS_PAID_STATUSES.has(asaasStatus);

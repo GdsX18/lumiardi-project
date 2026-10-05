@@ -42,17 +42,16 @@ export class AsaasAdapter implements PaymentGatewayService {
     const today = new Date();
     const dueDate = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // 1. Garante a existência do cliente no Asaas
-    const customer = await asaasClient.getOrCreateCustomer({
-      name: req.userName,
-      email: req.userEmail,
-      cpfCnpj: req.cpfCnpj,
-      phone: req.phone,
-      externalReference: req.userId,
-    });
-
-    // 2. Se for checkout de Pix, gera o pagamento e o QR Code dinâmico
+    // 1. Pix: garante o cliente no Asaas (com CPF/CNPJ, exigido para emitir Pix), gera a cobrança e o QR Code dinâmico
     if (req.gateway === 'pix') {
+      const customer = await asaasClient.getOrCreateCustomer({
+        name: req.userName,
+        email: req.userEmail,
+        cpfCnpj: req.cpfCnpj,
+        phone: req.phone,
+        externalReference: req.userId,
+      });
+
       const payment = await asaasClient.createPayment({
         customerId: customer.id,
         billingType: 'PIX',
@@ -85,7 +84,7 @@ export class AsaasAdapter implements PaymentGatewayService {
       };
     }
 
-    // 3. Checkout padrão / Cartão
+    // 2. Checkout padrão / Cartão (a cobrança é criada em /api/checkout/confirm)
     const sessionId = `asaas_sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     return {
