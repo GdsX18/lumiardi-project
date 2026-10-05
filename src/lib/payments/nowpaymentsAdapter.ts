@@ -16,6 +16,21 @@ import {
 } from './types';
 import { getPlan } from './plansConfig';
 
+/** Recusa da API NOWPayments com código tratável pela rota (ex.: valor abaixo do mínimo da moeda). */
+export class NowPaymentsApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: 'crypto_amount_below_minimum' | 'crypto_gateway_rejected',
+    public readonly gatewayCode?: string,
+    /** Mínimo aceito para a moeda escolhida, em USD (só em crypto_amount_below_minimum) */
+    public readonly minUsd?: number
+  ) {
+    super(message);
+    this.name = 'NowPaymentsApiError';
+  }
+}
+
 export class NOWPaymentsAdapter implements PaymentGatewayService {
   public readonly gatewayName: PaymentGatewayType = 'nowpayments';
 
@@ -104,7 +119,18 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
 
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
-        throw new Error(`Falha ao criar pagamento NOWPayments: HTTP ${response.status} ${errText.slice(0, 300)}`);
+        let gatewayCode: string | undefined;
+        try {
+          gatewayCode = JSON.parse(errText)?.code;
+        } catch {
+          // corpo não-JSON: segue só com o texto
+        }
+        const message = `Falha ao criar pagamento NOWPayments: HTTP ${response.status} ${errText.slice(0, 300)}`;
+        if (gatewayCode === 'AMOUNT_MINIMAL_ERROR') {
+          const minUsd = await this.getMinimumUsd(cryptoCurrency);
+          throw new NowPaymentsApiError(message, response.status, 'crypto_amount_below_minimum', gatewayCode, minUsd);
+        }
+        throw new NowPaymentsApiError(message, response.status, 'crypto_gateway_rejected', gatewayCode);
       }
 
       const data = await response.json();
@@ -177,6 +203,21 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
         currency: 'USD',
       },
     };
+  }
+
+  /** Valor mínimo aceito pelo NOWPayments para a moeda, em USD (oscila com a taxa de rede). */
+  private async getMinimumUsd(cryptoCurrency: string): Promise<number | undefined> {
+    try {
+      const res = await fetch(
+        `${this.apiUrl}/min-amount?currency_from=${encodeURIComponent(cryptoCurrency)}&fiat_equivalent=usd`,
+        { headers: { 'x-api-key': this.apiKey } }
+      );
+      if (!res.ok) return undefined;
+      const min = Number((await res.json())?.fiat_equivalent);
+      return Number.isFinite(min) && min > 0 ? Math.ceil(min * 100) / 100 : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

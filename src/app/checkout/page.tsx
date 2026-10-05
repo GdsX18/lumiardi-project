@@ -534,7 +534,13 @@ function CheckoutContent() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(tApiError(data, 'pub_checkout_crypto_init_failed'));
+        const msg = tApiError(data, 'pub_checkout_crypto_init_failed');
+        // Mínimo da moeda em USD; sem ele, remove o trecho "(… {min})" da mensagem
+        throw new Error(
+          typeof data.minUsd === 'number'
+            ? msg.replace('{min}', data.minUsd.toFixed(2))
+            : msg.replace(/\s*\([^)]*\{min\}\)/, '')
+        );
       }
 
       if (data.cryptoDetails) {
@@ -722,6 +728,7 @@ function CheckoutContent() {
                     type="button"
                     onClick={() => {
                       setGateway('nowpayments');
+                      setErrorMessage(null);
                     }}
                     className={`p-4 text-left border transition-all cursor-pointer relative rounded-lg ${
                       gateway === 'nowpayments'
@@ -1171,6 +1178,7 @@ function CheckoutContent() {
                             onClick={() => {
                               setSelectedCrypto(coin.id as CryptoCurrency);
                               setCryptoData(null);
+                              setErrorMessage(null);
                             }}
                             className={`p-2.5 text-center border text-xs transition-all cursor-pointer rounded-xs ${
                               selectedCrypto === coin.id
@@ -1184,6 +1192,13 @@ function CheckoutContent() {
                         ))}
                       </div>
                     </div>
+
+                    {errorMessage && !cryptoData && (
+                      <div className="p-4 bg-red-950/50 border border-red-500/40 rounded-lg flex items-start gap-3">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-300 leading-relaxed font-sans">{errorMessage}</p>
+                      </div>
+                    )}
 
                     {!cryptoData ? (
                       <button

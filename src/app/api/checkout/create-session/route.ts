@@ -5,6 +5,7 @@ import { CreateCheckoutSessionRequest, PaymentGatewayType, PlanId, BillingInterv
 import { sanitizeInput } from '@/lib/security';
 import { requirePayableUser } from '@/lib/payments/checkoutGuard';
 import { AsaasApiError } from '@/lib/payments/asaasClient';
+import { NowPaymentsApiError } from '@/lib/payments/nowpaymentsAdapter';
 import { asaasErrorCode, asaasGatewayError, checkoutDebugFields } from '@/lib/payments/asaasErrors';
 import { cleanCpfCnpj, cleanPhoneBR } from '@/lib/payments/document';
 
@@ -122,6 +123,22 @@ export async function POST(request: NextRequest) {
           ...checkoutDebugFields(err),
         },
         { status: code === 'payment_unavailable' ? 502 : 400 }
+      );
+    }
+    if (err instanceof NowPaymentsApiError) {
+      console.error('[API Checkout] Erro NOWPayments:', JSON.stringify({ status: err.status, code: err.code, gatewayCode: err.gatewayCode, minUsd: err.minUsd, message: err.message }));
+      return NextResponse.json(
+        {
+          error:
+            err.code === 'crypto_amount_below_minimum'
+              ? 'O valor deste plano está abaixo do mínimo aceito para pagamento com esta criptomoeda.'
+              : 'O processador de criptomoedas (NOWPayments) recusou a cobrança.',
+          code: err.code,
+          stage: 'nowpayments',
+          ...(err.minUsd ? { minUsd: err.minUsd } : {}),
+          ...checkoutDebugFields(err),
+        },
+        { status: 400 }
       );
     }
     console.error(`[API Checkout] Erro interno na etapa "${step}":`, err);
