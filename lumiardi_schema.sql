@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS curation_interviews (
 CREATE INDEX IF NOT EXISTS idx_curation_interviews_user ON curation_interviews(user_id);
 CREATE INDEX IF NOT EXISTS idx_curation_interviews_status ON curation_interviews(status);
 CREATE INDEX IF NOT EXISTS idx_curation_interviews_date ON curation_interviews(interview_date, interview_time);
+-- Sala do Google Meet do último convite enviado (botão "Entrar na sala" do painel)
+ALTER TABLE curation_interviews ADD COLUMN IF NOT EXISTS meet_link TEXT;
 
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS accepts_offers BOOLEAN DEFAULT TRUE;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_represented BOOLEAN DEFAULT FALSE;
@@ -108,6 +110,8 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS responsible_name VARCHAR(255);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cnpj VARCHAR(100);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS commission_rate VARCHAR(50);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS specialties JSONB;
+-- Ficha de pré-entrevista completa (limites, objetivo, redes, disponibilidade...) exibida à curadoria
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS pre_interview JSONB;
 
 -- 3. TABELA DE TAREFAS DO KANBAN
 CREATE TABLE IF NOT EXISTS kanban_tasks (

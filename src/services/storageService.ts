@@ -19,6 +19,7 @@ import {
   CurationRole,
   NotificationItem,
   CurationInterview,
+  PreInterviewAnswers,
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
 import crypto from 'crypto';
@@ -33,6 +34,21 @@ export function isStrongPassword(password: unknown): password is string {
     /[A-Za-z]/.test(password) &&
     /\d/.test(password)
   );
+}
+
+/** Lê profiles.pre_interview (JSONB, ou string no fallback) sem medidas/fisionomia, que já têm colunas próprias. */
+function parsePreInterview(raw: unknown): PreInterviewAnswers | null {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { measurements: _m, physiognomy: _p, ...answers } = value as Record<string, unknown>;
+  return answers as PreInterviewAnswers;
 }
 
 export function getDirectConversationId(id1: string, id2: string): string {
@@ -184,7 +200,11 @@ export const StorageService = {
       let query = `
         SELECT u.*, p.artistic_name, p.corporate_name, p.responsible_name, p.category, p.instagram, 
                p.birth_date, p.document_number, p.cnpj, p.gender, p.measurements, p.physiognomy, p.address, 
-               p.photos, p.video_url, p.bio, p.exposure_opinion, p.monthly_revenue_estimate, p.commission_rate, p.specialties
+               p.photos, p.video_url, p.bio, p.exposure_opinion, p.monthly_revenue_estimate, p.commission_rate, p.specialties,
+               p.hobbies, p.pre_interview,
+               (SELECT ci.meet_link FROM curation_interviews ci
+                 WHERE ci.user_id = u.id AND ci.meet_link IS NOT NULL
+                 ORDER BY ci.updated_at DESC LIMIT 1) AS meet_link
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
         WHERE u.role != 'ADMIN'
@@ -292,7 +312,14 @@ export const StorageService = {
                 monthlyRevenueEstimate: row.monthly_revenue_estimate || null,
                 commissionRate: row.commission_rate || null,
                 specialties: row.specialties || [],
+                hobbies: row.hobbies || '',
               },
+              preInterview: parsePreInterview(row.pre_interview),
+              planId: row.plan_id || null,
+              planBillingInterval: row.plan_billing_interval || null,
+              meetLink: row.meet_link || null,
+              twoFactorEnabled: !!row.two_factor_enabled,
+              kycSelfieUrl: row.kyc_selfie_url || null,
               paymentInfo: paymentInfo || (row as any).payment_info || null,
             };
           });
@@ -377,7 +404,14 @@ export const StorageService = {
           monthlyRevenueEstimate: p.monthly_revenue_estimate || 'Sob Consulta',
           commissionRate: p.commission_rate || '20%',
           specialties: p.specialties || ['Alta Moda', 'Editorial', 'Campanhas Digitais'],
+          hobbies: p.hobbies || '',
         },
+        preInterview: parsePreInterview(p.pre_interview),
+        planId: (u.plan_id as string) || null,
+        planBillingInterval: (u.plan_billing_interval as string) || null,
+        meetLink: (fallbackStore.curation_interviews.get(`user_${u.id}`)?.meetLink as string) || null,
+        twoFactorEnabled: !!u.two_factor_enabled,
+        kycSelfieUrl: (u.kyc_selfie_url as string) || null,
       });
     }
 
@@ -393,7 +427,11 @@ export const StorageService = {
       const res = await pool.query(`
         SELECT u.*, p.artistic_name, p.corporate_name, p.responsible_name, p.category, p.instagram, 
                p.birth_date, p.document_number, p.cnpj, p.gender, p.measurements, p.physiognomy, p.address, 
-               p.photos, p.video_url, p.bio, p.exposure_opinion, p.monthly_revenue_estimate, p.commission_rate, p.specialties
+               p.photos, p.video_url, p.bio, p.exposure_opinion, p.monthly_revenue_estimate, p.commission_rate, p.specialties,
+               p.hobbies, p.pre_interview,
+               (SELECT ci.meet_link FROM curation_interviews ci
+                 WHERE ci.user_id = u.id AND ci.meet_link IS NOT NULL
+                 ORDER BY ci.updated_at DESC LIMIT 1) AS meet_link
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
         WHERE u.id = $1
@@ -457,7 +495,14 @@ export const StorageService = {
             monthlyRevenueEstimate: row.monthly_revenue_estimate || 'Sob Consulta',
             commissionRate: row.commission_rate || '20%',
             specialties: row.specialties || ['Alta Moda', 'Editorial', 'Campanhas Digitais'],
+            hobbies: row.hobbies || '',
           },
+          preInterview: parsePreInterview(row.pre_interview),
+          planId: (row.plan_id || null) as string | null,
+          planBillingInterval: (row.plan_billing_interval || null) as string | null,
+          meetLink: (row.meet_link || null) as string | null,
+          twoFactorEnabled: !!row.two_factor_enabled,
+          kycSelfieUrl: (row.kyc_selfie_url || null) as string | null,
           paymentInfo: paymentInfo || (row as any).payment_info || null,
         };
       }
@@ -646,9 +691,9 @@ export const StorageService = {
         `INSERT INTO profiles (
            user_id, artistic_name, category, instagram, gender, birth_date,
            document_number, bio, hobbies, exposure_opinion, measurements,
-           physiognomy, address, monthly_revenue_estimate, created_at
+           physiognomy, address, monthly_revenue_estimate, pre_interview, created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
          ON CONFLICT (user_id) DO UPDATE SET 
            artistic_name = EXCLUDED.artistic_name,
            category = COALESCE(EXCLUDED.category, profiles.category),
@@ -659,7 +704,8 @@ export const StorageService = {
            measurements = COALESCE(EXCLUDED.measurements, profiles.measurements),
            physiognomy = COALESCE(EXCLUDED.physiognomy, profiles.physiognomy),
            address = COALESCE(EXCLUDED.address, profiles.address),
-           monthly_revenue_estimate = COALESCE(EXCLUDED.monthly_revenue_estimate, profiles.monthly_revenue_estimate)`,
+           monthly_revenue_estimate = COALESCE(EXCLUDED.monthly_revenue_estimate, profiles.monthly_revenue_estimate),
+           pre_interview = COALESCE(EXCLUDED.pre_interview, profiles.pre_interview)`,
         [
           id,
           data.artisticName || data.fullName,
@@ -675,6 +721,8 @@ export const StorageService = {
           data.qualitative?.physiognomy ? JSON.stringify(data.qualitative.physiognomy) : null,
           data.address ? JSON.stringify(data.address) : null,
           data.qualitative?.monthlyRevenueEstimate || null,
+          // Ficha completa: as colunas acima não cobrem limites, objetivo, demais redes, disponibilidade etc.
+          data.qualitative ? JSON.stringify(data.qualitative) : null,
         ]
       );
     } catch (err) {

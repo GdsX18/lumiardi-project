@@ -114,6 +114,9 @@ export interface CreatorQualitativeData {
   representedAgencyId?: string;
 }
 
+/** Respostas da ficha de pré-entrevista exibidas à curadoria (profiles.pre_interview). */
+export type PreInterviewAnswers = Partial<Omit<CreatorQualitativeData, 'measurements' | 'physiognomy'>>;
+
 export interface CurationAppointment {
   date: string;       // YYYY-MM-DD
   timeSlot: string;   // ex: 10:00, 14:30

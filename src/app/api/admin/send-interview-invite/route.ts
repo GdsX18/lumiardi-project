@@ -270,7 +270,19 @@ export async function POST(req: NextRequest) {
       meetLink: finalMeetLink,
     });
 
-    // 4. Registro no Audit Log imutável
+    // 4. Persiste a sala do Meet: no dia da reunião o painel abre com o link pronto
+    try {
+      await pool.query(
+        'UPDATE curation_interviews SET meet_link = $1, updated_at = NOW() WHERE id = $2',
+        [finalMeetLink, interview.id]
+      );
+    } catch (saveErr) {
+      console.error('[send-interview-invite] Falha ao salvar meet_link (convite já enviado):', saveErr);
+    }
+    const storedInterview = fallbackStore?.curation_interviews?.get(interview.id);
+    if (storedInterview) storedInterview.meetLink = finalMeetLink;
+
+    // 5. Registro no Audit Log imutável
     try {
       await AuditLogService.logAction({
         userId: session.id,

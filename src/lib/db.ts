@@ -168,6 +168,8 @@ async function runInitDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_curation_interviews_date ON curation_interviews(interview_date, interview_time);
         ALTER TABLE curation_interviews ADD COLUMN IF NOT EXISTS candidate_id VARCHAR(100);
         CREATE INDEX IF NOT EXISTS idx_curation_interviews_candidate ON curation_interviews(candidate_id);
+        -- Sala do Google Meet do último convite enviado (botão "Entrar na sala" do painel)
+        ALTER TABLE curation_interviews ADD COLUMN IF NOT EXISTS meet_link TEXT;
       `);
 
       // 2. Tabela PROFILES
@@ -205,6 +207,8 @@ async function runInitDatabase(): Promise<boolean> {
         );
         ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
         ALTER TABLE profiles ADD COLUMN IF NOT EXISTS logo_url TEXT;
+        -- Ficha de pré-entrevista completa (limites, objetivo, redes, disponibilidade...) para a curadoria
+        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS pre_interview JSONB;
       `);
 
       // 3. Tabela KANBAN_TASKS

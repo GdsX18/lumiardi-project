@@ -22,13 +22,9 @@ import {
   ChevronRight,
   Phone,
   Mail,
-  MapPin,
   Calendar,
-  Globe,
   Video,
-  Play,
   RotateCcw,
-  ZoomIn,
   MessageSquarePlus,
   SlidersHorizontal,
   MessageSquare,
@@ -52,54 +48,10 @@ import { AdminChatTab } from '@/components/admin/AdminChatTab';
 import { InterviewQueueTab } from '@/components/admin/InterviewQueueTab';
 import { AdminNotice } from '@/components/admin/AdminNotice';
 import { CurationRole } from '@/types';
+import { CandidateDossier, CandidateApplication, DossierSection, Field } from '@/components/admin/CandidateDossier';
+import { normalizeGoogleMeetUrl } from '@/lib/googleMeet';
 
-interface Application {
-  id: string;
-  email: string;
-  fullName: string;
-  role: 'criadora' | 'agencia';
-  curationStatus: 'EM_CURATORIA' | 'AGUARDANDO_REUNIAO' | 'APROVADA_PAGAMENTO' | 'APROVADO' | 'REJEITADO' | 'RECUSADO';
-  phone?: string;
-  whatsapp?: string;
-  interviewDate?: string;
-  interviewTime?: string;
-  documentType?: string;
-  documentName?: string;
-  documentUrl?: string;
-  rejectionReason?: string;
-  createdAt: string;
-  profile?: {
-    artisticName?: string;
-    corporateName?: string;
-    responsibleName?: string;
-    category?: string;
-    instagram?: string;
-    birthDate?: string;
-    documentNumber?: string;
-    cnpj?: string;
-    gender?: string;
-    measurements?: { height?: string; weight?: string; waist?: string; bust?: string; hips?: string } | null;
-    address?: { country?: string; state?: string; city?: string };
-    photos?: Array<{ id: string; url: string; title: string }>;
-    videoUrl?: string;
-    bio?: string;
-    exposureOpinion?: string;
-    monthlyRevenueEstimate?: string;
-    commissionRate?: string;
-    specialties?: string[];
-  };
-  paymentInfo?: {
-    hasPaid?: boolean;
-    planId?: string;
-    planCategory?: string;
-    billingInterval?: string;
-    amount?: number;
-    currency?: string;
-    status?: string;
-    billingReason?: string;
-    receiptNumber?: string;
-  } | null;
-}
+type Application = CandidateApplication;
 
 interface Metrics {
   pending: number;
@@ -195,6 +147,10 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        // Mantém a sala salva no estado local: reabrir o modal não exige recarregar a lista
+        const savedMeetLink: string = data.meetLink || meetLink;
+        setSelectedApp((prev) => (prev && prev.id === candidate.id ? { ...prev, meetLink: savedMeetLink } : prev));
+        setApplications((prev) => prev.map((a) => (a.id === candidate.id ? { ...a, meetLink: savedMeetLink } : a)));
         if (data.simulated) {
           setInviteFeedback({
             type: 'warning',
@@ -953,7 +909,12 @@ export default function AdminDashboardPage() {
                                 <Button
                                   size="sm"
                                   variant={isAwaitingMeeting || isUnderReview || isApprovedPayment ? 'primary' : 'secondary'}
-                                  onClick={() => setSelectedApp(app)}
+                                  onClick={() => {
+                                    setSelectedApp(app);
+                                    // Sala salva no último convite: botão "Entrar na sala" já fica ativo
+                                    setMeetLinkInput(app.meetLink || '');
+                                    setMeetLinkMissing(false);
+                                  }}
                                   className="text-[10px] uppercase tracking-wider py-1.5 px-3 cursor-pointer"
                                 >
                                   <Eye className="w-3 h-3 mr-1" />
@@ -1066,25 +1027,61 @@ export default function AdminDashboardPage() {
                 </div>
               )}
 
-              {/* Card de Alinhamento da Entrevista / Reunião (quando agendada) */}
-              {(selectedApp.curationStatus === 'AGUARDANDO_REUNIAO' || selectedApp.interviewDate) && (
-                <div className="p-4 bg-gradient-to-r from-sky-950/40 via-[#0f172a]/60 to-black/60 border border-sky-500/40 rounded-sm space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-sky-400 font-semibold flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                        Reunião de Curadoria Agendada
-                      </span>
-                      <p className="text-xs text-ivory/90">
-                        Data e Horário: <strong className="text-sky-300 font-mono text-sm">{selectedApp.interviewDate ? new Date(selectedApp.interviewDate).toLocaleDateString('pt-BR') : 'A definir'} às {selectedApp.interviewTime || 'A definir'}</strong> (Horário de Brasília)
-                      </p>
-                      <p className="text-[11px] text-ivory/60">
-                        WhatsApp do Candidato: <span className="text-emerald-400 font-mono font-medium">{selectedApp.whatsapp || selectedApp.phone || 'Não informado'}</span>
-                      </p>
+              <CandidateDossier app={selectedApp} onOpenMedia={openLightbox} />
+
+              {/* E — Agendamento & Ações Rápidas */}
+              {(() => {
+                const meetUrl = normalizeGoogleMeetUrl(meetLinkInput);
+                const waDigits = (selectedApp.whatsapp || selectedApp.phone || '').replace(/\D/g, '');
+                const interviewDay = selectedApp.interviewDate
+                  ? new Date(selectedApp.interviewDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                  : null;
+                return (
+                  <DossierSection letter="E" title="Agendamento & Ações Rápidas" icon={Calendar} tone="sky">
+                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
+                      <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                        <Field label="Reunião (Brasília)">
+                          {interviewDay ? (
+                            <span className="font-mono text-sky-300">
+                              {interviewDay} · {selectedApp.interviewTime || '--:--'}
+                            </span>
+                          ) : (
+                            <span className="text-ivory/30 italic">A definir</span>
+                          )}
+                        </Field>
+                        <Field label="WhatsApp" value={selectedApp.whatsapp || selectedApp.phone} mono />
+                      </dl>
+
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        {waDigits.length >= 10 && (
+                          <a
+                            href={`https://wa.me/${waDigits}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm"
+                          >
+                            <Phone className="w-3.5 h-3.5" /> Abrir WhatsApp
+                          </a>
+                        )}
+                        {meetUrl ? (
+                          <a
+                            href={meetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-sans font-semibold transition-colors flex items-center gap-1.5 rounded-sm"
+                          >
+                            <Video className="w-3.5 h-3.5" /> Entrar na sala do Meet
+                          </a>
+                        ) : (
+                          <span className="px-3 py-2 border border-white/[0.1] text-ivory/35 text-xs font-sans flex items-center gap-1.5 rounded-sm">
+                            <Video className="w-3.5 h-3.5" /> Informe o Meet para abrir a sala
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      <div className="flex flex-col gap-1">
+                    <div className="mt-4 pt-3 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-start gap-2">
+                      <div className="flex-1 flex flex-col gap-1">
                         <input
                           type="text"
                           inputMode="url"
@@ -1099,7 +1096,7 @@ export default function AdminDashboardPage() {
                           placeholder="Link ou código do Google Meet (obrigatório)"
                           aria-label="Link do Google Meet (obrigatório)"
                           aria-invalid={meetLinkMissing}
-                          className={`w-full sm:w-72 px-3 py-2 bg-black/40 border text-xs text-ivory placeholder:text-ivory/40 rounded-sm focus:outline-none font-mono select-text ${
+                          className={`w-full px-3 py-2 bg-black/40 border text-xs text-ivory placeholder:text-ivory/40 rounded-sm focus:outline-none font-mono select-text ${
                             meetLinkMissing ? 'border-rose-500 focus:border-rose-400' : 'border-sky-500/30 focus:border-sky-400'
                           }`}
                         />
@@ -1112,7 +1109,7 @@ export default function AdminDashboardPage() {
                       <button
                         onClick={() => handleSendEmailInviteFromAdmin(selectedApp)}
                         disabled={sendingInvite}
-                        className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-sm transition-colors flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3.5 py-2 bg-[#1C1C1C] hover:bg-sky-600 border border-sky-500/40 text-sky-200 hover:text-white text-xs font-semibold rounded-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {sendingInvite ? (
                           <>
@@ -1127,373 +1124,16 @@ export default function AdminDashboardPage() {
                         )}
                       </button>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Seção 0: Status Financeiro & Plano Contratado */}
-              <div className="p-4 bg-gradient-to-r from-[#181611] to-[#111] border border-gold/40 rounded-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Status Financeiro & Plano de Adesão
-                  </span>
-                  {selectedApp.paymentInfo?.hasPaid ? (
-                    <span className="text-[10px] font-mono uppercase bg-emerald-950/60 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-xs">
-                      ✓ Pagamento Confirmado
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono uppercase bg-amber-950/60 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-xs">
-                      Aguardando Confirmação
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-sans">
-                  <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
-                    <span className="text-[10px] text-ivory/40 block">Plano Selecionado</span>
-                    <span className="font-semibold text-gold uppercase">
-                      {selectedApp.paymentInfo?.planId || (selectedApp.role === 'agencia' ? 'SELECT' : 'GLOW')} ({selectedApp.paymentInfo?.billingInterval === 'yearly' ? 'ANUAL' : 'MENSAL'})
-                    </span>
-                  </div>
-                  <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
-                    <span className="text-[10px] text-ivory/40 block">Valor da Adesão</span>
-                    <span className="font-semibold text-emerald-400">
-                      R$ {selectedApp.paymentInfo?.amount ? Number(selectedApp.paymentInfo.amount).toFixed(2).replace('.', ',') : (selectedApp.role === 'agencia' ? '2.797,20' : '1.402,92')}
-                    </span>
-                  </div>
-                  <div className="p-2.5 bg-black/40 border border-white/[0.06] rounded-xs">
-                    <span className="text-[10px] text-ivory/40 block">Garantia Editorial</span>
-                    <span className="text-ivory/70 text-[11px] block">
-                      Reembolso automático em caso de recusa
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção 1: Dados Pessoais / Corporativos */}
-              <div className="space-y-3">
-                <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                  {selectedApp.role === 'agencia' ? '1. Dados Institucionais da Agência' : '1. Ficha Cadastral e Identificação'}
-                </span>
-
-                {selectedApp.role === 'agencia' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Razão Social / Agência</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Building2 className="w-3 h-3 text-gold" /> {selectedApp.fullName}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Responsável de Casting</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Users className="w-3 h-3 text-gold" /> {selectedApp.profile?.responsibleName || selectedApp.fullName}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">CNPJ / Registro Fiscal</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <FileText className="w-3 h-3 text-gold" /> {selectedApp.profile?.documentNumber || '-'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">E-mail Corporativo</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Mail className="w-3 h-3 text-gold" /> {selectedApp.email}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">WhatsApp / Telefone</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Phone className="w-3 h-3 text-gold" /> {selectedApp.phone || '-'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Instagram Oficial</span>
-                      <span className="text-xs font-medium text-gold flex items-center gap-1.5 mt-0.5">
-                        <Globe className="w-3 h-3 text-gold" /> {selectedApp.profile?.instagram || '-'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm sm:col-span-2">
-                      <span className="text-[10px] text-ivory/40 block">Categoria / Especialidades</span>
-                      <span className="text-xs font-medium text-ivory mt-0.5 block">
-                        {selectedApp.profile?.category || 'Agência de Casting & Modelos'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Comissão Padrão</span>
-                      <span className="text-xs font-medium text-emerald-400 mt-0.5 block">20%</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Nome Artístico / Completo</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Users className="w-3 h-3 text-gold" /> {selectedApp.profile?.artisticName || selectedApp.fullName}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">E-mail Cadastrado</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Mail className="w-3 h-3 text-gold" /> {selectedApp.email}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Telefone / WhatsApp</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <Phone className="w-3 h-3 text-gold" /> {selectedApp.phone || '-'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">CPF / Documento</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <FileText className="w-3 h-3 text-gold" /> {selectedApp.profile?.documentNumber || '-'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Localização</span>
-                      <span className="text-xs font-medium text-ivory flex items-center gap-1.5 mt-0.5">
-                        <MapPin className="w-3 h-3 text-gold" />{' '}
-                        {selectedApp.profile?.address?.city || 'São Paulo'}, {selectedApp.profile?.address?.state || 'SP'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Instagram Profissional</span>
-                      <span className="text-xs font-medium text-gold flex items-center gap-1.5 mt-0.5">
-                        <Globe className="w-3 h-3 text-gold" /> {selectedApp.profile?.instagram || '-'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm sm:col-span-2">
-                      <span className="text-[10px] text-ivory/40 block">Categoria Artística</span>
-                      <span className="text-xs font-medium text-ivory mt-0.5 block">
-                        {selectedApp.profile?.category || 'Modelo & Criadora VIP'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] text-ivory/40 block">Faturamento Mensal Estimado</span>
-                      <span className="text-xs font-medium text-emerald-400 mt-0.5 block">
-                        {selectedApp.profile?.monthlyRevenueEstimate || 'Sob Consulta'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Seção 2: Documentos Oficiais Anexados & Auditoria Biométrica */}
-              <div className="space-y-3">
-                <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                  2. Central de Documentos, Biometria (+18) & Blindagem 2FA
-                </span>
-                
-                <div className="p-4 bg-[#141414] border border-gold/30 rounded-sm space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-sm bg-gold/10 border border-gold/30 flex items-center justify-center text-gold">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="text-xs font-medium text-ivory block">
-                          {selectedApp.documentType || (selectedApp.role === 'agencia' ? 'Contrato Social & Cartão CNPJ' : 'Documento Oficial de Identificação')}
-                        </span>
-                        <span className="text-[10px] text-ivory/50 block">
-                          Arquivo: {selectedApp.documentName || 'Não anexado'} (Custódia 18 U.S.C. § 2257)
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {selectedApp.documentUrl ? (
-                        <button
-                          onClick={() =>
-                            openLightbox([
-                              {
-                                url: selectedApp.documentUrl!,
-                                title: `Documento de Identificação - ${selectedApp.fullName}`,
-                                tag: 'Documento 2257',
-                              },
-                            ])
-                          }
-                          className="px-3 py-1.5 bg-[#1C1C1C] hover:bg-gold hover:text-black-matte border border-gold/30 text-gold text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm cursor-pointer"
-                        >
-                          <ZoomIn className="w-3.5 h-3.5" />
-                          <span>Inspecionar Documento</span>
-                        </button>
-                      ) : (
-                        <span className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] text-ivory/40 text-xs font-sans rounded-sm flex items-center gap-1.5">
-                          <FileText className="w-3.5 h-3.5 text-ivory/30" />
-                          <span>Documento Físico / Pendente de Envio</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-sans">
-                    <div className="flex items-center gap-2 p-2 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span><strong>Biometria 3D Facial (+18):</strong> Homologada</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 p-2 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span><strong>Blindagem 2FA (TOTP):</strong> Ativada</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção 3: Mídia, Fotos e Vídeo Showreel com Zoom em Alta Resolução */}
-              {selectedApp.role === 'criadora' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold block">
-                      3. Ensaio Fotográfico & Vídeo de Apresentação (Clique para Ampliar)
-                    </span>
-                    <span className="text-[10px] text-gold/80 font-mono">
-                      Lightbox HD Ativo
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Fotos */}
-                    <div className="space-y-2">
-                      <span className="text-[11px] text-ivory/60 font-sans block">
-                        Fotos de Portfólio (Clique para Zoom):
-                      </span>
-                      {selectedApp.profile?.photos && selectedApp.profile.photos.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          {selectedApp.profile.photos.map((p, pIdx) => (
-                            <div
-                              key={pIdx}
-                              onClick={() => openLightbox(selectedApp.profile!.photos!.map(ph => ({ url: ph.url, title: ph.title || `${selectedApp.fullName} - Ensaio`, tag: 'Ensaio' })), pIdx)}
-                              className="relative aspect-[3/4] bg-black border border-white/[0.08] hover:border-gold/60 overflow-hidden rounded-sm cursor-pointer group transition-all"
-                            >
-                              <Image
-                                src={p.url}
-                                alt={p.title || `Foto ${pIdx + 1}`}
-                                fill
-                                className="object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-gold">
-                                <ZoomIn className="w-6 h-6" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="p-6 bg-black/40 border border-white/[0.06] rounded-sm text-center flex flex-col items-center justify-center min-h-[140px]">
-                          <Eye className="w-5 h-5 text-ivory/20 mb-1.5" />
-                          <p className="text-xs text-ivory/50">Nenhum ensaio fotográfico preliminar anexado.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Vídeo Showreel */}
-                    <div className="space-y-2">
-                      <span className="text-[11px] text-ivory/60 font-sans block">
-                        Vídeo de Apresentação / Showreel:
-                      </span>
-                      {selectedApp.profile?.videoUrl ? (
-                        <div
-                          onClick={() =>
-                            openLightbox([
-                              {
-                                url: selectedApp.profile!.videoUrl!,
-                                title: `Vídeo de Apresentação - ${selectedApp.fullName}`,
-                                type: 'video',
-                              },
-                            ])
-                          }
-                          className="relative aspect-[4/3] bg-black border border-gold/30 hover:border-gold overflow-hidden rounded-sm flex items-center justify-center group cursor-pointer"
-                        >
-                          <video
-                            src={selectedApp.profile.videoUrl}
-                            className="w-full h-full object-cover pointer-events-none"
-                          />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <div className="w-12 h-12 rounded-full bg-gold text-black-matte flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-                              <Play className="w-5 h-5 fill-current ml-0.5" />
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-6 bg-black/40 border border-white/[0.06] rounded-sm text-center flex flex-col items-center justify-center min-h-[140px]">
-                          <Video className="w-5 h-5 text-ivory/20 mb-1.5" />
-                          <p className="text-xs text-ivory/50">Nenhum vídeo de apresentação submetido.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Medidas Corporais Reais */}
-                  {selectedApp.profile?.measurements &&
-                    (selectedApp.profile.measurements.height ||
-                      selectedApp.profile.measurements.weight ||
-                      selectedApp.profile.measurements.waist ||
-                      selectedApp.profile.measurements.bust ||
-                      selectedApp.profile.measurements.hips) && (
-                    <div className="p-3.5 bg-[#141414] border border-white/[0.06] rounded-sm">
-                      <span className="text-[10px] uppercase tracking-wider text-ivory/50 font-semibold block mb-2">
-                        Ficha Técnica Corporal Declarada:
-                      </span>
-                      <div className="grid grid-cols-5 gap-2 text-center text-xs font-sans">
-                        <div className="bg-[#181818] p-2 border border-white/[0.04]">
-                          <span className="text-[10px] text-ivory/40 block">Altura</span>
-                          <span className="font-semibold text-gold">
-                            {selectedApp.profile.measurements.height ? `${selectedApp.profile.measurements.height} cm` : '-'}
-                          </span>
-                        </div>
-                        <div className="bg-[#181818] p-2 border border-white/[0.04]">
-                          <span className="text-[10px] text-ivory/40 block">Peso</span>
-                          <span className="font-semibold text-gold">
-                            {selectedApp.profile.measurements.weight ? `${selectedApp.profile.measurements.weight} kg` : '-'}
-                          </span>
-                        </div>
-                        <div className="bg-[#181818] p-2 border border-white/[0.04]">
-                          <span className="text-[10px] text-ivory/40 block">Cintura</span>
-                          <span className="font-semibold text-gold">
-                            {selectedApp.profile.measurements.waist ? `${selectedApp.profile.measurements.waist} cm` : '-'}
-                          </span>
-                        </div>
-                        <div className="bg-[#181818] p-2 border border-white/[0.04]">
-                          <span className="text-[10px] text-ivory/40 block">Busto</span>
-                          <span className="font-semibold text-gold">
-                            {selectedApp.profile.measurements.bust ? `${selectedApp.profile.measurements.bust} cm` : '-'}
-                          </span>
-                        </div>
-                        <div className="bg-[#181818] p-2 border border-white/[0.04]">
-                          <span className="text-[10px] text-ivory/40 block">Quadril</span>
-                          <span className="font-semibold text-gold">
-                            {selectedApp.profile.measurements.hips ? `${selectedApp.profile.measurements.hips} cm` : '-'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                  </DossierSection>
+                );
+              })()}
 
               {/* Seção 4: Prontuário & Anotações Internas entre Curadores */}
               <div className="space-y-3 pt-2 border-t border-white/[0.08]">
                 <div className="flex items-center gap-2">
                   <MessageSquarePlus className="w-4 h-4 text-gold" />
                   <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-gold font-semibold">
-                    4. Prontuário & Anotações Internas de Auditoria (Privado da Curadoria)
+                    Prontuário & Anotações Internas (Privado da Curadoria)
                   </span>
                 </div>
 
@@ -1602,20 +1242,6 @@ export default function AdminDashboardPage() {
                         <X className="w-4 h-4 mr-1.5" />
                         Recusar Candidatura
                       </Button>
-                    )}
-
-                    {/* Botão de WhatsApp rápido se tiver telefone */}
-                    {(selectedApp.whatsapp || selectedApp.phone) && (
-                      <a
-                        href={`https://wa.me/${(selectedApp.whatsapp || selectedApp.phone || '').replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Canal de contingência manual"
-                        className="px-3.5 py-2.5 bg-[#1C1C1C] hover:bg-white/[0.08] border border-white/[0.12] text-ivory text-xs font-sans font-medium transition-colors flex items-center gap-1.5 rounded-sm"
-                      >
-                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>WhatsApp (backup)</span>
-                      </a>
                     )}
 
                     {/* Caso 1: AGUARDANDO_REUNIAO -> Botão "Reunião Aceita: Liberar Pagamento" */}
