@@ -7,9 +7,9 @@ import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, SubscriptionRecord } from '@/lib/payments/types';
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
-import { asaasClient, AsaasApiError } from '@/lib/payments/asaasClient';
+import { asaasClient, AsaasApiError, AsaasPaymentResponse } from '@/lib/payments/asaasClient';
 import { normalizeAsaasError, asaasErrorCode } from '@/lib/payments/asaasErrors';
-import { cleanCpfCnpj, cleanPhoneBR, cleanPostalCode } from '@/lib/payments/document';
+import { cleanCpfCnpj, cleanPhoneBR, resolveHolderContact } from '@/lib/payments/document';
 import { CouponService, MIN_CHARGE_BRL } from '@/services/couponService';
 import { requirePayableUser, ASAAS_PAID_STATUSES, ASAAS_PROCESSING_STATUSES } from '@/lib/payments/checkoutGuard';
 
@@ -133,8 +133,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Titular do cartão (pode ser outra pessoa que não a dona da conta, ex.: pai pagando a adesão da filha).
-    // O Asaas só aceita CPF/CNPJ brasileiro válido, só com dígitos, além de CEP, número e telefone do titular.
-    const holderName = String(card.holderName || '').trim();
+    // O checkout só pede nome e CPF/CNPJ; o Asaas só aceita CPF/CNPJ brasileiro válido, só com dígitos.
+    const holderName = String(card.holderName || '').trim() || userName;
     const holderCpfCnpj = cleanCpfCnpj(card.cpf || rawBody.taxId);
     if (!holderCpfCnpj) {
       return NextResponse.json(
@@ -145,17 +145,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const holderPostalCode = cleanPostalCode(card.postalCode);
-    const holderAddressNumber = String(card.addressNumber || '').trim().slice(0, 20);
-    const holderPhone = cleanPhoneBR(card.phone || rawBody.phone);
-    if (!holderName || !holderPostalCode || !holderAddressNumber || !holderPhone) {
-      return NextResponse.json(
-        { error: 'Informe nome, CEP, número do endereço e telefone (com DDD) do titular do cartão.', code: 'holder_info_invalid' },
-        { status: 400 }
-      );
-    }
-    const holderEmail =
-      typeof card.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(card.email.trim()) ? card.email.trim() : userEmail;
+    // CEP, número e telefone (obrigatórios em creditCardHolderInfo) vêm do cadastro da conta, com fallback configurável
+    const { postalCode: holderPostalCode, addressNumber: holderAddressNumber, phone: holderPhone } = resolveHolderContact(
+      guard.user.address,
+      guard.user.phone
+    );
+    const holderEmail = userEmail;
 
     // Cliente Asaas = conta da plataforma. Usa o CPF/CNPJ do cadastro; o do titular só entra se o cadastro não tiver um
     // válido (o Asaas exige documento no cliente) e nunca sobrescreve um documento já salvo no Asaas.
@@ -173,6 +168,7 @@ export async function POST(request: NextRequest) {
     const installments = Math.min(12, Math.max(1, Math.floor(Number(card.installments) || 1)));
     let asaasPaymentId = '';
     let asaasStatus = '';
+    let asaasResponseBody: AsaasPaymentResponse | null = null;
 
     try {
       const customer = await asaasClient.getOrCreateCustomer({
@@ -210,13 +206,23 @@ export async function POST(request: NextRequest) {
         installmentCount: installments,
       });
 
+      asaasResponseBody = asaasResponse;
       asaasPaymentId = asaasResponse.id;
       asaasStatus = String(asaasResponse.status || '').toUpperCase();
     } catch (err: unknown) {
       const rawMsg = err instanceof Error ? err.message : '';
       const stage = err instanceof AsaasApiError ? err.stage : 'unknown';
       const asaasCode = err instanceof AsaasApiError ? err.code : undefined;
-      console.error('[Checkout Confirm Asaas Error]:', { stage, asaasCode, message: rawMsg });
+      console.error(
+        '[Checkout Confirm Asaas Error]:',
+        JSON.stringify({
+          stage,
+          httpStatus: err instanceof AsaasApiError ? err.status : undefined,
+          asaasCode,
+          message: rawMsg,
+          asaasResponse: err instanceof AsaasApiError ? err.details : undefined,
+        })
+      );
       if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
       reservedCoupon = null;
       const code = asaasErrorCode(err);
@@ -236,6 +242,9 @@ export async function POST(request: NextRequest) {
     const isProcessing = ASAAS_PROCESSING_STATUSES.has(asaasStatus);
 
     if (!isPaid && !isProcessing) {
+      // Recusa sem erro HTTP: registra a cobrança devolvida pelo Asaas (status, refusalReason...) sem o token do cartão
+      const { creditCard: _creditCard, ...loggedResponse } = asaasResponseBody as unknown as Record<string, unknown>;
+      console.error('[Checkout Confirm Asaas Refused]:', JSON.stringify(loggedResponse));
       if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
       reservedCoupon = null;
       return NextResponse.json({ error: 'Pagamento não aprovado pela operadora do cartão.', code: 'payment_declined' }, { status: 400 });

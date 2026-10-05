@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/lib/payments/types';
-import { cleanCpfCnpj, cleanPhoneBR, cleanPostalCode } from '@/lib/payments/document';
+import { cleanCpfCnpj } from '@/lib/payments/document';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 
 function CheckoutContent() {
@@ -73,9 +73,6 @@ function CheckoutContent() {
     cvv: '',
     cpf: '',
     taxId: '',
-    postalCode: '',
-    addressNumber: '',
-    phone: '',
     installments: '1',
   });
 
@@ -347,26 +344,6 @@ function CheckoutContent() {
     setCardData((prev) => ({ ...prev, cpf: val }));
   };
 
-  // Formatação de CEP 00000-000
-  const handlePostalCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '').substring(0, 8);
-    if (val.length > 5) val = `${val.substring(0, 5)}-${val.substring(5)}`;
-    setCardData((prev) => ({ ...prev, postalCode: val }));
-  };
-
-  // Formatação de telefone (00) 00000-0000
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').substring(0, 11);
-    let val = digits;
-    if (digits.length > 6) {
-      const split = digits.length === 11 ? 7 : 6;
-      val = `(${digits.substring(0, 2)}) ${digits.substring(2, split)}-${digits.substring(split)}`;
-    } else if (digits.length > 2) {
-      val = `(${digits.substring(0, 2)}) ${digits.substring(2)}`;
-    }
-    setCardData((prev) => ({ ...prev, phone: val }));
-  };
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setIsCopied(true);
@@ -398,10 +375,6 @@ function CheckoutContent() {
       setErrorMessage(t('pub_checkout_cpf_invalid'));
       return;
     }
-    if (!cleanPostalCode(cardData.postalCode) || !cardData.addressNumber.trim() || !cleanPhoneBR(cardData.phone)) {
-      setErrorMessage(t('pub_checkout_holder_info_required'));
-      return;
-    }
 
     setIsLoading(true);
 
@@ -430,9 +403,6 @@ function CheckoutContent() {
             cvv: cardData.cvv.trim(),
             ccv: cardData.cvv.trim(),
             cpf: currency === 'BRL' ? cardData.cpf : cardData.taxId,
-            postalCode: cardData.postalCode,
-            addressNumber: cardData.addressNumber.trim(),
-            phone: cardData.phone,
             installments: Number(cardData.installments) || 1,
           },
           taxId: currency === 'BRL' ? cardData.cpf : cardData.taxId,
@@ -1028,54 +998,6 @@ function CheckoutContent() {
                           />
                         </div>
                       )}
-
-                      {/* Endereço e contato do titular (exigidos pelo Asaas em creditCardHolderInfo) */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
-                            {t('pub_checkout_postal_code')}
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="postal-code"
-                            placeholder="00000-000"
-                            value={cardData.postalCode}
-                            onChange={handlePostalCodeChange}
-                            required
-                            className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
-                            {t('pub_checkout_address_number')}
-                          </label>
-                          <input
-                            type="text"
-                            maxLength={20}
-                            placeholder="123"
-                            value={cardData.addressNumber}
-                            onChange={(e) => setCardData((prev) => ({ ...prev, addressNumber: e.target.value }))}
-                            required
-                            className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
-                          {t('pub_checkout_holder_phone')}
-                        </label>
-                        <input
-                          type="tel"
-                          autoComplete="tel-national"
-                          placeholder="(00) 00000-0000"
-                          value={cardData.phone}
-                          onChange={handlePhoneChange}
-                          required
-                          className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
-                        />
-                      </div>
 
                       {/* Parcelas para Cartão de Crédito */}
                       {cardData.type === 'credit' && (

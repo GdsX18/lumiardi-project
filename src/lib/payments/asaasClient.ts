@@ -87,7 +87,9 @@ export class AsaasApiError extends Error {
     message: string,
     public readonly status: number,
     public readonly code: string | undefined,
-    public readonly stage: 'customer' | 'payment' | 'pixQrCode' | 'refund'
+    public readonly stage: 'customer' | 'payment' | 'pixQrCode' | 'refund',
+    /** Corpo de erro completo devolvido pelo Asaas (errors[], código da adquirente, refusalReason...) */
+    public readonly details?: unknown
   ) {
     super(message);
     this.name = 'AsaasApiError';
@@ -97,9 +99,9 @@ export class AsaasApiError extends Error {
 async function toAsaasError(res: Response, stage: AsaasApiError['stage'], fallback: string): Promise<AsaasApiError> {
   const errJson = await res.json().catch(() => ({}));
   const first = errJson?.errors?.[0] || {};
-  const err = new AsaasApiError(first.description || `${fallback}: HTTP ${res.status}`, res.status, first.code, stage);
-  // Só código/descrição do Asaas — nunca payload, cartão ou chave
-  console.error(`[AsaasClient ${stage}] HTTP ${res.status}`, JSON.stringify(errJson?.errors || errJson));
+  const err = new AsaasApiError(first.description || `${fallback}: HTTP ${res.status}`, res.status, first.code, stage, errJson);
+  // Resposta de erro do Asaas na íntegra (não contém o cartão nem a chave, que só vão no request)
+  console.error(`[AsaasClient ${stage}] HTTP ${res.status}`, JSON.stringify(errJson));
   return err;
 }
 

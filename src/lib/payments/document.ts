@@ -49,3 +49,39 @@ export function cleanPostalCode(value: unknown): string | undefined {
   const digits = onlyDigits(value);
   return digits.length === 8 ? digits : undefined;
 }
+
+const pick = (obj: Record<string, unknown> | undefined, keys: string[]): string => {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === 'string' || typeof v === 'number') {
+      const str = String(v).trim();
+      if (str) return str;
+    }
+  }
+  return '';
+};
+
+/**
+ * CEP, número e telefone do titular para o creditCardHolderInfo do Asaas, a partir do cadastro da conta.
+ * Sem dados no perfil, usa ASAAS_FALLBACK_POSTAL_CODE / ASAAS_FALLBACK_ADDRESS_NUMBER / ASAAS_FALLBACK_PHONE
+ * (recomendado: dados da própria empresa) e, por fim, valores estruturalmente válidos.
+ */
+export function resolveHolderContact(
+  address: Record<string, unknown> | undefined,
+  phone: unknown
+): { postalCode: string; addressNumber: string; phone: string; usedFallback: boolean } {
+  const profilePostal = cleanPostalCode(pick(address, ['postalCode', 'cep', 'zipCode', 'zip', 'zipcode']));
+  const profileNumber = pick(address, ['addressNumber', 'number', 'numero', 'número']).slice(0, 20);
+  const profilePhone = cleanPhoneBR(phone);
+
+  const postalCode = profilePostal || cleanPostalCode(process.env.ASAAS_FALLBACK_POSTAL_CODE) || '01310100';
+  const addressNumber = (profilePostal && profileNumber) || (process.env.ASAAS_FALLBACK_ADDRESS_NUMBER || '').trim() || 'S/N';
+  const resolvedPhone = profilePhone || cleanPhoneBR(process.env.ASAAS_FALLBACK_PHONE) || '11999999999';
+
+  return {
+    postalCode,
+    addressNumber,
+    phone: resolvedPhone,
+    usedFallback: !profilePostal || !profileNumber || !profilePhone,
+  };
+}
