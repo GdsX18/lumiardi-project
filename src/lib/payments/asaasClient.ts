@@ -36,9 +36,9 @@ export interface AsaasCreditCardHolderInfo {
   name: string;
   email: string;
   cpfCnpj: string;
-  postalCode?: string;
-  addressNumber?: string;
-  phone?: string;
+  postalCode: string;
+  addressNumber: string;
+  phone: string;
   mobilePhone?: string;
 }
 
@@ -53,6 +53,8 @@ export interface AsaasCreatePaymentParams {
   creditCardHolderInfo?: AsaasCreditCardHolderInfo;
   installmentCount?: number;
   installmentValue?: number;
+  /** IP do cliente pagador (obrigatório no Asaas para cartão; nunca o IP do servidor) */
+  remoteIp?: string;
 }
 
 export interface AsaasPaymentResponse {
@@ -227,11 +229,13 @@ export class AsaasClient {
         name: holderInfo.name,
         email: holderInfo.email,
         cpfCnpj: holderInfo.cpfCnpj.replace(/\D/g, ''),
-        postalCode: (holderInfo.postalCode || '').replace(/\D/g, ''),
-        addressNumber: holderInfo.addressNumber || '',
+        postalCode: holderInfo.postalCode.replace(/\D/g, ''),
+        addressNumber: holderInfo.addressNumber,
         phone: holderPhone,
         mobilePhone: holderPhone,
       };
+
+      if (params.remoteIp) payload.remoteIp = params.remoteIp;
 
       const installments = Math.floor(Number(params.installmentCount) || 1);
       if (installments > 1 && installments <= 12) {

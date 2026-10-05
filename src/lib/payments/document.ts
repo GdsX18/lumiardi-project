@@ -61,27 +61,33 @@ const pick = (obj: Record<string, unknown> | undefined, keys: string[]): string 
   return '';
 };
 
+export type HolderContactField = 'postalCode' | 'addressNumber' | 'phone';
+
 /**
- * CEP, número e telefone do titular para o creditCardHolderInfo do Asaas, a partir do cadastro da conta.
- * Sem dados no perfil, usa ASAAS_FALLBACK_POSTAL_CODE / ASAAS_FALLBACK_ADDRESS_NUMBER / ASAAS_FALLBACK_PHONE
- * (recomendado: dados da própria empresa) e, por fim, valores estruturalmente válidos.
+ * CEP, número e telefone do titular para o creditCardHolderInfo do Asaas.
+ * Usa o cadastro da conta; o que faltar no perfil vem do formulário do checkout (`provided`).
+ * Nunca inventa valores: o que não puder ser resolvido é devolvido em `missing` para o formulário pedir.
  */
 export function resolveHolderContact(
   address: Record<string, unknown> | undefined,
-  phone: unknown
-): { postalCode: string; addressNumber: string; phone: string; usedFallback: boolean } {
+  phone: unknown,
+  provided: { postalCode?: unknown; addressNumber?: unknown; phone?: unknown } = {}
+): { postalCode?: string; addressNumber?: string; phone?: string; missing: HolderContactField[] } {
   const profilePostal = cleanPostalCode(pick(address, ['postalCode', 'cep', 'zipCode', 'zip', 'zipcode']));
   const profileNumber = pick(address, ['addressNumber', 'number', 'numero', 'número']).slice(0, 20);
-  const profilePhone = cleanPhoneBR(phone);
+  const formPostal = cleanPostalCode(provided.postalCode);
+  const formNumber = String(provided.addressNumber ?? '').trim().slice(0, 20);
 
-  const postalCode = profilePostal || cleanPostalCode(process.env.ASAAS_FALLBACK_POSTAL_CODE) || '01310100';
-  const addressNumber = (profilePostal && profileNumber) || (process.env.ASAAS_FALLBACK_ADDRESS_NUMBER || '').trim() || 'S/N';
-  const resolvedPhone = profilePhone || cleanPhoneBR(process.env.ASAAS_FALLBACK_PHONE) || '11999999999';
+  // CEP e número precisam ser do mesmo endereço: o par do perfil, ou o par informado no formulário
+  const fromProfile = Boolean(profilePostal && profileNumber);
+  const postalCode = fromProfile ? profilePostal : formPostal;
+  const addressNumber = fromProfile ? profileNumber : formNumber || undefined;
+  const resolvedPhone = cleanPhoneBR(phone) || cleanPhoneBR(provided.phone);
 
-  return {
-    postalCode,
-    addressNumber,
-    phone: resolvedPhone,
-    usedFallback: !profilePostal || !profileNumber || !profilePhone,
-  };
+  const missing: HolderContactField[] = [];
+  if (!postalCode) missing.push('postalCode');
+  if (!addressNumber) missing.push('addressNumber');
+  if (!resolvedPhone) missing.push('phone');
+
+  return { postalCode, addressNumber, phone: resolvedPhone, missing };
 }

@@ -5,7 +5,7 @@ import { CreateCheckoutSessionRequest, PaymentGatewayType, PlanId, BillingInterv
 import { sanitizeInput } from '@/lib/security';
 import { requirePayableUser } from '@/lib/payments/checkoutGuard';
 import { AsaasApiError } from '@/lib/payments/asaasClient';
-import { asaasErrorCode } from '@/lib/payments/asaasErrors';
+import { asaasErrorCode, asaasGatewayError } from '@/lib/payments/asaasErrors';
 import { cleanCpfCnpj, cleanPhoneBR } from '@/lib/payments/document';
 
 export async function POST(request: NextRequest) {
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
               ? 'O CPF/CNPJ informado não foi aceito pelo Asaas. Verifique os números digitados.'
               : 'Não foi possível gerar a sessão de pagamento.',
           code,
+          ...asaasGatewayError(err),
         },
         { status: code === 'payment_unavailable' ? 502 : 400 }
       );

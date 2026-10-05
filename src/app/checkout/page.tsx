@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/lib/payments/types';
-import { cleanCpfCnpj } from '@/lib/payments/document';
+import { cleanCpfCnpj, cleanPhoneBR, cleanPostalCode } from '@/lib/payments/document';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 
 function CheckoutContent() {
@@ -73,8 +73,15 @@ function CheckoutContent() {
     cvv: '',
     cpf: '',
     taxId: '',
+    postalCode: '',
+    addressNumber: '',
+    phone: '',
     installments: '1',
   });
+  // Contato do titular que falta no cadastro (o backend indica em `missing`); só então o formulário pede
+  const [holderContactMissing, setHolderContactMissing] = useState<string[]>([]);
+  const needsHolderAddress = holderContactMissing.includes('postalCode') || holderContactMissing.includes('addressNumber');
+  const needsHolderPhone = holderContactMissing.includes('phone');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -344,6 +351,26 @@ function CheckoutContent() {
     setCardData((prev) => ({ ...prev, cpf: val }));
   };
 
+  // Formatação de CEP 00000-000
+  const handlePostalCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '').substring(0, 8);
+    if (val.length > 5) val = `${val.substring(0, 5)}-${val.substring(5)}`;
+    setCardData((prev) => ({ ...prev, postalCode: val }));
+  };
+
+  // Formatação de telefone (00) 00000-0000
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').substring(0, 11);
+    let val = digits;
+    if (digits.length > 6) {
+      const split = digits.length === 11 ? 7 : 6;
+      val = `(${digits.substring(0, 2)}) ${digits.substring(2, split)}-${digits.substring(split)}`;
+    } else if (digits.length > 2) {
+      val = `(${digits.substring(0, 2)}) ${digits.substring(2)}`;
+    }
+    setCardData((prev) => ({ ...prev, phone: val }));
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setIsCopied(true);
@@ -375,6 +402,13 @@ function CheckoutContent() {
       setErrorMessage(t('pub_checkout_cpf_invalid'));
       return;
     }
+    if (
+      (needsHolderAddress && (!cleanPostalCode(cardData.postalCode) || !cardData.addressNumber.trim())) ||
+      (needsHolderPhone && !cleanPhoneBR(cardData.phone))
+    ) {
+      setErrorMessage(t('api_err_holder_contact_required'));
+      return;
+    }
 
     setIsLoading(true);
 
@@ -403,6 +437,9 @@ function CheckoutContent() {
             cvv: cardData.cvv.trim(),
             ccv: cardData.cvv.trim(),
             cpf: currency === 'BRL' ? cardData.cpf : cardData.taxId,
+            postalCode: needsHolderAddress ? cardData.postalCode : undefined,
+            addressNumber: needsHolderAddress ? cardData.addressNumber.trim() : undefined,
+            phone: needsHolderPhone ? cardData.phone : undefined,
             installments: Number(cardData.installments) || 1,
           },
           taxId: currency === 'BRL' ? cardData.cpf : cardData.taxId,
@@ -414,7 +451,14 @@ function CheckoutContent() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // O backend normaliza a mensagem e envia `code` para tradução
+        if (data.code === 'holder_contact_required' && Array.isArray(data.missing)) {
+          setHolderContactMissing(data.missing);
+          throw new Error(t('api_err_holder_contact_required'));
+        }
+        // Rejeição do Asaas: mostra o motivo e o código reais devolvidos pelo gateway
+        if (data.code === 'gateway_rejected' && data.gatewayMessage) {
+          throw new Error(`${t('api_err_gateway_rejected')}: ${data.gatewayMessage}${data.gatewayCode ? ` (${data.gatewayCode})` : ''}`);
+        }
         throw new Error(tApiError(data, 'pub_checkout_card_declined'));
       }
 
@@ -994,6 +1038,58 @@ function CheckoutContent() {
                             placeholder={t('pub_checkout_taxid_placeholder')}
                             value={cardData.taxId}
                             onChange={(e) => setCardData((prev) => ({ ...prev, taxId: e.target.value }))}
+                            className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                          />
+                        </div>
+                      )}
+
+                      {/* Endereço e contato do titular: só pedidos quando o cadastro não os tem */}
+                      {needsHolderAddress && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                              {t('pub_checkout_postal_code')}
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="postal-code"
+                              placeholder="00000-000"
+                              value={cardData.postalCode}
+                              onChange={handlePostalCodeChange}
+                              required
+                              className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                              {t('pub_checkout_address_number')}
+                            </label>
+                            <input
+                              type="text"
+                              maxLength={20}
+                              placeholder="123"
+                              value={cardData.addressNumber}
+                              onChange={(e) => setCardData((prev) => ({ ...prev, addressNumber: e.target.value }))}
+                              required
+                              className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {needsHolderPhone && (
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
+                            {t('pub_checkout_holder_phone')}
+                          </label>
+                          <input
+                            type="tel"
+                            autoComplete="tel-national"
+                            placeholder="(00) 00000-0000"
+                            value={cardData.phone}
+                            onChange={handlePhoneChange}
+                            required
                             className="w-full bg-[#080808] border border-white/20 focus:border-[#D4AF37] px-4 py-3 text-xs font-mono text-ivory placeholder:text-ivory/30 rounded-xs focus:outline-none transition-colors"
                           />
                         </div>
