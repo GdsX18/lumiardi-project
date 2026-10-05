@@ -98,6 +98,48 @@ export class AsaasApiError extends Error {
   }
 }
 
+/**
+ * Normaliza a chave do Asaas lida do ambiente. As chaves começam com `$aact_`, e tanto o loader de
+ * .env do Next.js quanto o Docker Compose tratam esse `$` como variável e entregam string vazia.
+ * Por isso a chave pode ser guardada sem o `$` inicial (ou como `\$aact_...`) e é recomposta aqui.
+ */
+export function normalizeAsaasApiKey(raw: string | undefined): string {
+  let key = String(raw ?? '').trim().replace(/^["']|["']$/g, '');
+  if (key.startsWith('\\$')) key = key.slice(1);
+  if (/^aact_/.test(key)) key = `$${key}`;
+  return key;
+}
+
+/** fetch ao Asaas: falha de rede/DNS/TLS vira AsaasApiError com a etapa, em vez de um TypeError genérico. */
+async function asaasFetch(stage: AsaasApiError['stage'], url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err: unknown) {
+    const cause = (err as { cause?: { code?: string; message?: string } })?.cause;
+    const detail = cause?.code || cause?.message || (err instanceof Error ? err.message : String(err));
+    console.error(`[AsaasClient ${stage}] Falha de rede ao contatar ${url}:`, err);
+    throw new AsaasApiError(`Falha de rede ao contatar o Asaas (${detail})`, 0, 'network_error', stage, { cause: detail });
+  }
+}
+
+/** Lê o JSON de uma resposta 2xx do Asaas; corpo vazio/não-JSON vira AsaasApiError com a etapa. */
+async function readAsaasJson<T>(res: Response, stage: AsaasApiError['stage']): Promise<T> {
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    if (json && typeof json === 'object') return json as T;
+  } catch {
+    // tratado abaixo
+  }
+  throw new AsaasApiError(
+    `Resposta inesperada do Asaas (HTTP ${res.status}, não-JSON)`,
+    res.status,
+    'invalid_response',
+    stage,
+    { body: text.slice(0, 500) }
+  );
+}
+
 async function toAsaasError(res: Response, stage: AsaasApiError['stage'], fallback: string): Promise<AsaasApiError> {
   const errJson = await res.json().catch(() => ({}));
   const first = errJson?.errors?.[0] || {};
@@ -115,7 +157,7 @@ export class AsaasClient {
 
   /** Lemos a chave dinamicamente para garantir que o dotenv foi carregado pelo Next.js */
   private getApiKey(): string {
-    const key = (process.env.ASAAS_API_KEY || '').trim();
+    const key = normalizeAsaasApiKey(process.env.ASAAS_API_KEY);
     if (!key) {
       console.error('[AsaasClient] ASAAS_API_KEY is not defined.');
     }
@@ -127,10 +169,16 @@ export class AsaasClient {
     return (process.env.ASAAS_WEBHOOK_SECRET || '').trim();
   }
 
-  private getHeaders(): Record<string, string> {
+  private getHeaders(stage: AsaasApiError['stage']): Record<string, string> {
     const key = this.getApiKey();
     if (!key || key.startsWith('falha_')) {
-      console.warn('[AsaasClient] AVISO: ASAAS_API_KEY não encontrada no process.env!');
+      // Sem chave o Asaas responde 401 sem corpo: falha aqui com a causa real em vez de um erro opaco
+      throw new AsaasApiError(
+        'ASAAS_API_KEY ausente no ambiente do servidor (verifique o .env: o "$" inicial da chave é expandido como variável — guarde a chave sem ele, ex.: ASAAS_API_KEY=aact_prod_...)',
+        500,
+        'missing_api_key',
+        stage
+      );
     }
 
     return {
@@ -152,33 +200,33 @@ export class AsaasClient {
 
     try {
       // 1. Busca pelo e-mail da conta (filtrar também por CPF criaria um cliente duplicado a cada titular diferente)
-      const searchRes = await fetch(`${this.apiUrl}/customers?email=${encodeURIComponent(params.email)}`, {
+      const searchRes = await asaasFetch('customer', `${this.apiUrl}/customers?email=${encodeURIComponent(params.email)}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getHeaders('customer'),
       });
 
       if (searchRes.ok) {
-        const searchJson = await searchRes.json();
+        const searchJson = await readAsaasJson<{ data?: unknown }>(searchRes, 'customer');
         const list: AsaasCustomerResponse[] = Array.isArray(searchJson.data) ? searchJson.data : [];
         const existing = list.find((c) => c.cpfCnpj) || list[0];
         if (existing) {
           if (existing.cpfCnpj || !cleanCpfCnpj) return existing;
-          const updateRes = await fetch(`${this.apiUrl}/customers/${encodeURIComponent(existing.id)}`, {
+          const updateRes = await asaasFetch('customer', `${this.apiUrl}/customers/${encodeURIComponent(existing.id)}`, {
             method: 'POST',
-            headers: this.getHeaders(),
+            headers: this.getHeaders('customer'),
             body: JSON.stringify({ cpfCnpj: cleanCpfCnpj, ...(cleanPhone ? { mobilePhone: cleanPhone } : {}) }),
           });
           if (!updateRes.ok) throw await toAsaasError(updateRes, 'customer', 'Falha ao atualizar CPF/CNPJ do cliente Asaas');
-          return await updateRes.json();
+          return await readAsaasJson<AsaasCustomerResponse>(updateRes, 'customer');
         }
       } else {
         throw await toAsaasError(searchRes, 'customer', 'Falha ao buscar cliente Asaas');
       }
 
       // 2. Se não encontrou, cria novo cliente
-      const createRes = await fetch(`${this.apiUrl}/customers`, {
+      const createRes = await asaasFetch('customer', `${this.apiUrl}/customers`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders('customer'),
         body: JSON.stringify({
           name: params.name,
           email: params.email,
@@ -191,7 +239,7 @@ export class AsaasClient {
 
       if (!createRes.ok) throw await toAsaasError(createRes, 'customer', 'Falha ao criar cliente Asaas');
 
-      return await createRes.json();
+      return await readAsaasJson<AsaasCustomerResponse>(createRes, 'customer');
     } catch (err: unknown) {
       // Sem cliente real no Asaas não há como cobrar: propaga o erro em vez de inventar um ID
       if (err instanceof AsaasApiError) throw err;
@@ -246,9 +294,9 @@ export class AsaasClient {
       }
     }
 
-    const res = await fetch(`${this.apiUrl}/payments`, {
+    const res = await asaasFetch('payment', `${this.apiUrl}/payments`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers: this.getHeaders('payment'),
       body: JSON.stringify(payload),
     });
 
@@ -270,7 +318,7 @@ export class AsaasClient {
       throw await toAsaasError(res, 'payment', 'Falha ao criar cobrança Asaas');
     }
 
-    return await res.json();
+    return await readAsaasJson<AsaasPaymentResponse>(res, 'payment');
   }
 
   /**
@@ -299,12 +347,12 @@ export class AsaasClient {
     let lastError: AsaasApiError | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 700 * attempt));
-      const res = await fetch(`${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/pixQrCode`, {
+      const res = await asaasFetch('pixQrCode', `${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/pixQrCode`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: this.getHeaders('pixQrCode'),
       });
       if (res.ok) {
-        const qr: AsaasPixQrCodeResponse = await res.json();
+        const qr = await readAsaasJson<AsaasPixQrCodeResponse>(res, 'pixQrCode');
         if (qr.encodedImage && qr.payload) return qr;
         lastError = new AsaasApiError('QR Code Pix vazio retornado pelo Asaas', res.status, undefined, 'pixQrCode');
         continue;
@@ -320,13 +368,13 @@ export class AsaasClient {
    * O webhook PAYMENT_REFUNDED confirma a conclusão do estorno.
    */
   async refundPayment(paymentId: string, description?: string): Promise<{ id: string; status: string }> {
-    const res = await fetch(`${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/refund`, {
+    const res = await asaasFetch('refund', `${this.apiUrl}/payments/${encodeURIComponent(paymentId)}/refund`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers: this.getHeaders('refund'),
       body: JSON.stringify(description ? { description: description.slice(0, 500) } : {}),
     });
     if (!res.ok) throw await toAsaasError(res, 'refund', 'Falha ao estornar cobrança no Asaas');
-    return await res.json();
+    return await readAsaasJson<{ id: string; status: string }>(res, 'refund');
   }
 
   /**

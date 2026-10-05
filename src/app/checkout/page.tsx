@@ -78,10 +78,10 @@ function CheckoutContent() {
     phone: '',
     installments: '1',
   });
-  // Contato do titular que falta no cadastro (o backend indica em `missing`); só então o formulário pede
+  // Contato do titular que falta no cadastro (o backend indica em `missing`). Quando falta qualquer um,
+  // o formulário pede os três juntos (CEP, número e telefone), como diz a mensagem de erro.
   const [holderContactMissing, setHolderContactMissing] = useState<string[]>([]);
-  const needsHolderAddress = holderContactMissing.includes('postalCode') || holderContactMissing.includes('addressNumber');
-  const needsHolderPhone = holderContactMissing.includes('phone');
+  const needsHolderContact = holderContactMissing.length > 0;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -403,8 +403,8 @@ function CheckoutContent() {
       return;
     }
     if (
-      (needsHolderAddress && (!cleanPostalCode(cardData.postalCode) || !cardData.addressNumber.trim())) ||
-      (needsHolderPhone && !cleanPhoneBR(cardData.phone))
+      needsHolderContact &&
+      (!cleanPostalCode(cardData.postalCode) || !cardData.addressNumber.trim() || !cleanPhoneBR(cardData.phone))
     ) {
       setErrorMessage(t('api_err_holder_contact_required'));
       return;
@@ -437,9 +437,9 @@ function CheckoutContent() {
             cvv: cardData.cvv.trim(),
             ccv: cardData.cvv.trim(),
             cpf: currency === 'BRL' ? cardData.cpf : cardData.taxId,
-            postalCode: needsHolderAddress ? cardData.postalCode : undefined,
-            addressNumber: needsHolderAddress ? cardData.addressNumber.trim() : undefined,
-            phone: needsHolderPhone ? cardData.phone : undefined,
+            postalCode: needsHolderContact ? cardData.postalCode : undefined,
+            addressNumber: needsHolderContact ? cardData.addressNumber.trim() : undefined,
+            phone: needsHolderContact ? cardData.phone : undefined,
             installments: Number(cardData.installments) || 1,
           },
           taxId: currency === 'BRL' ? cardData.cpf : cardData.taxId,
@@ -1043,8 +1043,8 @@ function CheckoutContent() {
                         </div>
                       )}
 
-                      {/* Endereço e contato do titular: só pedidos quando o cadastro não os tem */}
-                      {needsHolderAddress && (
+                      {/* Endereço e contato do titular: pedidos (os três juntos) quando o cadastro não os tem */}
+                      {needsHolderContact && (
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
@@ -1078,7 +1078,7 @@ function CheckoutContent() {
                         </div>
                       )}
 
-                      {needsHolderPhone && (
+                      {needsHolderContact && (
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-sans uppercase tracking-wider text-ivory/70 block">
                             {t('pub_checkout_holder_phone')}

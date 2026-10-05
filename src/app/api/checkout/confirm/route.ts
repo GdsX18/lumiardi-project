@@ -8,7 +8,7 @@ import { PlanId, BillingInterval, PaymentGatewayType, SubscriptionRecord } from 
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 import { asaasClient, AsaasApiError, AsaasPaymentResponse } from '@/lib/payments/asaasClient';
-import { asaasErrorCode, asaasGatewayError } from '@/lib/payments/asaasErrors';
+import { asaasErrorCode, asaasGatewayError, checkoutDebugFields } from '@/lib/payments/asaasErrors';
 import { getClientIp } from '@/lib/security/rateLimiter';
 import { cleanCpfCnpj, cleanPhoneBR, resolveHolderContact } from '@/lib/payments/document';
 import { CouponService, MIN_CHARGE_BRL } from '@/services/couponService';
@@ -16,10 +16,13 @@ import { requirePayableUser, ASAAS_PAID_STATUSES, ASAAS_PROCESSING_STATUSES } fr
 
 export async function POST(request: NextRequest) {
   let reservedCoupon: string | null = null;
+  // Etapa em curso: identifica onde uma exceção interna (não-Asaas) ocorreu
+  let step = 'parse_body';
   try {
     const rawBody = await request.json().catch(() => ({}));
 
     // 1. Identidade SEMPRE da sessão assinada + status de curadoria lido do banco
+    step = 'load_user';
     const guard = await requirePayableUser(request);
     if (!guard.ok) return guard.response;
     const { id: userId, email: userEmail, name: userName, session } = guard.user;
@@ -39,6 +42,7 @@ export async function POST(request: NextRequest) {
         ? 'crypto'
         : 'pix';
 
+    step = 'pricing';
     const plan = getPlan(planId);
     const isYearly = billingInterval === 'yearly';
     const couponCode = rawBody.couponCode ? (sanitizeInput(rawBody.couponCode) as string).trim().toUpperCase() : undefined;
@@ -68,6 +72,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Pix / cripto: a liquidação é confirmada exclusivamente pelo webhook do gateway
     if (paymentMethod !== 'credit_card') {
+      step = 'record_instant_payment';
       const txId = `${gateway}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await BillingService.recordTransaction({
         userId,
@@ -119,14 +124,22 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Cartão de crédito via Asaas
+    step = 'card_validation';
     const card = rawBody.cardData;
-    if (!card || typeof card.number !== 'string') {
+    if (!card || typeof card.number !== 'string' || !card.number.replace(/\D/g, '')) {
       return NextResponse.json({ error: 'Dados do cartão de crédito ausentes no payload.', code: 'invalid_input' }, { status: 400 });
     }
 
-    const cvvCode = card.ccv || card.cvv;
+    const cvvCode = String(card.ccv || card.cvv || '').trim();
+    const expiryMonth = String(card.expiryMonth ?? '').replace(/\D/g, '').padStart(2, '0').slice(-2);
+    const rawExpiryYear = String(card.expiryYear ?? '').replace(/\D/g, '');
+    const expiryYear = rawExpiryYear.length === 2 ? `20${rawExpiryYear}` : rawExpiryYear;
     if (!cvvCode) {
       return NextResponse.json({ error: 'O código de segurança (CVV) do cartão é obrigatório.', code: 'invalid_input' }, { status: 400 });
+    }
+
+    if (!/^(0[1-9]|1[0-2])$/.test(expiryMonth) || !/^\d{4}$/.test(expiryYear)) {
+      return NextResponse.json({ error: 'Validade do cartão inválida. Use o formato MM/AA.', code: 'invalid_input' }, { status: 400 });
     }
 
     if (finalAmount < MIN_CHARGE_BRL) {
@@ -135,7 +148,10 @@ export async function POST(request: NextRequest) {
 
     // Titular do cartão (pode ser outra pessoa que não a dona da conta, ex.: pai pagando a adesão da filha).
     // O checkout só pede nome e CPF/CNPJ; o Asaas só aceita CPF/CNPJ brasileiro válido, só com dígitos.
-    const holderName = String(card.holderName || '').trim() || userName;
+    const holderName = String(card.holderName || '').trim() || userName.trim();
+    if (!holderName) {
+      return NextResponse.json({ error: 'Informe o nome do titular do cartão.', code: 'invalid_input' }, { status: 400 });
+    }
     const holderCpfCnpj = cleanCpfCnpj(card.cpf || rawBody.taxId);
     if (!holderCpfCnpj) {
       return NextResponse.json(
@@ -181,6 +197,7 @@ export async function POST(request: NextRequest) {
 
     // Reserva atômica do cupom antes de cobrar (respeita max_uses com checkouts concorrentes)
     if (couponValidation) {
+      step = 'reserve_coupon';
       const reserved = await CouponService.reserveCouponUse(couponValidation.code);
       if (!reserved) {
         return NextResponse.json({ error: 'Cupom de desconto inválido ou esgotado.', code: 'coupon_invalid' }, { status: 400 });
@@ -194,6 +211,7 @@ export async function POST(request: NextRequest) {
     let asaasResponseBody: AsaasPaymentResponse | null = null;
 
     try {
+      step = 'asaas_customer';
       const customer = await asaasClient.getOrCreateCustomer({
         name: userName,
         email: userEmail,
@@ -202,6 +220,7 @@ export async function POST(request: NextRequest) {
         externalReference: userId,
       });
 
+      step = 'asaas_payment';
       const asaasResponse = await asaasClient.createPayment({
         customerId: customer.id,
         billingType: 'CREDIT_CARD',
@@ -214,8 +233,8 @@ export async function POST(request: NextRequest) {
         creditCard: {
           holderName,
           number: card.number.replace(/\D/g, ''),
-          expiryMonth: card.expiryMonth,
-          expiryYear: card.expiryYear,
+          expiryMonth,
+          expiryYear,
           ccv: cvvCode,
         },
         creditCardHolderInfo: {
@@ -230,12 +249,16 @@ export async function POST(request: NextRequest) {
         remoteIp,
       });
 
+      if (!asaasResponse?.id) {
+        throw new Error(`Cobrança criada sem id na resposta do Asaas: ${JSON.stringify(asaasResponse).slice(0, 300)}`);
+      }
       asaasResponseBody = asaasResponse;
       asaasPaymentId = asaasResponse.id;
       asaasStatus = String(asaasResponse.status || '').toUpperCase();
     } catch (err: unknown) {
-      const rawMsg = err instanceof Error ? err.message : '';
-      const stage = err instanceof AsaasApiError ? err.stage : 'unknown';
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      // Erro do Asaas: etapa da API; exceção interna: etapa do fluxo em que ocorreu
+      const stage = err instanceof AsaasApiError ? err.stage : `internal:${step}`;
       const asaasCode = err instanceof AsaasApiError ? err.code : undefined;
       console.error(
         '[Checkout Confirm Asaas Error]:',
@@ -245,6 +268,7 @@ export async function POST(request: NextRequest) {
           asaasCode,
           message: rawMsg,
           asaasResponse: err instanceof AsaasApiError ? err.details : undefined,
+          stack: err instanceof Error ? err.stack : undefined,
         })
       );
       if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
@@ -262,11 +286,13 @@ export async function POST(request: NextRequest) {
           stage,
           gatewayCode,
           gatewayMessage,
+          ...checkoutDebugFields(err),
         },
         { status: code === 'payment_unavailable' ? 502 : 400 }
       );
     }
 
+    step = 'activation';
     const isPaid = ASAAS_PAID_STATUSES.has(asaasStatus);
     const isProcessing = ASAAS_PROCESSING_STATUSES.has(asaasStatus);
 
@@ -437,8 +463,11 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err: unknown) {
-    if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon);
-    console.error('[Checkout Confirm] Erro:', err);
-    return NextResponse.json({ error: 'Erro ao processar o pagamento.', code: 'generic' }, { status: 500 });
+    if (reservedCoupon) await CouponService.releaseCouponUse(reservedCoupon).catch(() => {});
+    console.error(`[Checkout Confirm] Erro interno na etapa "${step}":`, err);
+    return NextResponse.json(
+      { error: 'Erro ao processar o pagamento.', code: 'generic', stage: `internal:${step}`, ...checkoutDebugFields(err) },
+      { status: 500 }
+    );
   }
 }

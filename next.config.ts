@@ -10,7 +10,8 @@ const nextConfig: NextConfig = {
   },
   productionBrowserSourceMaps: false,
   compiler: {
-    removeConsole: process.env.NODE_ENV === "production",
+    // Mantém console.error/warn em produção: sem eles as falhas de pagamento (Asaas) não aparecem nos logs
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
   images: {
     formats: ["image/avif", "image/webp"],

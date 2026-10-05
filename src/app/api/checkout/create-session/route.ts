@@ -5,12 +5,17 @@ import { CreateCheckoutSessionRequest, PaymentGatewayType, PlanId, BillingInterv
 import { sanitizeInput } from '@/lib/security';
 import { requirePayableUser } from '@/lib/payments/checkoutGuard';
 import { AsaasApiError } from '@/lib/payments/asaasClient';
-import { asaasErrorCode, asaasGatewayError } from '@/lib/payments/asaasErrors';
+import { asaasErrorCode, asaasGatewayError, checkoutDebugFields } from '@/lib/payments/asaasErrors';
 import { cleanCpfCnpj, cleanPhoneBR } from '@/lib/payments/document';
 
 export async function POST(request: NextRequest) {
+  // Etapa em curso: identifica onde uma exceção interna (não-Asaas) ocorreu
+  let step = 'parse_body';
   try {
-    const rawBody = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    if (!rawBody || typeof rawBody !== 'object') {
+      return NextResponse.json({ error: 'Corpo da requisição inválido.', code: 'invalid_input' }, { status: 400 });
+    }
 
     const planId = sanitizeInput(rawBody.planId) as PlanId;
     const interval = (rawBody.interval === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
@@ -33,6 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Identidade exclusivamente da sessão assinada; só quem foi aprovada pela curadoria pode gerar cobrança
+    step = 'load_user';
     const guard = await requirePayableUser(request);
     if (!guard.ok) return guard.response;
     const { id: userId, email: userEmail, name: userName } = guard.user;
@@ -69,11 +75,13 @@ export async function POST(request: NextRequest) {
       cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout?plan=${planId}&status=canceled`,
     };
 
+    step = `gateway_${gateway}`;
     const gatewayAdapter = paymentFactory.getGateway(gateway);
     const sessionResult = await gatewayAdapter.createCheckoutSession(checkoutReq);
 
     // Se gerou cobrança Pix via Asaas, pré-registra a transação pendente para conciliação no webhook
     if (sessionResult.pixDetails?.paymentId) {
+      step = 'record_pix';
       try {
         await BillingService.recordTransaction({
           userId,
@@ -100,7 +108,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(sessionResult);
   } catch (err: unknown) {
     if (err instanceof AsaasApiError) {
-      console.error('[API Checkout] Erro Asaas:', { stage: err.stage, status: err.status, asaasCode: err.code, message: err.message });
+      console.error('[API Checkout] Erro Asaas:', JSON.stringify({ stage: err.stage, status: err.status, asaasCode: err.code, message: err.message, asaasResponse: err.details }));
       const code = asaasErrorCode(err);
       return NextResponse.json(
         {
@@ -109,14 +117,21 @@ export async function POST(request: NextRequest) {
               ? 'O CPF/CNPJ informado não foi aceito pelo Asaas. Verifique os números digitados.'
               : 'Não foi possível gerar a sessão de pagamento.',
           code,
+          stage: err.stage,
           ...asaasGatewayError(err),
+          ...checkoutDebugFields(err),
         },
         { status: code === 'payment_unavailable' ? 502 : 400 }
       );
     }
-    console.error('[API Checkout] Erro:', err);
+    console.error(`[API Checkout] Erro interno na etapa "${step}":`, err);
     return NextResponse.json(
-      { error: 'Não foi possível gerar a sessão de pagamento.', code: 'payment_unavailable' },
+      {
+        error: 'Não foi possível gerar a sessão de pagamento.',
+        code: 'payment_unavailable',
+        stage: `internal:${step}`,
+        ...checkoutDebugFields(err),
+      },
       { status: 500 }
     );
   }

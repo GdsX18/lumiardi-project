@@ -31,3 +31,27 @@ export function asaasErrorCode(err: unknown): string {
   if (err.status >= 400 && err.status < 500) return 'gateway_rejected';
   return 'payment_unavailable';
 }
+
+/** Expor mensagem/stack na resposta: só fora de produção ou com CHECKOUT_DEBUG=true (diagnóstico temporário). */
+export function isCheckoutDebugEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' || process.env.CHECKOUT_DEBUG === 'true';
+}
+
+/**
+ * Detalhes do erro (mensagem, stack, causa, resposta do Asaas) para o corpo da resposta em depuração.
+ * Em produção sem CHECKOUT_DEBUG devolve {} — stack e detalhes internos nunca vão à usuária.
+ */
+export function checkoutDebugFields(err: unknown): { debug?: Record<string, unknown> } {
+  if (!isCheckoutDebugEnabled()) return {};
+  if (!(err instanceof Error)) return { debug: { message: String(err) } };
+  const cause = (err as { cause?: unknown }).cause;
+  return {
+    debug: {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      ...(cause !== undefined ? { cause: cause instanceof Error ? cause.message : cause } : {}),
+      ...(err instanceof AsaasApiError ? { httpStatus: err.status, asaasCode: err.code, asaasResponse: err.details } : {}),
+    },
+  };
+}

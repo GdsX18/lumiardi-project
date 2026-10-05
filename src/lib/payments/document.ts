@@ -65,8 +65,8 @@ export type HolderContactField = 'postalCode' | 'addressNumber' | 'phone';
 
 /**
  * CEP, número e telefone do titular para o creditCardHolderInfo do Asaas.
- * Usa o cadastro da conta; o que faltar no perfil vem do formulário do checkout (`provided`).
- * Nunca inventa valores: o que não puder ser resolvido é devolvido em `missing` para o formulário pedir.
+ * O que o formulário do checkout enviar (`provided`, digitado para o titular) tem prioridade; o que faltar
+ * vem do cadastro da conta. Nunca inventa valores: o que não puder ser resolvido vai em `missing`.
  */
 export function resolveHolderContact(
   address: Record<string, unknown> | undefined,
@@ -78,11 +78,11 @@ export function resolveHolderContact(
   const formPostal = cleanPostalCode(provided.postalCode);
   const formNumber = String(provided.addressNumber ?? '').trim().slice(0, 20);
 
-  // CEP e número precisam ser do mesmo endereço: o par do perfil, ou o par informado no formulário
-  const fromProfile = Boolean(profilePostal && profileNumber);
-  const postalCode = fromProfile ? profilePostal : formPostal;
-  const addressNumber = fromProfile ? profileNumber : formNumber || undefined;
-  const resolvedPhone = cleanPhoneBR(phone) || cleanPhoneBR(provided.phone);
+  // CEP e número precisam ser do mesmo endereço: o par informado no formulário, ou o par do perfil
+  const fromForm = Boolean(formPostal && formNumber);
+  const postalCode = fromForm ? formPostal : profilePostal;
+  const addressNumber = fromForm ? formNumber : profileNumber || undefined;
+  const resolvedPhone = cleanPhoneBR(provided.phone) || cleanPhoneBR(phone);
 
   const missing: HolderContactField[] = [];
   if (!postalCode) missing.push('postalCode');
