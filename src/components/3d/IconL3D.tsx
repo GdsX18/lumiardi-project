@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Float, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
@@ -77,6 +77,16 @@ export const IconL3D: React.FC<IconL3DProps> = ({ className = 'w-48 h-48 md:w-64
   const containerRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [inView, setInView] = useState(true);
+
+  // Pausa o loop de render (useFrame, Sparkles, Float) quando o ícone sai da viewport
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
@@ -100,6 +110,7 @@ export const IconL3D: React.FC<IconL3DProps> = ({ className = 'w-48 h-48 md:w-64
       <Canvas
         camera={{ position: [0, 0, 4.2], fov: 45 }}
         dpr={[1, 1.5]}
+        frameloop={inView ? 'always' : 'never'}
         performance={{ min: 0.5 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         style={{ background: 'transparent' }}

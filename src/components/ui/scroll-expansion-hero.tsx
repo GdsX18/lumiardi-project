@@ -2,13 +2,8 @@
 
 import { useEffect, useRef, ReactNode } from 'react';
 import Image from 'next/image';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { gsap } from '@/lib/gsap';
 import { LumiardiShaderBg } from './LumiardiShaderBg';
-
-if (typeof window !== 'undefined') {
-  gsap.registerPlugin(ScrollTrigger);
-}
 
 interface ScrollExpandMediaProps {
   mediaType?: 'video' | 'image';

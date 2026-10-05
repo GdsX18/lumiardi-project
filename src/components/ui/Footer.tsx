@@ -43,8 +43,8 @@ export const Footer: React.FC = () => {
               src="/LUMIARDI - Logo Combinada trasparente.png"
               alt="LUMIARDI"
               fill
+              sizes="(min-width: 768px) 288px, (min-width: 640px) 256px, 208px"
               className="object-contain"
-              priority
             />
           </Link>
 

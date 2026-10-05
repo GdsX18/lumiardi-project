@@ -36,7 +36,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   const language = useSyncExternalStore(subscribe, readStoredLanguage, () => 'en' as LanguageCode);
-  const t = (key: string): string => translations[language]?.[key] || translations.en[key] || key;
+  const t = (key: string): string => translations[language]?.[key] || translations.en?.[key] || key;
 
   return (
     <html lang={HTML_LANG[language]} className="h-full bg-[#0B0B0B]">

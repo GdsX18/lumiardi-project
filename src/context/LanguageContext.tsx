@@ -1,10 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   LanguageCode,
   translations,
   CHECKOUT_TRANSLATIONS,
+  isLanguageLoaded,
+  loadLanguage,
 } from '@/locales';
 
 export type { LanguageCode };
@@ -84,15 +86,33 @@ const toDate = (value: string | number | Date) => (value instanceof Date ? value
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<LanguageCode>('en');
   const [currency, setCurrencyState] = useState<CurrencyCode>('BRL');
+  // Último idioma pedido: evita que um download lento sobrescreva uma escolha mais recente
+  const requestedLang = useRef<LanguageCode>('en');
+
+  /** Troca o idioma só depois do dicionário estar disponível (sem flash de fallback). */
+  const applyLanguage = (lang: LanguageCode) => {
+    requestedLang.current = lang;
+    if (isLanguageLoaded(lang)) {
+      setLanguageState(lang);
+      return;
+    }
+    loadLanguage(lang)
+      .then(() => {
+        if (requestedLang.current === lang) setLanguageState(lang);
+      })
+      .catch(() => {
+        // Falha de rede: mantém o idioma atual
+      });
+  };
 
   useEffect(() => {
     try {
       // Only restore if the user explicitly chose a language in this version (v2 key)
       const storedLang = localStorage.getItem(LANG_STORAGE_KEY) as LanguageCode;
-      const savedLang = storedLang && translations[storedLang] ? storedLang : null;
+      const savedLang = storedLang && SUPPORTED.includes(storedLang) ? storedLang : null;
       const initialLang = savedLang || detectBrowserLanguage();
       if (initialLang && initialLang !== 'en') {
-        queueMicrotask(() => setLanguageState(initialLang));
+        queueMicrotask(() => applyLanguage(initialLang));
       }
       const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY) as CurrencyCode;
       if (savedCurrency === 'BRL' || savedCurrency === 'USD' || savedCurrency === 'EUR') {
@@ -124,7 +144,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [language]);
 
   const setLanguage = (lang: LanguageCode) => {
-    setLanguageState(lang);
+    applyLanguage(lang);
     try {
       localStorage.setItem(LANG_STORAGE_KEY, lang);
       const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY);

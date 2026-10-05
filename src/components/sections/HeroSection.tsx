@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import ScrollExpandMedia from '@/components/ui/scroll-expansion-hero';
 import { ArrowUpRight, ShieldCheck, Globe, UserCheck, Lock } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
-import { CreatorBenefitsModal } from '@/components/ui/CreatorBenefitsModal';
-import { AgencyBenefitsModal } from '@/components/ui/AgencyBenefitsModal';
+import { LazyCreatorBenefitsModal, LazyAgencyBenefitsModal } from '@/components/ui/LazyBenefitsModals';
 
 export const HeroSection: React.FC = () => {
   const router = useRouter();
@@ -113,8 +112,8 @@ export const HeroSection: React.FC = () => {
         </div>
       </ScrollExpandMedia>
 
-      <CreatorBenefitsModal open={creatorModalOpen} onClose={() => setCreatorModalOpen(false)} />
-      <AgencyBenefitsModal open={agencyModalOpen} planId="select" billing="yearly" onClose={() => setAgencyModalOpen(false)} />
+      <LazyCreatorBenefitsModal open={creatorModalOpen} onClose={() => setCreatorModalOpen(false)} />
+      <LazyAgencyBenefitsModal open={agencyModalOpen} planId="select" billing="yearly" onClose={() => setAgencyModalOpen(false)} />
     </div>
   );
 };

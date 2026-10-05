@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  compress: true,
+  experimental: {
+    // lucide-react e framer-motion já são otimizados por padrão; drei é um barrel com
+    // centenas de módulos e só usamos Float/Sparkles.
+    optimizePackageImports: ["@react-three/drei", "gsap"],
+  },
   productionBrowserSourceMaps: false,
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",

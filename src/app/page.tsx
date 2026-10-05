@@ -1,11 +1,10 @@
-'use client';
-
-import React, { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Header } from '@/components/ui/Header';
 import { HeroSection } from '@/components/sections/HeroSection';
+import { HomeHashScroll } from '@/components/HomeHashScroll';
 
-// Seções below-the-fold: carregadas sob demanda (reduz bundle inicial no mobile)
+// Server Component: só as secções (client components) são hidratadas, cada uma no seu chunk.
+// Seções below-the-fold: chunks separados (SSR mantido para SEO)
 const PositioningSection = dynamic(() =>
   import('@/components/sections/PositioningSection').then(m => ({ default: m.PositioningSection }))
 );
@@ -41,23 +40,6 @@ const Footer = dynamic(() =>
 );
 
 export default function Home() {
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (window.location.hash) {
-        window.dispatchEvent(new Event('lumiardi-expand-hero'));
-        const targetHash = window.location.hash.replace('#', '');
-        const timer = setTimeout(() => {
-          const targetElement = document.getElementById(targetHash);
-          if (targetElement) {
-            targetElement.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 300);
-
-        return () => clearTimeout(timer);
-      }
-    }
-  }, []);
-
   return (
     <main className="w-full min-h-screen bg-[#0B0B0B] text-ivory font-sans selection:bg-[#C9A96B] selection:text-[#0B0B0B]">
       <Header />
@@ -71,6 +53,8 @@ export default function Home() {
       <DashboardShowcaseSection />
       <PlansCTASection />
       <Footer />
+      {/* Por último: o efeito precisa correr depois do hero registar o listener de expansão */}
+      <HomeHashScroll />
     </main>
   );
 }

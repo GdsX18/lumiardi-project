@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { IconL3D } from '@/components/3d/IconL3D';
+import { LazyIconL3D } from '@/components/3d/LazyIconL3D';
 import { ShieldCheck, EyeOff, Flame, Award } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -136,7 +136,7 @@ export const BrandPillarsSection: React.FC = () => {
 
           {/* 3D Icon L Floating Element */}
           <div className="lg:col-span-4 flex justify-center lg:justify-end">
-            <IconL3D className="w-56 h-56 md:w-72 md:h-72" />
+            <LazyIconL3D className="w-56 h-56 md:w-72 md:h-72" />
           </div>
         </div>
 

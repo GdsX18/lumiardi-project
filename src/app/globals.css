@@ -99,6 +99,16 @@ body {
   animation: shimmer 2.5s ease-in-out infinite;
 }
 
+/* Entrada do Header (substitui o motion.header do framer-motion) */
+@keyframes header-enter {
+  from { transform: translateY(-60px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-header-enter {
+  animation: header-enter 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Safe Area Inset Support */
 @supports (padding: env(safe-area-inset-bottom)) {
   .safe-area-bottom {

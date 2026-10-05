@@ -8,6 +8,9 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
  */
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger, useGSAP);
+  // No mobile a barra de endereço dispara resize a cada scroll; sem isto o ScrollTrigger
+  // recalcula todos os triggers/pins continuamente (long tasks durante o scroll).
+  ScrollTrigger.config({ ignoreMobileResize: true });
 }
 
 export { gsap, ScrollTrigger, useGSAP };
