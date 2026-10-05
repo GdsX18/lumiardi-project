@@ -206,7 +206,8 @@ export class NOWPaymentsAdapter implements PaymentGatewayService {
   }
 
   /** Valor mínimo aceito pelo NOWPayments para a moeda, em USD (oscila com a taxa de rede). */
-  private async getMinimumUsd(cryptoCurrency: string): Promise<number | undefined> {
+  async getMinimumUsd(cryptoCurrency: string): Promise<number | undefined> {
+    if (!this.apiKey) return undefined;
     try {
       const res = await fetch(
         `${this.apiUrl}/min-amount?currency_from=${encodeURIComponent(cryptoCurrency)}&fiat_equivalent=usd`,

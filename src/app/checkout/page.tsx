@@ -25,6 +25,15 @@ import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/l
 import { cleanCpfCnpj, cleanPhoneBR, cleanPostalCode } from '@/lib/payments/document';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 
+const CRYPTO_COINS: { id: CryptoCurrency; label: string; net: string }[] = [
+  { id: 'USDTTRC20', label: 'USDT', net: 'TRC-20' },
+  { id: 'USDTERC20', label: 'USDT', net: 'ERC-20' },
+  { id: 'USDTBSC', label: 'USDT', net: 'BEP-20' },
+  { id: 'USDC', label: 'USDC', net: 'Multi' },
+  { id: 'BTC', label: 'BTC', net: 'Bitcoin' },
+  { id: 'ETH', label: 'ETH', net: 'Ethereum' },
+];
+
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -104,6 +113,24 @@ function CheckoutContent() {
     paymentId: string;
   } | null>(null);
 
+  // Mínimo (USD) aceito pelo NOWPayments por moeda; null enquanto não carregou ou se a consulta falhou
+  const [cryptoMinimums, setCryptoMinimums] = useState<Partial<Record<CryptoCurrency, number>> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/checkout/crypto-minimums')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data?.minimums && Object.keys(data.minimums).length > 0) setCryptoMinimums(data.minimums);
+      })
+      .catch(() => {
+        // sem mínimos conhecidos: nenhuma moeda é bloqueada e o servidor segue validando
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -130,6 +157,20 @@ function CheckoutContent() {
   const basePriceBRL = isYearly ? currentPlan.priceBRL.yearly * 12 : currentPlan.priceBRL.monthly;
   const basePriceUSD = isYearly ? currentPlan.priceUSD.yearly * 12 : currentPlan.priceUSD.monthly;
   const basePriceEUR = isYearly ? currentPlan.priceEUR.yearly * 12 : currentPlan.priceEUR.monthly;
+
+  // Cripto: o NOWPayments cobra o preço cheio do plano em USD (sem cupom) e recusa valores abaixo do
+  // mínimo de cada moeda. Moedas que o plano não alcança ficam desativadas; sem nenhuma, a aba inteira.
+  // Folga de 5% porque o mínimo oscila com a taxa de rede. Mínimo desconhecido não bloqueia nada.
+  const coinAllowed = (coin: CryptoCurrency) => {
+    const min = cryptoMinimums?.[coin];
+    return min === undefined || basePriceUSD >= min * 1.05;
+  };
+  const allowedCoins = CRYPTO_COINS.filter((c) => coinAllowed(c.id));
+  const cryptoAvailable = allowedCoins.length > 0;
+  const effectiveCrypto: CryptoCurrency = coinAllowed(selectedCrypto) ? selectedCrypto : allowedCoins[0]?.id ?? selectedCrypto;
+  const lowestCryptoMinimum = cryptoMinimums
+    ? Math.min(...Object.values(cryptoMinimums).filter((v): v is number => typeof v === 'number'))
+    : undefined;
 
   // Cálculo Dinâmico do Abatimento do Cupom
   let discountAmountBRL = 0;
@@ -525,7 +566,7 @@ function CheckoutContent() {
           interval: billingInterval,
           currency,
           gateway: 'nowpayments',
-          cryptoCurrency: selectedCrypto,
+          cryptoCurrency: effectiveCrypto,
           userId: currentUser?.id || '',
           userEmail: currentUser?.email || '',
           userName: currentUser?.name || 'Membro Lumiardi',
@@ -734,7 +775,7 @@ function CheckoutContent() {
                       gateway === 'nowpayments'
                         ? 'border-[#D4AF37] bg-[#D4AF37]/15 shadow-[0_0_25px_rgba(212,175,55,0.2)]'
                         : 'border-white/10 bg-[#121212] hover:border-white/25'
-                    }`}
+                    } ${cryptoAvailable ? '' : 'opacity-60'}`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2 text-ivory font-medium text-xs">
@@ -743,7 +784,7 @@ function CheckoutContent() {
                       </div>
                     </div>
                     <span className="text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-semibold bg-[#1a1a1a] text-[#F5D77F] border border-[#D4AF37]/30 rounded-xs">
-                      USDT / BTC / ETH
+                      {cryptoAvailable ? 'USDT / BTC / ETH' : t('pub_checkout_crypto_unavailable_badge')}
                     </span>
                   </button>
                 </div>
@@ -1157,39 +1198,53 @@ function CheckoutContent() {
                 {/* ═══════════════════════════════════════════════════════════════
                     BLOCO ESPECÍFICO CRIPTOMOEDAS (NOWPAYMENTS)
                 ═══════════════════════════════════════════════════════════════ */}
-                {gateway === 'nowpayments' && (
+                {gateway === 'nowpayments' && !cryptoAvailable && (
+                  <div className="p-6 bg-[#16130B] border border-[#D4AF37]/50 rounded-lg space-y-3 text-center animate-in fade-in duration-300">
+                    <AlertCircle className="w-8 h-8 text-[#D4AF37] mx-auto" />
+                    <p className="text-xs text-ivory/80 max-w-md mx-auto leading-relaxed">
+                      {t('pub_checkout_crypto_below_minimum')
+                        .replace('{min}', (lowestCryptoMinimum ?? 0).toFixed(2))
+                        .replace('{price}', basePriceUSD.toFixed(2))}
+                    </p>
+                  </div>
+                )}
+
+                {gateway === 'nowpayments' && cryptoAvailable && (
                   <div className="space-y-5 pt-2 animate-in fade-in duration-300">
                     <div className="space-y-2">
                       <label className="text-[11px] font-sans uppercase tracking-widest text-ivory/60 block">
                         {t('checkout_crypto_select')}
                       </label>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                        {[
-                          { id: 'USDTTRC20', label: 'USDT', net: 'TRC-20' },
-                          { id: 'USDTERC20', label: 'USDT', net: 'ERC-20' },
-                          { id: 'USDTBSC', label: 'USDT', net: 'BEP-20' },
-                          { id: 'USDC', label: 'USDC', net: 'Multi' },
-                          { id: 'BTC', label: 'BTC', net: 'Bitcoin' },
-                          { id: 'ETH', label: 'ETH', net: 'Ethereum' },
-                        ].map((coin) => (
-                          <button
-                            key={coin.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCrypto(coin.id as CryptoCurrency);
-                              setCryptoData(null);
-                              setErrorMessage(null);
-                            }}
-                            className={`p-2.5 text-center border text-xs transition-all cursor-pointer rounded-xs ${
-                              selectedCrypto === coin.id
-                                ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#F5D77F] font-bold'
-                                : 'border-white/10 bg-[#141414] text-ivory/70 hover:border-white/30'
-                            }`}
-                          >
-                            <span className="block font-semibold">{coin.label}</span>
-                            <span className="text-[9px] text-ivory/50 uppercase">{coin.net}</span>
-                          </button>
-                        ))}
+                        {CRYPTO_COINS.map((coin) => {
+                          const allowed = coinAllowed(coin.id);
+                          const min = cryptoMinimums?.[coin.id];
+                          return (
+                            <button
+                              key={coin.id}
+                              type="button"
+                              disabled={!allowed}
+                              title={!allowed && min ? t('pub_checkout_crypto_coin_min').replace('{min}', min.toFixed(2)) : undefined}
+                              onClick={() => {
+                                setSelectedCrypto(coin.id);
+                                setCryptoData(null);
+                                setErrorMessage(null);
+                              }}
+                              className={`p-2.5 text-center border text-xs transition-all rounded-xs ${
+                                !allowed
+                                  ? 'border-white/5 bg-[#101010] text-ivory/30 cursor-not-allowed'
+                                  : effectiveCrypto === coin.id
+                                  ? 'border-[#D4AF37] bg-[#D4AF37]/20 text-[#F5D77F] font-bold cursor-pointer'
+                                  : 'border-white/10 bg-[#141414] text-ivory/70 hover:border-white/30 cursor-pointer'
+                              }`}
+                            >
+                              <span className="block font-semibold">{coin.label}</span>
+                              <span className="text-[9px] text-ivory/50 uppercase">
+                                {!allowed && min ? t('pub_checkout_crypto_coin_min').replace('{min}', String(Math.ceil(min))) : coin.net}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -1240,7 +1295,7 @@ function CheckoutContent() {
 
                             <div>
                               <span className="text-[10px] uppercase tracking-widest text-ivory/50 block">
-                                {t('checkout_crypto_deposit_address').replace('{coin}', selectedCrypto)}
+                                {t('checkout_crypto_deposit_address').replace('{coin}', effectiveCrypto)}
                               </span>
                               <div className="flex items-center gap-2">
                                 <input
@@ -1262,7 +1317,7 @@ function CheckoutContent() {
                         </div>
 
                         <button
-                          onClick={() => handleConfirmInstantPayment(selectedCrypto)}
+                          onClick={() => handleConfirmInstantPayment(effectiveCrypto)}
                           className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono uppercase tracking-widest font-bold transition-all rounded-xs cursor-pointer"
                         >
                           {t('checkout_crypto_btn_confirm')}

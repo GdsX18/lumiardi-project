@@ -29,7 +29,8 @@ export type TransactionStatus =
 
 export type InvoiceStatus = 'paid' | 'open' | 'void' | 'uncollectible';
 
-export type CryptoCurrency = 'USDTTRC20' | 'USDTERC20' | 'USDTBSC' | 'USDC' | 'BTC' | 'ETH';
+export const CRYPTO_CURRENCIES = ['USDTTRC20', 'USDTERC20', 'USDTBSC', 'USDC', 'BTC', 'ETH'] as const;
+export type CryptoCurrency = (typeof CRYPTO_CURRENCIES)[number];
 
 export interface PlanDefinition {
   id: PlanId;
