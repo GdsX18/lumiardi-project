@@ -82,7 +82,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   return (
     <aside
       className={cn(
-        'w-64 md:w-72 bg-[#090909] border-r border-white/[0.08] flex flex-col justify-between p-4 shrink-0 h-[calc(100vh-4rem)] lg:h-[calc(100vh-4.5rem)] sticky top-16 lg:top-[72px] overflow-y-auto scrollbar-thin scrollbar-thumb-gold/20',
+        'w-64 md:w-72 bg-[#090909] border-r border-white/[0.08] flex flex-col gap-4 p-4 shrink-0 h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-gold/20',
         className
       )}
     >
@@ -182,7 +182,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       </div>
 
       {/* Rodapé da Sidebar: Botão de Logout elegante */}
-      <div className="pt-4 border-t border-white/[0.08] mt-4">
+      <div className="mt-auto pt-4 border-t border-white/[0.08]">
         <button
           onClick={logout}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-sans text-ivory/50 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all rounded-sm cursor-pointer"

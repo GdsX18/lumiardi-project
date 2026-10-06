@@ -34,7 +34,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     <ContentProtectionProvider>
       <div
         className={`bg-[#070707] text-ivory font-sans flex flex-col selection:bg-gold selection:text-black-matte overflow-x-hidden ${
-          fullHeight ? 'h-dvh overflow-hidden' : 'min-h-screen'
+          fullHeight ? 'h-dvh overflow-hidden' : 'min-h-screen lg:h-dvh lg:overflow-hidden'
         }`}
       >
         {/* Header Corporativo Fixo */}
@@ -43,9 +43,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           mobileMenuOpen={mobileMenuOpen}
         />
 
-        <div className={`flex-1 flex w-full max-w-[1920px] mx-auto min-w-0 ${fullHeight ? 'min-h-0' : ''}`}>
+        {/* Desktop: shell de altura fixa — sidebar ocupa a coluna inteira e só o <main> rola */}
+        <div className={`flex-1 flex w-full max-w-[1920px] mx-auto min-w-0 lg:min-h-0 ${fullHeight ? 'min-h-0' : ''}`}>
           {/* Sidebar Desktop */}
-          <div className="hidden lg:block shrink-0">
+          <div className="hidden lg:flex shrink-0">
             <DashboardSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>
 
@@ -68,6 +69,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   className="fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#090909] border-r border-gold/30 shadow-2xl pt-14 lg:hidden overflow-y-auto"
                 >
                   <DashboardSidebar
+                    className="w-full md:w-full"
                     activeTab={activeTab}
                     setActiveTab={(tab) => {
                       if (setActiveTab) setActiveTab(tab);
