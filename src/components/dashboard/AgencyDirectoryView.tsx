@@ -15,19 +15,19 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { Badge } from '@/components/ui/Badge';
 
 export const AgencyDirectoryView: React.FC = () => {
-  const { currentUser, activeCreator } = useAuthPortal();
-  const { t } = useLanguage();
+  const { t, tApiError } = useLanguage();
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState<any | null>(null);
   const [proposalSent, setProposalSent] = useState<string | null>(null);
   const [customPitch, setCustomPitch] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   const fetchAgencies = useCallback(async () => {
     try {
@@ -71,28 +71,36 @@ export const AgencyDirectoryView: React.FC = () => {
   }, [fetchAgencies]);
 
   const handleApply = (agency: any) => {
+    setApplyError(null);
     setSelectedAgency(agency);
   };
 
+  // Candidatura registrada no servidor: abre o canal canônico agência ↔ modelo e notifica a agência.
+  // O sucesso só aparece quando a API confirma a gravação.
   const handleConfirmApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAgency) return;
+    if (!selectedAgency || isApplying) return;
+    setIsApplying(true);
+    setApplyError(null);
     try {
-      await fetch('/api/chat/messages', {
+      const res = await fetch('/api/scout/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          receiverId: selectedAgency.id,
-          conversationId: `conv-${currentUser?.id || 'direct'}-${selectedAgency.id}`,
-          text: `[CANDIDATURA DE CASTING]: Olá! Gostaria de submeter meu portfólio e book oficial para a agência ${selectedAgency.name}. Mensagem: "${customPitch || 'Gostaria de apresentar meu book para casting.'}"`,
-        }),
+        body: JSON.stringify({ agencyId: selectedAgency.id, message: customPitch }),
       });
-    } catch (err) {
-      console.warn('Erro ao enviar mensagem de candidatura:', err);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setApplyError(tApiError(errData, 'api_err_generic'));
+        return;
+      }
+      setProposalSent(selectedAgency.name || t('dsh_ad_registered_agency'));
+      setSelectedAgency(null);
+      setCustomPitch('');
+    } catch {
+      setApplyError(tApiError({ code: 'network' }, 'api_err_network'));
+    } finally {
+      setIsApplying(false);
     }
-    setProposalSent(selectedAgency.name || t('dsh_ad_registered_agency'));
-    setSelectedAgency(null);
-    setCustomPitch('');
   };
 
   return (
@@ -304,6 +312,12 @@ export const AgencyDirectoryView: React.FC = () => {
                   </ul>
                 </div>
 
+                {applyError && (
+                  <p role="alert" className="p-3 bg-red-950/40 border border-red-500/40 text-red-300 text-xs font-sans rounded-xs">
+                    {applyError}
+                  </p>
+                )}
+
                 <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     type="button"
@@ -314,9 +328,10 @@ export const AgencyDirectoryView: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md rounded-xs"
+                    disabled={isApplying}
+                    className="px-6 py-2.5 bg-gold hover:bg-gold-light text-black-matte font-semibold text-xs font-sans uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer shadow-md rounded-xs disabled:opacity-60 disabled:cursor-wait"
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    {isApplying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                     <span>{t('dsh_ad_transmit')}</span>
                   </button>
                 </div>

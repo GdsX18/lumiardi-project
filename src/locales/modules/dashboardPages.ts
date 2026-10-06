@@ -364,6 +364,23 @@ const ROWS: Record<string, Row> = {
   dsh_sb_badge_new: ["NOVO", "NEW", "NUEVO", "NOUVEAU", "NUOVO", "НОВОЕ"],
   dsh_cb_role_id: ["{role} · ID: #{id}", "{role} · ID: #{id}", "{role} · ID: #{id}", "{role} · ID : #{id}", "{role} · ID: #{id}", "{role} · ID: #{id}"],
   dsh_sk_loading_book: ["Carregando Book da Modelo", "Loading Model Book", "Cargando el Book de la Modelo", "Chargement du Book de la Modèle", "Caricamento del Book della Modella", "Загрузка бука модели"],
+  dsh_rp_title: ["Propostas Recebidas", "Received Proposals", "Propuestas Recibidas", "Propositions Reçues", "Proposte Ricevute", "Полученные предложения"],
+  dsh_rp_subtitle: ["Propostas formais de agências credenciadas. Ao aceitar, o contrato de agenciamento fica ativo na hora.", "Formal proposals from accredited agencies. Once you accept, the representation contract becomes active immediately.", "Propuestas formales de agencias acreditadas. Al aceptar, el contrato de representación se activa al instante.", "Propositions formelles d’agences accréditées. Dès que vous acceptez, le contrat de représentation devient actif.", "Proposte formali da agenzie accreditate. Accettando, il contratto di rappresentanza diventa subito attivo.", "Официальные предложения аккредитованных агентств. После принятия контракт о представительстве сразу становится активным."],
+  dsh_rp_empty: ["Nenhuma proposta recebida até o momento.", "No proposals received yet.", "Aún no has recibido propuestas.", "Aucune proposition reçue pour le moment.", "Nessuna proposta ricevuta finora.", "Предложений пока нет."],
+  dsh_rp_commission: ["Comissão proposta", "Proposed commission", "Comisión propuesta", "Commission proposée", "Commissione proposta", "Предложенная комиссия"],
+  dsh_rp_accept: ["Aceitar", "Accept", "Aceptar", "Accepter", "Accetta", "Принять"],
+  dsh_rp_decline: ["Recusar", "Decline", "Rechazar", "Refuser", "Rifiuta", "Отклонить"],
+  dsh_rp_open_chat: ["Abrir conversa", "Open chat", "Abrir conversación", "Ouvrir la conversation", "Apri conversazione", "Открыть чат"],
+  dsh_rp_status_sent: ["Aguardando sua resposta", "Awaiting your reply", "Esperando tu respuesta", "En attente de votre réponse", "In attesa della tua risposta", "Ожидает вашего ответа"],
+  dsh_rp_status_accepted: ["Aceita · contrato ativo", "Accepted · contract active", "Aceptada · contrato activo", "Acceptée · contrat actif", "Accettata · contratto attivo", "Принято · контракт активен"],
+  dsh_rp_status_declined: ["Recusada", "Declined", "Rechazada", "Refusée", "Rifiutata", "Отклонено"],
+  dsh_rp_confirm_accept: ["Aceitar a proposta de {agency}? O contrato de agenciamento ficará ativo.", "Accept the proposal from {agency}? The representation contract will become active.", "¿Aceptar la propuesta de {agency}? El contrato de representación quedará activo.", "Accepter la proposition de {agency} ? Le contrat de représentation deviendra actif.", "Accettare la proposta di {agency}? Il contratto di rappresentanza diventerà attivo.", "Принять предложение от {agency}? Контракт о представительстве станет активным."],
+  dsh_rp_confirm_decline: ["Recusar a proposta de {agency}?", "Decline the proposal from {agency}?", "¿Rechazar la propuesta de {agency}?", "Refuser la proposition de {agency} ?", "Rifiutare la proposta di {agency}?", "Отклонить предложение от {agency}?"],
+  dsh_rp_accepted_ok: ["Proposta aceita! O contrato com {agency} está ativo.", "Proposal accepted! Your contract with {agency} is active.", "¡Propuesta aceptada! El contrato con {agency} está activo.", "Proposition acceptée ! Votre contrat avec {agency} est actif.", "Proposta accettata! Il contratto con {agency} è attivo.", "Предложение принято! Контракт с {agency} активен."],
+  dsh_rp_declined_ok: ["Proposta de {agency} recusada.", "Proposal from {agency} declined.", "Propuesta de {agency} rechazada.", "Proposition de {agency} refusée.", "Proposta di {agency} rifiutata.", "Предложение от {agency} отклонено."],
+  dsh_rp_load_failed: ["Não foi possível carregar as propostas.", "Could not load your proposals.", "No se pudieron cargar las propuestas.", "Impossible de charger les propositions.", "Impossibile caricare le proposte.", "Не удалось загрузить предложения."],
+  dsh_ro_contract_pending: ["Contrato Pendente", "Pending Contract", "Contrato Pendiente", "Contrat en Attente", "Contratto in Sospeso", "Контракт ожидает"],
+  dsh_ro_since: ["Desde {date}", "Since {date}", "Desde {date}", "Depuis le {date}", "Dal {date}", "С {date}"],
   // @@END
 };
 

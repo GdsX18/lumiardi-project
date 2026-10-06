@@ -26,6 +26,7 @@ import {
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
 import { KYCVerificationModal } from '@/components/dashboard/KYCVerificationModal';
 import { VIPWelcomeCelebrationModal } from '@/components/dashboard/VIPWelcomeCelebrationModal';
+import { ReceivedProposalsPanel, useReceivedProposals } from '@/components/dashboard/ReceivedProposalsPanel';
 
 export default function DashboardOverviewPage() {
   const { role, activeCreator, activeAgency, currentUser } = useAuthPortal();
@@ -56,6 +57,7 @@ export default function DashboardOverviewPage() {
   };
 
   const isCriadora = role === 'criadora';
+  const proposalsState = useReceivedProposals(isCriadora);
   const displayName =
     currentUser?.name ||
     (isCriadora
@@ -131,8 +133,12 @@ export default function DashboardOverviewPage() {
           />
 
           <StatsCard
-            title={isCriadora ? t('dash_stat_connected_agencies') : t('dsh_ov_roster_models')}
-            value={t('dsh_ov_available')}
+            title={isCriadora ? t('dsh_cr_agency_proposals') : t('dsh_ov_roster_models')}
+            value={
+              isCriadora
+                ? t('dsh_cr_pending_count').replace('{count}', String(proposalsState.pendingCount))
+                : t('dsh_ov_available')
+            }
             change={t('dsh_ov_open_network')}
             isPositive={true}
             subtitle={t('dsh_ov_direct_connections')}
@@ -157,6 +163,9 @@ export default function DashboardOverviewPage() {
             icon={HardDrive}
           />
         </div>
+
+        {/* Propostas de agências recebidas pela modelo (aceitar/recusar) */}
+        {isCriadora && <ReceivedProposalsPanel state={proposalsState} />}
 
         {/* Grade de Módulos da Plataforma com Design Limpo e Fluido */}
         <div className="space-y-4">

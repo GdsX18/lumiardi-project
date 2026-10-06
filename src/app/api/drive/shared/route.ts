@@ -165,6 +165,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Vínculo entre agência e modelo não identificado.' }, { status: 400 });
     }
 
+    // Mesmo critério do upload-url: só existe espaço compartilhado com contrato não encerrado entre o par
+    const partnerContracts = await StorageService.listAgencyContracts(String(finalAgencyId));
+    if (!partnerContracts.some((c) => c.modelId === finalModelId && c.status !== 'terminated')) {
+      return NextResponse.json(
+        { error: 'Não há contrato de agenciamento ativo entre a agência e a modelo.', code: 'forbidden' },
+        { status: 403 }
+      );
+    }
+
     // Validação de cota da agência
     const fileSizeStr = size || '1.5 MB';
     const newFileBytes = StorageService.parseSizeToBytes(fileSizeStr);

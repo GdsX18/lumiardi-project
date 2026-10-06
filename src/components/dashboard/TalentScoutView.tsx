@@ -44,6 +44,9 @@ const TalentAvatar: React.FC<{ creator: CompleteCreatorProfile; imgClassName: st
   );
 };
 
+/** Limite inferior do filtro de altura (cm): nesse valor o filtro está "desligado". */
+const MIN_HEIGHT_FILTER = 150;
+
 export const TalentScoutView: React.FC = () => {
   const { allCreators } = useAuthPortal();
   const { t, tApiError } = useLanguage();
@@ -51,12 +54,24 @@ export const TalentScoutView: React.FC = () => {
   // Somente talentos reais vindos da base (sem perfis fictícios de demonstração)
   const pool = allCreators;
 
+  // Campos que a modelo não preencheu aparecem como "Não informado" (nunca valores inventados)
+  const notInformed = t('dsh_cp_not_informed');
+  const isFilled = (value: unknown) => value !== undefined && value !== null && String(value).trim() !== '';
+  const orNotInformed = (value: unknown) => (isFilled(value) ? String(value) : notInformed);
+  const withUnit = (value: unknown, unit: string) => (isFilled(value) ? `${value} ${unit}` : notInformed);
+  const joinFilled = (values: unknown[], separator: string) =>
+    values.some(isFilled) ? values.map((v) => (isFilled(v) ? String(v) : '—')).join(separator) : notInformed;
+  const measurementsOf = (c: CompleteCreatorProfile) => (c?.qualitative?.measurements || {}) as Partial<CompleteCreatorProfile['qualitative']['measurements']>;
+  const physiognomyOf = (c: CompleteCreatorProfile) => (c?.qualitative?.physiognomy || {}) as Partial<CompleteCreatorProfile['qualitative']['physiognomy']>;
+  const placeOf = (c: CompleteCreatorProfile) =>
+    [c?.basicInfo?.address?.city, c?.basicInfo?.address?.country].filter(Boolean).join(', ') || notInformed;
+
   // Estados dos Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedHair, setSelectedHair] = useState<string>('all');
   const [selectedEyes, setSelectedEyes] = useState<string>('all');
-  const [minHeight, setMinHeight] = useState<number>(150);
+  const [minHeight, setMinHeight] = useState<number>(MIN_HEIGHT_FILTER);
   const [selectedAvailability, setSelectedAvailability] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
@@ -149,9 +164,9 @@ export const TalentScoutView: React.FC = () => {
         selectedEyes === 'all' ||
         eyes.toLowerCase().includes(selectedEyes.toLowerCase());
 
-      // Altura mínima
-      const heightNum = Number(c?.qualitative?.measurements?.height) || 0;
-      const matchesHeight = heightNum >= minHeight;
+      // Altura mínima (sem altura informada, a modelo só sai da lista quando o filtro é apertado)
+      const heightNum = Number(String(c?.qualitative?.measurements?.height ?? '').replace(/[^0-9]/g, '')) || 0;
+      const matchesHeight = heightNum >= minHeight || (heightNum === 0 && minHeight <= MIN_HEIGHT_FILTER);
 
       // Disponibilidade
       const matchesAvailability =
@@ -182,7 +197,7 @@ export const TalentScoutView: React.FC = () => {
     setSelectedCategory('all');
     setSelectedHair('all');
     setSelectedEyes('all');
-    setMinHeight(150);
+    setMinHeight(MIN_HEIGHT_FILTER);
     setSelectedAvailability('all');
   };
 
@@ -216,7 +231,8 @@ export const TalentScoutView: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 403) {
+        // Só a recusa de ofertas abre o aviso de bloqueio; demais erros (duplicada, já no elenco) vão para a mensagem
+        if (res.status === 403 && data.code === 'OFFERS_DISABLED') {
           setBlockedModalTalent(proposalModalTalent);
           setProposalModalTalent(null);
           return;
@@ -381,7 +397,7 @@ export const TalentScoutView: React.FC = () => {
             </div>
             <input
               type="range"
-              min={150}
+              min={MIN_HEIGHT_FILTER}
               max={185}
               step={1}
               value={minHeight}
@@ -460,7 +476,7 @@ export const TalentScoutView: React.FC = () => {
                     <p className="text-xs text-ivory/70 font-sans flex items-center gap-1.5 mt-0.5">
                       <MapPin className="w-3.5 h-3.5 text-bronze" />
                       <span>
-                        {creator.basicInfo.address.city}, {creator.basicInfo.address.country}
+                        {placeOf(creator)}
                       </span>
                     </p>
                   </div>
@@ -472,25 +488,25 @@ export const TalentScoutView: React.FC = () => {
                     <div className="p-2 bg-[#151515] border border-white/5">
                       <span className="text-[9px] uppercase text-ivory/40 block">{t('dsh_ts_height')}</span>
                       <span className="text-gold font-medium">
-                        {creator.qualitative.measurements.height} cm
+                        {withUnit(measurementsOf(creator).height, "cm")}
                       </span>
                     </div>
                     <div className="p-2 bg-[#151515] border border-white/5">
                       <span className="text-[9px] uppercase text-ivory/40 block">{t('dsh_ts_revenue')}</span>
                       <span className="text-emerald-400 font-medium truncate block text-[11px]">
-                        {creator.qualitative.monthlyRevenueEstimate.split(' ')[0]}
+                        {orNotInformed(creator.qualitative.monthlyRevenueEstimate)}
                       </span>
                     </div>
                     <div className="p-2 bg-[#151515] border border-white/5">
                       <span className="text-[9px] uppercase text-ivory/40 block">{t('dsh_ts_hair')}</span>
                       <span className="text-ivory font-medium truncate block text-[11px]">
-                        {creator.qualitative.physiognomy.hairColor}
+                        {orNotInformed(physiognomyOf(creator).hairColor)}
                       </span>
                     </div>
                   </div>
 
                   <p className="text-xs font-sans text-ivory/70 line-clamp-2 italic">
-                    &quot;{creator.qualitative.mainGoal}&quot;
+                    {isFilled(creator.qualitative.mainGoal) ? <>&quot;{creator.qualitative.mainGoal}&quot;</> : notInformed}
                   </p>
 
                   {/* Botões de Ação */}
@@ -553,7 +569,7 @@ export const TalentScoutView: React.FC = () => {
                           <span className="font-serif-lumiardi text-base text-ivory font-medium block">
                             {creator.qualitative.artisticName}
                           </span>
-                          <span className="text-[10px] text-gold">{creator.qualitative.platforms.instagram}</span>
+                          <span className="text-[10px] text-gold">{orNotInformed(creator.qualitative.platforms?.instagram)}</span>
                         </div>
                       </div>
                     </td>
@@ -572,15 +588,15 @@ export const TalentScoutView: React.FC = () => {
                         {statusInfo.label}
                       </span>
                     </td>
-                    <td className="p-4 text-ivory/70">{creator.qualitative.category}</td>
+                    <td className="p-4 text-ivory/70">{orNotInformed(creator.qualitative.category)}</td>
                     <td className="p-4 text-ivory/70">
-                      {creator.basicInfo.address.city}, {creator.basicInfo.address.country}
+                      {placeOf(creator)}
                     </td>
                     <td className="p-4 text-ivory/80">
-                      {creator.qualitative.measurements.height}cm · {creator.qualitative.measurements.weight}kg · {creator.qualitative.measurements.waist}/{creator.qualitative.measurements.bust}/{creator.qualitative.measurements.hips}
+                      {withUnit(measurementsOf(creator).height, "cm")} · {withUnit(measurementsOf(creator).weight, "kg")} · {joinFilled([measurementsOf(creator).bust, measurementsOf(creator).waist, measurementsOf(creator).hips], "/")}
                     </td>
                     <td className="p-4 text-emerald-400 font-medium">
-                      {creator.qualitative.monthlyRevenueEstimate}
+                      {orNotInformed(creator.qualitative.monthlyRevenueEstimate)}
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -645,7 +661,7 @@ export const TalentScoutView: React.FC = () => {
                     {selectedTalent.qualitative.artisticName}
                   </h3>
                   <span className="text-xs text-ivory/60 font-sans">
-                    {selectedTalent.basicInfo.address.city}, {selectedTalent.basicInfo.address.country} · {selectedTalent.qualitative.platforms.instagram}
+                    {placeOf(selectedTalent)} · {orNotInformed(selectedTalent.qualitative.platforms?.instagram)}
                   </span>
                 </div>
               </div>
@@ -655,25 +671,25 @@ export const TalentScoutView: React.FC = () => {
                 <div className="p-3 bg-[#151515] border border-white/5">
                   <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_height')}</span>
                   <span className="font-serif-lumiardi text-base text-gold">
-                    {selectedTalent.qualitative.measurements.height} cm
+                    {withUnit(measurementsOf(selectedTalent).height, "cm")}
                   </span>
                 </div>
                 <div className="p-3 bg-[#151515] border border-white/5">
                   <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_bust_waist_hips')}</span>
                   <span className="font-serif-lumiardi text-base text-gold">
-                    {selectedTalent.qualitative.measurements.bust}/{selectedTalent.qualitative.measurements.waist}/{selectedTalent.qualitative.measurements.hips}
+                    {joinFilled([measurementsOf(selectedTalent).bust, measurementsOf(selectedTalent).waist, measurementsOf(selectedTalent).hips], "/")}
                   </span>
                 </div>
                 <div className="p-3 bg-[#151515] border border-white/5">
                   <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_physiognomy')}</span>
                   <span className="text-ivory font-medium text-[11px]">
-                    {selectedTalent.qualitative.physiognomy.hairColor} / {selectedTalent.qualitative.physiognomy.eyeColor}
+                    {joinFilled([physiognomyOf(selectedTalent).hairColor, physiognomyOf(selectedTalent).eyeColor], " / ")}
                   </span>
                 </div>
                 <div className="p-3 bg-[#151515] border border-white/5">
                   <span className="text-ivory/40 block text-[10px] uppercase">{t('dsh_ts_avg_revenue')}</span>
                   <span className="text-emerald-400 font-medium text-[11px]">
-                    {selectedTalent.qualitative.monthlyRevenueEstimate}
+                    {orNotInformed(selectedTalent.qualitative.monthlyRevenueEstimate)}
                   </span>
                 </div>
               </div>
@@ -684,14 +700,14 @@ export const TalentScoutView: React.FC = () => {
                   <span className="text-bronze font-semibold uppercase tracking-wider text-[10px] block mb-1">
                     {t('dsh_ts_declared_goal')}
                   </span>
-                  <p className="text-ivory/80">&quot;{selectedTalent.qualitative.mainGoal}&quot;</p>
+                  <p className="text-ivory/80">{isFilled(selectedTalent.qualitative.mainGoal) ? <>&quot;{selectedTalent.qualitative.mainGoal}&quot;</> : notInformed}</p>
                 </div>
 
                 <div className="p-3.5 bg-[#141414] border border-white/5">
                   <span className="text-bronze font-semibold uppercase tracking-wider text-[10px] block mb-1">
                     {t('dsh_ts_personal_limits')}
                   </span>
-                  <p className="text-ivory/80">&quot;{selectedTalent.qualitative.personalLimits}&quot;</p>
+                  <p className="text-ivory/80">{isFilled(selectedTalent.qualitative.personalLimits) ? <>&quot;{selectedTalent.qualitative.personalLimits}&quot;</> : notInformed}</p>
                 </div>
               </div>
 

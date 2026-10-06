@@ -439,6 +439,10 @@ async function runInitDatabase(): Promise<boolean> {
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_role VARCHAR(50);
 
+        -- scout_proposals guarda propostas da agência (initiated_by = 'agency') e candidaturas da modelo ('model')
+        ALTER TABLE scout_proposals ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(20) NOT NULL DEFAULT 'agency';
+        ALTER TABLE scout_proposals ADD COLUMN IF NOT EXISTS responded_at TIMESTAMP WITH TIME ZONE;
+
         -- Índice de performance para polling incremental por timestamp
         CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at ASC);
         CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at ASC);
@@ -526,6 +530,10 @@ async function runInitDatabase(): Promise<boolean> {
         `CREATE INDEX IF NOT EXISTS idx_drive_files_user_id ON drive_files(user_id);`,
         `CREATE INDEX IF NOT EXISTS idx_shared_drive_files_rel ON shared_drive_files(agency_id, model_id);`,
         `CREATE INDEX IF NOT EXISTS idx_agency_contracts ON agency_model_contracts(agency_id, model_id);`,
+        // No máximo um contrato ativo por par agência ↔ modelo (o aceite de proposta é idempotente)
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_agency_contracts_active ON agency_model_contracts(agency_id, model_id) WHERE status = 'active';`,
+        `CREATE INDEX IF NOT EXISTS idx_scout_proposals_pair ON scout_proposals(agency_id, model_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_scout_proposals_model ON scout_proposals(model_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_time ON curation_audit_logs(created_at DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_action ON curation_audit_logs(action_type);`,
         `CREATE INDEX IF NOT EXISTS idx_curation_audit_logs_user ON curation_audit_logs(user_id);`,

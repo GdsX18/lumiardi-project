@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { decodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
-import { conversationIncludesUser, isOwnChatMessage, senderRoleFromSession } from '@/lib/chatRoles';
+import {
+  conversationIncludesUser,
+  getDirectConversationId,
+  isOwnChatMessage,
+  parseDirectConversationId,
+  senderRoleFromSession,
+} from '@/lib/chatRoles';
 
 // Cache em memória de nomes de exibição por usuário (TTL: 5 minutos) para eliminar queries redundantes no polling
 const displayNameCache = new Map<string, { name: string; expiresAt: number }>();
@@ -46,16 +52,49 @@ async function resolveDisplayName(session: SessionUser): Promise<string> {
   return name;
 }
 
+// Relações confirmadas (proposta/candidatura/contrato) por par, para não consultar o banco a cada poll.
+// Só resultados positivos entram no cache: uma relação recém-criada libera o canal na hora.
+const relationshipCache = new Map<string, number>();
+const RELATIONSHIP_TTL_MS = 60 * 1000;
+
+async function hasRelationship(userId: string, partnerId: string): Promise<boolean> {
+  const key = [userId, partnerId].sort().join('|');
+  const expiresAt = relationshipCache.get(key);
+  if (expiresAt && expiresAt > Date.now()) return true;
+  const ok = await StorageService.hasDirectRelationship(userId, partnerId);
+  if (ok) relationshipCache.set(key, Date.now() + RELATIONSHIP_TTL_MS);
+  return ok;
+}
+
 /**
  * Autoriza o acesso à conversa:
  * - 'curation': qualquer usuária autenticada vê/escreve apenas a própria conversa com a mesa;
  *   o admin acessa a de qualquer candidata.
- * - conversas diretas (conv_A_B / conv-A-B): somente os participantes (e o admin).
+ * - conversa direta canônica (conv_A_B): somente os participantes, e só se houver relação real entre
+ *   eles (proposta, candidatura ou contrato). O admin acessa qualquer uma.
+ * - formato legado (conv-A-B): somente leitura do histórico pelos próprios participantes.
  */
-function canAccessConversation(session: SessionUser, conversationId: string): boolean {
+async function canAccessConversation(
+  session: SessionUser,
+  conversationId: string,
+  mode: 'read' | 'write'
+): Promise<boolean> {
   if (session.role === 'admin') return true;
   if (conversationId === 'curation') return true;
-  return conversationIncludesUser(conversationId, session.id);
+
+  const pair = parseDirectConversationId(conversationId);
+  if (pair) {
+    if (!pair.includes(session.id)) return false;
+    // Só o id canônico (ids em ordem): impede canais paralelos para o mesmo par
+    if (getDirectConversationId(pair[0], pair[1]) !== conversationId) return false;
+    const partnerId = pair[0] === session.id ? pair[1] : pair[0];
+    return hasRelationship(session.id, partnerId);
+  }
+
+  if (mode === 'read' && conversationId.startsWith('conv-')) {
+    return conversationIncludesUser(conversationId, session.id);
+  }
+  return false;
 }
 
 export async function GET(request: NextRequest) {
@@ -68,7 +107,7 @@ export async function GET(request: NextRequest) {
     const since = searchParams.get('since') || undefined;
     const targetUserId = searchParams.get('targetUserId') || searchParams.get('userId') || undefined;
 
-    if (!canAccessConversation(session, conversationId)) {
+    if (!(await canAccessConversation(session, conversationId, 'read'))) {
       return fail(403, 'forbidden', 'Você não tem acesso a esta conversa.');
     }
 
@@ -161,7 +200,7 @@ export async function POST(request: NextRequest) {
       return fail(400, 'invalid_input', 'Anexo inválido.');
     }
 
-    if (!canAccessConversation(session, conversationId)) {
+    if (!(await canAccessConversation(session, conversationId, 'write'))) {
       return fail(403, 'forbidden', 'Você não tem acesso a esta conversa.');
     }
 
@@ -177,11 +216,10 @@ export async function POST(request: NextRequest) {
       }
     } else if (session.role === 'admin') {
       receiverId = typeof body.receiverId === 'string' ? body.receiverId : undefined;
-    } else if (conversationId.startsWith('conv_')) {
-      const [a, b] = conversationId.slice(5).split('_');
-      receiverId = session.id === a ? b : a;
-    } else if (typeof body.receiverId === 'string' && conversationIncludesUser(conversationId, body.receiverId)) {
-      receiverId = body.receiverId;
+    } else {
+      // Canal direto canônico (já validado acima): o destinatário é sempre o outro participante
+      const pair = parseDirectConversationId(conversationId);
+      if (pair) receiverId = pair[0] === session.id ? pair[1] : pair[0];
     }
 
     const senderName = await resolveDisplayName(session);

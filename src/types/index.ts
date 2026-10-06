@@ -280,6 +280,9 @@ export interface ScoutProposal {
   message: string;
   proposedCommission: string;
   status: 'sent' | 'accepted' | 'declined' | 'blocked';
+  /** 'agency' = proposta enviada pela agência; 'model' = candidatura enviada pela modelo. */
+  initiatedBy: 'agency' | 'model';
+  respondedAt?: string;
   createdAt: string;
 }
 

@@ -23,7 +23,7 @@ import {
 } from '@/types';
 import { SessionUser } from '@/lib/auth';
 import crypto from 'crypto';
-import { isAdminRole, normalizeSenderRole } from '@/lib/chatRoles';
+import { getDirectConversationId, isAdminRole, normalizeSenderRole } from '@/lib/chatRoles';
 
 /** Política mínima de senha: 8+ caracteres, com letras e números. */
 export function isStrongPassword(password: unknown): password is string {
@@ -51,8 +51,97 @@ function parsePreInterview(raw: unknown): PreInterviewAnswers | null {
   return answers as PreInterviewAnswers;
 }
 
-export function getDirectConversationId(id1: string, id2: string): string {
-  return ['conv', ...[id1, id2].sort()].join('_');
+// Id canônico do canal direto agência ↔ modelo (definido em chatRoles, que também roda no cliente)
+export { getDirectConversationId };
+
+const CREATOR_CATALOG_COLUMNS = `u.id, u.email, u.full_name, u.curation_status, u.created_at,
+               p.artistic_name, p.category, p.instagram, p.gender, p.measurements,
+               p.physiognomy, p.address, p.photos, p.video_url, p.bio, p.monthly_revenue_estimate,
+               p.accepts_offers, p.is_represented, p.represented_agency_name, p.represented_agency_id`;
+
+/**
+ * Linha users ⨝ profiles → perfil de catálogo. Campos não preenchidos pela modelo ficam vazios
+ * (a UI exibe "Não informado"): nunca inventar medidas, fisionomia, @ ou cidade.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapCreatorCatalogRow(row: any): Record<string, unknown> {
+  return {
+    id: row.id,
+    basicInfo: {
+      fullName: row.full_name,
+      email: row.email,
+      address: row.address || {},
+    },
+    qualitative: {
+      artisticName: row.artistic_name || row.full_name,
+      category: row.category || '',
+      gender: row.gender || '',
+      platforms: { instagram: row.instagram || '' },
+      measurements: row.measurements || {},
+      physiognomy: row.physiognomy || {},
+      monthlyRevenueEstimate: row.monthly_revenue_estimate || '',
+      bio: row.bio || '',
+      acceptsOffers: row.accepts_offers !== false,
+      isRepresented: Boolean(row.is_represented),
+      representedAgencyName: row.represented_agency_name || undefined,
+      representedAgencyId: row.represented_agency_id || undefined,
+    },
+    acceptsOffers: row.accepts_offers !== false,
+    isRepresented: Boolean(row.is_represented),
+    representedAgencyName: row.represented_agency_name || undefined,
+    photos: row.photos || [],
+    videoUrl: row.video_url || '',
+    curationStatus: row.curation_status,
+    createdAt: row.created_at,
+  };
+}
+
+/** Erro de regra de negócio do fluxo proposta/candidatura/contrato, com código de API e status HTTP. */
+export class ScoutFlowError extends Error {
+  constructor(public code: string, message: string, public status: number) {
+    super(message);
+    this.name = 'ScoutFlowError';
+  }
+}
+
+/** "20", "20%", " 20 % " → "20%". Valores fora de 0–100 voltam ao padrão de 20%. */
+export function normalizeCommission(raw?: unknown): string {
+  const value = Number(String(raw ?? '').replace(/[^0-9.,]/g, '').replace(',', '.'));
+  if (!Number.isFinite(value) || value <= 0 || value > 100) return '20%';
+  return `${Number(value.toFixed(2))}%`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapScoutProposalRow(p: any): ScoutProposal {
+  return {
+    id: p.id,
+    agencyId: p.agency_id,
+    modelId: p.model_id,
+    agencyName: p.agency_name,
+    modelName: p.model_name,
+    message: p.message,
+    proposedCommission: p.proposed_commission,
+    status: p.status,
+    initiatedBy: p.initiated_by === 'model' ? 'model' : 'agency',
+    respondedAt: p.responded_at ? new Date(p.responded_at).toISOString() : undefined,
+    createdAt: p.created_at ? new Date(p.created_at).toISOString() : new Date().toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapContractRow(c: any): AgencyModelContract {
+  return {
+    id: c.id,
+    agencyId: c.agency_id,
+    modelId: c.model_id,
+    agencyName: c.agency_name,
+    modelName: c.model_name,
+    status: c.status,
+    commissionRate: c.commission_rate,
+    startDate: c.start_date ? new Date(c.start_date).toISOString() : '',
+    endDate: c.end_date ? new Date(c.end_date).toISOString() : undefined,
+    createdAt: c.created_at ? new Date(c.created_at).toISOString() : '',
+  };
 }
 
 export const StorageService = {
@@ -817,9 +906,9 @@ export const StorageService = {
             artisticName: (row.artistic_name as string) || row.full_name,
             category: (row.category as string) || (row.role === 'MODELO' ? 'Modelo Editorial & Criadora VIP' : 'Agência de Casting'),
             gender: (row.gender as string) || 'Feminino',
-            platforms: { instagram: (row.instagram as string) || '@suaconta' },
-            measurements: (row.measurements as Record<string, unknown>) || { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
-            physiognomy: (row.physiognomy as Record<string, unknown>) || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
+            platforms: { instagram: (row.instagram as string) || '' },
+            measurements: (row.measurements as Record<string, unknown>) || {},
+            physiognomy: (row.physiognomy as Record<string, unknown>) || {},
             monthlyRevenueEstimate: (row.monthly_revenue_estimate as string) || 'Sob Consulta',
             bio: (row.bio as string) || '',
             exposureOpinion: (row.exposure_opinion as string) || '',
@@ -869,14 +958,16 @@ export const StorageService = {
             fullName: u.full_name,
             email: u.email,
             address: (prof.address as Record<string, unknown>) || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
+            corporateName: (prof.corporate_name as string) || u.full_name,
+            responsibleName: (prof.responsible_name as string) || u.full_name,
           },
           qualitative: {
             artisticName: (prof.artistic_name as string) || (prof.artisticName as string) || u.full_name,
             category: (prof.category as string) || (u.role === 'MODELO' ? 'Modelo Editorial & Criadora VIP' : 'Agência de Casting'),
             gender: (prof.gender as string) || 'Feminino',
-            platforms: { instagram: (prof.instagram as string) || '@suaconta' },
-            measurements: (prof.measurements as Record<string, unknown>) || { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
-            physiognomy: (prof.physiognomy as Record<string, unknown>) || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
+            platforms: { instagram: (prof.instagram as string) || '' },
+            measurements: (prof.measurements as Record<string, unknown>) || {},
+            physiognomy: (prof.physiognomy as Record<string, unknown>) || {},
             monthlyRevenueEstimate: (prof.monthly_revenue_estimate as string) || (prof.monthlyRevenueEstimate as string) || 'Sob Consulta',
             bio: (prof.bio as string) || '',
             exposureOpinion: (prof.exposure_opinion as string) || (prof.exposureOpinion as string) || '',
@@ -1090,45 +1181,14 @@ export const StorageService = {
     await initDatabase();
     try {
       const res = await pool.query(`
-        SELECT u.id, u.email, u.full_name, u.curation_status, u.created_at,
-               p.artistic_name, p.category, p.instagram, p.gender, p.measurements, 
-               p.physiognomy, p.address, p.photos, p.video_url, p.bio, p.monthly_revenue_estimate,
-               p.accepts_offers, p.is_represented, p.represented_agency_name, p.represented_agency_id
+        SELECT ${CREATOR_CATALOG_COLUMNS}
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
         WHERE u.role = 'MODELO' AND u.curation_status = 'APROVADO'
         ORDER BY u.created_at DESC;
       `);
       if (res.rows.length > 0) {
-        return res.rows.map((row) => ({
-          id: row.id,
-          basicInfo: {
-            fullName: row.full_name,
-            email: row.email,
-            address: row.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-          },
-          qualitative: {
-            artisticName: row.artistic_name || row.full_name,
-            category: row.category || 'Modelo Editorial & Criadora VIP',
-            gender: row.gender || 'Feminino',
-            platforms: { instagram: row.instagram || '@lumiardi' },
-            measurements: row.measurements || { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
-            physiognomy: row.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
-            monthlyRevenueEstimate: row.monthly_revenue_estimate || 'Sob Consulta',
-            bio: row.bio || '',
-            acceptsOffers: row.accepts_offers !== false,
-            isRepresented: Boolean(row.is_represented),
-            representedAgencyName: row.represented_agency_name || undefined,
-            representedAgencyId: row.represented_agency_id || undefined,
-          },
-          acceptsOffers: row.accepts_offers !== false,
-          isRepresented: Boolean(row.is_represented),
-          representedAgencyName: row.represented_agency_name || undefined,
-          photos: row.photos || [],
-          videoUrl: row.video_url || '',
-          curationStatus: row.curation_status,
-          createdAt: row.created_at,
-        }));
+        return res.rows.map(mapCreatorCatalogRow);
       }
     } catch {
       // Fallback
@@ -1138,35 +1198,7 @@ export const StorageService = {
     for (const u of fallbackStore.users.values()) {
       if (u.role === 'MODELO' && u.curation_status === 'APROVADO') {
         const p = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
-        creators.push({
-          id: u.id,
-          basicInfo: {
-            fullName: u.full_name,
-            email: u.email,
-            address: p.address || { country: 'Brasil', state: 'SP', city: 'São Paulo' },
-          },
-          qualitative: {
-            artisticName: p.artistic_name || u.full_name,
-            category: p.category || 'Modelo Editorial & Criadora VIP',
-            gender: p.gender || 'Feminino',
-            platforms: { instagram: p.instagram || '@lumiardi' },
-            measurements: p.measurements || { height: '175', weight: '55', waist: '60', bust: '88', hips: '90' },
-            physiognomy: p.physiognomy || { eyeColor: 'Castanhos', hairColor: 'Natural', skinTone: 'Clara', languages: ['Português'] },
-            monthlyRevenueEstimate: p.monthly_revenue_estimate || 'Sob Consulta',
-            bio: p.bio || '',
-            acceptsOffers: p.accepts_offers !== false,
-            isRepresented: Boolean(p.is_represented),
-            representedAgencyName: p.represented_agency_name || undefined,
-            representedAgencyId: p.represented_agency_id || undefined,
-          },
-          acceptsOffers: p.accepts_offers !== false,
-          isRepresented: Boolean(p.is_represented),
-          representedAgencyName: p.represented_agency_name || undefined,
-          photos: p.photos || [],
-          videoUrl: p.video_url || '',
-          curationStatus: u.curation_status,
-          createdAt: u.created_at,
-        });
+        creators.push(mapCreatorCatalogRow({ ...p, ...u }));
       }
     }
     return creators;
@@ -2497,9 +2529,58 @@ export const StorageService = {
     return (await this.emailExists(email)) ? { email } : null;
   },
 
-  async filterCreators(_query?: CreatorFilterQuery): Promise<CompleteCreatorProfile[]> {
-    const all = await this.listCreators();
-    return all as unknown as CompleteCreatorProfile[];
+  /**
+   * Catálogo filtrado direto no PostgreSQL (somente modelos aprovadas). Erros de banco sobem para a rota.
+   */
+  async filterCreators(query: CreatorFilterQuery = {}): Promise<Record<string, unknown>[]> {
+    await initDatabase();
+
+    const conditions = [`u.role = 'MODELO'`, `u.curation_status = 'APROVADO'`];
+    const params: unknown[] = [];
+    const where = (build: (param: string) => string, value: unknown) => {
+      params.push(value);
+      conditions.push(build(`$${params.length}`));
+    };
+    const lowerList = (values?: string[]) =>
+      (values || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean);
+    // Altura gravada como texto livre ("175", "1,75", "175 cm"): extrai só os dígitos
+    const heightCm = `NULLIF(regexp_replace(COALESCE(p.measurements->>'height', ''), '[^0-9]', '', 'g'), '')::numeric`;
+
+    const categories = lowerList(query.category);
+    if (categories.length) where((p) => `LOWER(p.category) = ANY(${p}::text[])`, categories);
+    const genders = lowerList(query.gender);
+    if (genders.length) where((p) => `LOWER(p.gender) = ANY(${p}::text[])`, genders);
+    const hair = lowerList(query.hairColor);
+    if (hair.length) where((p) => `LOWER(p.physiognomy->>'hairColor') = ANY(${p}::text[])`, hair);
+    const eyes = lowerList(query.eyeColor);
+    if (eyes.length) where((p) => `LOWER(p.physiognomy->>'eyeColor') = ANY(${p}::text[])`, eyes);
+    const skin = lowerList(query.skinTone);
+    if (skin.length) where((p) => `LOWER(p.physiognomy->>'skinTone') = ANY(${p}::text[])`, skin);
+    if (typeof query.minHeight === 'number' && Number.isFinite(query.minHeight)) {
+      where((p) => `${heightCm} >= ${p}`, query.minHeight);
+    }
+    if (typeof query.maxHeight === 'number' && Number.isFinite(query.maxHeight)) {
+      where((p) => `${heightCm} <= ${p}`, query.maxHeight);
+    }
+    if (query.country) where((p) => `LOWER(p.address->>'country') = LOWER(${p})`, query.country.trim());
+    if (query.state) where((p) => `LOWER(p.address->>'state') = LOWER(${p})`, query.state.trim());
+    if (query.searchTerm) {
+      where(
+        (p) => `(p.artistic_name ILIKE ${p} OR p.address->>'city' ILIKE ${p} OR p.category ILIKE ${p})`,
+        `%${query.searchTerm.trim().replace(/[%_\\]/g, '\\$&')}%`
+      );
+    }
+
+    const res = await pool.query(
+      `SELECT ${CREATOR_CATALOG_COLUMNS}
+       FROM users u
+       LEFT JOIN profiles p ON u.id = p.user_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY u.created_at DESC
+       LIMIT 500`,
+      params
+    );
+    return res.rows.map(mapCreatorCatalogRow);
   },
 
   // ══════════════════════════════════════════════════════════════════
@@ -2862,6 +2943,11 @@ export const StorageService = {
   // ══════════════════════════════════════════════════════════════════
   // PROPOSTAS DE SCOUTING (SCOUT PROPOSALS)
   // ══════════════════════════════════════════════════════════════════
+  /**
+   * Registra uma proposta (agência → modelo, initiatedBy 'agency') ou uma candidatura (modelo → agência,
+   * initiatedBy 'model') e abre o canal direto determinístico com a mensagem formal. As validações de
+   * papel, aprovação e duplicidade ficam nas rotas. Falhas de banco sobem (sem fallback em memória).
+   */
   async createScoutProposal(data: {
     agencyId: string;
     modelId: string;
@@ -2869,121 +2955,231 @@ export const StorageService = {
     modelName: string;
     message: string;
     proposedCommission?: string;
-  }): Promise<{ proposal: ScoutProposal; blocked?: boolean; conversationId?: string }> {
-    // 1. Verifica se o modelo aceita ofertas
-    const targetModel = await this.getUserById(data.modelId);
-    const profile = targetModel?.profile as any;
-
-    if (profile && profile.accepts_offers === false) {
-      return {
-        proposal: {
-          id: `blocked-${Date.now()}`,
-          agencyId: data.agencyId,
-          modelId: data.modelId,
-          agencyName: data.agencyName,
-          modelName: data.modelName,
-          message: data.message,
-          proposedCommission: data.proposedCommission || '20%',
-          status: 'blocked',
-          createdAt: new Date().toISOString(),
-        },
-        blocked: true,
-      };
-    }
-
-    const id = `prop-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const now = new Date().toISOString();
-    const proposal: ScoutProposal = {
-      id,
-      agencyId: data.agencyId,
-      modelId: data.modelId,
-      agencyName: data.agencyName,
-      modelName: data.modelName,
-      message: data.message,
-      proposedCommission: data.proposedCommission || '20%',
-      status: 'sent',
-      createdAt: now,
-    };
-
-    fallbackStore.scout_proposals.set(id, proposal as unknown as Record<string, unknown>);
-
+    initiatedBy?: 'agency' | 'model';
+  }): Promise<{ proposal: ScoutProposal; conversationId: string }> {
     await initDatabase();
-    try {
-      await pool.query(
-        `INSERT INTO scout_proposals (id, agency_id, model_id, agency_name, model_name, message, proposed_commission, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-        [id, data.agencyId, data.modelId, data.agencyName, data.modelName, data.message, proposal.proposedCommission, 'sent']
-      );
-    } catch {
-      // Fallback
-    }
+    const initiatedBy = data.initiatedBy || 'agency';
+    const id = `${initiatedBy === 'agency' ? 'prop' : 'appl'}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const proposedCommission = normalizeCommission(data.proposedCommission);
 
-    // Canal direto determinístico agência ↔ modelo: passa a existir na listagem de conversas
-    // assim que a proposta é registrada (listActiveConversations lê scout_proposals)
+    const res = await pool.query(
+      `INSERT INTO scout_proposals (id, agency_id, model_id, agency_name, model_name, message, proposed_commission, status, initiated_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'sent', $8, NOW())
+       RETURNING *`,
+      [id, data.agencyId, data.modelId, data.agencyName, data.modelName, data.message, proposedCommission, initiatedBy]
+    );
+    const proposal = mapScoutProposalRow(res.rows[0]);
+
+    // Canal direto agência ↔ modelo: passa a existir na listagem de conversas assim que o registro
+    // é gravado (listActiveConversations lê scout_proposals)
     const conversationId = getDirectConversationId(data.agencyId, data.modelId);
-    const commissionRate = String(proposal.proposedCommission).trim().replace(/%$/, '');
+    const text =
+      initiatedBy === 'agency'
+        ? [
+            '📋 PROPOSTA FORMAL DE AGENCIAMENTO',
+            `Agência: ${data.agencyName}`,
+            `Comissão Proposta: ${proposedCommission}`,
+            'Detalhes / Mensagem:',
+            `"${data.message}"`,
+          ].join('\n')
+        : [
+            '📁 CANDIDATURA DE CASTING',
+            `Modelo: ${data.modelName}`,
+            'Mensagem:',
+            `"${data.message}"`,
+          ].join('\n');
 
-    // Mensagem automática com os dados completos da proposta
     try {
       await this.sendMessage({
-        senderId: data.agencyId,
-        senderName: data.agencyName,
-        senderRole: 'agencia',
-        receiverId: data.modelId,
+        senderId: initiatedBy === 'agency' ? data.agencyId : data.modelId,
+        senderName: initiatedBy === 'agency' ? data.agencyName : data.modelName,
+        senderRole: initiatedBy === 'agency' ? 'agencia' : 'creator',
+        receiverId: initiatedBy === 'agency' ? data.modelId : data.agencyId,
         conversationId,
-        text: [
-          '📋 PROPOSTA FORMAL DE AGENCIAMENTO',
-          `Agência: ${data.agencyName}`,
-          `Comissão Proposta: ${commissionRate}%`,
-          'Detalhes / Mensagem:',
-          `"${data.message}"`,
-        ].join('\n'),
+        text,
       });
     } catch (err) {
-      console.warn('Erro ao inicializar chat com proposta:', err);
+      // O registro já foi gravado; a conversa continua acessível pela listagem
+      console.warn('[scout] Falha ao gravar a mensagem inicial da conversa:', err);
     }
 
-    return { proposal, blocked: false, conversationId };
+    return { proposal, conversationId };
   },
 
-  async listScoutProposals(params: { agencyId?: string; modelId?: string }): Promise<ScoutProposal[]> {
+  /** Proposta/candidatura ainda sem resposta para o par (evita duplicidade). */
+  async findOpenScoutRequest(agencyId: string, modelId: string, initiatedBy: 'agency' | 'model'): Promise<ScoutProposal | null> {
     await initDatabase();
-    try {
-      let query = 'SELECT * FROM scout_proposals WHERE 1=1';
-      const qParams: unknown[] = [];
+    const res = await pool.query(
+      `SELECT * FROM scout_proposals
+       WHERE agency_id = $1 AND model_id = $2 AND initiated_by = $3 AND status = 'sent'
+       ORDER BY created_at DESC LIMIT 1`,
+      [agencyId, modelId, initiatedBy]
+    );
+    return res.rows[0] ? mapScoutProposalRow(res.rows[0]) : null;
+  },
 
-      if (params.agencyId) {
-        qParams.push(params.agencyId);
-        query += ` AND agency_id = $${qParams.length}`;
+  /**
+   * Existe relação legítima entre os dois usuários (proposta, candidatura ou contrato não encerrado)?
+   * É o que autoriza um canal de chat direto entre eles.
+   */
+  async hasDirectRelationship(userA: string, userB: string): Promise<boolean> {
+    if (!userA || !userB || userA === userB) return false;
+    await initDatabase();
+    const res = await pool.query(
+      `SELECT 1 FROM scout_proposals
+       WHERE (agency_id = $1 AND model_id = $2) OR (agency_id = $2 AND model_id = $1)
+       UNION ALL
+       SELECT 1 FROM agency_model_contracts
+       WHERE ((agency_id = $1 AND model_id = $2) OR (agency_id = $2 AND model_id = $1)) AND status <> 'terminated'
+       LIMIT 1`,
+      [userA, userB]
+    );
+    return res.rows.length > 0;
+  },
+
+  async getScoutProposal(id: string): Promise<ScoutProposal | null> {
+    await initDatabase();
+    const res = await pool.query('SELECT * FROM scout_proposals WHERE id = $1 LIMIT 1', [id]);
+    return res.rows[0] ? mapScoutProposalRow(res.rows[0]) : null;
+  },
+
+  /**
+   * Resposta da modelo destinatária a uma proposta de agência. Numa única transação:
+   * - 'accept': proposta → accepted, contrato ativo em agency_model_contracts (idempotente) e
+   *   perfil da modelo marcado como representada pela agência;
+   * - 'decline': proposta → declined.
+   */
+  async respondToScoutProposal(params: {
+    proposalId: string;
+    modelId: string;
+    action: 'accept' | 'decline';
+  }): Promise<{ proposal: ScoutProposal; contract: AgencyModelContract | null }> {
+    return withTransaction(async (client) => {
+      const res = await client.query('SELECT * FROM scout_proposals WHERE id = $1 FOR UPDATE', [params.proposalId]);
+      const row = res.rows[0];
+      // Só a modelo destinatária de uma proposta de agência pode responder (candidaturas não passam por aqui)
+      if (!row || row.model_id !== params.modelId || (row.initiated_by || 'agency') !== 'agency') {
+        throw new ScoutFlowError('not_found', 'Proposta não encontrada.', 404);
       }
-      if (params.modelId) {
-        qParams.push(params.modelId);
-        query += ` AND model_id = $${qParams.length}`;
+      if (row.status !== 'sent') {
+        throw new ScoutFlowError('proposal_closed', 'Esta proposta já foi respondida.', 409);
       }
 
-      query += ' ORDER BY created_at DESC';
-      const res = await pool.query(query, qParams);
-      if (res.rows.length > 0) {
-        return res.rows.map((p) => ({
-          id: p.id,
-          agencyId: p.agency_id,
-          modelId: p.model_id,
-          agencyName: p.agency_name,
-          modelName: p.model_name,
-          message: p.message,
-          proposedCommission: p.proposed_commission,
-          status: p.status,
-          createdAt: p.created_at,
-        }));
+      if (params.action === 'decline') {
+        const upd = await client.query(
+          `UPDATE scout_proposals SET status = 'declined', responded_at = NOW() WHERE id = $1 RETURNING *`,
+          [row.id]
+        );
+        return { proposal: mapScoutProposalRow(upd.rows[0]), contract: null };
       }
-    } catch {
-      // Fallback
+
+      const upd = await client.query(
+        `UPDATE scout_proposals SET status = 'accepted', responded_at = NOW() WHERE id = $1 RETURNING *`,
+        [row.id]
+      );
+
+      const existing = await client.query(
+        `SELECT * FROM agency_model_contracts WHERE agency_id = $1 AND model_id = $2 AND status = 'active' LIMIT 1`,
+        [row.agency_id, row.model_id]
+      );
+      let contractRow = existing.rows[0];
+      if (!contractRow) {
+        const inserted = await client.query(
+          `INSERT INTO agency_model_contracts
+             (id, agency_id, model_id, agency_name, model_name, status, commission_rate, start_date, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, 'active', $6, NOW(), NOW(), NOW())
+           RETURNING *`,
+          [
+            `contract-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+            row.agency_id,
+            row.model_id,
+            row.agency_name,
+            row.model_name,
+            normalizeCommission(row.proposed_commission),
+          ]
+        );
+        contractRow = inserted.rows[0];
+      }
+
+      await client.query(
+        `INSERT INTO profiles (user_id, is_represented, represented_agency_id, represented_agency_name, updated_at)
+         VALUES ($1, TRUE, $2, $3, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+           is_represented = TRUE,
+           represented_agency_id = EXCLUDED.represented_agency_id,
+           represented_agency_name = EXCLUDED.represented_agency_name,
+           updated_at = NOW()`,
+        [row.model_id, row.agency_id, row.agency_name]
+      );
+
+      return { proposal: mapScoutProposalRow(upd.rows[0]), contract: mapContractRow(contractRow) };
+    });
+  },
+
+  async listScoutProposals(params: {
+    agencyId?: string;
+    modelId?: string;
+    initiatedBy?: 'agency' | 'model';
+  }): Promise<ScoutProposal[]> {
+    await initDatabase();
+    const conditions: string[] = [];
+    const qParams: unknown[] = [];
+
+    if (params.agencyId) {
+      qParams.push(params.agencyId);
+      conditions.push(`agency_id = $${qParams.length}`);
+    }
+    if (params.modelId) {
+      qParams.push(params.modelId);
+      conditions.push(`model_id = $${qParams.length}`);
+    }
+    if (params.initiatedBy) {
+      qParams.push(params.initiatedBy);
+      conditions.push(`initiated_by = $${qParams.length}`);
     }
 
-    let all = Array.from(fallbackStore.scout_proposals.values()) as unknown as ScoutProposal[];
-    if (params.agencyId) all = all.filter((p: any) => p.agencyId === params.agencyId || p.agency_id === params.agencyId);
-    if (params.modelId) all = all.filter((p: any) => p.modelId === params.modelId || p.model_id === params.modelId);
-    return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const res = await pool.query(
+      `SELECT * FROM scout_proposals
+       ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+       ORDER BY created_at DESC
+       LIMIT 200`,
+      qParams
+    );
+    return res.rows.map(mapScoutProposalRow);
+  },
+
+  /**
+   * Elenco real da agência: contratos não encerrados com os dados públicos da modelo
+   * (nome artístico, foto, categoria). Sem nome civil nem e-mail.
+   */
+  async listAgencyRoster(agencyId: string): Promise<Array<{
+    contract: AgencyModelContract;
+    model: { id: string; name: string; avatarUrl: string; category: string; monthlyRevenueEstimate: string };
+    conversationId: string;
+  }>> {
+    await initDatabase();
+    const res = await pool.query(
+      `SELECT c.*, p.artistic_name, p.avatar_url, p.photos, p.category, p.monthly_revenue_estimate
+       FROM agency_model_contracts c
+       LEFT JOIN profiles p ON p.user_id = c.model_id
+       WHERE c.agency_id = $1 AND c.status <> 'terminated'
+       ORDER BY c.created_at DESC`,
+      [agencyId]
+    );
+    return res.rows.map((row) => {
+      const photos = Array.isArray(row.photos) ? row.photos : [];
+      return {
+        contract: mapContractRow(row),
+        model: {
+          id: row.model_id,
+          name: row.artistic_name || row.model_name,
+          avatarUrl: row.avatar_url || photos[0]?.url || '',
+          category: row.category || '',
+          monthlyRevenueEstimate: row.monthly_revenue_estimate || '',
+        },
+        conversationId: getDirectConversationId(row.agency_id, row.model_id),
+      };
+    });
   },
 
   // ══════════════════════════════════════════════════════════════════

@@ -196,8 +196,15 @@ CREATE TABLE IF NOT EXISTS scout_proposals (
   message TEXT NOT NULL,
   proposed_commission VARCHAR(50) DEFAULT '20%',
   status VARCHAR(30) NOT NULL DEFAULT 'sent', -- 'sent', 'accepted', 'declined', 'blocked'
+  initiated_by VARCHAR(20) NOT NULL DEFAULT 'agency', -- 'agency' (proposta) | 'model' (candidatura)
+  responded_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+ALTER TABLE scout_proposals ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(20) NOT NULL DEFAULT 'agency';
+ALTER TABLE scout_proposals ADD COLUMN IF NOT EXISTS responded_at TIMESTAMP WITH TIME ZONE;
+CREATE INDEX IF NOT EXISTS idx_scout_proposals_pair ON scout_proposals(agency_id, model_id);
+CREATE INDEX IF NOT EXISTS idx_scout_proposals_model ON scout_proposals(model_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_agency_contracts_active ON agency_model_contracts(agency_id, model_id) WHERE status = 'active';
 
 -- 9. TABELA DE MEMBROS E CARGOS DA CURADORIA (RBAC: ADMIN_USERS)
 CREATE TABLE IF NOT EXISTS admin_users (

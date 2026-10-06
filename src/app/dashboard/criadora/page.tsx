@@ -9,6 +9,7 @@ import { KanbanBoard } from '@/components/interactive/KanbanBoard';
 import { ChatPanel } from '@/components/interactive/ChatPanel';
 import { VideoCallWidget } from '@/components/interactive/VideoCallWidget';
 import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
+import { ReceivedProposalsPanel, useReceivedProposals } from '@/components/dashboard/ReceivedProposalsPanel';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -25,6 +26,7 @@ export default function CriadoraDashboardPage() {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const { activeCreator, currentUser } = useAuthPortal();
   const { t } = useLanguage();
+  const proposalsState = useReceivedProposals(true);
 
   const name = currentUser?.name || activeCreator?.qualitative?.artisticName || t('dsh_ov_your_model_account');
   const revenue = activeCreator?.qualitative?.monthlyRevenueEstimate || t('dsh_ov_on_request');
@@ -55,7 +57,7 @@ export default function CriadoraDashboardPage() {
 
               <StatsCard
                 title={t('dsh_cr_agency_proposals')}
-                value={t('dsh_cr_pending_count').replace('{count}', '0')}
+                value={t('dsh_cr_pending_count').replace('{count}', String(proposalsState.pendingCount))}
                 change={t('dsh_cr_network_available')}
                 isPositive={true}
                 subtitle={t('dsh_cr_direct_payout')}
@@ -135,6 +137,9 @@ export default function CriadoraDashboardPage() {
                 </button>
               </div>
             </div>
+
+            {/* Propostas de agências recebidas (aceitar/recusar) */}
+            <ReceivedProposalsPanel state={proposalsState} />
 
             {/* Prévia do Kanban & Chat */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

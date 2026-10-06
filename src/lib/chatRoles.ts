@@ -64,13 +64,29 @@ export function isOwnChatMessage(
   return normalizeSenderRole(msg.senderRole, msg.senderId) === viewer;
 }
 
-/** A conversa pertence a `userId`? Aceita `conv_<a>_<b>` (exato) e o formato legado `conv-<a>-<b>`. */
+/** Id canônico do canal direto entre dois usuários: `conv_<menor>_<maior>` (independe da ordem). */
+export function getDirectConversationId(id1: string, id2: string): string {
+  return ['conv', ...[id1, id2].sort()].join('_');
+}
+
+/** Participantes de um canal direto canônico `conv_<a>_<b>` (exatamente dois ids); null se não for um. */
+export function parseDirectConversationId(conversationId: string): [string, string] | null {
+  if (!conversationId.startsWith('conv_')) return null;
+  const parts = conversationId.slice(5).split('_');
+  if (parts.length !== 2 || !parts[0] || !parts[1] || parts[0] === parts[1]) return null;
+  return [parts[0], parts[1]];
+}
+
+/**
+ * A conversa pertence a `userId`? Aceita `conv_<a>_<b>` (exato) e o formato legado `conv-<a>-<b>`,
+ * comparado por prefixo/sufixo exatos (nunca por substring: um id não pode "caber" dentro de outro).
+ */
 export function conversationIncludesUser(conversationId: string, userId: string): boolean {
-  if (conversationId.startsWith('conv_')) {
-    return conversationId.slice(5).split('_').includes(userId);
-  }
+  if (!userId) return false;
+  const pair = parseDirectConversationId(conversationId);
+  if (pair) return pair.includes(userId);
   if (conversationId.startsWith('conv-')) {
-    return conversationId.includes(userId);
+    return conversationId.startsWith(`conv-${userId}-`) || conversationId.endsWith(`-${userId}`);
   }
   return false;
 }

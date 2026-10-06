@@ -91,7 +91,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     if (initialData) {
       setArtisticName(initialData.qualitative?.artisticName || initialData.artistic_name || initialData.name || 'Sua Conta Modelo');
       setCategory(initialData.qualitative?.category || initialData.category || 'Modelo & Criadora VIP');
-      setInstagram(initialData.qualitative?.platforms?.instagram || initialData.instagram || '@suaconta');
+      setInstagram(initialData.qualitative?.platforms?.instagram || initialData.instagram || '');
       setCity(initialData.basicInfo?.address?.city || initialData.address?.city || 'São Paulo');
       setState(initialData.basicInfo?.address?.state || initialData.address?.state || 'SP');
       setCountry(initialData.basicInfo?.address?.country || initialData.address?.country || 'Brasil');

@@ -2,49 +2,69 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { CreatorFilterQuery } from '@/types';
 import { cache } from '@/lib/cache';
+import { getCatalogViewerSession } from '@/lib/apiAuth';
+import { toPublicCreator } from '@/lib/creatorDto';
+
+const MAX_FILTER_VALUES = 20;
+
+function listParam(searchParams: URLSearchParams, name: string): string[] {
+  return searchParams
+    .getAll(name)
+    .map((v) => v.trim().slice(0, 100))
+    .filter(Boolean)
+    .slice(0, MAX_FILTER_VALUES);
+}
+
+function numberParam(searchParams: URLSearchParams, name: string): number | undefined {
+  const raw = searchParams.get(name);
+  if (raw === null || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 export async function GET(request: NextRequest) {
   try {
+    // Catálogo restrito a agências aprovadas (validado no banco) e à curadoria
+    const session = await getCatalogViewerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Acesso restrito a agências aprovadas.', code: 'forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const queryString = searchParams.toString() || 'default';
-    const cacheKey = `api:creators:filter:${queryString}`;
+    const query: CreatorFilterQuery = {
+      category: listParam(searchParams, 'category') as CreatorFilterQuery['category'],
+      gender: listParam(searchParams, 'gender') as CreatorFilterQuery['gender'],
+      hairColor: listParam(searchParams, 'hairColor'),
+      eyeColor: listParam(searchParams, 'eyeColor'),
+      skinTone: listParam(searchParams, 'skinTone'),
+      minHeight: numberParam(searchParams, 'minHeight'),
+      maxHeight: numberParam(searchParams, 'maxHeight'),
+      country: searchParams.get('country')?.trim().slice(0, 100) || undefined,
+      state: searchParams.get('state')?.trim().slice(0, 100) || undefined,
+      searchTerm: searchParams.get('q')?.trim().slice(0, 100) || undefined,
+    };
 
-    const cachedResults = await cache.getOrSet(
+    // Chave de cache a partir dos filtros normalizados (não da query string crua)
+    const cacheKey = `api:creators:filter:${JSON.stringify(query)}`;
+    const results = await cache.getOrSet(
       cacheKey,
-      async () => {
-        const category = searchParams.getAll('category') as CreatorFilterQuery['category'];
-        const gender = searchParams.getAll('gender') as CreatorFilterQuery['gender'];
-        const hairColor = searchParams.getAll('hairColor');
-        const eyeColor = searchParams.getAll('eyeColor');
-        const skinTone = searchParams.getAll('skinTone');
-        const minHeight = searchParams.get('minHeight') ? Number(searchParams.get('minHeight')) : undefined;
-        const maxHeight = searchParams.get('maxHeight') ? Number(searchParams.get('maxHeight')) : undefined;
-        const country = searchParams.get('country') || undefined;
-
-        return await StorageService.filterCreators({
-          category: category && category.length > 0 ? category : undefined,
-          gender: gender && gender.length > 0 ? gender : undefined,
-          hairColor: hairColor.length > 0 ? hairColor : undefined,
-          eyeColor: eyeColor.length > 0 ? eyeColor : undefined,
-          skinTone: skinTone.length > 0 ? skinTone : undefined,
-          minHeight,
-          maxHeight,
-          country,
-        });
-      },
+      () => StorageService.filterCreators(query),
       30, // 30s TTL
       ['creators']
     );
 
+    // DTO público sem PII (sem e-mail e sem nome civil)
+    const creators = results.map(toPublicCreator);
+
     return NextResponse.json({
       success: true,
-      total: cachedResults.length,
-      creators: cachedResults,
+      total: creators.length,
+      creators,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao filtrar criadoras';
+    console.error('[creators/filters GET] Erro:', err);
     return NextResponse.json(
-      { error: 'Falha ao buscar criadoras.', details: message },
+      { error: 'Falha ao buscar criadoras.', code: 'service_unavailable' },
       { status: 500 }
     );
   }

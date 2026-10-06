@@ -34,6 +34,32 @@ export function invalidateAdminCache(adminId?: string) {
   else adminCache.clear();
 }
 
+export type MemberRole = 'criadora' | 'agencia';
+
+const MEMBER_DB_ROLE: Record<MemberRole, string> = { criadora: 'MODELO', agencia: 'AGENCIA' };
+
+/**
+ * Sessão de modelo/agência com papel e aprovação confirmados no banco: o cookie pode estar
+ * desatualizado (conta pendente, rejeitada ou suspensa depois do login). null caso contrário.
+ */
+export async function getApprovedMemberSession(roles: MemberRole[]): Promise<SessionUser | null> {
+  const session = await getSessionFromCookie();
+  if (!session || !roles.includes(session.role as MemberRole)) return null;
+
+  await initDatabase();
+  const res = await pool.query('SELECT role, curation_status FROM users WHERE id = $1 LIMIT 1', [session.id]);
+  const row = res.rows[0];
+  if (!row || row.role !== MEMBER_DB_ROLE[session.role as MemberRole] || row.curation_status !== 'APROVADO') {
+    return null;
+  }
+  return session;
+}
+
+/** Quem pode navegar no catálogo de talentos: agência aprovada ou membro ativo da curadoria. */
+export async function getCatalogViewerSession(): Promise<SessionUser | null> {
+  return (await getVerifiedAdminSession()) || (await getApprovedMemberSession(['agencia']));
+}
+
 /** Sessão de membro ativo da curadoria, com `curationRole` atualizado do banco; null caso contrário. */
 export async function getVerifiedAdminSession(): Promise<SessionUser | null> {
   const session = await getSessionFromCookie();

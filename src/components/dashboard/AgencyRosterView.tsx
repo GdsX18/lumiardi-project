@@ -1,43 +1,84 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Users,
   DollarSign,
-  Calendar,
   MessageSquare,
   Video,
   FileCheck,
   ShieldCheck,
   HardDrive,
-  Plus,
+  RefreshCw,
   X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { SharedDrivePanel } from '@/components/interactive/SharedDrivePanel';
 
+/** Linha de GET /api/agencies/roster: contrato real + dados públicos da modelo. */
+interface RosterEntry {
+  contract: { id: string; status: 'active' | 'pending' | 'terminated'; commissionRate: string; startDate: string };
+  model: { id: string; name: string; avatarUrl: string; category: string; monthlyRevenueEstimate: string };
+  conversationId: string;
+}
+
+interface RosterCard {
+  id: string;
+  name: string;
+  image: string;
+  category: string;
+  monthlyGross: string;
+  agencyNet: string;
+  contractSince: string;
+  status: string;
+  conversationId: string;
+}
+
 export const AgencyRosterView: React.FC = () => {
   const router = useRouter();
-  const { allCreators } = useAuthPortal();
-  const { t } = useLanguage();
-  const [selectedModelDrive, setSelectedModelDrive] = useState<any | null>(null);
+  const { t, formatDate } = useLanguage();
+  const [selectedModelDrive, setSelectedModelDrive] = useState<RosterCard | null>(null);
+  const [entries, setEntries] = useState<RosterEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  const roster = allCreators.map((c) => ({
-    id: c.id,
-    name: c?.qualitative?.artisticName || c?.basicInfo?.fullName || t('dsh_ro_model_fallback'),
+  // Somente contratos reais de agency_model_contracts (não o catálogo inteiro)
+  const loadRoster = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch('/api/agencies/roster', { cache: 'no-store' });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      setEntries(Array.isArray(data.roster) ? data.roster : []);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRoster();
+  }, [loadRoster]);
+
+  const notInformed = t('dsh_cp_not_informed');
+  const roster: RosterCard[] = entries.map(({ contract, model, conversationId }) => ({
+    id: model.id,
+    name: model.name || t('dsh_ro_model_fallback'),
     // Sem foto real, exibe a inicial do nome (sem imagens de banco de demonstração)
-    image: (c as any)?.avatarUrl || (c as any)?.photos?.[0]?.url || '',
-    category: c?.qualitative?.category || t('dsh_ro_editorial_model'),
-    monthlyGross: c?.qualitative?.monthlyRevenueEstimate || t('dsh_ov_on_request'),
-    agencyNet: t('dsh_ro_commission').replace('{pct}', '20%'),
-    contractType: t('dsh_ro_exclusivity').replace('{split}', '80/20'),
-    activeCampaigns: 0,
-    status: t('dsh_ro_contract_active'),
-    nextDeliverable: t('dsh_ro_next_on_demand'),
+    image: model.avatarUrl || '',
+    category: model.category || notInformed,
+    monthlyGross: model.monthlyRevenueEstimate || notInformed,
+    agencyNet: t('dsh_ro_commission').replace('{pct}', contract.commissionRate || notInformed),
+    contractSince: contract.startDate
+      ? t('dsh_ro_since').replace('{date}', formatDate(contract.startDate))
+      : notInformed,
+    status: contract.status === 'active' ? t('dsh_ro_contract_active') : t('dsh_ro_contract_pending'),
+    conversationId,
   }));
 
   return (
@@ -72,7 +113,24 @@ export const AgencyRosterView: React.FC = () => {
       </div>
 
       {/* Grid de Agenciadas */}
-      {roster.length === 0 ? (
+      {loading ? (
+        <div className="p-12 text-center text-xs font-sans text-ivory/40 flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin text-gold" />
+          <span>{t('dsh_ad_syncing')}</span>
+        </div>
+      ) : loadError ? (
+        <div className="p-10 bg-[#0E0E0E] border border-red-500/30 text-center space-y-3 rounded-sm">
+          <p className="text-sm font-sans text-red-300">{t('dsh_ad_sync_failed')}</p>
+          <button
+            type="button"
+            onClick={loadRoster}
+            className="px-4 py-2 bg-gold/10 hover:bg-gold text-gold hover:text-black-matte border border-gold/40 text-xs font-sans uppercase tracking-wider font-semibold transition-all inline-flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>{t('dsh_ad_retry')}</span>
+          </button>
+        </div>
+      ) : roster.length === 0 ? (
         <div className="p-12 bg-[#0E0E0E] border border-dashed border-white/15 text-center space-y-4 rounded-sm">
           <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center text-gold mx-auto">
             <Users className="w-7 h-7" />
@@ -151,18 +209,10 @@ export const AgencyRosterView: React.FC = () => {
                     <FileCheck className="w-3.5 h-3.5 text-bronze" /> {t('dsh_ro_contract')}
                   </span>
                   <span className="text-ivory/80 text-[11px] truncate max-w-[150px]">
-                    {model.contractType}
+                    {model.contractSince}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-ivory/50 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-ivory/50" /> {t('dsh_ro_next_production')}
-                  </span>
-                  <span className="text-gold text-[11px] truncate max-w-[140px]">
-                    {model.nextDeliverable}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -170,7 +220,7 @@ export const AgencyRosterView: React.FC = () => {
             <div className="pt-4 border-t border-white/10 flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => router.push(`/dashboard/chat?user=${model.id}`)}
+                onClick={() => router.push(`/dashboard/chat?conversationId=${encodeURIComponent(model.conversationId)}`)}
                 className="flex-1 py-2 bg-[#151515] hover:bg-gold hover:text-black-matte text-ivory/80 border border-white/10 text-[11px] font-sans uppercase tracking-wider font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <MessageSquare className="w-3.5 h-3.5" />

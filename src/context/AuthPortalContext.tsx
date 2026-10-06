@@ -49,10 +49,12 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const refreshData = useCallback(async () => {
     try {
       // 1. Prioridade: busca usuário da sessão atual via /api/user/me
+      let viewerRole: string | undefined;
       const meRes = await fetch('/api/user/me');
       if (meRes.ok) {
         const meData = await meRes.json();
         if (meData.authenticated && meData.user) {
+          viewerRole = meData.user.role;
           setCurrentUser(meData.user);
           setRole(meData.user.role);
           setCurationStatus(meData.user.curationStatus);
@@ -76,12 +78,13 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 2. Segundo plano: atualiza listas e notificações
       const [creatorsRes, agenciesRes, notifRes] = await Promise.all([
-        fetch('/api/creators'),
+        // Catálogo de talentos: exclusivo de agências (e curadoria); a API recusa os demais papéis
+        viewerRole === 'agencia' || viewerRole === 'admin' ? fetch('/api/creators') : Promise.resolve(null),
         fetch('/api/agencies'),
         fetch('/api/notifications'),
       ]);
 
-      if (creatorsRes.ok) {
+      if (creatorsRes?.ok) {
         const cData = await creatorsRes.json();
         if (Array.isArray(cData.creators)) {
           setAllCreators(cData.creators);
@@ -147,6 +150,7 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch {}
 
     const loadInitialSession = async () => {
+      let viewerRole: string | undefined;
       try {
         // Prioridade 1: /api/user/me
         const meRes = await fetch('/api/user/me');
@@ -155,6 +159,7 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (meRes.ok) {
           const meData = await meRes.json();
           if (meData.authenticated && meData.user && isMounted) {
+            viewerRole = meData.user.role;
             setCurrentUser(meData.user);
             setRole(meData.user.role);
             setCurationStatus(meData.user.curationStatus);
@@ -186,14 +191,15 @@ export const AuthPortalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Prioridade 2: Carregamento em segundo plano sem bloquear a renderização inicial
       try {
         const [creatorsRes, agenciesRes, notifRes] = await Promise.all([
-          fetch('/api/creators'),
+          // Catálogo de talentos: exclusivo de agências (e curadoria); a API recusa os demais papéis
+        viewerRole === 'agencia' || viewerRole === 'admin' ? fetch('/api/creators') : Promise.resolve(null),
           fetch('/api/agencies'),
           fetch('/api/notifications'),
         ]);
 
         if (!isMounted) return;
 
-        if (creatorsRes.ok) {
+        if (creatorsRes?.ok) {
           const cData = await creatorsRes.json();
           if (Array.isArray(cData.creators) && isMounted) {
             setAllCreators(cData.creators);

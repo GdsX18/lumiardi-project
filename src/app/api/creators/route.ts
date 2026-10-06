@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { StorageService } from '@/services/storageService';
 import { cache } from '@/lib/cache';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getCatalogViewerSession } from '@/lib/apiAuth';
+import { toPublicCreator } from '@/lib/creatorDto';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
-
+    // Catálogo restrito a agências aprovadas (validado no banco) e à curadoria
+    const session = await getCatalogViewerSession();
     if (!session) {
-      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+      return NextResponse.json({ error: 'Acesso restrito a agências aprovadas.', code: 'forbidden' }, { status: 403 });
     }
 
     const rawCreators = await cache.getOrSet(
@@ -22,35 +22,11 @@ export async function GET(request: NextRequest) {
     );
 
     // DTO público sem PII (sem e-mail, sem nome legal completo, sem endereço residencial)
-    const creators = rawCreators.map((creator: any) => {
-      const artisticName = creator.qualitative?.artisticName || creator.basicInfo?.fullName || 'Criadora Lumiardi';
-      const city = creator.basicInfo?.address?.city || '';
-      const state = creator.basicInfo?.address?.state || '';
-      const country = creator.basicInfo?.address?.country || 'Brasil';
-
-      return {
-        id: creator.id,
-        basicInfo: {
-          fullName: artisticName,
-          address: { city, state, country },
-        },
-        qualitative: {
-          ...creator.qualitative,
-          artisticName,
-        },
-        acceptsOffers: creator.acceptsOffers !== false,
-        isRepresented: Boolean(creator.isRepresented),
-        representedAgencyName: creator.representedAgencyName,
-        photos: creator.photos || [],
-        videoUrl: creator.videoUrl || '',
-        curationStatus: creator.curationStatus,
-        createdAt: creator.createdAt,
-      };
-    });
+    const creators = rawCreators.map(toPublicCreator);
 
     return NextResponse.json({ success: true, creators });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao listar criadores';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[creators GET] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao listar criadoras.', code: 'service_unavailable' }, { status: 500 });
   }
 }

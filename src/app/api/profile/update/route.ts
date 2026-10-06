@@ -73,9 +73,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.acceptsOffers !== undefined) sanitizedUpdates.acceptsOffers = Boolean(body.acceptsOffers);
-    if (body.isRepresented !== undefined) sanitizedUpdates.isRepresented = Boolean(body.isRepresented);
-    if (body.representedAgencyName !== undefined) sanitizedUpdates.representedAgencyName = sanitizeInput(body.representedAgencyName);
-    if (body.representedAgencyId !== undefined) sanitizedUpdates.representedAgencyId = sanitizeInput(body.representedAgencyId);
+    // isRepresented / representedAgencyId / representedAgencyName NÃO são editáveis aqui: derivam do contrato
+    // criado ao aceitar uma proposta (PATCH /api/scout/proposals/[id]). O id dava acesso ao drive da agência.
 
     if (body.avatarUrl !== undefined) {
       sanitizedUpdates.avatarUrl = sanitizeInput(body.avatarUrl);

@@ -61,7 +61,7 @@ export const EditAgencyModal: React.FC<EditAgencyModalProps> = ({
       setResponsibleName(initialData.basicInfo?.responsibleName || initialData.responsible_name || 'Diretoria de Casting');
       setCnpj(initialData.basicInfo?.cnpj || initialData.cnpj || '12.345.678/0001-90');
       setPhone(initialData.basicInfo?.phone || initialData.phone || '+55 11 99999-8888');
-      setInstagram(initialData.qualitative?.instagram || initialData.instagram || '@suaagencia');
+      setInstagram(initialData.qualitative?.instagram || initialData.instagram || '');
       setCity(initialData.basicInfo?.address?.city || initialData.address?.city || 'São Paulo');
       setState(initialData.basicInfo?.address?.state || initialData.address?.state || 'SP');
       setCountry(initialData.basicInfo?.address?.country || initialData.address?.country || 'Brasil');
