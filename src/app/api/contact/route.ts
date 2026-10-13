@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { EmailService } from '@/lib/email';
-import { checkRateLimit } from '@/lib/security/rateLimiter';
+import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
 import { pool, fallbackStore, initDatabase } from '@/lib/db';
 
 const ContactSchema = z.object({
@@ -25,8 +25,7 @@ function sanitizeMultiLine(str?: string | null): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const forwarded = req.headers.get('x-forwarded-for');
-    const clientIp = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || '127.0.0.1';
+    const clientIp = getClientIp(req.headers);
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
     const rawBody = await req.json();
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Proteção Anti-Abuso (Rate Limiting: 5 requisições por 15 minutos)
-    const rateLimit = checkRateLimit(`contact_${clientIp}`, {
+    const rateLimit = await checkRateLimitPersistent(`contact_${clientIp}`, {
       windowMs: 15 * 60 * 1000,
       maxRequests: 5,
     });

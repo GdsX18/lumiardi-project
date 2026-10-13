@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
       count: interviews.length,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro ao listar entrevistas';
+    console.error('[api/admin/interviews] Erro:', err);
+    const msg = 'Erro ao listar entrevistas';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

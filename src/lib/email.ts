@@ -52,6 +52,13 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/** Cópia com todos os campos de texto escapados para HTML (conteúdo vindo de formulários públicos). */
+function escapeFields<T extends Record<string, unknown>>(data: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) out[k] = typeof v === 'string' ? escapeHtml(v) : v;
+  return out as T;
+}
+
 export function isEmailConfigured(): boolean {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
@@ -358,13 +365,14 @@ export const EmailService = {
   /**
    * 5. Formulário de Contato — Notificação interna para a equipe Lumiardi
    */
-  async sendContactForm(data: {
+  async sendContactForm(rawData: {
     name: string;
     email: string;
     type: string;
     subject: string;
     message: string;
   }) {
+    const data = escapeFields(rawData);
     const toEmail = process.env.CONTACT_RECEIVER_EMAIL || process.env.CONTACT_EMAIL || 'contact@lumiardi.com';
     const title = `[Contato] ${data.subject}`;
     const preheader = `Nova mensagem de ${data.name} — ${data.type}`;
@@ -388,7 +396,7 @@ export const EmailService = {
       </div>
 
       <div style="margin-top:25px; text-align:center;">
-        <a href="mailto:${data.email}?subject=Re: ${encodeURIComponent(data.subject)}" class="btn">Responder a ${data.name}</a>
+        <a href="mailto:${data.email}?subject=Re: ${encodeURIComponent(rawData.subject)}" class="btn">Responder a ${data.name}</a>
       </div>
 
       <p style="font-size:12px; color:#636366; margin-top:20px;">Este e-mail foi gerado automaticamente pelo formulário de contato de www.lumiardi.com</p>
@@ -399,8 +407,8 @@ export const EmailService = {
     return transporter.sendMail({
       from: FROM_EMAIL,
       to: toEmail,
-      replyTo: `"${data.name}" <${data.email}>`,
-      subject: `[Lumiardi Contact] ${data.type} — ${data.subject}`,
+      replyTo: { name: rawData.name, address: rawData.email },
+      subject: `[Lumiardi Contact] ${rawData.type} — ${rawData.subject}`,
       html,
     });
   },
@@ -408,7 +416,7 @@ export const EmailService = {
   /**
    * 6. Denúncia Formal e Compliance (Notice-and-Action / Trust & Safety)
    */
-  async sendComplianceReport(data: {
+  async sendComplianceReport(rawData: {
     protocolNumber: string;
     category: string;
     priority: string;
@@ -426,6 +434,7 @@ export const EmailService = {
     judicialDeadline?: string;
     ipAddress?: string;
   }) {
+    const data = escapeFields(rawData);
     const toEmail = process.env.CONTACT_RECEIVER_EMAIL || process.env.CONTACT_EMAIL || 'contact@lumiardi.com';
     const title = `🚨 [Denúncia Formal] ${data.category} — ${data.protocolNumber}`;
     const preheader = `Protocolo ${data.protocolNumber} - Prioridade ${data.priority} - Comunicante: ${data.name}`;
@@ -536,8 +545,8 @@ export const EmailService = {
     return transporter.sendMail({
       from: `"Lumiardi Trust & Safety" <${process.env.SMTP_USER || 'noreply@lumiardi.com'}>`,
       to: toEmail,
-      replyTo: `"${data.name}" <${data.email}>`,
-      subject: `🚨 [DENÚNCIA FORMAL] ${data.category} — Protocolo ${data.protocolNumber}`,
+      replyTo: { name: rawData.name, address: rawData.email },
+      subject: `🚨 [DENÚNCIA FORMAL] ${rawData.category} — Protocolo ${rawData.protocolNumber}`,
       html,
     });
   },

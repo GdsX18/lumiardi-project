@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { R2StorageService } from '@/lib/storage/r2Service';
+import { normalizeMediaKey, parseMediaKey } from '@/lib/storage/mediaAccess';
+import { checkUpload } from '@/lib/storage/uploadPolicy';
+import { getActiveSession } from '@/lib/apiAuth';
 import { StorageService } from '@/services/storageService';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
-import { getSessionFromCookie } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
@@ -133,7 +136,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
@@ -174,9 +177,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // O arquivo tem de ser um objeto já gravado na pasta deste par (nada de links externos):
+    // a URL servida e o tamanho vêm do armazenamento, nunca do corpo da requisição
+    const rawUrl = typeof fileUrl === 'string' ? fileUrl : '';
+    const fileKey = rawUrl.startsWith('/api/media/') ? normalizeMediaKey(rawUrl.slice('/api/media/'.length)) : null;
+    const parsedKey = fileKey ? parseMediaKey(fileKey) : null;
+    if (
+      !fileKey ||
+      !parsedKey?.isShared ||
+      parsedKey.agencyId !== String(finalAgencyId) ||
+      parsedKey.modelId !== String(finalModelId)
+    ) {
+      return NextResponse.json({ error: 'Arquivo inválido para este espaço compartilhado.', code: 'invalid_input' }, { status: 400 });
+    }
+    const head = await R2StorageService.headObject(fileKey);
+    const stored = head ? checkUpload(head.contentType, head.size) : null;
+    if (!head || !stored?.ok) {
+      return NextResponse.json({ error: 'Arquivo não encontrado ou fora da política de upload.', code: 'invalid_input' }, { status: 400 });
+    }
+    void size;
+
     // Validação de cota da agência
-    const fileSizeStr = size || '1.5 MB';
-    const newFileBytes = StorageService.parseSizeToBytes(fileSizeStr);
+    const fileSizeStr = `${(head.size / (1024 * 1024)).toFixed(1)} MB`;
+    const newFileBytes = head.size;
     const newFileGB = newFileBytes / (1024 * 1024 * 1024);
 
     const [agencyUsage, agencySub] = await Promise.all([
@@ -207,7 +230,7 @@ export async function POST(req: NextRequest) {
       size: fileSizeStr,
       uploadedById: session.id,
       uploadedByName: session.name || (session.role === 'agencia' ? 'Agência' : 'Modelo'),
-      fileUrl: fileUrl || '',
+      fileUrl: `/api/media/${fileKey}`,
     });
 
     const counterpartId = session.id === finalAgencyId ? finalModelId : finalAgencyId;
@@ -235,7 +258,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
@@ -261,7 +284,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }

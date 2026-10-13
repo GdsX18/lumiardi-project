@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { BillingService } from '@/lib/payments/billingService';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     const requestedUserId = request.nextUrl.searchParams.get('userId');
     const userId = (session?.role === 'admin' && requestedUserId) ? requestedUserId : session?.id;

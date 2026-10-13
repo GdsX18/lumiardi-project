@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+
 import { StorageService } from '@/services/storageService';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }

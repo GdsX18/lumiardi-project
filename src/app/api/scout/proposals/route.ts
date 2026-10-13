@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StorageService, normalizeCommission } from '@/services/storageService';
-import { getSessionFromCookie } from '@/lib/auth';
-import { getApprovedMemberSession } from '@/lib/apiAuth';
+
+import { getApprovedMemberSession, getActiveSession } from '@/lib/apiAuth';
 import { sanitizeInput } from '@/lib/security';
 
 const MAX_PROPOSAL_LENGTH = 2000;
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return fail(401, 'unauthorized', 'Não autorizado.');
     }

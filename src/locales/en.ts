@@ -1153,6 +1153,7 @@ export const en: Record<string, string> = {
     "twofa_step1_desc": "In the Google Authenticator app, tap + and scan the code.",
     "twofa_step1_title": "Step 1: Scan the QR Code",
     "twofa_step2_title": "Step 2: Enter the 6-digit code:",
+    "twofa_current_code_label": "Code from your current authenticator app (device already registered):",
     "twofa_success_desc": "From now on, your account is protected with two-factor authentication.",
     "twofa_success_title": "2FA Enabled Successfully!",
     "twofa_test_code_fill": "Fill test code ({otp})",

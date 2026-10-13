@@ -26,7 +26,8 @@ export async function GET(
       application,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao recuperar solicitação';
+    console.error('[api/admin/applications/[id]] Erro:', err);
+    const message = 'Erro ao recuperar solicitação';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

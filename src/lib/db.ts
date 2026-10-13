@@ -138,8 +138,12 @@ async function runInitDatabase(): Promise<boolean> {
         -- 2FA TOTP: segredo cifrado (AES-256-GCM, ver lib/security/twoFactor.ts)
         ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+        -- Último passo TOTP aceito no login: o mesmo código não serve duas vezes
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_last_counter BIGINT;
         -- Contas de demonstração comercial: invisíveis para usuários reais, KPIs e curadoria
         ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE;
+        -- Revogação de sessões: cookies emitidos (iat) antes deste instante deixam de valer
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_valid_after TIMESTAMP WITH TIME ZONE;
         CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users(last_seen_at);
 
         -- Tabela CURATION_INTERVIEWS (Entrevista de Curadoria Prévia Obrigatória)
@@ -332,6 +336,7 @@ async function runInitDatabase(): Promise<boolean> {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
+        ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS sessions_valid_after TIMESTAMP WITH TIME ZONE;
       `);
 
       // 10. Tabela CURATION_AUDIT_LOGS

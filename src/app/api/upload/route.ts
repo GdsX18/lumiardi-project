@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { R2StorageService } from '@/lib/storage/r2Service';
 import { checkUpload, normalizeCategory, UPLOAD_LIMITS } from '@/lib/storage/uploadPolicy';
 
@@ -22,7 +23,7 @@ function reject(status: number, code: string, error: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    const session = await getActiveSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
     if (!session) {
       return reject(401, 'unauthorized', 'Faça login para enviar arquivos.');
     }
@@ -48,6 +49,10 @@ export async function POST(request: NextRequest) {
       const check = checkUpload(file.type, file.size, MAX_BYTES);
       if (!check.ok) {
         return reject(check.code === 'upload_type' ? 415 : 413, check.code, check.error);
+      }
+      // Avatares são públicos (cache imutável, CORS aberto): só imagem, para não virar hospedagem livre
+      if (category === 'avatars' && check.kind !== 'image') {
+        return reject(415, 'upload_type', 'A foto de perfil deve ser uma imagem.');
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -95,6 +100,9 @@ export async function POST(request: NextRequest) {
     const check = checkUpload(mimeType, buffer.length, MAX_BYTES);
     if (!check.ok) {
       return reject(check.code === 'upload_type' ? 415 : 413, check.code, check.error);
+    }
+    if (normalizeCategory(body.category) === 'avatars' && check.kind !== 'image') {
+      return reject(415, 'upload_type', 'A foto de perfil deve ser uma imagem.');
     }
 
     const ext = mimeType.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'bin';

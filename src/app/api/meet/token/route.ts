@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
+import { getMeetSession, resolveMeetParticipantId } from '@/lib/meetIdentity';
+import { MeetService } from '@/services/meetService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,15 +12,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Room ID obrigatório.' }, { status: 400 });
     }
 
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    // Token LiveKit só para contas logadas e para salas que existem (o id da sala é o convite)
+    const session = await getMeetSession(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Faça login para entrar na chamada.', code: 'unauthorized' }, { status: 401 });
+    }
+    if (!(await MeetService.getRoom(roomId))) {
+      return NextResponse.json({ error: 'Sala inexistente ou já finalizada.', code: 'room_not_found' }, { status: 404 });
+    }
 
-    // Identidade da sessão autenticada sempre prevalece: o corpo só nomeia convidados sem sessão,
-    // e o id de convidado nunca pode reivindicar o de um usuário real
-    const participantId = session
-      ? session.id
-      : `guest-${sanitizeInput(String(body.participantId || '')).replace(/^guest-/, '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 32) || crypto.randomBytes(3).toString('hex')}`;
-    const participantName = sanitizeInput(session?.name || body.participantName || 'Convidado Lumiardi');
+    const participantId = resolveMeetParticipantId(session, body.participantId);
+    const participantName = sanitizeInput(session.name || 'Membro Lumiardi');
 
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
@@ -63,8 +65,8 @@ export async function POST(request: NextRequest) {
       provider: 'webrtc_native',
     }, { status: 200 });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro ao emitir token LiveKit';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[Meet Token] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao emitir token LiveKit' }, { status: 500 });
   }
 }
 

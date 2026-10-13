@@ -11,6 +11,9 @@ export function toPublicCreator(creator: any) {
   const city = creator.basicInfo?.address?.city || '';
   const state = creator.basicInfo?.address?.state || '';
   const country = creator.basicInfo?.address?.country || '';
+  // O id interno da agência que representa a modelo não sai no catálogo (o nome já é exibido)
+  const { representedAgencyId: _agencyId, ...qualitative } = creator.qualitative || {};
+  void _agencyId;
 
   return {
     id: creator.id,
@@ -19,7 +22,7 @@ export function toPublicCreator(creator: any) {
       address: { city, state, country },
     },
     qualitative: {
-      ...creator.qualitative,
+      ...qualitative,
       artisticName,
     },
     acceptsOffers: creator.acceptsOffers !== false,

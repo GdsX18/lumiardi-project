@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { PoolClient } from 'pg';
 import { paymentFactory } from '@/lib/payments/gatewayFactory';
 import { BillingService } from '@/lib/payments/billingService';
-import { getPlan } from '@/lib/payments/plansConfig';
-import { PlanId, BillingInterval } from '@/lib/payments/types';
+import { getPlan, isPlanId } from '@/lib/payments/plansConfig';
+import { PlanId, BillingInterval, PlanDefinition } from '@/lib/payments/types';
 import { initDatabase, withTransaction } from '@/lib/db';
 import { cache } from '@/lib/cache';
 import { StorageService } from '@/services/storageService';
@@ -107,6 +107,55 @@ async function revokeAccessIfNoActiveSubscription(client: PoolClient, userId: st
   );
 }
 
+function couponReleaseMarker(paymentId: string) {
+  return `asaas:coupon-released:${paymentId}`;
+}
+
+async function couponReservationReleased(client: PoolClient, paymentId: string): Promise<boolean> {
+  const res = await client.query('SELECT 1 FROM webhook_events WHERE id = $1', [couponReleaseMarker(paymentId)]);
+  return res.rows.length > 0;
+}
+
+/** Devolve (uma única vez por cobrança) o uso de cupom reservado na emissão de um Pix não pago. */
+async function releasePixCouponReservation(client: PoolClient, paymentId: string, couponCode: string | undefined) {
+  if (!couponCode) return;
+  const marker = await client.query(
+    'INSERT INTO webhook_events (id, provider) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING RETURNING id',
+    [couponReleaseMarker(paymentId), 'asaas']
+  );
+  if (marker.rowCount === 0) return;
+  await client.query('UPDATE coupons SET times_used = GREATEST(times_used - 1, 0) WHERE UPPER(code) = $1', [
+    couponCode.trim().toUpperCase(),
+  ]);
+}
+
+/**
+ * Menor valor aceitável para ativar o plano: preço de tabela menos o desconto nominal do cupom.
+ * Estado do cupom (ativo/expirado/limite) não entra: ele foi validado quando a cobrança foi gerada.
+ */
+async function expectedChargeTotal(
+  client: PoolClient,
+  plan: PlanDefinition,
+  interval: BillingInterval,
+  couponCode: string | undefined
+): Promise<number> {
+  const listAmount = interval === 'yearly' ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+  if (!couponCode) return listAmount;
+
+  const res = await client.query('SELECT discount_type, discount_value FROM coupons WHERE UPPER(code) = $1 LIMIT 1', [
+    couponCode.trim().toUpperCase(),
+  ]);
+  const coupon = res.rows[0];
+  const value = Number(coupon?.discount_value);
+  if (!coupon || !Number.isFinite(value) || value <= 0) return listAmount;
+
+  let discount = 0;
+  if (coupon.discount_type === 'percentage') discount = (listAmount * Math.min(value, 100)) / 100;
+  else if (coupon.discount_type === 'fixed') discount = Math.min(value, listAmount);
+  discount = Math.round(discount * 100) / 100;
+  return Math.max(0, Math.round((listAmount - discount) * 100) / 100);
+}
+
 async function handleEvent(
   client: PoolClient,
   event: string,
@@ -155,6 +204,8 @@ async function handleEvent(
     }
   }
 
+  // Referência com plano/intervalo fora do catálogo nunca ativa nada (antes caía em "radiance")
+  const referenceValid = isPlanId(planId) && (interval === 'monthly' || interval === 'yearly');
   const plan = getPlan(planId);
   const amount = Number(payment.value || (interval === 'yearly' ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly));
   const billingType = String(payment.billingType || '').toUpperCase();
@@ -167,6 +218,51 @@ async function handleEvent(
       if (!userId) {
         console.error('[Asaas Webhook] Pagamento confirmado sem userId mapeado (conciliação manual necessária):', paymentId);
         return { body: { received: true, note: 'User ID unmapped' } };
+      }
+      if (!referenceValid) {
+        console.error('[Asaas Webhook] externalReference com plano/intervalo inválido (conciliação manual):', paymentId, extRef);
+        return { body: { received: true, note: 'invalid_reference' }, userId };
+      }
+      // Cartão é cobrado pelo servidor com o preço do plano (e pode vir parcelado); as demais formas
+      // (Pix/boleto) chegam numa parcela só, então o valor pago tem de cobrir o preço do plano.
+      if (billingType !== 'CREDIT_CARD') {
+        const expected = await expectedChargeTotal(client, plan, interval, couponCode);
+        if (amount + 0.01 < expected) {
+          console.error('[Asaas Webhook] Valor pago abaixo do preço do plano (conciliação manual):', {
+            paymentId,
+            planId: plan.id,
+            interval,
+            paid: amount,
+            expected,
+          });
+          return { body: { received: true, note: 'amount_mismatch' }, userId };
+        }
+      }
+
+      // Parcelamento no cartão: cada parcela chega como um pagamento próprio (id novo, mesma
+      // externalReference). Só a 1ª ativa o plano; as demais apenas registram a transação.
+      const installmentNumber = Number(payment.installmentNumber || 0);
+      if (payment.installment && installmentNumber > 1) {
+        const activeRes = await client.query(
+          "SELECT id FROM subscriptions WHERE user_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+          [userId]
+        );
+        await BillingService.recordTransaction(
+          {
+            userId,
+            subscriptionId: activeRes.rows[0]?.id,
+            gateway: 'asaas',
+            gatewayTransactionId: paymentId,
+            amount,
+            currency: 'BRL',
+            status: 'success',
+            paymentMethod,
+            rawPayload: payload,
+            idempotencyKey,
+          },
+          client
+        );
+        return { body: { received: true, action: 'installment_recorded', installmentNumber }, userId };
       }
 
       // Verifica se já existe assinatura ativa para este pagamento (ex.: CONFIRMED seguido de RECEIVED)
@@ -243,11 +339,15 @@ async function handleEvent(
         [subscription.id, paymentId]
       );
 
-      // Contabiliza o uso do cupom nesta liquidação
+      // Contabiliza o uso do cupom nesta liquidação. No Pix o uso já foi reservado na emissão;
+      // só volta a contar se a reserva tiver sido devolvida (Pix pago depois de vencido).
       if (couponCode) {
-        await client.query('UPDATE coupons SET times_used = times_used + 1 WHERE UPPER(code) = $1', [
-          couponCode.trim().toUpperCase(),
-        ]);
+        const reservedAtIssue = billingType === 'PIX' && !(await couponReservationReleased(client, paymentId));
+        if (!reservedAtIssue) {
+          await client.query('UPDATE coupons SET times_used = times_used + 1 WHERE UPPER(code) = $1', [
+            couponCode.trim().toUpperCase(),
+          ]);
+        }
         const listAmount = interval === 'yearly' ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
         await CouponService.recordRedemption(
           {
@@ -293,6 +393,7 @@ async function handleEvent(
         "UPDATE payment_transactions SET status = 'failed' WHERE gateway_transaction_id = $1 AND status != 'failed'",
         [paymentId]
       );
+      if (billingType === 'PIX') await releasePixCouponReservation(client, paymentId, couponCode);
 
       if (!userId) {
         return { body: { received: true, action: 'marked_overdue' } };
@@ -325,6 +426,9 @@ async function handleEvent(
     case 'PAYMENT_CHARGEBACK_DISPUTE':
     case 'PAYMENT_DELETED': {
       const action = event === 'PAYMENT_DELETED' ? 'marked_deleted' : 'marked_refunded';
+      if (event === 'PAYMENT_DELETED' && billingType === 'PIX') {
+        await releasePixCouponReservation(client, paymentId, couponCode);
+      }
 
       await client.query(
         "UPDATE payment_transactions SET status = 'refunded' WHERE gateway_transaction_id = $1 AND status != 'refunded'",

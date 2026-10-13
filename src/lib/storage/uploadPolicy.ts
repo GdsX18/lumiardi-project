@@ -35,6 +35,8 @@ export const ALLOWED_CATEGORIES = new Set([
   'chat',
   'uploads',
   'documents',
+  // Drive privado: pasta restrita (dona + curadoria), separada das fotos de portfólio
+  'drive',
 ]);
 
 export type UploadKind = 'image' | 'video' | 'document';

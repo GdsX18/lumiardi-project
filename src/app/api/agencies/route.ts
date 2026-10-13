@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { StorageService } from '@/services/storageService';
 import { cache } from '@/lib/cache';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -52,7 +53,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, agencies });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao listar agências';
+    console.error('[api/agencies] Erro:', err);
+    const message = 'Erro ao listar agências';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

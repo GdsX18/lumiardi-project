@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { KYCService } from '@/lib/kyc/kycService';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.json();
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Faça login para iniciar a verificação.', code: 'unauthorized' }, { status: 401 });

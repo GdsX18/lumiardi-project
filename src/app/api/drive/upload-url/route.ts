@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie } from '@/lib/auth';
+import { hasActivePartnership } from '@/lib/storage/sharedAccess';
+import { getActiveSession } from '@/lib/apiAuth';
+
 import { R2StorageService } from '@/lib/storage/r2Service';
 import { StorageService } from '@/services/storageService';
 import { BillingService } from '@/lib/payments/billingService';
@@ -8,14 +10,11 @@ import { sanitizeInput } from '@/lib/security';
 import { checkUpload, normalizeCategory } from '@/lib/storage/uploadPolicy';
 
 /** Existe vínculo (contrato não encerrado) entre a agência e a modelo? */
-async function hasPartnership(agencyId: string, modelId: string): Promise<boolean> {
-  const contracts = await StorageService.listAgencyContracts(agencyId);
-  return contracts.some((c) => c.modelId === modelId && c.status !== 'terminated');
-}
+const hasPartnership = hasActivePartnership;
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Sessão expirada ou não autenticado.' }, { status: 401 });
     }
@@ -126,7 +125,9 @@ export async function POST(req: NextRequest) {
     const presigned = await R2StorageService.createPresignedUrl({
       fileName,
       fileType,
-      category,
+      // Drive privado vai para vault/<id>/drive/ (restrito). As pastas de portfólio (raw-photos…)
+      // são legíveis por qualquer conta logada; a categoria do drive fica só nos metadados.
+      category: context === 'private' ? 'drive' : category,
       userId: session.id,
       operation: 'upload',
       contentLength: fileSizeBytes,

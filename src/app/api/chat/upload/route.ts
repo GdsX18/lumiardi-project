@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { R2StorageService } from '@/lib/storage/r2Service';
 import { sanitizeInput } from '@/lib/security';
 import { checkUpload } from '@/lib/storage/uploadPolicy';
@@ -22,7 +23,7 @@ function fail(status: number, code: string, error: string) {
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return fail(401, 'unauthorized', 'Não autenticado.');
@@ -31,10 +32,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const rawFileName = String(body.fileName || '').trim();
     const fileType = String(body.fileType || '').trim().toLowerCase();
-    const fileSize = body.fileSize !== undefined ? Number(body.fileSize) : undefined;
+    // Tamanho obrigatório: ele é assinado na URL de PUT (sem ele o R2 aceitaria qualquer tamanho)
+    const fileSize = Number(body.fileSize);
 
-    if (!rawFileName || !fileType) {
-      return fail(400, 'invalid_input', 'fileName e fileType são obrigatórios.');
+    if (!rawFileName || !fileType || !Number.isFinite(fileSize) || fileSize <= 0) {
+      return fail(400, 'invalid_input', 'fileName, fileType e fileSize são obrigatórios.');
     }
 
     if (!ALLOWED_MIME_TYPES.has(fileType)) {

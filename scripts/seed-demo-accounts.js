@@ -3,8 +3,10 @@
  *
  * Cria/atualiza duas contas usadas pelo atendimento comercial em apresentações:
  *
- *   MODELO   demo.modelo@lumiardi.com    senha: Lumiardi#Demo2026!Modelo
- *   AGÊNCIA  demo.agencia@lumiardi.com   senha: Lumiardi#Demo2026!Agencia
+ *   MODELO   demo.modelo@lumiardi.com    senha: env DEMO_MODEL_PASSWORD
+ *   AGÊNCIA  demo.agencia@lumiardi.com   senha: env DEMO_AGENCY_PASSWORD
+ *
+ * As senhas vêm do ambiente (nunca do repositório): o script aborta se faltarem.
  *
  * Ambas têm users.is_demo = TRUE:
  *   - só enxergam uma à outra (catálogo, diretório de agências, propostas e chat);
@@ -50,13 +52,17 @@ if (!connectionString) {
   console.error('ERRO: Nenhuma URL de banco de dados (DATABASE_URL ou DIRECT_URL) encontrada.');
   process.exit(1);
 }
+if (!process.env.DEMO_MODEL_PASSWORD || !process.env.DEMO_AGENCY_PASSWORD) {
+  console.error('ERRO: defina DEMO_MODEL_PASSWORD e DEMO_AGENCY_PASSWORD no ambiente (senhas das contas demo).');
+  process.exit(1);
+}
 
 const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 10000 });
 
 const MODEL = {
   id: 'demo-modelo-showcase',
   email: 'demo.modelo@lumiardi.com',
-  password: 'Lumiardi#Demo2026!Modelo',
+  password: process.env.DEMO_MODEL_PASSWORD,
   fullName: 'Sophia Laurent',
   planId: 'icon',
   planAmount: 129.9,
@@ -65,7 +71,7 @@ const MODEL = {
 const AGENCY = {
   id: 'demo-agencia-showcase',
   email: 'demo.agencia@lumiardi.com',
-  password: 'Lumiardi#Demo2026!Agencia',
+  password: process.env.DEMO_AGENCY_PASSWORD,
   fullName: 'Helena Duarte',
   corporateName: 'Maison Áurea Management',
   planId: 'signature',

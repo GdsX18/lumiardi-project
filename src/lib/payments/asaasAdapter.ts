@@ -16,6 +16,14 @@ import { getPlan } from './plansConfig';
 import { asaasClient } from './asaasClient';
 import { CouponService } from '@/services/couponService';
 
+/** O cupom esgotou entre a validação e a emissão da cobrança. */
+export class CouponUnavailableError extends Error {
+  constructor() {
+    super('Cupom de desconto inválido ou esgotado.');
+    this.name = 'CouponUnavailableError';
+  }
+}
+
 export class AsaasAdapter implements PaymentGatewayService {
   public readonly gatewayName: PaymentGatewayType = 'asaas';
 
@@ -39,7 +47,8 @@ export class AsaasAdapter implements PaymentGatewayService {
       }
     }
 
-    const externalReference = `${req.userId}:${req.planId}:${req.interval}${appliedCoupon ? `:${appliedCoupon.code}` : ''}`;
+    // Montada só com valores normalizados no servidor: o webhook confia nela para ativar o plano
+    const externalReference = `${req.userId}:${plan.id}:${isYearly ? 'yearly' : 'monthly'}${appliedCoupon ? `:${appliedCoupon.code}` : ''}`;
     const today = new Date();
     const dueDate = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -53,14 +62,27 @@ export class AsaasAdapter implements PaymentGatewayService {
         externalReference: req.userId,
       });
 
-      const payment = await asaasClient.createPayment({
-        customerId: customer.id,
-        billingType: 'PIX',
-        value: amount,
-        dueDate,
-        description: `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
-        externalReference,
-      });
+      // Reserva o uso do cupom já na emissão do Pix (UPDATE atômico com o limite): sem isso, várias
+      // cobranças com desconto podiam ser geradas para o último uso. O webhook devolve a reserva
+      // se o Pix vencer ou for removido sem pagamento.
+      if (appliedCoupon && !(await CouponService.reserveCouponUse(appliedCoupon.code))) {
+        throw new CouponUnavailableError();
+      }
+
+      let payment: Awaited<ReturnType<typeof asaasClient.createPayment>>;
+      try {
+        payment = await asaasClient.createPayment({
+          customerId: customer.id,
+          billingType: 'PIX',
+          value: amount,
+          dueDate,
+          description: `Assinatura Lumiardi — Plano ${plan.name} (${isYearly ? 'Anual' : 'Mensal'})`,
+          externalReference,
+        });
+      } catch (err) {
+        if (appliedCoupon) await CouponService.releaseCouponUse(appliedCoupon.code);
+        throw err;
+      }
 
       const pixQr = await asaasClient.getPixQrCode(payment.id, amount);
 

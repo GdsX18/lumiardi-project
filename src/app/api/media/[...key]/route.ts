@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { R2StorageService } from '@/lib/storage/r2Service';
-import { canReadMedia, getMediaAccessLevel, normalizeMediaKey, parseMediaKey } from '@/lib/storage/mediaAccess';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getMediaAccessLevel, normalizeMediaKey, parseMediaKey } from '@/lib/storage/mediaAccess';
+import { canReadMediaWithContract } from '@/lib/storage/sharedAccess';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import fs from 'fs';
@@ -72,8 +74,11 @@ function parseRange(rangeHeader: string, fileSize: number): { start: number; end
 const PUBLIC_CACHE = 'public, max-age=31536000, immutable';
 const PRIVATE_CACHE = 'private, max-age=3600';
 
-/** Tipos que o navegador executaria na origem do site — sempre servidos como download. */
-const ACTIVE_CONTENT_TYPES = /^(text\/html|application\/xhtml|image\/svg|text\/xml|application\/xml|application\/javascript|text\/javascript)/i;
+/**
+ * Únicos tipos exibidos inline. O Content-Type gravado no R2 vem do PUT pré-assinado (escolhido
+ * pelo cliente), então tudo fora desta lista — HTML, SVG, qualquer *+xml, scripts — vira download.
+ */
+const INLINE_CONTENT_TYPES = /^(image\/(jpeg|png|webp|gif|avif|heic|heif)|video\/(mp4|webm|quicktime|ogg)|audio\/(mpeg|mp4|ogg|wav|webm|aac)|application\/pdf)$/;
 
 /**
  * Serve um arquivo local com suporte a Range requests (HTTP 206) para vídeos e áudio.
@@ -155,8 +160,8 @@ export async function GET(
     let fileKey = normalized;
 
     const parsed = parseMediaKey(fileKey);
-    const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
-    if (!canReadMedia(fileKey, session)) {
+    const session = await getActiveSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    if (!(await canReadMediaWithContract(fileKey, session))) {
       // 404 para usuário logado sem permissão: não revela a existência do objeto
       return NextResponse.json({ error: 'Arquivo não encontrado.' }, { status: session ? 404 : 401 });
     }
@@ -218,7 +223,8 @@ export async function GET(
     }
 
     const storedType = response.ContentType || inferContentType(fileKey);
-    const isActiveContent = ACTIVE_CONTENT_TYPES.test(storedType);
+    const baseType = storedType.split(';')[0].trim().toLowerCase();
+    const isActiveContent = !INLINE_CONTENT_TYPES.test(baseType);
     const contentType = isActiveContent ? 'application/octet-stream' : storedType;
     const isPartial = Boolean(rangeHeader && response.ContentRange);
 

@@ -7,9 +7,10 @@
  */
 
 import crypto from 'crypto';
+import { invalidateMemberCache } from '@/lib/apiAuth';
 import bcrypt from 'bcryptjs';
 import { pool, initDatabase, withTransaction } from '@/lib/db';
-import { normalizePassword } from '@/lib/passwordPolicy';
+import { normalizePassword, PASSWORD_BCRYPT_COST } from '@/lib/passwordPolicy';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000;
 
@@ -44,7 +45,7 @@ export async function createPasswordResetToken(
 export async function resetPasswordWithToken(token: string, newPassword: string): Promise<'ok' | 'invalid_token'> {
   if (!token || token.length > 200) return 'invalid_token';
   await initDatabase();
-  const hash = await bcrypt.hash(normalizePassword(newPassword), 10);
+  const hash = await bcrypt.hash(normalizePassword(newPassword), PASSWORD_BCRYPT_COST);
 
   return withTransaction(async (client) => {
     const res = await client.query(
@@ -56,8 +57,13 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
     const userId = res.rows[0]?.user_id as string | undefined;
     if (!userId) return 'invalid_token' as const;
 
-    await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, userId]);
+    // Troca de senha derruba todas as sessões abertas (inclusive um cookie roubado)
+    await client.query(
+      'UPDATE users SET password_hash = $1, sessions_valid_after = NOW(), updated_at = NOW() WHERE id = $2',
+      [hash, userId]
+    );
     await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1 AND token_hash != $2', [userId, hashToken(token)]);
+    invalidateMemberCache(userId);
     return 'ok' as const;
   });
 }

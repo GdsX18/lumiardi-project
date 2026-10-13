@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { BillingService } from '@/lib/payments/billingService';
-import { getPlan, LUMIARDI_PLANS } from '@/lib/payments/plansConfig';
-import { getSessionFromCookie } from '@/lib/auth';
+import { getPlan, isPlanId } from '@/lib/payments/plansConfig';
+
 import { PlanId, BillingInterval, PaymentGatewayType } from '@/lib/payments/types';
 import { sanitizeInput } from '@/lib/security';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -18,9 +19,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const planId = sanitizeInput(body.planId) as PlanId;
     const interval = (body.interval === 'yearly' ? 'yearly' : 'monthly') as BillingInterval;
-    const paymentMethod: 'credit_card' | 'crypto' | 'pix' = body.paymentMethod || 'pix';
+    const paymentMethod: 'credit_card' | 'crypto' | 'pix' =
+      body.paymentMethod === 'credit_card' || body.paymentMethod === 'crypto' ? body.paymentMethod : 'pix';
 
-    if (!planId || !LUMIARDI_PLANS[planId]) {
+    if (!planId || !isPlanId(planId)) {
       return NextResponse.json({ error: 'Plano inválido especificado.' }, { status: 400 });
     }
 

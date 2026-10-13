@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 import {
@@ -79,7 +80,12 @@ async function canAccessConversation(
   conversationId: string,
   mode: 'read' | 'write'
 ): Promise<boolean> {
-  if (session.role === 'admin') return true;
+  // Curadoria (cargo validado no banco por getActiveSession): lê tudo para moderação; escrever
+  // num canal direto agência ↔ modelo exige cargo acima de Curador Júnior
+  if (session.role === 'admin') {
+    if (mode === 'read' || conversationId === 'curation') return true;
+    return (session.curationRole || 'curador_junior') !== 'curador_junior';
+  }
   if (conversationId === 'curation') return true;
 
   const pair = parseDirectConversationId(conversationId);
@@ -99,7 +105,7 @@ async function canAccessConversation(
 
 export async function GET(request: NextRequest) {
   try {
-    const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    const session = await getActiveSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
     if (!session) return fail(401, 'unauthorized', 'Não autenticado.');
 
     const { searchParams } = new URL(request.url);
@@ -178,7 +184,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    const session = await getActiveSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
     if (!session) return fail(401, 'unauthorized', 'Não autenticado.');
 
     const body = await request.json().catch(() => ({}));

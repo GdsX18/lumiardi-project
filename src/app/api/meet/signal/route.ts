@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { sanitizeInput } from '@/lib/security';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getMeetSession, meetUserRole, resolveMeetParticipantId } from '@/lib/meetIdentity';
 import { MeetService } from '@/services/meetService';
+
+const SIGNAL_TYPES = new Set(['offer', 'answer', 'candidate']);
+const MAX_SIGNAL_BYTES = 64 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,22 +16,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Room ID obrigatório.' }, { status: 400 });
     }
 
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    // Sinalização só com sessão: o participante é sempre o da sessão (o corpo só escolhe a aba)
+    const session = await getMeetSession(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Faça login para entrar na chamada.', code: 'unauthorized' }, { status: 401 });
+    }
 
-    const participantId = sanitizeInput(body.participantId || session?.id || `guest-${crypto.randomBytes(3).toString('hex')}`);
-    const participantName = sanitizeInput(body.participantName || session?.name || 'Membro VIP Lumiardi');
-    const userRole: 'agency' | 'model' | 'admin' | 'guest' =
-      session?.role === 'agencia'
-        ? 'agency'
-        : session?.role === 'criadora'
-        ? 'model'
-        : session?.role === 'admin'
-        ? 'admin'
-        : (body.userRole as 'agency' | 'model' | 'admin' | 'guest') || 'guest';
+    const participantId = resolveMeetParticipantId(session, body.participantId);
+    const participantName = sanitizeInput(String(body.participantName || session.name || 'Membro VIP Lumiardi')).slice(0, 120);
+    const userRole = meetUserRole(session);
 
     // 1. AÇÃO: Ingressar na Sala
     if (action === 'join') {
+      if (!(await MeetService.getRoom(roomId))) {
+        return NextResponse.json({ error: 'Sala inexistente ou já finalizada.', code: 'room_not_found' }, { status: 404 });
+      }
       const joinResult = await MeetService.joinRoom({
         roomId,
         participantId,
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        participantId,
         role: joinResult.role,
         participants: joinResult.participants,
       });
@@ -46,9 +48,14 @@ export async function POST(request: NextRequest) {
 
     // 2. AÇÃO: Enviar Sinal (Offer, Answer, ICE Candidate)
     if (action === 'signal') {
-      const { type, data, targetId } = body;
-      if (!type || !data) {
+      // O widget envia `signalType`; `type` fica por compatibilidade
+      const type = body.type ?? body.signalType;
+      const { data, targetId } = body;
+      if (!type || !data || !SIGNAL_TYPES.has(type)) {
         return NextResponse.json({ error: 'Tipo e dados de sinalização obrigatórios.' }, { status: 400 });
+      }
+      if (JSON.stringify(data).length > MAX_SIGNAL_BYTES) {
+        return NextResponse.json({ error: 'Sinal grande demais.' }, { status: 413 });
       }
 
       const signalRes = await MeetService.addSignal({
@@ -71,6 +78,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        participantId,
         myRole: pollResult.myRole,
         signals: pollResult.signals,
         participants: pollResult.participants,
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Ação de sinalização inválida.' }, { status: 400 });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro no canal de sinalização';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[Meet Signal] Erro:', err);
+    return NextResponse.json({ error: 'Erro no canal de sinalização' }, { status: 500 });
   }
 }

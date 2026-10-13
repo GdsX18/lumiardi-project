@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
     const actionType = searchParams.get('actionType') || undefined;
     const curadorId = searchParams.get('curadorId') || undefined;
     const startDate = searchParams.get('startDate') || undefined;

@@ -254,8 +254,13 @@ export const LUMIARDI_PLANS: Record<PlanId, PlanDefinition> = {
   },
 };
 
+/** Só ids de plano realmente cadastrados (hasOwn: "constructor"/"__proto__" não passam). */
+export function isPlanId(planId: unknown): planId is PlanId {
+  return typeof planId === 'string' && Object.prototype.hasOwnProperty.call(LUMIARDI_PLANS, planId);
+}
+
 export function getPlan(planId: string): PlanDefinition {
-  const plan = LUMIARDI_PLANS[planId as PlanId];
+  const plan = isPlanId(planId) ? LUMIARDI_PLANS[planId] : undefined;
   if (!plan) {
     return LUMIARDI_PLANS.radiance;
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { StorageService } from '@/services/storageService';
-import { decodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
+import { SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { pool, initDatabase } from '@/lib/db';
 
 /** Só candidatas em análise podem (re)agendar; aprovadas/reprovadas não voltam para a fila. */
@@ -9,7 +10,7 @@ const SCHEDULABLE_STATUSES = ['EM_CURATORIA', 'AGUARDANDO_REUNIAO'];
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
     if (!session) {
       return NextResponse.json({ error: 'Faça login para agendar a entrevista.', code: 'unauthorized' }, { status: 401 });
     }

@@ -3,10 +3,14 @@ import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
-import { verifyTOTP } from '@/lib/security/totp';
+import { matchTOTPCounter } from '@/lib/security/totp';
+import { pool } from '@/lib/db';
 import { decryptTOTPSecret } from '@/lib/security/twoFactor';
 
 const LOGIN_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
+// Limite por conta (somando todos os IPs) bem mais alto: segura força bruta distribuída sem deixar
+// que 10 tentativas de um estranho bloqueiem o login da dona da conta
+const ACCOUNT_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 50 };
 const VALID_STATUSES: SessionUser['curationStatus'][] = [
   'EM_CURATORIA',
   'AGUARDANDO_REUNIAO',
@@ -46,7 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Limite por conta: bloqueia força bruta distribuída em vários IPs
-    const accountLimit = await checkRateLimitPersistent(`login:email:${email.toLowerCase()}`, LOGIN_WINDOW);
+    const pairLimit = await checkRateLimitPersistent(`login:email-ip:${email.toLowerCase()}:${ip}`, LOGIN_WINDOW);
+    const accountLimit = pairLimit.allowed
+      ? await checkRateLimitPersistent(`login:email:${email.toLowerCase()}`, ACCOUNT_WINDOW)
+      : pairLimit;
     if (!accountLimit.allowed) return tooManyAttempts(accountLimit.resetTimeMs);
 
     // O papel vem da conta no banco; a aba Modelo/Agência da tela de login é só visual
@@ -80,7 +87,18 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
-      if (!verifyTOTP(totpCode, totpSecret)) {
+      const counter = matchTOTPCounter(totpCode, totpSecret);
+      // Grava o passo usado de forma atômica: um código já aceito (ou mais antigo) é recusado
+      const fresh =
+        counter !== null &&
+        ((
+          await pool.query(
+            `UPDATE users SET two_factor_last_counter = $1
+             WHERE id = $2 AND (two_factor_last_counter IS NULL OR two_factor_last_counter < $1)`,
+            [counter, authResult.user.id]
+          )
+        ).rowCount ?? 0) > 0;
+      if (!fresh) {
         return NextResponse.json(
           { error: 'Código de autenticação inválido ou expirado.', code: 'two_factor_invalid', requiresTwoFactor: true },
           { status: 401 }

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import type { PoolClient } from 'pg';
 import { pool, initDatabase, withTransaction } from '@/lib/db';
 import { BillingService, DbExecutor } from '@/lib/payments/billingService';
-import { getPlan, LUMIARDI_PLANS } from '@/lib/payments/plansConfig';
+import { getPlan, isPlanId, LUMIARDI_PLANS } from '@/lib/payments/plansConfig';
 import type { BillingInterval, PlanId, SubscriptionRecord } from '@/lib/payments/types';
 
 export type CouponDiscountType = 'percentage' | 'fixed' | 'trial_months' | 'free_period';
@@ -472,7 +472,7 @@ export class CouponService {
       return 'Dias grátis: informe um número inteiro de 1 a 730.';
     }
     if (input.applicablePlan) {
-      const plan = LUMIARDI_PLANS[input.applicablePlan as PlanId];
+      const plan = isPlanId(input.applicablePlan) ? LUMIARDI_PLANS[input.applicablePlan] : undefined;
       if (!plan) return 'Plano inválido.';
       if (input.targetRole === 'agency' && plan.category !== 'agencias') return 'Esse plano não é um plano de agência.';
       if (input.targetRole === 'creator' && plan.category !== 'criadoras') return 'Esse plano não é um plano de criadora.';

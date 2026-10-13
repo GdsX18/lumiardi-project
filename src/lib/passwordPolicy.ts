@@ -8,7 +8,11 @@
  */
 
 export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 128;
+/** O bcrypt só considera os primeiros 72 bytes: acima disso o resto da senha seria ignorado. */
+export const PASSWORD_MAX_LENGTH = 72;
+
+/** Custo do bcrypt para senhas novas (hashes antigos com custo 10 continuam válidos). */
+export const PASSWORD_BCRYPT_COST = 12;
 
 export type PasswordRequirement = 'min_length' | 'max_length' | 'letter' | 'number';
 
@@ -24,7 +28,7 @@ export function getPasswordIssues(password: unknown): PasswordRequirement[] {
   const pwd = normalizePassword(password);
   const issues: PasswordRequirement[] = [];
   if (pwd.length < PASSWORD_MIN_LENGTH) issues.push('min_length');
-  if (pwd.length > PASSWORD_MAX_LENGTH) issues.push('max_length');
+  if (new TextEncoder().encode(pwd).length > PASSWORD_MAX_LENGTH) issues.push('max_length');
   if (!/\p{L}/u.test(pwd)) issues.push('letter');
   if (!/\d/.test(pwd)) issues.push('number');
   return issues;
@@ -36,7 +40,7 @@ export function isStrongPassword(password: unknown): password is string {
 
 const ISSUE_TEXT_PT: Record<PasswordRequirement, string> = {
   min_length: `ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres`,
-  max_length: `ter no máximo ${PASSWORD_MAX_LENGTH} caracteres`,
+  max_length: `ter no máximo ${PASSWORD_MAX_LENGTH} caracteres (menos se usar acentos ou emojis)`,
   letter: 'conter pelo menos uma letra',
   number: 'conter pelo menos um número',
 };

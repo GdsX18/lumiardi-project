@@ -3,7 +3,7 @@ import { BillingService } from '@/lib/payments/billingService';
 import { withTransaction } from '@/lib/db';
 import { cache } from '@/lib/cache';
 import { StorageService } from '@/services/storageService';
-import { getPlan } from '@/lib/payments/plansConfig';
+import { getPlan, isPlanId } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, SubscriptionRecord } from '@/lib/payments/types';
 import { SessionUser, setSessionCookie } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
@@ -43,7 +43,14 @@ export async function POST(request: NextRequest) {
         : 'pix';
 
     step = 'pricing';
+    if (!isPlanId(planId)) {
+      return NextResponse.json({ error: 'Plano inválido especificado.', code: 'invalid_plan' }, { status: 400 });
+    }
     const plan = getPlan(planId);
+    // Plano de agência só para agência; plano de criadora só para criadora
+    if ((guard.user.role === 'agencia') !== (plan.category === 'agencias')) {
+      return NextResponse.json({ error: 'Este plano não corresponde ao seu tipo de conta.', code: 'invalid_plan' }, { status: 400 });
+    }
     const isYearly = billingInterval === 'yearly';
     const couponCode = rawBody.couponCode ? (sanitizeInput(rawBody.couponCode) as string).trim().toUpperCase() : undefined;
 

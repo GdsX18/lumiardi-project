@@ -129,6 +129,7 @@ export const publicFunnel: ModuleTranslations = {
     // ─── Qualificação (agência) ───────────────────────────────
     pub_qual_agency_err_kyc_required: 'A validação biométrica do responsável legal da agência é obrigatória para cadastro.',
     pub_qual_agency_err_2fa_required: 'A ativação da Blindagem 2FA (Google Authenticator) é obrigatória para proteger a conta corporativa.',
+    pub_qual_agency_err_password_reenter: "Por segurança a senha não fica salva entre as etapas. Digite a senha novamente para concluir o cadastro.",
     pub_qual_agency_scroll_aria: 'Rolar até o formulário de cadastro corporativo',
     pub_qual_agency_btn_pay: 'Prosseguir para Pagamento do Plano ({plan}) →',
     pub_qual_agency_btn_status: 'Ver Status da Minha Curadoria',
@@ -296,6 +297,7 @@ export const publicFunnel: ModuleTranslations = {
 
     pub_qual_agency_err_kyc_required: "Biometric verification of the agency's legal representative is required to register.",
     pub_qual_agency_err_2fa_required: 'Enabling 2FA Shielding (Google Authenticator) is required to protect the corporate account.',
+    pub_qual_agency_err_password_reenter: "For security, your password is not kept between steps. Please enter it again to finish signing up.",
     pub_qual_agency_scroll_aria: 'Scroll to the corporate registration form',
     pub_qual_agency_btn_pay: 'Proceed to Plan Payment ({plan}) →',
     pub_qual_agency_btn_status: 'View My Curation Status',
@@ -461,6 +463,7 @@ export const publicFunnel: ModuleTranslations = {
 
     pub_qual_agency_err_kyc_required: 'La validación biométrica del representante legal de la agencia es obligatoria para el registro.',
     pub_qual_agency_err_2fa_required: 'La activación del Blindaje 2FA (Google Authenticator) es obligatoria para proteger la cuenta corporativa.',
+    pub_qual_agency_err_password_reenter: "Por seguridad, la contraseña no se guarda entre los pasos. Introdúcela de nuevo para finalizar el registro.",
     pub_qual_agency_scroll_aria: 'Desplazarse al formulario de registro corporativo',
     pub_qual_agency_btn_pay: 'Continuar al Pago del Plan ({plan}) →',
     pub_qual_agency_btn_status: 'Ver el Estado de mi Curaduría',
@@ -626,6 +629,7 @@ export const publicFunnel: ModuleTranslations = {
 
     pub_qual_agency_err_kyc_required: "La vérification biométrique du représentant légal de l'agence est obligatoire pour l'inscription.",
     pub_qual_agency_err_2fa_required: "L'activation du Blindage 2FA (Google Authenticator) est obligatoire pour protéger le compte entreprise.",
+    pub_qual_agency_err_password_reenter: "Pour des raisons de sécurité, le mot de passe n'est pas conservé entre les étapes. Saisissez-le à nouveau pour terminer l'inscription.",
     pub_qual_agency_scroll_aria: "Faire défiler jusqu'au formulaire d'inscription entreprise",
     pub_qual_agency_btn_pay: 'Procéder au Paiement de la Formule ({plan}) →',
     pub_qual_agency_btn_status: 'Voir le Statut de ma Curation',
@@ -791,6 +795,7 @@ export const publicFunnel: ModuleTranslations = {
 
     pub_qual_agency_err_kyc_required: "La verifica biometrica del rappresentante legale dell'agenzia è obbligatoria per la registrazione.",
     pub_qual_agency_err_2fa_required: "L'attivazione della Blindatura 2FA (Google Authenticator) è obbligatoria per proteggere l'account aziendale.",
+    pub_qual_agency_err_password_reenter: "Per sicurezza la password non viene conservata tra i passaggi. Inseriscila di nuovo per completare la registrazione.",
     pub_qual_agency_scroll_aria: 'Scorri fino al modulo di registrazione aziendale',
     pub_qual_agency_btn_pay: 'Procedi al Pagamento del Piano ({plan}) →',
     pub_qual_agency_btn_status: 'Vedi lo Stato della mia Curatela',
@@ -956,6 +961,7 @@ export const publicFunnel: ModuleTranslations = {
 
     pub_qual_agency_err_kyc_required: 'Для регистрации обязательна биометрическая проверка законного представителя агентства.',
     pub_qual_agency_err_2fa_required: 'Для защиты корпоративного аккаунта обязательно включить защиту 2FA (Google Authenticator).',
+    pub_qual_agency_err_password_reenter: "В целях безопасности пароль не сохраняется между шагами. Введите его ещё раз, чтобы завершить регистрацию.",
     pub_qual_agency_scroll_aria: 'Перейти к форме корпоративной регистрации',
     pub_qual_agency_btn_pay: 'Перейти к оплате тарифа ({plan}) →',
     pub_qual_agency_btn_status: 'Статус моей кураторской проверки',

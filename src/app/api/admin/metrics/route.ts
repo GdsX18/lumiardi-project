@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao obter métricas';
+    console.error('[api/admin/metrics] Erro:', err);
+    const message = 'Erro ao obter métricas';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

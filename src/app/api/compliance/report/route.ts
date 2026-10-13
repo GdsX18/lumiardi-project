@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { EmailService } from '@/lib/email';
-import { checkRateLimit } from '@/lib/security/rateLimiter';
+import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
 import { pool, fallbackStore, initDatabase } from '@/lib/db';
 
 const CATEGORIES_MAP: Record<string, { title: string; priority: string }> = {
@@ -56,8 +56,7 @@ function sanitizeMultiLine(str?: string | null): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const forwarded = req.headers.get('x-forwarded-for');
-    const clientIp = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || '127.0.0.1';
+    const clientIp = getClientIp(req.headers);
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
     const rawBody = await req.json();
@@ -75,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Proteção Anti-Abuso (Rate Limiting)
-    const rateLimit = checkRateLimit(`compliance_${clientIp}`, {
+    const rateLimit = await checkRateLimitPersistent(`compliance_${clientIp}`, {
       windowMs: 60 * 60 * 1000, // 1 hora
       maxRequests: 5,
     });

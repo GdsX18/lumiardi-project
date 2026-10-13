@@ -64,15 +64,26 @@ export function checkRateLimit(
 }
 
 /**
- * IP do cliente para rate limiting e auditoria.
- * Prioriza headers definidos pela borda (Cloudflare / proxy reverso) e, no X-Forwarded-For,
- * usa a entrada mais à direita — a adicionada pelo proxy confiável, que o cliente não controla.
+ * IP do cliente para rate limiting e auditoria. Só lê headers que a borda sobrescreve — um header
+ * que passa direto do cliente (ex.: cf-connecting-ip sem Cloudflare na frente) permitiria trocar
+ * de "IP" a cada requisição e furar todos os limites.
+ *  - TRUSTED_CLIENT_IP_HEADER: header da borda confiável (ex.: "cf-connecting-ip" com Cloudflare
+ *    na frente e a origem fechada para acesso direto).
+ *  - Na Vercel: x-vercel-forwarded-for / x-real-ip, que a plataforma reescreve.
+ *  - Fora disso: a entrada mais à direita do X-Forwarded-For (a do proxy reverso).
  */
 export function getClientIp(headers: Headers): string {
-  const cf = headers.get('cf-connecting-ip');
-  if (cf) return cf.trim();
-  const realIp = headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
+  const firstValue = (v: string | null) => (v ? v.split(',')[0].trim() : '');
+
+  const trustedHeader = process.env.TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (trustedHeader) {
+    const ip = firstValue(headers.get(trustedHeader));
+    if (ip) return ip;
+  }
+  if (process.env.VERCEL) {
+    const ip = firstValue(headers.get('x-vercel-forwarded-for')) || firstValue(headers.get('x-real-ip'));
+    if (ip) return ip;
+  }
   const forwarded = headers.get('x-forwarded-for');
   if (forwarded) {
     const parts = forwarded.split(',').map((p) => p.trim()).filter(Boolean);

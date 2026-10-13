@@ -14,8 +14,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SECURITY_HEADERS } from '@/lib/security';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** Origens aceitas para requisições que alteram dados: o próprio host e o domínio oficial. */
+function isAllowedOrigin(origin: string, request: NextRequest): boolean {
+  try {
+    const originHost = new URL(origin).host.toLowerCase();
+    // Host real da requisição (o nextUrl pode vir normalizado, ex.: localhost em vez do IP)
+    const requestHosts = [request.headers.get('x-forwarded-host'), request.headers.get('host'), request.nextUrl.host]
+      .flatMap((h) => (h ? h.split(',') : []))
+      .map((h) => h.trim().toLowerCase());
+    if (requestHosts.includes(originHost)) return true;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    return Boolean(appUrl && originHost === new URL(appUrl).host);
+  } catch {
+    return false;
+  }
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 0. CSRF: escrita na API só a partir do próprio site. O navegador sempre envia Origin em POST/PUT/
+  //    PATCH/DELETE; um formulário de outro site (ex.: login forçado na conta do atacante) é recusado.
+  //    Webhooks vêm de servidores dos gateways e têm assinatura própria.
+  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/webhooks/') && !SAFE_METHODS.has(request.method)) {
+    const origin = request.headers.get('origin');
+    if (origin && !isAllowedOrigin(origin, request)) {
+      return NextResponse.json({ error: 'Origem não permitida.', code: 'forbidden' }, { status: 403 });
+    }
+  }
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = decodeSession(cookie);
 

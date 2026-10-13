@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json(
@@ -66,7 +67,8 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao recuperar usuário';
+    console.error('[api/user/me] Erro:', err);
+    const message = 'Erro ao recuperar usuário';
     return NextResponse.json(
       { error: 'Falha ao recuperar sessão.', details: message },
       { status: 500 }

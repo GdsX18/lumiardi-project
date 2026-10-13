@@ -287,7 +287,8 @@ export const SharedDrivePanel: React.FC<SharedDrivePanelProps> = ({
           }
           const formData = new FormData();
           formData.append('file', file);
-          formData.append('category', category);
+          // Pasta restrita do drive privado (a categoria escolhida vai no /api/drive/confirm)
+          formData.append('category', 'drive');
           const fbRes = await fetch('/api/upload', {
             method: 'POST',
             body: formData,

@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 import { R2StorageService } from '@/lib/storage/r2Service';
-import { canWriteMedia, normalizeMediaKey, parseMediaKey } from '@/lib/storage/mediaAccess';
-import { normalizeCategory } from '@/lib/storage/uploadPolicy';
+import { normalizeMediaKey, parseMediaKey } from '@/lib/storage/mediaAccess';
+import { canWriteMediaWithContract } from '@/lib/storage/sharedAccess';
+import { checkUpload, normalizeCategory } from '@/lib/storage/uploadPolicy';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json({ error: 'Sessão expirada ou não autenticado.' }, { status: 401 });
     }
@@ -24,13 +26,20 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!canWriteMedia(fileKey, session)) {
+    if (!(await canWriteMediaWithContract(fileKey, session))) {
       return NextResponse.json({ error: 'Sem permissão para este arquivo.', code: 'forbidden' }, { status: 403 });
     }
 
     const head = await R2StorageService.headObject(fileKey);
     if (!head) {
       return NextResponse.json({ error: 'Arquivo não encontrado no armazenamento.', code: 'not_found' }, { status: 404 });
+    }
+    // O PUT pré-assinado não amarra o Content-Type nem (sem tamanho declarado) o tamanho:
+    // vale o que de fato foi gravado. Fora da política, o objeto é apagado.
+    const stored = checkUpload(head.contentType, head.size);
+    if (!stored.ok) {
+      await R2StorageService.deleteObject(fileKey).catch(() => false);
+      return NextResponse.json({ error: stored.error, code: stored.code }, { status: 400 });
     }
 
     const parsedKey = parseMediaKey(fileKey);
@@ -86,7 +95,8 @@ export async function POST(req: NextRequest) {
       size,
       uploadedBy: session.name || 'Você',
       fileUrl,
-      privacy: body.privacy || 'agency-only',
+      // "public" listaria o arquivo no drive de todas as usuárias: nunca vem do cliente
+      privacy: body.privacy === 'encrypted' ? 'encrypted' : 'agency-only',
     });
 
     return NextResponse.json({ success: true, file: savedFile });

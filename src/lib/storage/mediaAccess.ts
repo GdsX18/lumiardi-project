@@ -72,7 +72,7 @@ export function getMediaAccessLevel(parsed: ParsedMediaKey): MediaAccessLevel {
   return 'restricted';
 }
 
-function isStaff(session: SessionUser): boolean {
+export function isStaff(session: SessionUser): boolean {
   return session.role === 'admin' || Boolean(session.curationRole);
 }
 

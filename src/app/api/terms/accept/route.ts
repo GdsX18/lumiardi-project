@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+
 import { pool, initDatabase } from '@/lib/db';
+import { getClientIp } from '@/lib/security/rateLimiter';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     const body = await req.json();
-    const { termsVersion = 'v2.1-2026-09' } = body;
+    // Versão registrada no aceite (prova legal): só versões publicadas
+    const termsVersion = typeof body.termsVersion === 'string' && /^v\d+(\.\d+)*-\d{4}-\d{2}$/.test(body.termsVersion)
+      ? body.termsVersion
+      : 'v2.1-2026-09';
 
-    const clientIp =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip') ||
-      'unknown';
+    const clientIp = getClientIp(req.headers);
     const userAgent = req.headers.get('user-agent') || '';
 
     if (session?.id) {
@@ -40,9 +42,10 @@ export async function POST(req: NextRequest) {
       acceptedAt: new Date().toISOString(),
       termsVersion,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error('[api/terms/accept] Erro:', error);
     return NextResponse.json(
-      { error: 'Failed to record acceptance', detail: error.message },
+      { error: 'Failed to record acceptance' },
       { status: 500 }
     );
   }

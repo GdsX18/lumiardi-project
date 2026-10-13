@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 import { SubscriptionRecord } from '@/lib/payments/types';
 
@@ -27,7 +28,7 @@ function toPublicSubscription(sub: SubscriptionRecord) {
 export async function GET(request: NextRequest) {
   try {
     // Identidade exclusivamente da sessão assinada
-    const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    const session = await getActiveSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
     if (!session?.id) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }

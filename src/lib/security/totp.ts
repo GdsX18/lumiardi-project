@@ -92,30 +92,36 @@ export function generateTOTP(secretBase32: string, time = Date.now(), timeStep =
 }
 
 /**
- * Valida o código TOTP fornecido pelo usuário com tolerância de janela (skew de ±2 períodos = 60s)
+ * Contador (passo de 30s) que o código TOTP representa, aceitando ±1 período de relógio (30s);
+ * null se não confere. Permite à rota de login recusar o reuso do mesmo código.
  */
-export function verifyTOTP(
+export function matchTOTPCounter(
   token: string,
   secretBase32: string,
   time = Date.now(),
-  window = 2,
+  window = 1,
   timeStep = 30
-): boolean {
-  if (!token) return false;
+): number | null {
+  if (!token) return null;
   const cleanToken = token.trim();
-  if (cleanToken.length !== 6) return false;
+  if (!/^\d{6}$/.test(cleanToken)) return null;
 
   const currentCounter = Math.floor(time / 1000 / timeStep);
-
+  let matched: number | null = null;
+  // Percorre a janela inteira (sem retorno antecipado) e compara em tempo constante
   for (let i = -window; i <= window; i++) {
     const stepTime = (currentCounter + i) * timeStep * 1000;
     const generated = generateTOTP(secretBase32, stepTime, timeStep);
-    if (cleanToken === generated) {
-      return true;
+    if (crypto.timingSafeEqual(Buffer.from(cleanToken), Buffer.from(generated)) && matched === null) {
+      matched = currentCounter + i;
     }
   }
+  return matched;
+}
 
-  return false;
+/** Valida o código TOTP fornecido pelo usuário (±1 período de tolerância de relógio). */
+export function verifyTOTP(token: string, secretBase32: string, time = Date.now()): boolean {
+  return matchTOTPCounter(token, secretBase32, time) !== null;
 }
 
 /**

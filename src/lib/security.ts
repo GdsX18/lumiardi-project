@@ -52,11 +52,17 @@ export const SECURITY_HEADERS: SecurityHeadersConfig = {
  */
 export function sanitizeInput(input: unknown): string {
   if (typeof input !== 'string') return '';
-  return input
-    .replace(/[<>]/g, '') // Remove tags html diretas
-    .replace(/javascript:/gi, '') // Remove pseudo-protocolos js
-    .replace(/on\w+=/gi, '') // Remove handlers de eventos inline
-    .trim();
+  // Repete até estabilizar: "javajavascript:script:" não pode remontar o padrão após uma passada
+  let out = input;
+  let prev: string;
+  do {
+    prev = out;
+    out = out
+      .replace(/[<>]/g, '') // Remove tags html diretas
+      .replace(/javascript:/gi, '') // Remove pseudo-protocolos js
+      .replace(/on\w+=/gi, ''); // Remove handlers de eventos inline
+  } while (out !== prev);
+  return out.trim();
 }
 
 /**

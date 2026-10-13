@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 import { BillingService } from '@/lib/payments/billingService';
 import { getPlan } from '@/lib/payments/plansConfig';
 
+const DRIVE_PRIVACY = new Set(['public', 'agency-only', 'encrypted', 'official']);
+
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -37,7 +40,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao listar arquivos do drive';
+    console.error('[api/drive] Erro:', err);
+    const message = 'Erro ao listar arquivos do drive';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -45,10 +49,19 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    }
+    // Registro manual (URL/arquivo livre) só para a curadoria publicar documentos oficiais.
+    // Usuárias enviam por /api/drive/upload-url + /api/drive/confirm, onde a URL e o tamanho
+    // vêm do objeto gravado, nunca do corpo da requisição.
+    if (session.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Use o envio de arquivos do drive para adicionar documentos.', code: 'forbidden' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -60,30 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nome e URL/conteúdo do arquivo são obrigatórios.' }, { status: 400 });
     }
 
-    // Validação estrita de limites de cota do Plano
-    const [usage, subscription] = await Promise.all([
-      StorageService.getUserDriveUsage(session.id),
-      BillingService.getUserSubscription(session.id),
-    ]);
-
-    const defaultPlanId = session.role === 'agencia' ? 'select' : 'glow';
-    const plan = getPlan(subscription?.planId || defaultPlanId);
-    const maxGB = typeof plan.limits.maxDriveStorageGB === 'number' ? plan.limits.maxDriveStorageGB : 5;
-
-    const newFileBytes = StorageService.parseSizeToBytes(sizeStr);
-    const newFileGB = newFileBytes / (1024 * 1024 * 1024);
-
-    if (usage.totalGB + newFileGB > maxGB) {
-      return NextResponse.json(
-        {
-          error: `Limite de armazenamento do plano ${plan.name} atingido (${maxGB} GB). Faça upgrade para continuar enviando novos arquivos.`,
-          currentUsageGB: usage.totalGB,
-          maxStorageGB: maxGB,
-        },
-        { status: 403 }
-      );
-    }
-
+    // Documentos oficiais da curadoria não contam cota de plano
     const savedFile = await StorageService.saveDriveFile({
       userId: session.id,
       name,
@@ -92,12 +82,13 @@ export async function POST(request: NextRequest) {
       size: sizeStr,
       uploadedBy: session.name || 'Você',
       fileUrl,
-      privacy: body.privacy || 'agency-only',
+      privacy: DRIVE_PRIVACY.has(body.privacy) ? body.privacy : 'agency-only',
     });
 
     return NextResponse.json({ success: true, file: savedFile });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao salvar arquivo no drive';
+    console.error('[api/drive] Erro:', err);
+    const message = 'Erro ao salvar arquivo no drive';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -105,7 +96,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -128,7 +119,8 @@ export async function DELETE(request: NextRequest) {
     }
     return NextResponse.json({ success: true, message: 'Arquivo removido com sucesso.' });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao deletar arquivo do drive';
+    console.error('[api/drive] Erro:', err);
+    const message = 'Erro ao deletar arquivo do drive';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -136,7 +128,7 @@ export async function DELETE(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -144,9 +136,7 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     if (body.id) {
-      // In a real scenario, we should check if the file exists and is accessible by the user,
-      // but for incrementing downloads, an auth check is a good start.
-      await StorageService.incrementDriveDownloads(body.id);
+      await StorageService.incrementDriveDownloads(String(body.id), session.id);
       return NextResponse.json({ success: true });
     }
     return NextResponse.json({ error: 'ID ausente.' }, { status: 400 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientIp } from '@/lib/security/rateLimiter';
 import { StorageService } from '@/services/storageService';
 import { AuditLogService } from '@/lib/audit/auditService';
 import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
@@ -21,7 +22,8 @@ export async function GET(
 
     return NextResponse.json({ success: true, notes });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao listar notas';
+    console.error('[api/admin/applications/[id]/notes] Erro:', err);
+    const message = 'Erro ao listar notas';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -54,7 +56,7 @@ export async function POST(
     });
 
     // Registrar no AuditLog
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const ip = getClientIp(request.headers);
     const targetUserRecord = (await StorageService.getUserById(id)) as any;
     const targetName = targetUserRecord?.fullName || targetUserRecord?.user?.name || targetUserRecord?.basicInfo?.fullName || id;
 
@@ -73,7 +75,8 @@ export async function POST(
 
     return NextResponse.json({ success: true, note });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao salvar nota';
+    console.error('[api/admin/applications/[id]/notes] Erro:', err);
+    const message = 'Erro ao salvar nota';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

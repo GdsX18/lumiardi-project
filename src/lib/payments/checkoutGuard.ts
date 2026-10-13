@@ -7,7 +7,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME, SessionUser } from '@/lib/auth';
 import { pool, initDatabase } from '@/lib/db';
 
 export const PAYABLE_STATUSES = ['APROVADA_PAGAMENTO', 'APROVADO'] as const;
@@ -29,7 +30,7 @@ export interface PayableUser {
 export type CheckoutGuardResult = { ok: true; user: PayableUser } | { ok: false; response: NextResponse };
 
 export async function requirePayableUser(request: NextRequest): Promise<CheckoutGuardResult> {
-  const session = decodeSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  const session = await getActiveSession(request.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!session) {
     return {
       ok: false,

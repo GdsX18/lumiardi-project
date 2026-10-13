@@ -352,8 +352,17 @@ function QualificacaoContent() {
 
   // ─── Submissão Final e Agendamento ──────────────────────────────
   const handleFinalSubmit = async () => {
-    setIsSubmitting(true);
     setSubmissionError(null);
+
+    // O rascunho salvo nunca guarda a senha: após recarregar a página ela precisa ser redigitada
+    if (!isStrongPassword(basicData.password)) {
+      setCurrentStep(1);
+      setSubmissionError(t('pub_qual_agency_err_password_reenter'));
+      window.scrollTo({ top: 300, behavior: 'smooth' });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     if (!appointment.date || !appointment.timeSlot) {
       setSubmissionError(t('pub_qual_err_schedule_required'));
@@ -370,7 +379,7 @@ function QualificacaoContent() {
           email: basicData.email,
           whatsapp: basicData.whatsapp,
           phone: basicData.whatsapp,
-          password: basicData.password,
+          password: basicData.password.trim(),
           address: basicData.address,
           document: {
             documentType: basicData.document?.type === 'passaporte' ? 'passaporte' : 'rg_cnh',

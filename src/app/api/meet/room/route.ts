@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
+import { getMeetSession, meetUserRole, newMeetRoomId, resolveMeetParticipantId } from '@/lib/meetIdentity';
 import { MeetService } from '@/services/meetService';
 
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.json().catch(() => ({}));
     const action = rawBody.action || 'create';
-    const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
 
-    const participantId = session?.id || rawBody.participantId || `guest-${crypto.randomBytes(3).toString('hex')}`;
-    const participantName = session?.name || rawBody.participantName || 'Membro VIP Lumiardi';
-    const userRole: 'agency' | 'model' | 'admin' | 'guest' =
-      session?.role === 'agencia'
-        ? 'agency'
-        : session?.role === 'criadora'
-        ? 'model'
-        : session?.role === 'admin'
-        ? 'admin'
-        : 'guest';
+    // Salas só para contas logadas: status, criação e saída nunca aceitam identidade vinda do corpo
+    const session = await getMeetSession(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Faça login para usar o Lumiardi Meet.', code: 'unauthorized' }, { status: 401 });
+    }
+
+    const participantId = resolveMeetParticipantId(session, rawBody.participantId);
+    const participantName = session.name || 'Membro VIP Lumiardi';
+    const userRole = meetUserRole(session);
 
     // 1. AÇÃO: Encerrar ou Sair de uma Sala
     if (action === 'leave' || action === 'end') {
@@ -56,11 +53,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. AÇÃO: Criar Nova Sala Dinâmica sob Demanda
-    const customRoomName = sanitizeInput(rawBody.roomName || '');
-    const roomId = customRoomName
-      ? `LM-${customRoomName.toUpperCase().replace(/[^A-Z0-9-]/g, '')}`
-      : `LM-${crypto.randomBytes(3).toString('hex').toUpperCase()}-VIP`;
+    // 3. AÇÃO: Criar Nova Sala Dinâmica sob Demanda (id aleatório; nomes escolhidos seriam adivinháveis)
+    const roomId = newMeetRoomId();
 
     const passcode = crypto.randomInt(100000, 999999).toString();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -112,7 +106,7 @@ export async function POST(request: NextRequest) {
     // Registra a sala no banco de dados compartilhado
     const roomRecord = await MeetService.createOrGetRoom({
       roomId,
-      hostId: participantId,
+      hostId: session.id,
       hostName: participantName,
       passcode,
       provider,
@@ -130,6 +124,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      participantId,
       roomId: roomRecord.roomId,
       passcode,
       inviteUrl,
@@ -141,7 +136,7 @@ export async function POST(request: NextRequest) {
       encryption: 'AES-256-GCM / WebRTC DTLS-SRTP',
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro ao processar requisição de sala';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[Meet Room] Erro:', err);
+    return NextResponse.json({ error: 'Erro ao processar requisição de sala' }, { status: 500 });
   }
 }

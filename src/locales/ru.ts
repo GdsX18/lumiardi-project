@@ -1153,6 +1153,7 @@ export const ru: Record<string, string> = {
     "twofa_step1_desc": "В приложении Google Authenticator нажмите + и отсканируйте код.",
     "twofa_step1_title": "Шаг 1: Отсканируйте QR-код",
     "twofa_step2_title": "Шаг 2: Введите 6-значный код:",
+    "twofa_current_code_label": "Код из текущего приложения-аутентификатора (уже привязанное устройство):",
     "twofa_success_desc": "Теперь ваш аккаунт надежно защищен двухфакторной аутентификацией.",
     "twofa_success_title": "2FA успешно активирована!",
     "twofa_test_code_fill": "Вставить тестовый код ({otp})",

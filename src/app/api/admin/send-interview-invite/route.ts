@@ -30,6 +30,17 @@ export async function POST(req: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // Mesmo RBAC da mesa de curadoria: o convite move a candidata para AGUARDANDO_REUNIAO,
+    // e Curador Júnior só lê e anota
+    if ((session.curationRole || 'curador_junior') === 'curador_junior') {
+      return NextResponse.json(
+        {
+          error: 'Curador Júnior possui permissão somente de leitura e inserção de notas.',
+          code: 'INSUFFICIENT_PERMISSIONS',
+        },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json().catch(() => ({}));
 
@@ -43,6 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const finalMeetLink = parsedMeet.data;
+    let statusChange: { from: string; to: string } | null = null;
 
     const {
       interviewId,
@@ -184,6 +196,10 @@ export async function POST(req: NextRequest) {
         }
 
         const timeVal = interviewTimeParam || candidateUser.interview_time || '14:00';
+        statusChange =
+          String(candidateUser.curation_status || '').toUpperCase() === 'EM_CURATORIA'
+            ? { from: 'EM_CURATORIA', to: 'AGUARDANDO_REUNIAO' }
+            : null;
         const rawPhotos = Array.isArray(candidateUser.photos) ? candidateUser.photos : [];
         const photoUrl = candidateUser.avatar_url || (rawPhotos[0]?.url || '');
 
@@ -288,7 +304,7 @@ export async function POST(req: NextRequest) {
         userId: session.id,
         userName: session.name || 'Admin Curadoria',
         userEmail: session.email || 'admin@lumiardi.com',
-        userRole: 'ADMIN',
+        userRole: session.curationRole || 'admin',
         actionType: 'SEND_INTERVIEW_INVITE_EMAIL',
         targetId: interview.user_id || interview.userId || targetId,
         targetName: candidateName,
@@ -297,6 +313,7 @@ export async function POST(req: NextRequest) {
           interviewId: interview.id,
           meetLink: finalMeetLink,
           sentTo: toEmail,
+          statusChange,
           interviewDate: String(dateDisplay),
           interviewTime: String(timeDisplay),
           simulated: emailResult.simulated,

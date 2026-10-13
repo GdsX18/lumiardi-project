@@ -209,8 +209,18 @@ function AgenciaQualificacaoContent() {
 
   // ─── Submissão Final e Agendamento ──────────────────────────────
   const handleFinalSubmit = async () => {
-    setIsSubmitting(true);
     setSubmissionError(null);
+
+    // O rascunho salvo nunca guarda a senha: se a página foi recarregada entre as etapas, ela
+    // precisa ser digitada de novo antes de concluir (antes, o erro só aparecia no fim)
+    if (!isStrongPassword(basicData.password)) {
+      setCurrentStep(1);
+      setSubmissionError(t('pub_qual_agency_err_password_reenter'));
+      window.scrollTo({ top: 300, behavior: 'smooth' });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const fullProfile: Partial<CompleteAgencyProfile> = {
@@ -218,6 +228,8 @@ function AgenciaQualificacaoContent() {
           responsibleName: basicData.responsibleName,
           taxId: basicData.taxId,
           corporateEmail: basicData.corporateEmail,
+          // Sem este campo a API recebia senha vazia e recusava o cadastro com "weak_password"
+          password: basicData.password.trim(),
           document: {
             documentType: basicData.document?.type === 'passaporte' ? 'passaporte' : 'rg_cnh',
             fileName: basicData.document?.fileName || 'documento.pdf',

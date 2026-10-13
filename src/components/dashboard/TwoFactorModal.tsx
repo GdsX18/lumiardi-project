@@ -32,6 +32,9 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [currentOtp, setCurrentOtp] = useState('');
   const [tokenInput, setTokenInput] = useState('');
+  // Conta com 2FA já ativo: trocar de aparelho exige o código do autenticador atual
+  const [needsCurrentCode, setNeedsCurrentCode] = useState(false);
+  const [currentTokenInput, setCurrentTokenInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -87,10 +90,19 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
       const res = await fetch('/api/auth/2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenInput, secret, purpose: mode }),
+        body: JSON.stringify({
+          token: tokenInput,
+          secret,
+          purpose: mode,
+          ...(needsCurrentCode ? { currentToken: currentTokenInput } : {}),
+        }),
       });
 
       const data = await res.json();
+
+      if (data?.code === 'two_factor_current_required' || data?.code === 'two_factor_current_invalid') {
+        setNeedsCurrentCode(true);
+      }
 
       if (res.ok && data.success) {
         setStep('success');
@@ -267,6 +279,22 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
                 />
               </div>
 
+              {needsCurrentCode && (
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-wider text-ivory/70 font-semibold block">
+                    {t('twofa_current_code_label')}
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={currentTokenInput}
+                    onChange={(e) => setCurrentTokenInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    className="w-full bg-[#070707] border border-white/20 focus:border-[#C9A96B] text-center text-2xl font-mono tracking-[0.4em] py-2.5 text-ivory focus:outline-hidden"
+                  />
+                </div>
+              )}
+
               {errorMessage && (
                 <div className="p-3 bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -276,7 +304,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ isOpen, onClose,
 
               <button
                 type="submit"
-                disabled={isVerifying || tokenInput.length !== 6}
+                disabled={isVerifying || tokenInput.length !== 6 || (needsCurrentCode && currentTokenInput.length !== 6)}
                 className="w-full py-3.5 bg-[#C9A96B] hover:bg-[#D4B87A] text-[#0B0B0B] text-xs font-sans uppercase tracking-[0.2em] font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
               >
                 {isVerifying ? (

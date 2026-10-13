@@ -8,6 +8,8 @@ import { AsaasApiError } from '@/lib/payments/asaasClient';
 import { NowPaymentsApiError } from '@/lib/payments/nowpaymentsAdapter';
 import { asaasErrorCode, asaasGatewayError, checkoutDebugFields } from '@/lib/payments/asaasErrors';
 import { cleanCpfCnpj, cleanPhoneBR } from '@/lib/payments/document';
+import { getPlan, isPlanId } from '@/lib/payments/plansConfig';
+import { CouponUnavailableError } from '@/lib/payments/asaasAdapter';
 
 export async function POST(request: NextRequest) {
   // Etapa em curso: identifica onde uma exceção interna (não-Asaas) ocorreu
@@ -37,6 +39,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    // O planId vai para a externalReference do gateway: só ids cadastrados (nada de "radiance:yearly")
+    if (!isPlanId(planId)) {
+      return NextResponse.json({ error: 'Plano inválido especificado.', code: 'invalid_plan' }, { status: 400 });
+    }
 
     // Identidade exclusivamente da sessão assinada; só quem foi aprovada pela curadoria pode gerar cobrança
     step = 'load_user';
@@ -44,6 +50,10 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response;
     const { id: userId, email: userEmail, name: userName } = guard.user;
     const userRole = guard.user.role === 'agencia' ? 'agencia' : 'criadora';
+    // Plano de agência só para agência; plano de criadora só para criadora
+    if ((userRole === 'agencia') !== (getPlan(planId).category === 'agencias')) {
+      return NextResponse.json({ error: 'Este plano não corresponde ao seu tipo de conta.', code: 'invalid_plan' }, { status: 400 });
+    }
 
     // O Asaas só emite Pix para cliente com CPF/CNPJ válido (só dígitos): o digitado no checkout ou o do cadastro
     const typedDocument = rawBody.cpfCnpj || rawBody.cpf;
@@ -106,8 +116,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Cripto: o IPN da NOWPayments não traz quem pagou — o webhook identifica usuária, plano e
+    // valor por esta transação pendente (chave: payment_id). Sem ela o pagamento não é ativado.
+    if (sessionResult.cryptoDetails?.paymentId) {
+      step = 'record_crypto';
+      await BillingService.recordTransaction({
+        userId,
+        gateway: 'nowpayments',
+        gatewayTransactionId: sessionResult.cryptoDetails.paymentId,
+        amount: sessionResult.orderSummary.amount,
+        currency: 'USD',
+        status: 'pending',
+        paymentMethod: 'crypto',
+        cryptoAddress: sessionResult.cryptoDetails.payAddress,
+        cryptoAmount: sessionResult.cryptoDetails.payAmount,
+        cryptoCurrency: sessionResult.cryptoDetails.payCurrency,
+        rawPayload: {
+          planId: sessionResult.orderSummary.planId,
+          interval,
+          orderSummary: sessionResult.orderSummary,
+        },
+        idempotencyKey: `init_crypto_${sessionResult.cryptoDetails.paymentId}`,
+      });
+    }
+
     return NextResponse.json(sessionResult);
   } catch (err: unknown) {
+    if (err instanceof CouponUnavailableError) {
+      return NextResponse.json({ error: err.message, code: 'coupon_invalid' }, { status: 400 });
+    }
     if (err instanceof AsaasApiError) {
       console.error('[API Checkout] Erro Asaas:', JSON.stringify({ stage: err.stage, status: err.status, asaasCode: err.code, message: err.message, asaasResponse: err.details }));
       const code = asaasErrorCode(err);

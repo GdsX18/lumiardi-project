@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { BiometricEngine } from '@/lib/kyc/biometricEngine';
 import { initDatabase, pool } from '@/lib/db';
 import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
 import { cache } from '@/lib/cache';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { EmailService } from '@/lib/email';
+
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,9 +23,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    // Duas imagens otimizadas cabem com folga em 12 MB; acima disso é abuso (custo de IA e memória)
+    const declaredLength = Number(request.headers.get('content-length') || 0);
+    if (declaredLength > MAX_BODY_BYTES) {
+      return NextResponse.json({ success: false, approved: false, error: 'Imagens grandes demais.', code: 'upload_too_large' }, { status: 413 });
+    }
+    const rawText = await request.text();
+    if (rawText.length > MAX_BODY_BYTES) {
+      return NextResponse.json({ success: false, approved: false, error: 'Imagens grandes demais.', code: 'upload_too_large' }, { status: 413 });
+    }
+    const body = JSON.parse(rawText || '{}');
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
+
+    // Sem sessão (pré-cadastro) há também um teto diário somado de todos os IPs: limita o custo
+    // da API de visão mesmo com muitos IPs diferentes
+    if (!session) {
+      const anonLimit = await checkRateLimitPersistent('kyc:anonymous:all', {
+        windowMs: 24 * 60 * 60 * 1000,
+        maxRequests: Number(process.env.KYC_ANON_DAILY_LIMIT || 300),
+      });
+      if (!anonLimit.allowed) {
+        return NextResponse.json(
+          { success: false, approved: false, error: 'Verificação temporariamente indisponível. Tente novamente mais tarde.', code: 'rate_limited' },
+          { status: 429 }
+        );
+      }
+    }
 
     // Sem sessão (etapa de qualificação, antes do cadastro) a análise é apenas consultiva
     const userId = session?.id || `pre-registration-${Date.now()}`;

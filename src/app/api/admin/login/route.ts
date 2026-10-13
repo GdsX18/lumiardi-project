@@ -6,6 +6,9 @@ import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } fro
 import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
 
 const LOGIN_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
+// Limite por conta (somando todos os IPs) bem mais alto: segura força bruta distribuída sem deixar
+// que 10 tentativas de um estranho bloqueiem o login da dona da conta
+const ACCOUNT_WINDOW = { windowMs: 15 * 60 * 1000, maxRequests: 50 };
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,7 +33,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Limite por conta: bloqueia força bruta distribuída em vários IPs
-    const accountLimit = await checkRateLimitPersistent(`admin-login:email:${email.toLowerCase()}`, LOGIN_WINDOW);
+    const pairLimit = await checkRateLimitPersistent(`admin-login:email-ip:${email.toLowerCase()}:${ip}`, LOGIN_WINDOW);
+    const accountLimit = pairLimit.allowed
+      ? await checkRateLimitPersistent(`admin-login:email:${email.toLowerCase()}`, ACCOUNT_WINDOW)
+      : pairLimit;
     if (!accountLimit.allowed) {
       return NextResponse.json(
         { error: 'Muitas tentativas de login. Aguarde e tente novamente.', code: 'rate_limited' },

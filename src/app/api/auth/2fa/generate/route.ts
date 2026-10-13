@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { generateTOTPSecret, getTOTPAuthUri, getQRCodeImageUrl } from '@/lib/security/totp';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { sanitizeInput } from '@/lib/security';
 
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}$/;
@@ -8,7 +9,7 @@ const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}$/;
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     // No cadastro ainda não há sessão: o e-mail informado serve apenas de rótulo no app autenticador
     const body = await request.json().catch(() => ({}));

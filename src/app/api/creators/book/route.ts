@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json(
@@ -35,9 +36,9 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao recuperar book da criadora';
+    console.error('[api/creators/book] Erro:', err);
     return NextResponse.json(
-      { success: false, error: 'Falha ao buscar dados do book.', details: message },
+      { success: false, error: 'Falha ao buscar dados do book.' },
       { status: 500 }
     );
   }

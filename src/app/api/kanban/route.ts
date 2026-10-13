@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decodeSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { getActiveSession } from '@/lib/apiAuth';
+import { SESSION_COOKIE_NAME } from '@/lib/auth';
 import { StorageService } from '@/services/storageService';
 import { sanitizeInput } from '@/lib/security';
 
 export async function GET(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -15,7 +16,8 @@ export async function GET(request: NextRequest) {
     const tasks = await StorageService.listKanbanTasks(session.id);
     return NextResponse.json({ success: true, tasks });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao listar tarefas do kanban';
+    console.error('[api/kanban] Erro:', err);
+    const message = 'Erro ao listar tarefas do kanban';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -51,7 +53,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, task });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao criar tarefa';
+    console.error('[api/kanban] Erro:', err);
+    const message = 'Erro ao criar tarefa';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -59,7 +62,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -79,7 +82,8 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Tarefa atualizada com sucesso.' });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao atualizar tarefa';
+    console.error('[api/kanban] Erro:', err);
+    const message = 'Erro ao atualizar tarefa';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -87,7 +91,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const session = decodeSession(cookie);
+    const session = await getActiveSession(cookie);
 
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
@@ -104,7 +108,8 @@ export async function DELETE(request: NextRequest) {
     await StorageService.deleteKanbanTask(id, session.id, isAdmin);
     return NextResponse.json({ success: true, message: 'Tarefa removida com sucesso.' });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro ao deletar tarefa';
+    console.error('[api/kanban] Erro:', err);
+    const message = 'Erro ao deletar tarefa';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

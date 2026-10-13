@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveSession } from '@/lib/apiAuth';
 import { CouponService } from '@/services/couponService';
 import { sanitizeInput } from '@/lib/security';
 import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
-import { getSessionFromCookie } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Cupons podem ser restritos a agências/criadoras: o público vem da sessão assinada
-    const session = await getSessionFromCookie();
+    const session = await getActiveSession();
     if (!session) {
       return NextResponse.json(
         { valid: false, message: 'Faça login para aplicar um cupom.', code: 'unauthorized' },

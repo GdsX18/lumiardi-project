@@ -492,7 +492,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
           currentUser?.name ||
           'Membro VIP';
 
-        await fetch('/api/meet/signal', {
+        const joinRes = await fetch('/api/meet/signal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -502,6 +502,9 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
             participantName: myDisplayName,
           }),
         });
+        // O servidor deriva o id do participante da sessão (<userId>.<aba>): passa a usar o dele
+        const joinData = joinRes.ok ? await joinRes.json().catch(() => null) : null;
+        if (joinData?.participantId) participantIdRef.current = joinData.participantId;
       } catch {}
 
       if (signalingPollRef.current) clearInterval(signalingPollRef.current);
@@ -621,6 +624,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
         if (!tokenRes.ok) return false;
         const data = await tokenRes.json();
+        if (data.participantId) participantIdRef.current = data.participantId;
 
         if (!data.success || !data.token || !data.serverUrl) {
           return false;
@@ -840,6 +844,7 @@ export const VideoCallWidget: React.FC<VideoCallWidgetProps> = ({
 
       if (res.ok) {
         const data = await res.json();
+        if (data.participantId) participantIdRef.current = data.participantId;
         setActiveRoomId(data.roomId);
         if (data.dailyRoomUrl) {
           setDailyUrl(data.dailyRoomUrl);

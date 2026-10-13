@@ -24,7 +24,10 @@ import {
 import { SessionUser } from '@/lib/auth';
 import crypto from 'crypto';
 import { getDirectConversationId, isAdminRole, normalizeSenderRole } from '@/lib/chatRoles';
-import { isStrongPassword, normalizePassword } from '@/lib/passwordPolicy';
+import { isStrongPassword, normalizePassword, PASSWORD_BCRYPT_COST } from '@/lib/passwordPolicy';
+
+/** Hash de uma senha aleatória, usado só para igualar o tempo do login quando a conta não existe. */
+const TIMING_DUMMY_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10);
 
 /** Política mínima de senha: 8+ caracteres, com letras e números (mesma regra do formulário). */
 export { isStrongPassword };
@@ -158,6 +161,9 @@ export const StorageService = {
         [normEmail]
       );
 
+      // Conta inexistente custa o mesmo bcrypt: o tempo de resposta não revela e-mails cadastrados
+      if (res.rows.length === 0) await bcrypt.compare(cleanPass, TIMING_DUMMY_HASH);
+
       if (res.rows.length > 0) {
         const user = res.rows[0];
         const match = await bcrypt.compare(cleanPass, user.password_hash);
@@ -205,6 +211,8 @@ export const StorageService = {
         'SELECT * FROM admin_users WHERE LOWER(email) = $1 AND status = $2',
         [normEmail, 'active']
       );
+
+      if (adminRes.rows.length === 0) await bcrypt.compare(cleanPass, TIMING_DUMMY_HASH);
 
       if (adminRes.rows.length > 0) {
         const au = adminRes.rows[0];
@@ -683,7 +691,7 @@ export const StorageService = {
     if (!isStrongPassword(password)) {
       throw new Error('WEAK_PASSWORD');
     }
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
     const db = client ?? pool;
     const id = data.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const roleDb = data.role === 'criadora' ? 'MODELO' : 'AGENCIA';
@@ -2116,10 +2124,14 @@ export const StorageService = {
     return true;
   },
 
-  async incrementDriveDownloads(id: string) {
+  async incrementDriveDownloads(id: string, userId: string) {
     await initDatabase();
     try {
-      await pool.query('UPDATE drive_files SET downloads = downloads + 1 WHERE id = $1', [id]);
+      // Só conta download de arquivo que a própria usuária enxerga no drive
+      await pool.query(
+        "UPDATE drive_files SET downloads = downloads + 1 WHERE id = $1 AND (user_id = $2 OR privacy IN ('public', 'official'))",
+        [id, userId]
+      );
     } catch {
       // Fallback
     }
@@ -3250,7 +3262,7 @@ export const StorageService = {
     if (!isStrongPassword(password)) {
       throw new Error('WEAK_PASSWORD');
     }
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
     const normEmail = data.email.trim().toLowerCase();
     const now = new Date().toISOString();
 
