@@ -42,3 +42,6 @@ next-env.d.ts
 
 # scratch
 scratch/
+
+# Claude Code (configuração local)
+.claude/settings.local.json

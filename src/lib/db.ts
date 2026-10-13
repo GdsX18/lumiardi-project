@@ -528,10 +528,11 @@ async function runInitDatabase(): Promise<boolean> {
         `CREATE INDEX IF NOT EXISTS idx_users_curation_status ON users(curation_status);`,
         `CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);`,
         `CREATE INDEX IF NOT EXISTS idx_kanban_tasks_user_id ON kanban_tasks(user_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);`,
         `CREATE INDEX IF NOT EXISTS idx_drive_files_user_id ON drive_files(user_id);`,
         `CREATE INDEX IF NOT EXISTS idx_shared_drive_files_rel ON shared_drive_files(agency_id, model_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_shared_drive_model ON shared_drive_files(model_id);`,
         `CREATE INDEX IF NOT EXISTS idx_agency_contracts ON agency_model_contracts(agency_id, model_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_contracts_model ON agency_model_contracts(model_id);`,
         // No máximo um contrato ativo por par agência ↔ modelo (o aceite de proposta é idempotente)
         `CREATE UNIQUE INDEX IF NOT EXISTS uq_agency_contracts_active ON agency_model_contracts(agency_id, model_id) WHERE status = 'active';`,
         `CREATE INDEX IF NOT EXISTS idx_scout_proposals_pair ON scout_proposals(agency_id, model_id);`,
@@ -544,14 +545,17 @@ async function runInitDatabase(): Promise<boolean> {
         `CREATE INDEX IF NOT EXISTS idx_payment_transactions_user ON payment_transactions(user_id);`,
         `CREATE INDEX IF NOT EXISTS idx_payment_transactions_idemp ON payment_transactions(idempotency_key);`,
         `CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_sub ON invoices(subscription_id);`,
         `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`,
         `CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;`,
         `CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);`,
+        // (conversation_id, created_at ASC) já é criado como idx_messages_conv_created; esses dois
+        // compostos também cobrem buscas só por conversation_id.
         `CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at DESC);`,
-        `CREATE INDEX IF NOT EXISTS idx_messages_conv_created_asc ON messages(conversation_id, created_at ASC);`,
         `CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);`,
         `CREATE INDEX IF NOT EXISTS idx_messages_curation_sender ON messages(conversation_id, sender_id, receiver_id);`,
         `CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen_at DESC NULLS LAST);`,
+        `CREATE INDEX IF NOT EXISTS idx_payouts_agency ON payouts(agency_id);`,
         `DO $$ BEGIN
           IF EXISTS (
             SELECT 1 FROM information_schema.columns
@@ -766,6 +770,7 @@ async function runInitDatabase(): Promise<boolean> {
           created_at        TIMESTAMPTZ DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_coupon ON coupon_redemptions(coupon_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_coupon_redemp_user ON coupon_redemptions(user_id);
         -- Período gratuito: um resgate por conta e cupom
         CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_redemptions_free
           ON coupon_redemptions(coupon_id, user_id) WHERE free_until IS NOT NULL;
