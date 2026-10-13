@@ -44,11 +44,14 @@ export async function GET(request: NextRequest) {
       searchTerm: searchParams.get('q')?.trim().slice(0, 100) || undefined,
     };
 
+    // Agências demo só enxergam a modelo demo; agências reais e a curadoria nunca a veem
+    const demo = session.role !== 'admin' && (await StorageService.isDemoUser(session.id));
+
     // Chave de cache a partir dos filtros normalizados (não da query string crua)
-    const cacheKey = `api:creators:filter:${JSON.stringify(query)}`;
+    const cacheKey = `api:creators:filter:${demo ? 'demo' : 'real'}:${JSON.stringify(query)}`;
     const results = await cache.getOrSet(
       cacheKey,
-      () => StorageService.filterCreators(query),
+      () => StorageService.filterCreators(query, demo),
       30, // 30s TTL
       ['creators']
     );

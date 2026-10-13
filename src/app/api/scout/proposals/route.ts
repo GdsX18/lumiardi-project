@@ -34,7 +34,11 @@ export async function POST(req: NextRequest) {
       StorageService.getUserById(modelId),
       StorageService.getUserById(session.id),
     ]);
-    if (!target || target.user.role !== 'criadora' || target.user.curationStatus !== 'APROVADO') {
+    // Contas demo e reais nunca se cruzam (a modelo demo é invisível para agências reais e vice-versa)
+    if (
+      !target || target.user.role !== 'criadora' || target.user.curationStatus !== 'APROVADO' ||
+      target.user.isDemo !== Boolean(agency?.user.isDemo)
+    ) {
       return fail(404, 'not_found', 'Modelo não encontrada.');
     }
 

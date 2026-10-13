@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         ORDER BY m.created_at DESC
         LIMIT 1
       ) lm ON TRUE
-      WHERE u.role IN ('MODELO', 'AGENCIA')
+      WHERE u.role IN ('MODELO', 'AGENCIA') AND u.is_demo = FALSE
         ${roleFilter}
         ${searchFilter}
       ORDER BY COALESCE(lm.created_at, u.created_at) DESC

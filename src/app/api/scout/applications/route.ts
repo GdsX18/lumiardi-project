@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
       StorageService.getUserById(agencyId),
       StorageService.getUserById(session.id),
     ]);
-    if (!agency || agency.user.role !== 'agencia' || agency.user.curationStatus !== 'APROVADO') {
+    // Contas demo e reais nunca se cruzam (a agência demo é invisível para modelos reais e vice-versa)
+    if (
+      !agency || agency.user.role !== 'agencia' || agency.user.curationStatus !== 'APROVADO' ||
+      agency.user.isDemo !== Boolean(model?.user.isDemo)
+    ) {
       return fail(404, 'not_found', 'Agência não encontrada.');
     }
 

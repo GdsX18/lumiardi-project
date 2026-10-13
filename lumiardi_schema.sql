@@ -71,6 +71,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS interview_rejection_reason TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_billing_interval VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_selfie_url TEXT;
+-- Contas de demonstração comercial: invisíveis para usuários reais, KPIs e curadoria
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- TABELA DE ENTREVISTAS DE CURADORIA PRÉVIA
 CREATE TABLE IF NOT EXISTS curation_interviews (

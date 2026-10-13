@@ -12,10 +12,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
     }
 
+    // Modelos demo só enxergam a agência demo; usuários reais e a curadoria nunca a veem
+    const demo = session.role !== 'admin' && (await StorageService.isDemoUser(session.id));
     const rawAgencies = await cache.getOrSet(
-      'api:agencies:all',
+      `api:agencies:all:${demo ? 'demo' : 'real'}`,
       async () => {
-        return await StorageService.listAgencies();
+        return await StorageService.listAgencies(demo);
       },
       60, // 60s TTL
       ['agencies']

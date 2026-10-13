@@ -12,10 +12,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Acesso restrito a agências aprovadas.', code: 'forbidden' }, { status: 403 });
     }
 
+    // Agências demo só enxergam a modelo demo; agências reais e a curadoria nunca a veem
+    const demo = session.role !== 'admin' && (await StorageService.isDemoUser(session.id));
     const rawCreators = await cache.getOrSet(
-      'api:creators:all',
+      `api:creators:all:${demo ? 'demo' : 'real'}`,
       async () => {
-        return await StorageService.listCreators();
+        return await StorageService.listCreators(demo);
       },
       60, // 60 segundos de TTL
       ['creators']

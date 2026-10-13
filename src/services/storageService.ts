@@ -257,7 +257,7 @@ export const StorageService = {
           COUNT(*) FILTER (WHERE curation_status = 'APROVADO' AND role = 'AGENCIA') AS approved_agencies,
           COUNT(*) FILTER (WHERE curation_status IN ('REJEITADO', 'RECUSADO')) AS rejected
         FROM users
-        WHERE role != 'ADMIN';
+        WHERE role != 'ADMIN' AND is_demo = FALSE;
       `);
 
       if (res.rows.length > 0) {
@@ -296,7 +296,7 @@ export const StorageService = {
                  ORDER BY ci.updated_at DESC LIMIT 1) AS meet_link
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
-        WHERE u.role != 'ADMIN'
+        WHERE u.role != 'ADMIN' AND u.is_demo = FALSE
       `;
       const params: unknown[] = [];
 
@@ -869,7 +869,7 @@ export const StorageService = {
     try {
       const res = await pool.query(`
         SELECT 
-          u.id, u.email, u.full_name, u.role, u.curation_status, u.rejection_reason, u.created_at,
+          u.id, u.email, u.full_name, u.role, u.curation_status, u.rejection_reason, u.created_at, u.is_demo,
           p.user_id, p.avatar_url, p.photos, p.video_url, p.logo_url, p.artistic_name, p.category, p.gender,
           p.instagram, p.measurements, p.physiognomy, p.address, p.monthly_revenue_estimate, p.bio,
           p.exposure_opinion, p.accepts_offers, p.is_represented,
@@ -930,6 +930,7 @@ export const StorageService = {
             curationStatus: row.curation_status,
             rejectionReason: row.rejection_reason || undefined,
             createdAt: row.created_at,
+            isDemo: row.is_demo === true,
           },
           profile: formattedProfile,
         };
@@ -989,6 +990,7 @@ export const StorageService = {
             curationStatus: u.curation_status as 'EM_CURATORIA' | 'APROVADO' | 'REJEITADO',
             rejectionReason: (u.rejection_reason as string) || undefined,
             createdAt: u.created_at as string,
+            isDemo: u.is_demo === true,
           },
           profile: formattedProfile,
         };
@@ -1006,6 +1008,20 @@ export const StorageService = {
   async getAgencyById(id: string) {
     const data = await this.getUserById(id);
     return data?.profile || null;
+  },
+
+  /**
+   * Conta de demonstração comercial? Demos só enxergam demos; usuários reais e a curadoria nunca as veem.
+   */
+  async isDemoUser(userId: string): Promise<boolean> {
+    if (!userId) return false;
+    await initDatabase();
+    try {
+      const res = await pool.query('SELECT is_demo FROM users WHERE id = $1 LIMIT 1', [userId]);
+      return res.rows[0]?.is_demo === true;
+    } catch {
+      return false;
+    }
   },
 
   /**
@@ -1177,16 +1193,16 @@ export const StorageService = {
   /**
    * Listar todos os criadores aprovados
    */
-  async listCreators(): Promise<Record<string, unknown>[]> {
+  async listCreators(demo = false): Promise<Record<string, unknown>[]> {
     await initDatabase();
     try {
       const res = await pool.query(`
         SELECT ${CREATOR_CATALOG_COLUMNS}
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
-        WHERE u.role = 'MODELO' AND u.curation_status = 'APROVADO'
+        WHERE u.role = 'MODELO' AND u.curation_status = 'APROVADO' AND u.is_demo = $1
         ORDER BY u.created_at DESC;
-      `);
+      `, [demo]);
       if (res.rows.length > 0) {
         return res.rows.map(mapCreatorCatalogRow);
       }
@@ -1196,7 +1212,7 @@ export const StorageService = {
 
     const creators: Record<string, unknown>[] = [];
     for (const u of fallbackStore.users.values()) {
-      if (u.role === 'MODELO' && u.curation_status === 'APROVADO') {
+      if (u.role === 'MODELO' && u.curation_status === 'APROVADO' && (u.is_demo === true) === demo) {
         const p = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
         creators.push(mapCreatorCatalogRow({ ...p, ...u }));
       }
@@ -1207,7 +1223,7 @@ export const StorageService = {
   /**
    * Listar todas as agências aprovadas
    */
-  async listAgencies(): Promise<Record<string, unknown>[]> {
+  async listAgencies(demo = false): Promise<Record<string, unknown>[]> {
     await initDatabase();
     try {
       const res = await pool.query(`
@@ -1216,9 +1232,9 @@ export const StorageService = {
                p.address, p.commission_rate, p.specialties, p.bio
         FROM users u
         LEFT JOIN profiles p ON u.id = p.user_id
-        WHERE u.role = 'AGENCIA' AND u.curation_status = 'APROVADO'
+        WHERE u.role = 'AGENCIA' AND u.curation_status = 'APROVADO' AND u.is_demo = $1
         ORDER BY u.created_at DESC;
-      `);
+      `, [demo]);
       if (res.rows.length > 0) {
         return res.rows.map((row) => ({
           id: row.id,
@@ -1246,7 +1262,7 @@ export const StorageService = {
 
     const agencies: Record<string, unknown>[] = [];
     for (const u of fallbackStore.users.values()) {
-      if (u.role === 'AGENCIA' && u.curation_status === 'APROVADO') {
+      if (u.role === 'AGENCIA' && u.curation_status === 'APROVADO' && (u.is_demo === true) === demo) {
         const p = (fallbackStore.profiles.get(u.id as string) as Record<string, unknown>) || {};
         agencies.push({
           id: u.id,
@@ -2532,11 +2548,11 @@ export const StorageService = {
   /**
    * Catálogo filtrado direto no PostgreSQL (somente modelos aprovadas). Erros de banco sobem para a rota.
    */
-  async filterCreators(query: CreatorFilterQuery = {}): Promise<Record<string, unknown>[]> {
+  async filterCreators(query: CreatorFilterQuery = {}, demo = false): Promise<Record<string, unknown>[]> {
     await initDatabase();
 
-    const conditions = [`u.role = 'MODELO'`, `u.curation_status = 'APROVADO'`];
-    const params: unknown[] = [];
+    const conditions = [`u.role = 'MODELO'`, `u.curation_status = 'APROVADO'`, `u.is_demo = $1`];
+    const params: unknown[] = [demo];
     const where = (build: (param: string) => string, value: unknown) => {
       params.push(value);
       conditions.push(build(`$${params.length}`));
