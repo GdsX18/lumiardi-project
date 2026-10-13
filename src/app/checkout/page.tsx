@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Tag,
   X,
+  Gift,
 } from 'lucide-react';
 import { getPlan } from '@/lib/payments/plansConfig';
 import { PlanId, BillingInterval, PaymentGatewayType, CryptoCurrency } from '@/lib/payments/types';
@@ -33,6 +34,29 @@ const CRYPTO_COINS: { id: CryptoCurrency; label: string; net: string }[] = [
   { id: 'BTC', label: 'BTC', net: 'Bitcoin' },
   { id: 'ETH', label: 'ETH', net: 'Ethereum' },
 ];
+
+interface AppliedCoupon {
+  code: string;
+  discountType: 'percentage' | 'fixed' | 'trial_months' | 'free_period';
+  discountValue: number;
+  discountAmount: number;
+  finalPrice: number;
+  grantsFreePeriod: boolean;
+  message?: string;
+}
+
+/** Normaliza a resposta de /api/checkout/validate-coupon. */
+function toAppliedCoupon(data: Record<string, unknown>): AppliedCoupon {
+  return {
+    code: String(data.code),
+    discountType: data.discountType as AppliedCoupon['discountType'],
+    discountValue: Number(data.discountValue),
+    discountAmount: Number(data.discountAmount),
+    finalPrice: Number(data.finalPrice),
+    grantsFreePeriod: Boolean(data.grantsFreePeriod),
+    message: typeof data.message === 'string' ? data.message : undefined,
+  };
+}
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
@@ -136,14 +160,12 @@ function CheckoutContent() {
 
   // ─── Estado do Cupom de Desconto ─────────────────────────────────────────
   const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{
-    code: string;
-    discountType: 'percentage' | 'fixed';
-    discountValue: number;
-    discountAmount: number;
-    finalPrice: number;
-    message?: string;
-  } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  // Cupom de meses/dias grátis: não há cobrança, o checkout troca o pagamento pela ativação
+  const freePeriodCoupon = appliedCoupon?.grantsFreePeriod ? appliedCoupon : null;
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const freePeriodLabel = (c: AppliedCoupon) =>
+    t(c.discountType === 'trial_months' ? 'pub_checkout_free_months' : 'pub_checkout_free_days').replace('{n}', String(c.discountValue));
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [couponFeedback, setCouponFeedback] = useState<{
     type: 'success' | 'error';
@@ -178,7 +200,11 @@ function CheckoutContent() {
   let discountAmountEUR = 0;
 
   if (appliedCoupon) {
-    if (appliedCoupon.discountType === 'percentage') {
+    if (appliedCoupon.grantsFreePeriod) {
+      discountAmountBRL = basePriceBRL;
+      discountAmountUSD = basePriceUSD;
+      discountAmountEUR = basePriceEUR;
+    } else if (appliedCoupon.discountType === 'percentage') {
       discountAmountBRL = Math.round(((basePriceBRL * appliedCoupon.discountValue) / 100) * 100) / 100;
       discountAmountUSD = Math.round(((basePriceUSD * appliedCoupon.discountValue) / 100) * 100) / 100;
       discountAmountEUR = Math.round(((basePriceEUR * appliedCoupon.discountValue) / 100) * 100) / 100;
@@ -211,17 +237,19 @@ function CheckoutContent() {
           body: JSON.stringify({
             code: appliedCoupon.code,
             planPrice: basePriceBRL,
+            planId: selectedPlanId,
           }),
         });
         const data = await res.json();
-        if (!isCancelled && res.ok && data.valid) {
-          setAppliedCoupon({
-            code: data.code,
-            discountType: data.discountType,
-            discountValue: data.discountValue,
-            discountAmount: data.discountAmount,
-            finalPrice: data.finalPrice,
-            message: data.message,
+        if (isCancelled) return;
+        if (res.ok && data.valid) {
+          setAppliedCoupon(toAppliedCoupon(data));
+        } else {
+          // Ex.: cupom exclusivo do Plano Select deixa de valer ao trocar de plano
+          setAppliedCoupon(null);
+          setCouponFeedback({
+            type: 'error',
+            message: tApiError({ code: data.code, error: data.message }, 'pub_checkout_coupon_invalid'),
           });
         }
       } catch {
@@ -257,20 +285,17 @@ function CheckoutContent() {
         body: JSON.stringify({
           code: cleanCode,
           planPrice: basePriceBRL,
+          planId: selectedPlanId,
         }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.valid) {
-        setAppliedCoupon({
-          code: data.code,
-          discountType: data.discountType,
-          discountValue: data.discountValue,
-          discountAmount: data.discountAmount,
-          finalPrice: data.finalPrice,
-          message: data.message,
-        });
+        const coupon = toAppliedCoupon(data);
+        setAppliedCoupon(coupon);
+        // Período gratuito é contado em meses/dias a partir de hoje: o resumo mostra o ciclo mensal
+        if (coupon.grantsFreePeriod) setBillingInterval('monthly');
         setCouponFeedback({
           type: 'success',
           message: language === 'pt' && data.message ? data.message : t('pub_checkout_coupon_applied'),
@@ -301,7 +326,7 @@ function CheckoutContent() {
 
   // Carrega Pix dinâmico oficial do Asaas (API v3)
   useEffect(() => {
-    if (gateway !== 'pix' || currency !== 'BRL') return;
+    if (gateway !== 'pix' || currency !== 'BRL' || appliedCoupon?.grantsFreePeriod) return;
 
     let isMounted = true;
     const loadAsaasPix = async () => {
@@ -513,6 +538,30 @@ function CheckoutContent() {
     }
   };
 
+  // Ativação de cupom de período gratuito (sem cobrança)
+  const handleRedeemFreePeriod = async () => {
+    if (!freePeriodCoupon) return;
+    setErrorMessage(null);
+    setIsRedeeming(true);
+    try {
+      const res = await fetch('/api/checkout/redeem-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: selectedPlanId, couponCode: freePeriodCoupon.code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(tApiError(data, 'pub_checkout_coupon_invalid'));
+      }
+      if (refreshData) await refreshData();
+      setPaymentSuccess(true);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : t('api_err_generic'));
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
   // Confirmação de Pagamento Pix / Cripto
   const handleConfirmInstantPayment = async (methodName: string) => {
     setIsLoading(true);
@@ -704,6 +753,54 @@ function CheckoutContent() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
             {/* Coluna 1: Métodos de Pagamento & Formulário (7 Cols) */}
             <div className="lg:col-span-7 space-y-6">
+              {freePeriodCoupon ? (
+                /* Cupom de período gratuito: ativação sem cobrança */
+                <div className="bg-[#0D0D0D] border border-[#D4AF37]/50 p-6 md:p-8 space-y-6 rounded-xl shadow-[0_0_25px_rgba(212,175,55,0.12)]">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <h2 className="font-serif-lumiardi text-2xl font-light text-ivory">
+                      {t('pub_checkout_free_title')}
+                    </h2>
+                    <span className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-mono">
+                      {freePeriodCoupon.code}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 shrink-0 bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#F5D77F] rounded-full flex items-center justify-center">
+                      <Gift className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-serif-lumiardi text-xl text-[#F5D77F]">
+                        {freePeriodLabel(freePeriodCoupon)} — {currentPlan.name}
+                      </p>
+                      <p className="text-xs text-ivory/70 leading-relaxed font-light">
+                        {t('pub_checkout_free_desc')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {errorMessage && (
+                    <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xs flex items-center gap-2 text-xs text-red-300">
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                      <span>{errorMessage}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleRedeemFreePeriod}
+                    disabled={isRedeeming}
+                    className="w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#AA820A] text-[#0B0B0B] text-xs uppercase tracking-[0.2em] font-bold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer rounded-sm shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isRedeeming ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                    <span>{isRedeeming ? t('pub_checkout_free_activating') : t('pub_checkout_free_activate')}</span>
+                  </button>
+
+                  <p className="text-[11px] text-ivory/50 leading-relaxed">
+                    {t('pub_checkout_free_note')}
+                  </p>
+                </div>
+              ) : (
               <div className="bg-[#0D0D0D] border border-white/10 p-6 md:p-8 space-y-6 rounded-xl">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                   <h2 className="font-serif-lumiardi text-2xl font-light text-ivory">
@@ -1327,6 +1424,7 @@ function CheckoutContent() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Coluna 2: Resumo da Ordem (5 Cols) */}
@@ -1464,7 +1562,9 @@ function CheckoutContent() {
                               {appliedCoupon.code}
                             </span>
                             <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-xs border border-emerald-500/30 shrink-0">
-                              {appliedCoupon.discountType === 'percentage'
+                              {appliedCoupon.grantsFreePeriod
+                                ? freePeriodLabel(appliedCoupon)
+                                : appliedCoupon.discountType === 'percentage'
                                 ? t('pub_checkout_coupon_off').replace('{value}', String(appliedCoupon.discountValue))
                                 : `- ${formatPrice(appliedCoupon.discountAmount, appliedCoupon.discountAmount / 5, appliedCoupon.discountAmount / 5.5)}`}
                             </span>

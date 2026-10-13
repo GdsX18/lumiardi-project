@@ -31,8 +31,9 @@ export class AsaasAdapter implements PaymentGatewayService {
     let appliedCoupon: { code: string; discountAmount: number } | null = null;
 
     if (req.couponCode) {
-      const validation = await CouponService.validateCoupon(req.couponCode, amount);
-      if (validation.valid) {
+      const validation = await CouponService.validateCoupon(req.couponCode, amount, { planId: plan.id, role: req.userRole });
+      // Cupom de período gratuito não abate cobrança: é resgatado sem pagamento (/api/checkout/redeem-coupon)
+      if (validation.valid && !validation.grantsFreePeriod) {
         amount = validation.finalPrice;
         appliedCoupon = { code: validation.code, discountAmount: validation.discountAmount };
       }

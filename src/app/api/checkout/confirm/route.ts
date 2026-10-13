@@ -62,9 +62,16 @@ export async function POST(request: NextRequest) {
     let couponValidation: { code: string; discountAmount: number; finalPrice: number } | null = null;
 
     if (couponCode) {
-      const v = await CouponService.validateCoupon(couponCode, baseAmount);
+      const v = await CouponService.validateCoupon(couponCode, baseAmount, { planId: plan.id, role: guard.user.role });
       if (!v.valid) {
-        return NextResponse.json({ error: 'Cupom de desconto inválido ou expirado.', code: 'coupon_invalid' }, { status: 400 });
+        return NextResponse.json({ error: v.message || 'Cupom de desconto inválido ou expirado.', code: v.code }, { status: 400 });
+      }
+      // Meses/dias grátis não geram cobrança: o acesso é liberado por /api/checkout/redeem-coupon
+      if (v.grantsFreePeriod) {
+        return NextResponse.json(
+          { error: 'Este cupom libera um período gratuito. Use "Ativar período gratuito" no checkout.', code: 'coupon_requires_activation' },
+          { status: 400 }
+        );
       }
       couponValidation = v;
       finalAmount = v.finalPrice;
@@ -398,6 +405,21 @@ export async function POST(request: NextRequest) {
           },
           idempotencyKey: `confirm_${asaasPaymentId}`,
         }, client);
+
+        if (couponValidation) {
+          await CouponService.recordRedemption({
+            couponCode: couponValidation.code,
+            userId,
+            planId: plan.id,
+            billingInterval,
+            originalAmount: baseAmount,
+            discountAmount: couponValidation.discountAmount,
+            finalAmount,
+            currency: 'BRL',
+            subscriptionId: sub.id,
+            paymentReference: asaasPaymentId,
+          }, client);
+        }
 
         // Só promove quem a curadoria aprovou para pagamento (ou renovação de membro)
         await client.query(

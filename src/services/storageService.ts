@@ -24,17 +24,10 @@ import {
 import { SessionUser } from '@/lib/auth';
 import crypto from 'crypto';
 import { getDirectConversationId, isAdminRole, normalizeSenderRole } from '@/lib/chatRoles';
+import { isStrongPassword, normalizePassword } from '@/lib/passwordPolicy';
 
-/** Política mínima de senha: 8+ caracteres, com letras e números. */
-export function isStrongPassword(password: unknown): password is string {
-  return (
-    typeof password === 'string' &&
-    password.length >= 8 &&
-    password.length <= 128 &&
-    /[A-Za-z]/.test(password) &&
-    /\d/.test(password)
-  );
-}
+/** Política mínima de senha: 8+ caracteres, com letras e números (mesma regra do formulário). */
+export { isStrongPassword };
 
 /** Lê profiles.pre_interview (JSONB, ou string no fallback) sem medidas/fisionomia, que já têm colunas próprias. */
 function parsePreInterview(raw: unknown): PreInterviewAnswers | null {
@@ -150,20 +143,19 @@ export const StorageService = {
    */
   async authenticate(
     email: string,
-    pass: string,
-    role: 'criadora' | 'agencia'
+    pass: string
   ): Promise<{ user: SessionUser; profile?: Record<string, unknown> | null; twoFactorSecretEncrypted?: string | null } | null> {
     const normEmail = email.trim().toLowerCase();
-    const cleanPass = pass.trim();
-    const targetRole = role === 'criadora' ? 'MODELO' : 'AGENCIA';
+    const cleanPass = normalizePassword(pass);
 
     await initDatabase();
 
     try {
-      // 1. Tenta buscar no PostgreSQL
+      // O e-mail é único em users: o papel (modelo/agência) vem do banco, não da aba escolhida no login.
+      // Filtrar pela aba fazia a senha correta de uma agência ser recusada na aba "Modelo" (padrão).
       const res = await pool.query(
-        'SELECT * FROM users WHERE LOWER(email) = $1 AND role = $2',
-        [normEmail, targetRole]
+        "SELECT * FROM users WHERE LOWER(email) = $1 AND role IN ('MODELO', 'AGENCIA')",
+        [normEmail]
       );
 
       if (res.rows.length > 0) {
@@ -203,7 +195,7 @@ export const StorageService = {
    */
   async authenticateAdmin(email: string, pass: string): Promise<{ user: SessionUser } | null> {
     const normEmail = email.trim().toLowerCase();
-    const cleanPass = pass.trim();
+    const cleanPass = normalizePassword(pass);
 
     await initDatabase();
 
@@ -686,7 +678,7 @@ export const StorageService = {
     twoFactorSecret?: string | null;
   }, client?: PoolClient) {
     // Mesmo trim aplicado em authenticate(): senha com espaço nas pontas continua funcionando no login
-    const password = typeof data.password === 'string' ? data.password.trim() : data.password;
+    const password = normalizePassword(data.password);
     const normEmail = data.email.trim().toLowerCase();
     if (!isStrongPassword(password)) {
       throw new Error('WEAK_PASSWORD');
@@ -3253,10 +3245,12 @@ export const StorageService = {
   }): Promise<AdminUser> {
     await initDatabase();
     const id = `cur-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    if (!isStrongPassword(data.password)) {
+    // Mesmo trim do authenticateAdmin(): sem ele, uma senha com espaço nas pontas nunca mais confere
+    const password = normalizePassword(data.password);
+    if (!isStrongPassword(password)) {
       throw new Error('WEAK_PASSWORD');
     }
-    const hash = await bcrypt.hash(data.password as string, 10);
+    const hash = await bcrypt.hash(password, 10);
     const normEmail = data.email.trim().toLowerCase();
     const now = new Date().toISOString();
 

@@ -724,6 +724,74 @@ async function runInitDatabase(): Promise<boolean> {
         CREATE INDEX IF NOT EXISTS idx_compliance_reports_created ON compliance_reports(created_at DESC);
       `);
 
+      // ─── 20. Cupons de parceria (Gestão de Cupons da Curadoria) ───────────────
+      // trial_months: discount_value = meses grátis; free_period: discount_value = dias grátis.
+      // target_role: 'agency' | 'creator' | 'all'; applicable_plan: id do plano (NULL = qualquer plano).
+      await client.query(`
+        ALTER TABLE coupons ADD COLUMN IF NOT EXISTS target_role TEXT NOT NULL DEFAULT 'all';
+        ALTER TABLE coupons ADD COLUMN IF NOT EXISTS applicable_plan TEXT DEFAULT NULL;
+        ALTER TABLE coupons ADD COLUMN IF NOT EXISTS description TEXT DEFAULT NULL;
+        ALTER TABLE coupons ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT NULL;
+        ALTER TABLE coupons ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'coupons_discount_type_check'
+              AND pg_get_constraintdef(oid) NOT LIKE '%trial_months%'
+          ) THEN
+            ALTER TABLE coupons DROP CONSTRAINT coupons_discount_type_check;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'coupons_discount_type_check') THEN
+            ALTER TABLE coupons ADD CONSTRAINT coupons_discount_type_check
+              CHECK (discount_type IN ('percentage', 'fixed', 'trial_months', 'free_period'));
+          END IF;
+        END $$;
+
+        CREATE TABLE IF NOT EXISTS coupon_redemptions (
+          id                TEXT PRIMARY KEY,
+          coupon_id         TEXT REFERENCES coupons(id) ON DELETE CASCADE,
+          coupon_code       TEXT NOT NULL,
+          user_id           VARCHAR(100) REFERENCES users(id) ON DELETE SET NULL,
+          plan_id           VARCHAR(50),
+          billing_interval  VARCHAR(20),
+          original_amount   NUMERIC(10,2) DEFAULT 0,
+          discount_amount   NUMERIC(10,2) DEFAULT 0,
+          final_amount      NUMERIC(10,2) DEFAULT 0,
+          currency          VARCHAR(10) DEFAULT 'BRL',
+          subscription_id   VARCHAR(100),
+          payment_reference VARCHAR(150),
+          free_until        TIMESTAMPTZ,
+          created_at        TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_coupon ON coupon_redemptions(coupon_id, created_at DESC);
+        -- Período gratuito: um resgate por conta e cupom
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_redemptions_free
+          ON coupon_redemptions(coupon_id, user_id) WHERE free_until IS NOT NULL;
+        -- Reenvio de webhook não duplica o histórico
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_redemptions_payment
+          ON coupon_redemptions(payment_reference) WHERE payment_reference IS NOT NULL;
+
+        -- Cupom da Diretoria: 3 meses gratuitos do Plano Select para agências parceiras
+        INSERT INTO coupons (id, code, discount_type, discount_value, active, max_uses, times_used, expires_at, target_role, applicable_plan, description, created_by)
+        VALUES ('coupon-select3m', 'SELECT3M', 'trial_months', 3, true, NULL, 0, NULL, 'agency', 'select',
+                'Diretoria — 3 meses gratuitos do Plano Select para agências parceiras', 'diretoria')
+        ON CONFLICT (code) DO NOTHING;
+      `);
+
+      // ─── 21. Tokens de redefinição de senha (guardados só como hash SHA-256) ───
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          token_hash TEXT PRIMARY KEY,
+          user_id    VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at    TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+      `);
+
       isInitialized = true;
       return true;
     } finally {

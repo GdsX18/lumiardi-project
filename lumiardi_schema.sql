@@ -365,13 +365,19 @@ ON CONFLICT (email) DO NOTHING;
 CREATE TABLE IF NOT EXISTS coupons (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   code TEXT UNIQUE NOT NULL, -- sempre em maiúsculas (ex: BOASVINDAS, VIP10, LUMIARDI10)
-  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'fixed')), -- 'percentage' (%) ou 'fixed' (R$ / €)
-  discount_value NUMERIC NOT NULL, -- valor do desconto (ex: 10 para 10% ou 100.00 para R$ 100 de abatimento)
+  -- 'percentage' (%), 'fixed' (R$), 'trial_months' (meses grátis) ou 'free_period' (dias grátis)
+  discount_type TEXT NOT NULL CONSTRAINT coupons_discount_type_check CHECK (discount_type IN ('percentage', 'fixed', 'trial_months', 'free_period')),
+  discount_value NUMERIC NOT NULL, -- 10 = 10% | 100.00 = R$ 100 | 3 = 3 meses | 30 = 30 dias
   active BOOLEAN DEFAULT true,
   max_uses INTEGER DEFAULT NULL,
   times_used INTEGER DEFAULT 0,
   expires_at TIMESTAMPTZ DEFAULT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  target_role TEXT NOT NULL DEFAULT 'all', -- 'agency' | 'creator' | 'all'
+  applicable_plan TEXT DEFAULT NULL, -- id do plano (glow, radiance, icon, select, signature); NULL = qualquer
+  description TEXT DEFAULT NULL,
+  created_by TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
 CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(active);
@@ -380,3 +386,40 @@ CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(active);
 INSERT INTO coupons (id, code, discount_type, discount_value, active, max_uses, times_used, expires_at)
 VALUES ('coupon-lumiardi10', 'LUMIARDI10', 'percentage', 10, true, NULL, 0, NULL)
 ON CONFLICT (code) DO NOTHING;
+
+-- Cupom da Diretoria: 3 meses gratuitos do Plano Select para agências parceiras
+INSERT INTO coupons (id, code, discount_type, discount_value, active, max_uses, times_used, expires_at, target_role, applicable_plan, description, created_by)
+VALUES ('coupon-select3m', 'SELECT3M', 'trial_months', 3, true, NULL, 0, NULL, 'agency', 'select',
+        'Diretoria — 3 meses gratuitos do Plano Select para agências parceiras', 'diretoria')
+ON CONFLICT (code) DO NOTHING;
+
+-- 17b. HISTÓRICO DE UTILIZAÇÃO DE CUPONS
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  id                TEXT PRIMARY KEY,
+  coupon_id         TEXT REFERENCES coupons(id) ON DELETE CASCADE,
+  coupon_code       TEXT NOT NULL,
+  user_id           VARCHAR(100) REFERENCES users(id) ON DELETE SET NULL,
+  plan_id           VARCHAR(50),
+  billing_interval  VARCHAR(20),
+  original_amount   NUMERIC(10,2) DEFAULT 0,
+  discount_amount   NUMERIC(10,2) DEFAULT 0,
+  final_amount      NUMERIC(10,2) DEFAULT 0,
+  currency          VARCHAR(10) DEFAULT 'BRL',
+  subscription_id   VARCHAR(100),
+  payment_reference VARCHAR(150),
+  free_until        TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_coupon ON coupon_redemptions(coupon_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_redemptions_free ON coupon_redemptions(coupon_id, user_id) WHERE free_until IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_redemptions_payment ON coupon_redemptions(payment_reference) WHERE payment_reference IS NOT NULL;
+
+-- 17c. TOKENS DE REDEFINIÇÃO DE SENHA (somente hash SHA-256)
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id    VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);

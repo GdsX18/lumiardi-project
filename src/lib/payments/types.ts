@@ -3,7 +3,8 @@
  * Módulo de Multi-Gateway (Asaas + NOWPayments) & Gestão de Faturamento
  */
 
-export type PaymentGatewayType = 'asaas' | 'nowpayments' | 'pix' | 'ccbill';
+/** 'coupon': assinatura liberada por cupom de período gratuito (sem cobrança em gateway) */
+export type PaymentGatewayType = 'asaas' | 'nowpayments' | 'pix' | 'ccbill' | 'coupon';
 
 export type PlanCategory = 'criadoras' | 'agencias';
 

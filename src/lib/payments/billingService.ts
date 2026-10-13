@@ -109,6 +109,10 @@ export const BillingService = {
       amount: number;
       currency: 'BRL' | 'USD';
       metadata?: Record<string, unknown>;
+      /** Fim do período diferente do ciclo padrão (ex.: cupom de meses grátis) */
+      periodEnd?: Date;
+      /** Texto da fatura; padrão: "Assinatura Plano X (Mensal/Anual)" */
+      billingReason?: string;
     },
     db: DbExecutor = pool
   ): Promise<SubscriptionRecord> {
@@ -117,7 +121,7 @@ export const BillingService = {
     const id = `sub_${Date.now()}_${randomSuffix()}`;
     const now = new Date();
     const periodDays = params.billingInterval === 'yearly' ? 365 : 30;
-    const periodEnd = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000);
+    const periodEnd = params.periodEnd ?? new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000);
 
     const record: SubscriptionRecord = {
       id,
@@ -172,7 +176,9 @@ export const BillingService = {
         subscriptionId: record.id,
         amount: params.amount,
         currency: params.currency,
-        billingReason: `Assinatura Plano ${getPlan(params.planId).name} (${params.billingInterval === 'yearly' ? 'Anual' : 'Mensal'})`,
+        billingReason:
+          params.billingReason ||
+          `Assinatura Plano ${getPlan(params.planId).name} (${params.billingInterval === 'yearly' ? 'Anual' : 'Mensal'})`,
       },
       db
     );

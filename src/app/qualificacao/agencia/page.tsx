@@ -26,6 +26,8 @@ import { KYCVerificationModal, DocumentUploadPayload } from '@/components/dashbo
 import { TwoFactorModal } from '@/components/dashboard/TwoFactorModal';
 import { TermsAcceptanceModal } from '@/components/ui/TermsAcceptanceModal';
 import { useLanguage } from '@/context/LanguageContext';
+import { PasswordInput, PasswordRequirements } from '@/components/ui/PasswordInput';
+import { isStrongPassword } from '@/lib/passwordPolicy';
 import {
   CompleteAgencyProfile,
   CurationAppointment,
@@ -145,9 +147,8 @@ function AgenciaQualificacaoContent() {
       return;
     }
 
-    // Mesma política do servidor (isStrongPassword): falhar aqui evita perder as etapas 2 e 3
-    const pwd = basicData.password;
-    if (pwd.length < 8 || pwd.length > 128 || !/[A-Za-z]/.test(pwd) || !/\d/.test(pwd)) {
+    // Mesma política do servidor (lib/passwordPolicy): falhar aqui evita perder as etapas 2 e 3
+    if (!isStrongPassword(basicData.password)) {
       setSubmissionError(t('api_err_weak_password'));
       return;
     }
@@ -481,14 +482,16 @@ function AgenciaQualificacaoContent() {
                         <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
                           {t('qual_agency_pass_label')}
                         </label>
-                        <input
-                          type="password"
+                        <PasswordInput
+                          tone="light"
                           required
+                          autoComplete="new-password"
                           placeholder="••••••••••••"
                           value={basicData.password}
                           onChange={(e) => setBasicData({ ...basicData, password: e.target.value })}
                           className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
                         />
+                        <PasswordRequirements tone="light" password={basicData.password} />
                       </div>
                     </div>
 

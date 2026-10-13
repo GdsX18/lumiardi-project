@@ -37,9 +37,8 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.json();
     const email = sanitizeInput(rawBody.email);
     const password = typeof rawBody.password === 'string' ? rawBody.password : '';
-    const role = (rawBody.role === 'agencia' ? 'agencia' : 'criadora') as 'criadora' | 'agencia';
 
-    if (!email || !password) {
+    if (!email || !password.trim()) {
       return NextResponse.json(
         { error: 'Por favor, informe e-mail e senha.', code: 'invalid_input' },
         { status: 400 }
@@ -50,12 +49,13 @@ export async function POST(request: NextRequest) {
     const accountLimit = await checkRateLimitPersistent(`login:email:${email.toLowerCase()}`, LOGIN_WINDOW);
     if (!accountLimit.allowed) return tooManyAttempts(accountLimit.resetTimeMs);
 
-    const authResult = await StorageService.authenticate(email, password, role);
+    // O papel vem da conta no banco; a aba Modelo/Agência da tela de login é só visual
+    const authResult = await StorageService.authenticate(email, password);
 
     if (!authResult || !authResult.user) {
       return NextResponse.json(
         {
-          error: 'Credenciais inválidas. Verifique seu e-mail, senha e se selecionou a aba correta (Modelo ou Agência).',
+          error: 'E-mail ou senha incorretos. Se não lembra a senha, use "Esqueci minha senha" para redefini-la.',
           code: 'invalid_credentials',
         },
         { status: 401 }
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       id: user.id,
       email: user.email,
       name: user.name || profile?.artistic_name || profile?.artisticName || user.email.split('@')[0],
-      role: role,
+      role: user.role,
       curationStatus,
       category: profile?.category || undefined,
       country: profile?.address?.country || undefined,

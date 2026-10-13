@@ -3,7 +3,7 @@ import { StorageService } from '@/services/storageService';
 import { sanitizeObject } from '@/lib/security';
 import { encodeSession, SESSION_COOKIE_NAME, SessionUser, setSessionCookie } from '@/lib/auth';
 import { CompleteCreatorProfile } from '@/types';
-import { extractDocumentDataUrl, persistIdentityDocument, registrationErrorResponse } from '@/lib/registration';
+import { extractDocumentDataUrl, persistIdentityDocument, registrationErrorResponse, weakPasswordResponse } from '@/lib/registration';
 import { readEnrollmentToken } from '@/lib/security/twoFactor';
 
 export async function POST(request: NextRequest) {
@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
     const documentDataUrl = extractDocumentDataUrl(rawBody?.basicInfo);
     // A senha é apenas hasheada (nunca renderizada): sanitizar alteraria a senha e quebraria o login
     const rawPassword = typeof rawBody?.basicInfo?.password === 'string' ? rawBody.basicInfo.password : '';
+    const weakPassword = weakPasswordResponse(rawPassword);
+    if (weakPassword) return weakPassword;
     // 2FA validado na etapa 1: o token cifrado pelo servidor carrega o segredo TOTP
     const twoFactorSecret = readEnrollmentToken(rawBody?.twoFactorEnrollmentToken);
     if (rawBody) delete rawBody.twoFactorEnrollmentToken;

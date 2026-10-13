@@ -11,11 +11,10 @@ import {
   KeyRound,
   AlertCircle,
   ArrowRight,
-  Eye,
-  EyeOff,
   ShieldCheck,
 } from 'lucide-react';
 import { Header } from '@/components/ui/Header';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Footer } from '@/components/ui/Footer';
 import { useAuthPortal } from '@/context/AuthPortalContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -30,7 +29,6 @@ function LoginForm() {
   const [role, setRole] = useState<'criadora' | 'agencia'>('criadora');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Contas com 2FA ativo: o servidor pede o código TOTP após validar a senha
@@ -174,23 +172,22 @@ function LoginForm() {
                 {t('chat_e2e_shield')}
               </span>
             </div>
-            <div className="relative">
-              <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full pl-9 pr-10 py-3 bg-[#161616] border border-white/10 text-xs md:text-sm text-ivory placeholder:text-ivory/30 focus:outline-none focus:border-gold font-sans"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ivory/40 hover:text-gold cursor-pointer"
+            <PasswordInput
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••••••"
+              leftIcon={<KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />}
+              className="w-full pl-9 py-3 bg-[#161616] border border-white/10 text-xs md:text-sm text-ivory placeholder:text-ivory/30 focus:outline-none focus:border-gold font-sans"
+            />
+            <div className="mt-1.5 text-right">
+              <Link
+                href={`/recuperar-senha${email ? `?email=${encodeURIComponent(email)}` : ''}`}
+                className="text-[11px] font-sans text-ivory/50 hover:text-gold underline-offset-2 hover:underline"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+                {t('pwd_forgot_link')}
+              </Link>
             </div>
           </div>
 

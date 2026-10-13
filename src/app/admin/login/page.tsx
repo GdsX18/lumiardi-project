@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Lock, ArrowRight, AlertCircle, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { ShieldCheck, Lock, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -114,23 +114,14 @@ export default function AdminLoginPage() {
                 <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-widest mb-1.5 font-medium">
                   Senha de Acesso
                 </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    placeholder="••••••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-sm text-ivory placeholder-ivory/30 outline-none transition-colors rounded-sm pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ivory/40 hover:text-gold transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <PasswordInput
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-[#141414] border border-white/[0.12] focus:border-gold px-3.5 py-2.5 text-sm text-ivory placeholder-ivory/30 outline-none transition-colors rounded-sm"
+                />
               </div>
 
               <div className="pt-2">

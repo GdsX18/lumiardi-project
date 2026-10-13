@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CouponService } from '@/services/couponService';
 import { sanitizeInput } from '@/lib/security';
 import { checkRateLimitPersistent, getClientIp } from '@/lib/security/rateLimiter';
+import { getSessionFromCookie } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,22 +18,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Cupons podem ser restritos a agências/criadoras: o público vem da sessão assinada
+    const session = await getSessionFromCookie();
+    if (!session) {
+      return NextResponse.json(
+        { valid: false, message: 'Faça login para aplicar um cupom.', code: 'unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const rawCode = typeof body.code === 'string' ? sanitizeInput(body.code) : '';
     const planPrice = Number(body.planPrice);
+    const planId = typeof body.planId === 'string' ? sanitizeInput(body.planId) : '';
 
-    if (!rawCode || isNaN(planPrice) || planPrice < 0) {
+    if (!rawCode || !planId || isNaN(planPrice) || planPrice < 0) {
       return NextResponse.json(
-        { valid: false, message: 'Cupom inválido ou expirado.' },
+        { valid: false, message: 'Cupom inválido ou expirado.', code: 'coupon_invalid' },
         { status: 400 }
       );
     }
 
-    const result = await CouponService.validateCoupon(rawCode, planPrice);
+    const result = await CouponService.validateCoupon(rawCode, planPrice, { planId, role: session.role });
 
     if (!result.valid) {
       return NextResponse.json(
-        { valid: false, message: result.message || 'Cupom inválido ou expirado.' },
+        { valid: false, message: result.message || 'Cupom inválido ou expirado.', code: result.code },
         { status: 400 }
       );
     }
@@ -41,9 +52,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[API validate-coupon] Erro ao validar cupom:', error);
     return NextResponse.json(
-      { valid: false, message: 'Cupom inválido ou expirado.' },
+      { valid: false, message: 'Cupom inválido ou expirado.', code: 'coupon_invalid' },
       { status: 400 }
     );
   }
 }
-

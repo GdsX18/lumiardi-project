@@ -5,6 +5,20 @@
 import { NextResponse } from 'next/server';
 import { R2StorageService } from '@/lib/storage/r2Service';
 import { initDatabase, pool } from '@/lib/db';
+import { describePasswordIssues, getPasswordIssues, PasswordRequirement } from '@/lib/passwordPolicy';
+
+/**
+ * Valida a senha ANTES de gravar qualquer coisa e devolve exatamente o que falta,
+ * para o formulário destacar os requisitos pendentes. null = senha válida.
+ */
+export function weakPasswordResponse(password: unknown): NextResponse | null {
+  const issues: PasswordRequirement[] = getPasswordIssues(password);
+  if (issues.length === 0) return null;
+  return NextResponse.json(
+    { error: describePasswordIssues(issues), code: 'weak_password', issues },
+    { status: 400 }
+  );
+}
 
 const DATA_URL_RE = /^data:([a-z0-9.+/-]+);base64,/i;
 const ALLOWED_DOC_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -78,7 +92,7 @@ export function registrationErrorResponse(err: unknown, scope: string): NextResp
       );
     case 'WEAK_PASSWORD':
       return NextResponse.json(
-        { error: 'A senha precisa ter de 8 a 128 caracteres, com letras e números.', code: 'weak_password' },
+        { error: describePasswordIssues([]), code: 'weak_password' },
         { status: 400 }
       );
     case 'DATABASE_UNAVAILABLE':

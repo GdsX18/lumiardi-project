@@ -37,6 +37,7 @@ import {
   Lock,
   Headphones,
   CreditCard,
+  Ticket,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -44,6 +45,7 @@ import { MediaLightboxModal, MediaItem } from '@/components/admin/MediaLightboxM
 import { CurationDossierExport } from '@/components/admin/CurationDossierExport';
 import { CurationTeamTab } from '@/components/admin/CurationTeamTab';
 import { AuditLogsTab } from '@/components/admin/AuditLogsTab';
+import { CouponsTab } from '@/components/admin/CouponsTab';
 import { AdminChatTab } from '@/components/admin/AdminChatTab';
 import { InterviewQueueTab } from '@/components/admin/InterviewQueueTab';
 import { AdminNotice } from '@/components/admin/AdminNotice';
@@ -61,7 +63,7 @@ interface Metrics {
 }
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'interviews' | 'team' | 'audit' | 'chat'>('criadora');
+  const [activeTab, setActiveTab] = useState<'criadora' | 'agencia' | 'interviews' | 'team' | 'audit' | 'chat' | 'coupons'>('criadora');
   const [currentCurator, setCurrentCurator] = useState<{
     id: string;
     email: string;
@@ -237,7 +239,7 @@ export default function AdminDashboardPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
-      if (tab === 'chat' || tab === 'team' || tab === 'audit' || tab === 'criadora' || tab === 'agencia' || tab === 'interviews') {
+      if (tab === 'chat' || tab === 'team' || tab === 'audit' || tab === 'criadora' || tab === 'agencia' || tab === 'interviews' || tab === 'coupons') {
         setActiveTab(tab as any);
       }
     }
@@ -626,6 +628,18 @@ export default function AdminDashboardPage() {
               </button>
 
               <button
+                onClick={() => setActiveTab('coupons')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
+                  activeTab === 'coupons'
+                    ? 'bg-gold text-black-matte font-bold shadow-md shadow-gold/20'
+                    : 'bg-[#121212] text-ivory/70 hover:text-ivory border border-white/[0.08]'
+                }`}
+              >
+                <Ticket className="w-3.5 h-3.5" />
+                <span>Cupons & Parcerias</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('chat')}
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-sans uppercase tracking-widest transition-all rounded-sm cursor-pointer ${
                   activeTab === 'chat'
@@ -701,6 +715,8 @@ export default function AdminDashboardPage() {
           {activeTab === 'audit' && (
             <AuditLogsTab currentCuratorRole={currentCurator?.curationRole || 'admin'} />
           )}
+
+          {activeTab === 'coupons' && <CouponsTab />}
 
           {activeTab === 'interviews' && (
             <InterviewQueueTab

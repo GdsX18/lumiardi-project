@@ -6,6 +6,7 @@ import { getVerifiedAdminSession, invalidateAdminCache } from '@/lib/apiAuth';
 import crypto from 'crypto';
 import { getClientIp } from '@/lib/security/rateLimiter';
 import type { CurationRole } from '@/types';
+import { describePasswordIssues, getPasswordIssues } from '@/lib/passwordPolicy';
 
 const VALID_ROLES: CurationRole[] = ['curador_junior', 'curador_senior', 'supervisor', 'admin'];
 
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       const code = err instanceof Error ? err.message : '';
       if (code === 'WEAK_PASSWORD') {
-        return NextResponse.json({ error: 'A senha precisa ter pelo menos 8 caracteres, com letras e números.', code: 'weak_password' }, { status: 400 });
+        return NextResponse.json({ error: describePasswordIssues(getPasswordIssues(password)), code: 'weak_password' }, { status: 400 });
       }
       if (code === 'EMAIL_IN_USE') {
         return NextResponse.json({ error: 'Já existe um membro com este e-mail.', code: 'email_in_use' }, { status: 409 });

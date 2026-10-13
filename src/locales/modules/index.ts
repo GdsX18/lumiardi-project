@@ -5,6 +5,7 @@ import { publicFunnel } from './publicFunnel';
 import { dashboardPages } from './dashboardPages';
 import { dashboardWidgets } from './dashboardWidgets';
 import { apiErrors } from './apiErrors';
+import { authSecurity } from './authSecurity';
 
 export const MODULE_TRANSLATIONS: ModuleTranslations[] = [
   legalDocs,
@@ -13,4 +14,5 @@ export const MODULE_TRANSLATIONS: ModuleTranslations[] = [
   dashboardPages,
   dashboardWidgets,
   apiErrors,
+  authSecurity,
 ];

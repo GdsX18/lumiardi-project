@@ -7,6 +7,7 @@ import { PlanId, BillingInterval } from '@/lib/payments/types';
 import { initDatabase, withTransaction } from '@/lib/db';
 import { cache } from '@/lib/cache';
 import { StorageService } from '@/services/storageService';
+import { CouponService } from '@/services/couponService';
 
 type NotificationInput = Parameters<typeof StorageService.createNotification>[0];
 
@@ -247,6 +248,22 @@ async function handleEvent(
         await client.query('UPDATE coupons SET times_used = times_used + 1 WHERE UPPER(code) = $1', [
           couponCode.trim().toUpperCase(),
         ]);
+        const listAmount = interval === 'yearly' ? plan.priceBRL.yearly * 12 : plan.priceBRL.monthly;
+        await CouponService.recordRedemption(
+          {
+            couponCode,
+            userId,
+            planId: plan.id,
+            billingInterval: interval,
+            originalAmount: listAmount,
+            discountAmount: Math.max(0, Math.round((listAmount - amount) * 100) / 100),
+            finalAmount: amount,
+            currency: 'BRL',
+            subscriptionId: subscription.id,
+            paymentReference: paymentId,
+          },
+          client
+        );
       }
 
       // Promove para APROVADO só quem já foi aprovada pela curadoria para pagamento (nunca pula a curadoria)

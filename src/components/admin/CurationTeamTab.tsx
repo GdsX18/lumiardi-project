@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput, PasswordRequirements } from '@/components/ui/PasswordInput';
 import { AdminUser, CurationRole } from '@/types';
 
 interface CurationTeamTabProps {
@@ -466,17 +467,16 @@ export const CurationTeamTab: React.FC<CurationTeamTabProps> = ({ currentCurator
                 <label className="block text-[11px] font-sans text-ivory/70 uppercase tracking-wider mb-1">
                   Senha Provisória
                 </label>
-                <div className="relative">
-                  <Key className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Mínimo 6 caracteres"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-[#181818] border border-white/15 focus:border-gold pl-9 pr-3 py-2 text-xs text-ivory outline-none rounded-xs"
-                  />
-                </div>
+                <PasswordInput
+                  required
+                  autoComplete="new-password"
+                  placeholder="Mínimo 8 caracteres, com letras e números"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  leftIcon={<Key className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ivory/40" />}
+                  className="w-full bg-[#181818] border border-white/15 focus:border-gold pl-9 py-2 text-xs text-ivory outline-none rounded-xs"
+                />
+                <PasswordRequirements password={newPassword} />
               </div>
 
               <div>
