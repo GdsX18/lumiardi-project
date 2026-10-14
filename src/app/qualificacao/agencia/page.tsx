@@ -75,12 +75,14 @@ function AgenciaQualificacaoContent() {
   const [basicData, setBasicData] = useState<{
     responsibleName: string;
     taxId: string;
+    whatsapp: string;
     corporateEmail: string;
     password: string;
     document: DocumentUploadPayload | null;
   }>({
     responsibleName: '',
     taxId: '', // CPF ou CNPJ
+    whatsapp: '',
     corporateEmail: '',
     password: '',
     document: null,
@@ -150,6 +152,11 @@ function AgenciaQualificacaoContent() {
     // Mesma política do servidor (lib/passwordPolicy): falhar aqui evita perder as etapas 2 e 3
     if (!isStrongPassword(basicData.password)) {
       setSubmissionError(t('api_err_weak_password'));
+      return;
+    }
+
+    if (basicData.whatsapp.replace(/\D/g, '').length < 10) {
+      setSubmissionError(t('pub_qual_err_whatsapp_required'));
       return;
     }
 
@@ -227,6 +234,8 @@ function AgenciaQualificacaoContent() {
         basicInfo: {
           responsibleName: basicData.responsibleName,
           taxId: basicData.taxId,
+          whatsapp: basicData.whatsapp,
+          phone: basicData.whatsapp,
           corporateEmail: basicData.corporateEmail,
           // Sem este campo a API recebia senha vazia e recusava o cadastro com "weak_password"
           password: basicData.password.trim(),
@@ -504,6 +513,34 @@ function AgenciaQualificacaoContent() {
                           className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
                         />
                         <PasswordRequirements tone="light" password={basicData.password} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[#0B0B0B]/80 font-medium mb-1 uppercase tracking-wider">
+                          {t('pub_qual_whatsapp_label')}
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="(11) 99999-9999"
+                          value={basicData.whatsapp}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '');
+                            if (val.length > 11) val = val.substring(0, 11);
+                            if (val.length > 6) {
+                              val = `(${val.substring(0, 2)}) ${val.substring(2, 7)}-${val.substring(7)}`;
+                            } else if (val.length > 2) {
+                              val = `(${val.substring(0, 2)}) ${val.substring(2)}`;
+                            }
+                            setBasicData({ ...basicData, whatsapp: val });
+                          }}
+                          className="w-full px-4 py-3 border border-[#0B0B0B]/20 focus:outline-none focus:border-[#C9A96B] bg-[#FAF7F2] text-[#0B0B0B]"
+                        />
+                        <span className="text-[10px] text-[#0B0B0B]/60 mt-1 block">
+                          {t('pub_qual_whatsapp_hint')}
+                        </span>
                       </div>
                     </div>
 

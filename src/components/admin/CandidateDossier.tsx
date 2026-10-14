@@ -275,6 +275,8 @@ export function CandidateDossier({
 }) {
   const isAgency = app.role === 'agencia';
   const pre = app.preInterview || null;
+  // Agências gravam outra ficha em pre_interview (sobre nós, missão, valores, o que busca)
+  const agencyPre = (pre || {}) as Partial<Record<'aboutUs' | 'mission' | 'values' | 'lookingFor', string>>;
   const prof = app.profile || {};
   const age = ageFrom(prof.birthDate);
   const plan = planLabel(app);
@@ -328,6 +330,7 @@ export function CandidateDossier({
               <Field label="Razão social / Agência" value={prof.corporateName || app.fullName} />
               <Field label="Responsável" value={prof.responsibleName || app.fullName} />
               <Field label="CNPJ" value={prof.cnpj || prof.documentNumber} mono />
+              <Field label="Localização" value={location} />
             </>
           ) : (
             <>
@@ -377,6 +380,18 @@ export function CandidateDossier({
           )}
         </div>
       </DossierSection>
+
+      {/* B — Ficha institucional da agência */}
+      {isAgency && (
+        <DossierSection letter="B" title="Apresentação da Agência" icon={Sparkles}>
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+            <Field label="Sobre a agência" value={agencyPre.aboutUs || prof.bio} />
+            <Field label="Missão" value={agencyPre.mission} />
+            <Field label="Valores" value={agencyPre.values} />
+            <Field label="O que busca na Lumiardi" value={agencyPre.lookingFor} accent="gold" />
+          </dl>
+        </DossierSection>
+      )}
 
       {/* B — Alinhamento Editorial & Limites (crítico) */}
       {!isAgency && (

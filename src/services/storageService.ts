@@ -2303,21 +2303,58 @@ export const StorageService = {
       updatedAt: now,
     };
 
+    const q = fullProfile.qualitative;
+    const commission = q.commissionPercentage === 'Outro a definir' && q.commissionCustom?.trim()
+      ? q.commissionCustom.trim()
+      : q.commissionPercentage || null;
+
     // users + profiles na mesma transação: falha parcial não deixa conta órfã
-    const user = await withTransaction((client) => this.registerUser({
-      id,
-      email: fullProfile.basicInfo.corporateEmail,
-      password: fullProfile.basicInfo.password,
-      fullName: fullProfile.basicInfo.responsibleName,
-      role: 'agencia',
-      instagram: fullProfile.qualitative.instagram,
-      documentName: fullProfile.basicInfo.document?.fileName || (fullProfile.basicInfo.document as any)?.name || 'contrato_social.pdf',
-      documentUrl: fullProfile.basicInfo.document?.fileUrl || fullProfile.basicInfo.document?.fileData || (fullProfile.basicInfo.document as any)?.url || '',
-      whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
-      phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
-      curationStatus: fullProfile.curationStatus,
-      twoFactorSecret: agencyData.twoFactorSecret,
-    }, client));
+    const user = await withTransaction(async (client) => {
+      const created = await this.registerUser({
+        id,
+        email: fullProfile.basicInfo.corporateEmail,
+        password: fullProfile.basicInfo.password,
+        fullName: fullProfile.basicInfo.responsibleName,
+        role: 'agencia',
+        instagram: q.instagram,
+        documentName: fullProfile.basicInfo.document?.fileName || (fullProfile.basicInfo.document as any)?.name || 'contrato_social.pdf',
+        documentUrl: fullProfile.basicInfo.document?.fileUrl || fullProfile.basicInfo.document?.fileData || (fullProfile.basicInfo.document as any)?.url || '',
+        whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
+        phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
+        curationStatus: fullProfile.curationStatus,
+        twoFactorSecret: agencyData.twoFactorSecret,
+      }, client);
+
+      // registerUser só conhece os campos da criadora: sem isto CNPJ, local, comissão e a ficha
+      // da agência (sobre nós, missão, valores, o que busca) se perdiam e o dossiê da curadoria vinha vazio
+      await client.query(
+        `UPDATE profiles SET
+           cnpj = $2,
+           responsible_name = $3,
+           address = $4,
+           commission_rate = $5,
+           bio = $6,
+           pre_interview = $7,
+           updated_at = NOW()
+         WHERE user_id = $1`,
+        [
+          created.id,
+          fullProfile.basicInfo.taxId?.trim() || null,
+          fullProfile.basicInfo.responsibleName || null,
+          JSON.stringify({ city: q.city || '', country: q.country || '' }),
+          commission,
+          q.aboutUs || null,
+          JSON.stringify({
+            aboutUs: q.aboutUs || '',
+            mission: q.mission || '',
+            values: q.values || '',
+            lookingFor: q.lookingFor || '',
+          }),
+        ]
+      );
+
+      return created;
+    });
 
     fullProfile.id = user.id;
     return fullProfile;
