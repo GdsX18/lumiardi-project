@@ -227,6 +227,12 @@ function AgenciaQualificacaoContent() {
       return;
     }
 
+    // A reunião agora é gravada na agenda da curadoria: nada de data inventada quando ninguém escolheu
+    if (!appointment.date || !appointment.timeSlot) {
+      setSubmissionError(t('pub_qual_err_schedule_required'));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -253,18 +259,14 @@ function AgenciaQualificacaoContent() {
           ...qualitativeData,
           instagram: qualitativeData.instagram.startsWith('@') ? qualitativeData.instagram : `@${qualitativeData.instagram}`,
         },
-        appointment: appointment.date ? appointment : {
-          date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-          timeSlot: '15:00',
-          status: 'scheduled',
-        },
+        appointment,
         curationStatus: 'submitted',
       };
 
       const res = await fetch('/api/agencies/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fullProfile, twoFactorEnrollmentToken: twoFactorToken }),
+        body: JSON.stringify({ ...fullProfile, planId: selectedPlan, billingInterval: selectedBilling, twoFactorEnrollmentToken: twoFactorToken }),
       });
 
       if (!res.ok) {

@@ -2290,14 +2290,17 @@ export const StorageService = {
     return fullProfile;
   },
 
-  async saveAgency(agencyData: Partial<CompleteAgencyProfile> & { twoFactorSecret?: string | null }): Promise<CompleteAgencyProfile> {
+  async saveAgency(agencyData: Partial<CompleteAgencyProfile> & { planId?: string; billingInterval?: string; twoFactorSecret?: string | null }): Promise<CompleteAgencyProfile> {
     const id = `agency-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     const now = new Date().toISOString();
+    const planId = agencyData.planId || 'select';
+    const billingInterval = agencyData.billingInterval || 'yearly';
 
     const fullProfile: CompleteAgencyProfile = {
       id,
       basicInfo: agencyData.basicInfo || ({} as CompleteAgencyProfile['basicInfo']),
       qualitative: agencyData.qualitative || ({} as CompleteAgencyProfile['qualitative']),
+      appointment: agencyData.appointment,
       curationStatus: (agencyData.curationStatus as CurationStatusType) || 'AGUARDANDO_REUNIAO',
       createdAt: agencyData.createdAt || now,
       updatedAt: now,
@@ -2322,8 +2325,28 @@ export const StorageService = {
         whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone,
         phone: fullProfile.basicInfo.phone || fullProfile.basicInfo.whatsapp,
         curationStatus: fullProfile.curationStatus,
+        planId,
+        billingInterval,
+        interviewDate: fullProfile.appointment?.date,
+        interviewTime: fullProfile.appointment?.timeSlot,
         twoFactorSecret: agencyData.twoFactorSecret,
       }, client);
+
+      // Reunião escolhida na etapa 3: antes era descartada e a agência não aparecia na agenda da curadoria
+      if (fullProfile.appointment?.date) {
+        await this.saveInterview({
+          userId: created.id,
+          fullName: fullProfile.basicInfo.responsibleName,
+          email: fullProfile.basicInfo.corporateEmail,
+          whatsapp: fullProfile.basicInfo.whatsapp || fullProfile.basicInfo.phone || '',
+          planId,
+          billingInterval,
+          interviewDate: fullProfile.appointment.date,
+          interviewTime: fullProfile.appointment.timeSlot,
+          status: 'aguardando_reuniao',
+          notes: fullProfile.appointment.notes,
+        }, client);
+      }
 
       // registerUser só conhece os campos da criadora: sem isto CNPJ, local, comissão e a ficha
       // da agência (sobre nós, missão, valores, o que busca) se perdiam e o dossiê da curadoria vinha vazio

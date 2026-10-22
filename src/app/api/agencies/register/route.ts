@@ -37,8 +37,20 @@ export async function POST(request: NextRequest) {
       sanitizedBody.qualitative.instagram = `@${sanitizedBody.qualitative.instagram.replace(/^@+/, '')}`;
     }
 
+    const appointment = sanitizedBody.appointment;
+    if (appointment && (!/^\d{4}-\d{2}-\d{2}$/.test(String(appointment.date)) || !/^\d{2}:\d{2}$/.test(String(appointment.timeSlot)))) {
+      return NextResponse.json({ error: 'Data ou horário da reunião inválidos.', code: 'invalid_input' }, { status: 400 });
+    }
+
+    // Valores fora do formato caem no padrão: um texto longo estouraria VARCHAR(50) e derrubaria o cadastro
+    const rawPlan = (rawBody as any).planId;
+    const planId = typeof rawPlan === 'string' && /^[a-z0-9_-]{1,50}$/i.test(rawPlan) ? rawPlan.toLowerCase() : 'select';
+    const billingInterval = (rawBody as any).billingInterval === 'monthly' ? 'monthly' : 'yearly';
+
     const savedProfile = await StorageService.saveAgency({
       ...sanitizedBody,
+      planId,
+      billingInterval,
       twoFactorSecret,
       curationStatus: 'EM_CURATORIA',
       createdAt: new Date().toISOString(),
@@ -53,7 +65,9 @@ export async function POST(request: NextRequest) {
       await StorageService.createNotification({
         userId: savedProfile.id,
         title: 'Cadastro Corporativo Submetido',
-        desc: 'Os dados da sua agência foram submetidos com sucesso e estão em auditoria pela Mesa de Curadoria.',
+        desc: appointment
+          ? `Os dados da sua agência estão em auditoria pela Mesa de Curadoria. Reunião agendada para ${appointment.date.split('-').reverse().join('/')} às ${appointment.timeSlot}.`
+          : 'Os dados da sua agência foram submetidos com sucesso e estão em auditoria pela Mesa de Curadoria.',
         category: 'Curadoria',
         type: 'info',
         link: '/dashboard/pendente',
