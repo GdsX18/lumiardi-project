@@ -1,0 +1,77 @@
+# PostgreSQL dedicado do Lumiardi (VPS KVM Hostinger).
+# A versão PRECISA ser 17: o Supabase de origem roda 17.6, e um dump do 17 não restaura com segurança em 15/16.
+#
+# Pré-requisitos no host (ver plano de migração):
+#   - ./certs/server.crt e ./certs/server.key (chown 70:70, chmod 600 na key; uid 70 = postgres na imagem alpine)
+#   - ./.env com POSTGRES_PASSWORD e APP_DB_PASSWORD
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lumiardi_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      POSTGRES_DB: lumiardi
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8"
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Defina APP_DB_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - listen_addresses=*
+      - -c
+      - max_connections=150
+      - -c
+      - superuser_reserved_connections=5
+      - -c
+      - idle_session_timeout=600000
+      - -c
+      - idle_in_transaction_session_timeout=60000
+      - -c
+      - statement_timeout=30000
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - ssl=on
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - ssl_cert_file=/etc/postgresql/certs/server.crt
+      - -c
+      - ssl_key_file=/etc/postgresql/certs/server.key
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - log_connections=on
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - timezone=UTC
+    ports:
+      # Exposto porque a Vercel não tem IP fixo; a proteção é hostssl + scram no pg_hba + firewall/fail2ban.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./certs:/etc/postgresql/certs:ro
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lumiardi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  pgdata:
+    driver: local

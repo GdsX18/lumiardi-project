@@ -1,0 +1,2 @@
+# Scripts e configs rodam dentro do container Linux: CRLF quebraria o sh e o pg_hba.
+* text eol=lf

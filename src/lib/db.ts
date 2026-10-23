@@ -12,16 +12,19 @@ declare global {
 }
 
 const isSupabase = connectionString.includes('supabase.com') || connectionString.includes('pooler.supabase.com');
+// Postgres próprio (ex.: VPS) exige SSL explícito via DATABASE_SSL=true; Supabase liga sozinho.
+const useSsl = isSupabase || process.env.DATABASE_SSL === 'true';
 
 export const pool = globalThis.__pgPool || new Pool({
   connectionString,
-  // Com DATABASE_CA_CERT (CA do Supabase, PEM) o certificado do servidor é verificado.
-  ssl: isSupabase
+  // Com DATABASE_CA_CERT (CA do servidor, PEM) o certificado e o hostname são verificados.
+  ssl: useSsl
     ? process.env.DATABASE_CA_CERT
       ? { ca: process.env.DATABASE_CA_CERT.replace(/\\n/g, '\n'), rejectUnauthorized: true }
       : { rejectUnauthorized: false }
     : undefined,
-  max: 20,
+  // Em serverless cada instância abre seu próprio pool; DATABASE_POOL_MAX limita o total no Postgres.
+  max: Number(process.env.DATABASE_POOL_MAX) || 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
