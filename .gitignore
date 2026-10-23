@@ -45,3 +45,9 @@ scratch/
 
 # Claude Code (configuração local)
 .claude/settings.local.json
+
+# Postgres dedicado (VPS): segredos, certificados e dumps nunca vão para o git
+!infra/postgres/.env.example
+infra/postgres/certs/
+infra/postgres/backups/
+*.dump
