@@ -38,7 +38,7 @@ export const ScrollProgressBar = () => {
   return (
     <div
       ref={barRef}
-      className="fixed top-0 left-0 right-0 z-[200] h-[2px] origin-left"
+      className="fixed top-[var(--safe-top)] left-0 right-0 z-[200] h-[2px] origin-left"
       style={{
         transform: 'scaleX(0)',
         transition: 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)',

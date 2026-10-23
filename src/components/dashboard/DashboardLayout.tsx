@@ -66,7 +66,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   animate={{ x: 0 }}
                   exit={{ x: -280 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                  className="fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#090909] border-r border-gold/30 shadow-2xl pt-14 lg:hidden overflow-y-auto"
+                  className="fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#090909] border-r border-gold/30 shadow-2xl pt-[calc(3.5rem+var(--safe-top))] lg:hidden overflow-y-auto"
                 >
                   <DashboardSidebar
                     className="w-full md:w-full"

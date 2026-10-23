@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { ScrollProgressBar } from "@/components/ui/ScrollProgressBar";
+import { StandaloneZoomGuard } from "@/components/ui/StandaloneZoomGuard";
 import { JsonLd } from "@/components/seo/JsonLd";
 
 const cormorant = Cormorant_Garamond({
@@ -27,7 +28,9 @@ export const viewport: Viewport = {
   themeColor: "#C9A96B",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 5,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -43,6 +46,15 @@ export const metadata: Metadata = {
   creator: "LUMIARDI",
   publisher: "LUMIARDI",
   category: "technology",
+  appleWebApp: {
+    capable: true,
+    title: "LUMIARDI",
+    statusBarStyle: "black-translucent",
+  },
+  // O Next emite só `mobile-web-app-capable`; versões antigas do iOS ainda leem a tag com prefixo.
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
   keywords: [
     "LUMIARDI",
     "gestão de criadoras",
@@ -133,6 +145,7 @@ export default function RootLayout({
         className="min-h-full flex flex-col bg-black-matte text-ivory font-sans overflow-x-hidden"
       >
         <JsonLd />
+        <StandaloneZoomGuard />
         <ScrollProgressBar />
         <Providers>{children}</Providers>
       </body>

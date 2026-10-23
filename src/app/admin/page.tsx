@@ -419,7 +419,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-[#070707] text-ivory flex flex-col selection:bg-gold selection:text-black-matte">
       {/* Header Executivo da Curadoria */}
-      <header className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-8 pt-[calc(0.875rem+var(--safe-top))] pb-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="relative w-8 h-8">
             <Image

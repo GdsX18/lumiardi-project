@@ -74,8 +74,8 @@ export const Header: React.FC = () => {
       <header
         className={`animate-header-enter fixed top-0 left-0 right-0 z-50 transition-colors duration-500 ${
           scrolled
-            ? 'bg-black/80 backdrop-blur-md py-3.5 border-b border-white/[0.06]'
-            : 'bg-transparent py-5'
+            ? 'bg-black/80 backdrop-blur-md pt-[calc(0.875rem+var(--safe-top))] pb-3.5 border-b border-white/[0.06]'
+            : 'bg-transparent pt-[calc(1.25rem+var(--safe-top))] pb-5'
         }`}
       >
         <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-8 md:px-12 lg:px-16 flex items-center justify-between">

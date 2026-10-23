@@ -51,7 +51,7 @@ export const MobileMenuDrawer: React.FC<MobileMenuDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-            className="fixed top-0 bottom-0 right-0 z-50 w-[82vw] max-w-sm bg-[#0C0C0C] border-l border-gold/20 p-6 flex flex-col justify-between shadow-2xl md:hidden overflow-y-auto"
+            className="fixed top-0 bottom-0 right-0 z-50 w-[82vw] max-w-sm bg-[#0C0C0C] border-l border-gold/20 p-6 pt-[calc(1.5rem+var(--safe-top))] flex flex-col justify-between shadow-2xl md:hidden overflow-y-auto"
           >
             <div>
               <div className="flex items-center justify-between pb-6 border-b border-white/10">

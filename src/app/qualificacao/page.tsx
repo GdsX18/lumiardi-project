@@ -479,7 +479,7 @@ function QualificacaoContent() {
       <Header />
 
       {/* Barra de progresso de etapas no topo */}
-      <div className="fixed top-0 left-0 right-0 z-40 h-[3px] bg-white/10 mt-16">
+      <div className="fixed top-0 left-0 right-0 z-40 h-[3px] bg-white/10 mt-[calc(4rem+var(--safe-top))]">
         <div
           className="h-full bg-gradient-to-r from-[#8C6B2F] via-[#C9A96B] to-[#D4B87A] transition-all duration-700"
           style={{ width: `${(currentStep / 3) * 100}%` }}

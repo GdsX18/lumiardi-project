@@ -73,7 +73,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   }));
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#080808]/95 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-8 py-3.5 flex items-center justify-between">
+    <header className="sticky top-0 z-40 w-full bg-[#080808]/95 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-8 pt-[calc(0.875rem+var(--safe-top))] pb-3.5 flex items-center justify-between">
       {/* Lado Esquerdo: Mobile Trigger + Logo + Status E2E */}
       <div className="flex items-center gap-4">
         {onToggleMobileMenu && (
